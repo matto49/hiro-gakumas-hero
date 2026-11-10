@@ -11,6 +11,8 @@
    考试外：停机报警），记 recover:tap_no_effect「重复无效动作」+ note「blunder:repeat_no_effect」。
    调用点：Session.record（每个有执行结果的决策步，签名 = 决策输入状态）、考试循环弹窗阶段（每轮点了东西又 continue，
    签名 = 本轮画面的手牌角标 / HUD）。
+   考试外第 REPEAT_MAX 次本身执行成功（ExecutionResult.ok）时先不停，再来一次才停（前几次失败、这一次做成的情况不误报；
+   DMM dmm1m 相談删 眠気）。
 2. 没进展停机（stalled）：局面签名（observe / record）和画面（看门狗每 5 秒采样，稳定变化才算）都 STALL_S 秒没变 →
    看门狗（kotonebot Loop 回调）抛 Stalled，停机报警、写 trace。
 """
