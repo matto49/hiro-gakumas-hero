@@ -642,3 +642,51 @@ def test_enhance_pick_verify_survives_slow_reads():
     page = Slow(f, {("prev", (141, 905)): "target", ("target", (364, 1160)): "after"}, "prev")
     assert kaa_patches.enhance_card(None, cid, **page.kw()) is True
     assert page.clicks[0] == (141, 905) and page.state == "after"
+
+
+DECK_DIALOG = Path(__file__).parent / "fixtures" / "deck_dialog"
+
+
+@pytest.mark.skipif(not (DECK_DIALOG / "dmm-remove-art-loading.jpg").is_file(), reason="需要实机截图 tests/fixtures/deck_dialog/")
+def test_read_loaded_waits_for_card_art():
+    """DMM 版 dmm1m 相談删 眠気：对话框刚打开时下面几行卡面是白色占位（19 格认不出 18 格），拼接对不上；
+    read_loaded 隔一会儿重读，拿到卡图加载好的那一帧（20 格全认出）。"""
+    import cv2
+
+    from hiro.loop import kaa_patches as kp
+
+    loading = cv2.imread(str(DECK_DIALOG / "dmm-remove-art-loading.jpg"))
+    loaded = cv2.imread(str(DECK_DIALOG / "dmm-remove-art-loaded.jpg"))
+    frames = iter([loading, loading, loaded])
+    t = [0.0]
+    img, d = kp.read_loaded(lambda: next(frames), kp.CARD_OP_REGION["remove"], sleep=lambda s: t.__setitem__(0, t[0] + s), clock=lambda: t[0])
+    assert len(d["cards"]) == 20 and all(c.get("card_id") for c in d["cards"])
+    assert img is loaded and t[0] <= 1.0
+
+
+def test_read_loaded_gives_up_when_no_progress():
+    """真认不出的卡（素材没有）：连续几次没变好就停，不等满 timeout。"""
+    import numpy as np
+
+    from hiro.loop import kaa_patches as kp
+
+    blank = np.zeros((1280, 720, 3), np.uint8)
+    calls = {"n": 0}
+
+    def shoot():
+        calls["n"] += 1
+        return blank
+
+    def fake_read(img, region):
+        return {"cards": [{"card_id": None}, {"card_id": "x"}]}
+
+    import hiro.vision.deck as deck
+
+    orig = deck.read_card_dialog
+    deck.read_card_dialog = fake_read
+    try:
+        t = [0.0]
+        kp.read_loaded(shoot, (0, 0, 1, 1), sleep=lambda s: t.__setitem__(0, t[0] + s), clock=lambda: t[0])
+    finally:
+        deck.read_card_dialog = orig
+    assert calls["n"] == 1 + kp.CARD_ART_STALL

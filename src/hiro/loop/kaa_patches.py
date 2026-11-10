@@ -61,6 +61,9 @@ CARD_OP_SCROLL_PX = 160  # 卡格内一次滑约 1 行多（行距 147）：露 
 # 以前滑 294（2 行），第十六、十七局轮间强化都滑过了头，「第 2 屏和上一屏没有重叠的行」→ 拼接不可信
 CARD_OP_SWIPE_DURATION, CARD_OP_SCROLL_SETTLE, CARD_OP_MAX_SCREENS = 1.0, 0.8, 10
 CARD_OP_DONE_TIMEOUT = 10.0
+# 卡图延迟加载（DMM 版 2026-11-10 dmm1m 相談删 眠気：对话框刚打开 / 刚滑出来的几行卡面还是白色占位，认不出 →
+# 相邻两屏对不上「没有重叠的行」、拼出 38 张；第 3 次卡图已缓存才拼对）。有格子认不出就隔一会儿重读，直到全认出或不再变好
+CARD_ART_WAIT_S, CARD_ART_POLL, CARD_ART_STALL = 4.0, 0.4, 3
 # 点卡后先等选中框 / 上方详情切过去再核对，且至少看 3 帧（第二十三局录像时读一次卡格数秒：5 秒里只看了点完立刻截的一帧，
 # 读到的总是上一张选中的卡，连续 3 次「选中不符」停机——画面上其实已经选中了目标）
 CARD_OP_PICK_SETTLE, CARD_OP_PICK_CHECKS = 0.6, 3
@@ -71,6 +74,32 @@ PITEM_ACQUIRE_BTN = (240, 1045, 240, 70)  # 「受け取る」按钮区（x, y, 
 PITEM_LIT_TIMEOUT = 4.0  # 点包后等按钮变亮
 PITEM_ACQUIRE_TIMEOUT = 5.0  # 点「受け取る」后等按钮消失
 PITEM_TRIES = 2
+
+
+def read_loaded(shoot, region, sleep=time.sleep, img=None, *, clock=time.monotonic, timeout: float = CARD_ART_WAIT_S) -> tuple:
+    """read_card_dialog，但有格子认不出（卡图还在加载）时隔 CARD_ART_POLL 秒重截重读：全认出、连续 CARD_ART_STALL 次
+    没变好（真认不出的卡）或到 timeout 就停，返回认得最全的那一次 (img, dialog)。"""
+    from hiro.vision.deck import read_card_dialog
+
+    img = shoot() if img is None else img
+    d = read_card_dialog(img, region)
+
+    def unknown(dd):
+        return sum(c.get("card_id") is None for c in dd["cards"])
+
+    t0, stall, waited = clock(), 0, False
+    while unknown(d) and stall < CARD_ART_STALL and clock() - t0 < timeout:
+        sleep(CARD_ART_POLL)
+        waited = True
+        im2 = shoot()
+        d2 = read_card_dialog(im2, region)
+        if unknown(d2) < unknown(d) or len(d2["cards"]) > len(d["cards"]):
+            img, d, stall = im2, d2, 0
+        else:
+            stall += 1
+    if waited:
+        logger.info("卡格等卡图加载 %.1fs：还有 %d 格认不出", clock() - t0, unknown(d))
+    return img, d
 
 
 def _progress(why: str) -> None:
@@ -248,8 +277,8 @@ def scan_dialog_deck(region: tuple[int, int, int, int], *, expected: int | None 
     shoot = shoot or device.screenshot
     swipe = swipe or (lambda x1, y1, x2, y2: device.swipe(x1, y1, x2, y2, duration=CARD_OP_SWIPE_DURATION))
     max_screens = max_screens or CARD_OP_MAX_SCREENS
-    img = shoot()
-    first = read_card_dialog(img, region)["cards"]
+    img, d0 = read_loaded(shoot, region, sleep)
+    first = d0["cards"]
     if not first or not dialog_scroll(img, region)["scrollable"]:
         return {"cards": first, "complete": bool(first), "screens": 1, "problems": [] if first else ["卡格没读到"]}
     screens = [first]
@@ -258,8 +287,9 @@ def scan_dialog_deck(region: tuple[int, int, int, int], *, expected: int | None 
     for _ in range(max_screens):
         _dialog_swipe(region, True, swipe)
         sleep(CARD_OP_SCROLL_SETTLE)
-        frames.append(shoot())
-        screens.append(read_card_dialog(frames[-1], region)["cards"])
+        im, d = read_loaded(shoot, region, sleep)
+        frames.append(im)
+        screens.append(d["cards"])
         merged = merge_dialog_screens(screens, expected=expected)
         if merged["new_rows"][-1] == 0:
             break
@@ -498,6 +528,8 @@ def _card_op(kind: str, card_id: str | None, *, shoot=None, click=None, clock=ti
         return bool(got["d"]["cards"])
 
     ok, img = run.until(has_cards, CARD_OP_TIMEOUT)
+    if ok:
+        img, got["d"] = read_loaded(run.shoot, region, sleep, img)  # 卡图还在加载的格子等它出来
     run.snap(img, "deck")
     cards = got.get("d", {}).get("cards") or []
     can_cancel = shop.cancel_visible(img)
@@ -523,8 +555,8 @@ def _card_op(kind: str, card_id: str | None, *, shoot=None, click=None, clock=ti
         y = region[3] - 60 if up else region[1] + 60
         swipe(360, y, 360, y - CARD_OP_SCROLL_PX if up else y + CARD_OP_SCROLL_PX)
         sleep(CARD_OP_SCROLL_SETTLE)
-        im = run.shoot()
-        return im, read_card_dialog(im, region)["cards"]
+        im, d = read_loaded(run.shoot, region, sleep)
+        return im, d["cards"]
 
     deck_cards = cards
     need_deck = not card_id and choose is not None  # 决策要在整副牌里挑：先读完整副，拼接可信才交给它
