@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 PAGE = "SPECIAL_GUIDANCE"
 OPTION_CENTER = (442, 1009)  # r10 第 19 天识别值；有 page_fields.options 时以识别为准
 TITLE = ("特別指導",)
+SELECTED_HINT = ("カスタマイズできます", "スキルカードをカスタマイズ")  # 选中「特別指導」后浮出的说明（等第二下确认）
 GRID_X0, GRID_Y0, GRID_STEP, GRID_COLS, GRID_ROWS = 140, 458, 147, 4, 3
 SG_COLS, SG_ROW0, SG_PITCH = (119, 279, 438, 599), 707, 160  # 选卡页卡格（刚进来未滚动；识别 352f383 实测中心）
 CUSTOMIZE_TAP, BACK_TAP, EXEC_TAP = (360, 1083), (213, 1083), (497, 1083)
@@ -85,6 +86,14 @@ def enter(
         ok, img = r.until(lambda im: find_text(r.ocr(im), TITLE, region=label) is None, ENTER_TIMEOUT / 2)
         if ok:
             break
+    if not ok:
+        # DMM dmm2 选拔第 19 天：两下里丢了一下，画面停在「特別指導」已选中、等确认（上方浮出「…カスタマイズできます」说明），
+        # 判「没进去」后改休息，之后被别的点击确认进了定制页、空等 183s 停机。看得到选中说明就再点一下确认；看不到（第二下多半
+        # 已经确认、只是切换慢）就不点，多等一个 ENTER_TIMEOUT
+        if find_text(r.ocr(img), SELECTED_HINT) is not None:
+            r.snap(img, "selected-not-confirmed")
+            r.tap(pos)
+        ok, img = r.until(lambda im: find_text(r.ocr(im), TITLE, region=label) is None, ENTER_TIMEOUT)
     r.snap(img, "entered")
     if not ok:
         return r.result(False, f"点「特別指導」{len(r.taps)} 次后仍在选行动页")
@@ -164,6 +173,23 @@ def _wait(r: Run, check, timeout=STEP_TIMEOUT):
     return res, img, got.get("b", [])
 
 
+_DASHES = str.maketrans({"一": "ー", "－": "ー", "-": "ー", "―": "ー", "ｰ": "ー"})
+
+
+def _name_in(boxes, name: str, region) -> bool:
+    """卡名在不在区域里：长音符号统一后再比（RapidOCR 常把「ー」读成「一」，DMM dmm2 第 19 天「えいえいおー+」对不上，退回一览）。"""
+    want = name.replace(" ", "").translate(_DASHES)
+    for text, _, (x1, y1, x2, y2) in boxes:
+        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+        if region[0] <= cx <= region[2] and region[1] <= cy <= region[3] and want in text.replace(" ", "").translate(_DASHES):
+            return True
+    return False
+
+
+LEAVE_RETAP_S = 1.5  # 点了「終了」这么久还在定制页、按钮还在：重新找位置再点（最多 LEAVE_RETAPS 次）
+LEAVE_RETAPS = 3
+
+
 def _leave(r: Run) -> bool:
     """点「終了」（菜单页 (653,977) / 选卡页 (653,1083)，按 OCR 找），有「特別指導終了確認」就点「終了する」，直到离开定制页。"""
     from hiro.produce.ops import find_text as ft
@@ -185,6 +211,7 @@ def _leave(r: Run) -> bool:
         return False
     r.tap(end)
     last = [r.clock()]
+    retaps = [0]
 
     def gone(bx, im):
         if (c := ft(bx, ("終了する",), region=BOTTOM_RIGHT)) is not None and r.clock() - last[0] >= 0.8:
@@ -196,6 +223,14 @@ def _leave(r: Run) -> bool:
             r.tap(TOAST_TAP)
             last[0] = r.clock()
             return False
+        if on_page(bx) and ft(bx, ("終了確認",)) is None and r.clock() - last[0] >= LEAVE_RETAP_S and retaps[0] < LEAVE_RETAPS:
+            # 点的时候画面还在切（菜单页「一覧に戻る」后立刻找「終了」，拿到的是菜单页位置 (653,977)，切回一览后那里是卡格，
+            # DMM dmm2 点成了选中一张卡）：按当前画面重新找「終了」再点
+            if (e := ft(bx, ("終了",), region=(560, 940, 720, 1120))) is not None:
+                r.tap(e)
+                last[0] = r.clock()
+                retaps[0] += 1
+                return False
         return not on_page(bx) and ft(bx, ("終了確認",)) is None
 
     ok, img, _ = _wait(r, gone, DONE_TIMEOUT)
@@ -264,7 +299,7 @@ def customize(
     r.snap(img, "menu")
     if not ok:
         return r.result(False, "点「カスタマイズ」后没进定制菜单")
-    if name and find_text(boxes, (name.rstrip("+"),), region=(150, 150, 720, 520)) is None:
+    if name and not _name_in(boxes, name.rstrip("+"), (150, 150, 720, 520)):
         r.tap(BACK_TAP)
         return r.result(False, f"菜单页的卡不是「{name}」，已回到一览")
     done = 0
