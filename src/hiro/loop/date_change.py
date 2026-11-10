@@ -107,10 +107,14 @@ def recover_to_home(shoot: Callable, click: Callable[[int, int], None], ocr: Cal
         elif _event_login_bonus(img):
             # 活动登录奖励（「開催期間」白字；奖励里有「ジュエル」，会命中下面的购买字样）：点底部空白翻页。
             # DMM dmm2 日切换「学マス水曜日」送 250 ジュエル：以前停在这里等不存在的「閉じる」，240s 后停机
-            from hiro.vision.quick import LOGIN_BONUS_TAP
+            # 但限时扭蛋 / 礼包 / 公告也印「開催期間」，底部中间是「引く」「購入」：有这些字就不点，等「閉じる」
+            if _purchase_texts([t for t, _ in texts]):
+                logger.info("日期切换：「開催期間」页面有购买类按钮，不点，等「閉じる」")
+            else:
+                from hiro.vision.quick import LOGIN_BONUS_TAP
 
-            logger.info("日期切换：活动登录奖励，点底部空白")
-            click(*LOGIN_BONUS_TAP)
+                logger.info("日期切换：活动登录奖励，点底部空白")
+                click(*LOGIN_BONUS_TAP)
         elif any(any(k in t for k in PURCHASE_HINTS) for t, _ in texts):
             logger.info("日期切换：画面有购买相关字样，不点空白，等「閉じる」")
         elif _safe_step(assist, img, boxes):
@@ -120,6 +124,13 @@ def recover_to_home(shoot: Callable, click: Callable[[int, int], None], ocr: Cal
         sleep(interval)
     logger.warning("日期切换：%.0fs 内没回到首页", timeout)
     return False
+
+
+def _purchase_texts(texts) -> bool:
+    """「開催期間」页面上有「引く」「購入」「ガシャ」「パック」「円」：是扭蛋 / 礼包 / 商店，不按登录奖励点底部中间。"""
+    from hiro.vision.quick import has_purchase_words
+
+    return has_purchase_words(texts)
 
 
 def _event_login_bonus(img) -> bool:

@@ -43,6 +43,23 @@ from cv2.typing import MatLike
 
 TEMPLATES = Path(__file__).with_name("templates")
 SKIP_TAP = (12, 12)
+# 「開催期間」页面上有这些字就不是登录奖励（扭蛋 / 礼包 / 商店公告）。「ジュエル」不算：登录奖励本身就送ジュエル
+EVENT_PURCHASE_WORDS = ("引く", "購入", "ガシャ", "パック", "円")
+EVENT_PURCHASE_STRIP = (900, 1280)  # 只 OCR 屏幕下部（按钮 / 价格所在），约 50ms
+
+
+def has_purchase_words(texts) -> bool:
+    return any(w in t.replace(" ", "") for t in texts for w in EVENT_PURCHASE_WORDS)
+
+
+def event_purchase_page(img) -> bool:
+    """「開催期間」页面下部有购买类按钮 / 价格（「回引く」也含「引く」）。"""
+    from hiro.vision.ocr import ocr
+
+    y1, y2 = EVENT_PURCHASE_STRIP
+    return has_purchase_words(t for t, _ in ocr(img[y1:y2]))
+
+
 LOGIN_BONUS_TAP = (360, 1180)  # 活动登录奖励：底部空白（正中央是道具框，点它不翻页；执行 23e6965 实机验证）
 DECK_LIST_CLOSE = (360, 1157)  # 牌组一览底部「閉じる」（同总控 controller.DECK_LIST_CLOSE）
 DIALOG_HEADER_MAX_Y = 1100
@@ -286,6 +303,9 @@ def quick_page(img: MatLike) -> dict | None:
     if _white_hit(img, "quick_event_period"):  # 开源版不带活动 Logo 美术模板，只靠「開催期間」白字（全帧验证可单独认出）
         # 日切换（04:00）后的活动登录奖励弹窗（每周三「学マス水曜日」：道具图标 + 数量，没有按钮）：点空白就过。
         # 第二十六局开局前收尾阶段卡 180 秒（协调 2026-11-04）；收尾 / 回首页阶段由执行接推进器调 quick_page
+        if event_purchase_page(img):
+            # 限时扭蛋 / 礼包 / 活动公告也可能印着「開催期間」，底部中间正是「引く」「購入」：不当登录奖励点，交回原来的等待
+            return done("TRANSITION", fields={"kind": "event_purchase"})
         return done("TRANSITION", tap=LOGIN_BONUS_TAP, fields={"kind": "login_bonus"})
     if _white_hit(img, "quick_now_loading") or _white_hit(img, "quick_now_loading2"):
         return done("LOADING")  # 不是浅蓝底的读取画面（HIF 蓝紫 / 「移動中」）：第十七局选拔 #395 #431

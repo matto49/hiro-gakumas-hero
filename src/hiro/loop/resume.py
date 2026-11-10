@@ -76,6 +76,28 @@ def _click_resume_by_ocr() -> bool:
     return True
 
 
+LOGIN_BONUS_MAX_PAGES = 10
+
+
+def skip_login_bonus(*, shoot=None, click=None, sleep=time.sleep) -> bool:
+    """续跑开局停在活动登录奖励（培育外）上：点底部空白翻掉，返回翻过没有。
+    DMM dmm2 -r4：画面认不出就当「已在培育内（unknown）」进了主循环，翻过奖励后到首页却不会点「プロデュース中」，眼看 180s 停机。"""
+    from hiro.vision.quick import quick_page
+
+    shoot = shoot or device.screenshot
+    click = click or (lambda x, y: device.click(x, y))
+    tapped = False
+    for _ in range(LOGIN_BONUS_MAX_PAGES):
+        q = quick_page(shoot())
+        if not q or q.get("page") != "TRANSITION" or (q.get("fields") or {}).get("kind") != "login_bonus" or not q.get("tap"):
+            break
+        logger.info("续跑开局：活动登录奖励，点底部空白 %s", q["tap"])
+        click(*q["tap"])
+        tapped = True
+        sleep(1.5)
+    return tapped
+
+
 def enter_produce(*, timeout: float = ENTER_TIMEOUT) -> str:
     """从首页进入进行中的培育。返回进入方式：already / resumed。"""
     from hiro.vision.scene import classify_current
@@ -84,6 +106,8 @@ def enter_produce(*, timeout: float = ENTER_TIMEOUT) -> str:
     if _click_resume_by_ocr():
         # 首页上挂着「プロデュース再開」对话框时 at_home 为假、整页判 unknown，旧逻辑当成「已在培育内」直接开主循环（第二十局 04:02）
         return "resumed"
+    if not at_home() and skip_login_bonus():
+        device.screenshot()
     if not at_home():
         scene = classify_current()
         if scene.area == "produce" or scene.scene in ("commu", "unknown"):
