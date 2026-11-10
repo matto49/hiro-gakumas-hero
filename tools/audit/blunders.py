@@ -849,7 +849,7 @@ def write(name: str, segs: list[Segment], findings: list[Finding], out_dir: Path
 
 
 # ------------------------------------------------------------------ 基线
-PREFIX = os.environ.get("HIRO_TRACE_PREFIX", "run")  # trace 基名前缀：<PREFIX>-<qualify|main><N>-<日期>-<时间>
+PREFIX = os.environ.get("HIRO_TRACE_PREFIX", "")  # trace 基名前缀（tools/play_game 同一个变量）：[<PREFIX>-]<qualify|main><N>-<日期>-<时间>
 
 
 def games(traces: Path, numbers=range(9, 13), modes=("qualify", "main")) -> dict[str, list[str]]:
@@ -857,7 +857,7 @@ def games(traces: Path, numbers=range(9, 13), modes=("qualify", "main")) -> dict
     out: dict[str, list[str]] = {}
     for mode in modes:
         for n in numbers:
-            bases = sorted({re.sub(r"-r\d+$", "", p.name) for p in traces.glob(f"{PREFIX}-{mode}{n}-*")})
+            bases = sorted({re.sub(r"-r\d+$", "", p.name) for p in traces.glob(f"{PREFIX + '-' if PREFIX else ''}{mode}{n}-*")})
             if bases:
                 out[f"{mode}{n}"] = bases
     return out
