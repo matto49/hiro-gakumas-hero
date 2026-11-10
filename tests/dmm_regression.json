@@ -1,0 +1,4704 @@
+[
+ {
+  "file": "maindmm1m-20261110-205150-00051.jpg",
+  "note": "maindmm1m-20261110-205150",
+  "quick": "ACQUIRE",
+  "scene": "ACQUIRE",
+  "fields": {
+   "kind": "drink",
+   "drink_id": "pdrink_00-2-008"
+  },
+  "page": "ACQUIRE",
+  "quick_fields": {
+   "kind": "drink",
+   "drink_id": "pdrink_00-2-008"
+  },
+  "tap": [
+   12,
+   12
+  ]
+ },
+ {
+  "file": "maindmm1m-20261110-205150-00058.jpg",
+  "note": "maindmm1m-20261110-205150",
+  "quick": null,
+  "scene": "ACTION_SELECT",
+  "fields": {
+   "exam": "H.I.F本戦",
+   "days_left": 4,
+   "stamina": 22,
+   "max_stamina": 33,
+   "p_points": 250,
+   "params": {
+    "vo": 1473,
+    "da": 2336,
+    "vi": 1207
+   },
+   "param_caps": {
+    "vo": 3200,
+    "da": 3200,
+    "vi": 3200
+   },
+   "growth_pct": {
+    "vo": 45.5,
+    "da": 44.4,
+    "vi": 41.3
+   },
+   "star": 731,
+   "options": [
+    {
+     "kind": "rest",
+     "hp_gain": 11
+    },
+    {
+     "kind": "outing"
+    },
+    {
+     "kind": "present"
+    }
+   ],
+   "complete": true,
+   "drinks": [
+    "pdrink_00-3-001",
+    "pdrink_00-2-008"
+   ],
+   "drink_capacity": 4
+  },
+  "page": "ACTION_SELECT"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-00069.jpg",
+  "note": "maindmm1m-20261110-205150",
+  "quick": null,
+  "scene": "SELECT_DRINK",
+  "fields": {
+   "options": [
+    {
+     "slot": 0,
+     "asset_id": "img_general_pdrink_2-001"
+    },
+    {
+     "slot": 1,
+     "asset_id": "img_general_pdrink_3-010"
+    },
+    {
+     "slot": 2,
+     "asset_id": "img_general_pdrink_3-006"
+    }
+   ],
+   "held": [
+    {
+     "index": 0,
+     "drink_id": "pdrink_00-3-001"
+    },
+    {
+     "index": 1,
+     "drink_id": "pdrink_00-2-008"
+    }
+   ],
+   "full": false
+  },
+  "page": "SELECT_DRINK"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-00072.jpg",
+  "note": "maindmm1m-20261110-205150",
+  "quick": "GIFT",
+  "scene": "GIFT",
+  "fields": {
+   "bag": [
+    468,
+    606
+   ]
+  },
+  "page": "GIFT",
+  "quick_fields": {
+   "bag": [
+    468,
+    606
+   ]
+  },
+  "tap": [
+   468,
+   606
+  ]
+ },
+ {
+  "file": "maindmm1m-20261110-205150-00075.jpg",
+  "note": "maindmm1m-20261110-205150｜第 1 张 ノートの端の決意 没强化（看图无「+」，原来肤色插图 921 红像素误判强化，Mac / Windows 都错）",
+  "quick": null,
+  "scene": "SELECT_CARD",
+  "fields": {
+   "options": [
+    {
+     "slot": 0,
+     "recommended": false,
+     "card_id": "p_card-02-men-3_041",
+     "upgrade": 0,
+     "genki_cost": 4
+    },
+    {
+     "slot": 1,
+     "recommended": true,
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 0,
+     "genki_cost": 4
+    },
+    {
+     "slot": 2,
+     "recommended": true,
+     "card_id": "p_card-02-men-2_054",
+     "upgrade": 0,
+     "genki_cost": 5
+    }
+   ],
+   "recommended": 1,
+   "excludes_left": 0,
+   "rerolls_left": 0
+  },
+  "page": "SELECT_CARD"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-00088.jpg",
+  "note": "maindmm1m-20261110-205150｜授業选项页；STUDY 交给 KAA 判（scene 不断言）",
+  "quick": null,
+  "page": "STUDY",
+  "fields": {
+   "choices": [
+    {
+     "index": 0,
+     "cost_hp": 5,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 1,
+     "cost_hp": 5,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 2,
+     "trouble": true,
+     "selected": true
+    }
+   ],
+   "selected": 2,
+   "complete": true
+  }
+ },
+ {
+  "file": "maindmm1m-20261110-205150-00092.jpg",
+  "note": "maindmm1m-20261110-205150",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_1",
+  "fields": {
+   "candidates": [
+    {
+     "index": 0,
+     "slot": 0,
+     "card_id": "p_card-02-act-2_047",
+     "upgrade": 0,
+     "recommended": true
+    },
+    {
+     "index": 1,
+     "slot": 1,
+     "card_id": "p_card-02-men-3_043",
+     "upgrade": 0,
+     "recommended": false
+    },
+    {
+     "index": 2,
+     "slot": 2,
+     "card_id": "p_card-02-men-2_054",
+     "upgrade": 0,
+     "recommended": true
+    }
+   ],
+   "recommended": 0,
+   "complete": true
+  },
+  "page": "SKILL_CARD_CHANGE_1"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-00094.jpg",
+  "note": "maindmm1m-20261110-205150",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_2",
+  "fields": {
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": false
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-3_039",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 8,
+     "row": 2,
+     "col": 0,
+     "card_id": "p_card-02-act-3_186",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 9,
+     "row": 2,
+     "col": 1,
+     "card_id": "p_card-02-ido-3_105",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 10,
+     "row": 2,
+     "col": 2,
+     "card_id": "p_card-00-sup-3_093",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 11,
+     "row": 2,
+     "col": 3,
+     "card_id": "p_card-02-men-1_006",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    }
+   ]
+  },
+  "page": "SKILL_CARD_CHANGE_2"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-00242.jpg",
+  "note": "maindmm1m-20261110-205150",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_1",
+  "fields": {
+   "candidates": [
+    {
+     "index": 0,
+     "slot": 0,
+     "card_id": "p_card-02-act-2_047",
+     "upgrade": 0,
+     "recommended": true
+    },
+    {
+     "index": 1,
+     "slot": 1,
+     "card_id": "p_card-02-men-3_043",
+     "upgrade": 0,
+     "recommended": false
+    },
+    {
+     "index": 2,
+     "slot": 2,
+     "card_id": "p_card-02-men-2_054",
+     "upgrade": 0,
+     "recommended": true
+    }
+   ],
+   "recommended": 0,
+   "complete": true
+  },
+  "page": "SKILL_CARD_CHANGE_1"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-00244.jpg",
+  "note": "maindmm1m-20261110-205150",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_2",
+  "fields": {
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": false
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-3_039",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 8,
+     "row": 2,
+     "col": 0,
+     "card_id": "p_card-02-act-3_186",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 9,
+     "row": 2,
+     "col": 1,
+     "card_id": "p_card-02-ido-3_105",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 10,
+     "row": 2,
+     "col": 2,
+     "card_id": "p_card-00-sup-3_093",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 11,
+     "row": 2,
+     "col": 3,
+     "card_id": "p_card-02-men-1_006",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    }
+   ]
+  },
+  "page": "SKILL_CARD_CHANGE_2"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-r3-00001.jpg",
+  "note": "maindmm1m-20261110-205150-r3",
+  "quick": null,
+  "scene": "CONSULT",
+  "fields": {
+   "shelf": [
+    {
+     "index": 0,
+     "kind": "card",
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 1,
+     "price": 53,
+     "sale": true,
+     "purchased": false
+    },
+    {
+     "index": 1,
+     "kind": "card",
+     "card_id": "p_card-02-men-2_056",
+     "upgrade": 1,
+     "price": 77,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 2,
+     "kind": "card",
+     "card_id": "p_card-02-men-1_032",
+     "upgrade": 1,
+     "price": 70,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 3,
+     "kind": "card",
+     "card_id": "p_card-02-men-2_054",
+     "upgrade": 1,
+     "price": 77,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 4,
+     "kind": "drink",
+     "drink_id": "pdrink_00-2-008",
+     "price": 52,
+     "sale": true,
+     "purchased": false
+    },
+    {
+     "index": 5,
+     "kind": "drink",
+     "drink_id": "pdrink_00-1-001",
+     "price": 50,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 6,
+     "kind": "drink",
+     "drink_id": "pdrink_00-1-004",
+     "price": 50,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 7,
+     "kind": "drink",
+     "drink_id": "pdrink_02-3-010",
+     "price": 100,
+     "sale": false,
+     "purchased": false
+    }
+   ],
+   "services": {
+    "upgrade": {
+     "price": 150,
+     "available": true
+    },
+    "delete": {
+     "price": 125,
+     "available": true
+    }
+   },
+   "complete": true,
+   "drinks": [
+    "pdrink_00-3-001",
+    "pdrink_00-2-008",
+    "pdrink_02-3-010",
+    "pdrink_02-3-010"
+   ],
+   "drink_capacity": 4,
+   "stamina": 9,
+   "max_stamina": 33,
+   "produce_point": 280
+  },
+  "page": "CONSULT"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-r3-00002.jpg",
+  "note": "maindmm1m-20261110-205150-r3",
+  "quick": null,
+  "scene": "CONSULT",
+  "fields": {
+   "shelf": [
+    {
+     "index": 0,
+     "kind": "card",
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 1,
+     "price": 53,
+     "sale": true,
+     "purchased": false
+    },
+    {
+     "index": 1,
+     "kind": "card",
+     "card_id": "p_card-02-men-2_056",
+     "upgrade": 1,
+     "price": 77,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 2,
+     "kind": "card",
+     "card_id": "p_card-02-men-1_032",
+     "upgrade": 1,
+     "price": 70,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 3,
+     "kind": "card",
+     "card_id": "p_card-02-men-2_054",
+     "upgrade": 1,
+     "price": 77,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 4,
+     "kind": "drink",
+     "drink_id": "pdrink_00-2-008",
+     "price": 52,
+     "sale": true,
+     "purchased": false
+    },
+    {
+     "index": 5,
+     "kind": "drink",
+     "drink_id": "pdrink_00-1-001",
+     "price": 50,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 6,
+     "kind": "drink",
+     "drink_id": "pdrink_00-1-004",
+     "price": 50,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 7,
+     "kind": "drink",
+     "drink_id": "pdrink_02-3-010",
+     "price": 100,
+     "sale": false,
+     "purchased": false
+    }
+   ],
+   "services": {
+    "upgrade": {
+     "price": 150,
+     "available": true
+    },
+    "delete": {
+     "price": 125,
+     "available": true
+    }
+   },
+   "complete": true,
+   "drinks": [
+    "pdrink_00-3-001",
+    "pdrink_00-2-008",
+    "pdrink_02-3-010",
+    "pdrink_02-3-010"
+   ],
+   "drink_capacity": 4,
+   "stamina": 9,
+   "max_stamina": 33,
+   "produce_point": 280
+  },
+  "page": "CONSULT"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-r3-00071.jpg",
+  "note": "maindmm1m-20261110-205150-r3",
+  "quick": null,
+  "scene": "HIF_FINALS_RANKING",
+  "fields": {
+   "kind": "standings",
+   "next": true,
+   "finals_round": 1,
+   "final": false
+  },
+  "page": "HIF_FINALS_RANKING"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-r3-00074.jpg",
+  "note": "maindmm1m-20261110-205150-r3",
+  "quick": null,
+  "scene": "HIF_EXAM",
+  "fields": {
+   "remaining_turns": 9,
+   "attr": "vocal",
+   "multiplier_pct": 2805,
+   "finals_round": 1,
+   "my_rank_index": 3,
+   "my_score": 0,
+   "finals": true,
+   "genki": 0,
+   "hp": 27,
+   "pitem_charges": 5,
+   "drinks": [
+    {
+     "slot": 0,
+     "asset": "img_general_pdrink_3-001"
+    },
+    {
+     "slot": 1,
+     "asset": "img_general_pdrink_2-008"
+    },
+    {
+     "slot": 2,
+     "asset": "img_general_pdrink_3-010"
+    },
+    {
+     "slot": 3,
+     "asset": "img_general_pdrink_3-010"
+    }
+   ],
+   "drink_slots": [
+    {
+     "slot": 0,
+     "state": "drink",
+     "drink_id": "pdrink_00-3-001",
+     "asset": "img_general_pdrink_3-001",
+     "available": true
+    },
+    {
+     "slot": 1,
+     "state": "drink",
+     "drink_id": "pdrink_00-2-008",
+     "asset": "img_general_pdrink_2-008",
+     "available": true
+    },
+    {
+     "slot": 2,
+     "state": "drink",
+     "drink_id": "pdrink_02-3-010",
+     "asset": "img_general_pdrink_3-010",
+     "available": true
+    },
+    {
+     "slot": 3,
+     "state": "drink",
+     "drink_id": "pdrink_02-3-010",
+     "asset": "img_general_pdrink_3-010",
+     "available": true
+    }
+   ],
+   "statuses": [
+    {
+     "slot": 0,
+     "kind": "status",
+     "value": 6
+    },
+    {
+     "slot": 1,
+     "kind": "status",
+     "value": 6
+    }
+   ],
+   "status": {
+    "examcardplayaggressive": 6,
+    "examreview": 6
+   },
+   "hand": [
+    {
+     "slot": 0,
+     "available": true,
+     "art_consensus": 5,
+     "plus": 1,
+     "card_id": "p_card-02-men-2_100",
+     "upgrade": 1,
+     "genki_cost": 1
+    },
+    {
+     "slot": 1,
+     "available": true,
+     "art_consensus": 5,
+     "plus": 0,
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 0,
+     "genki_cost": 4
+    },
+    {
+     "slot": 2,
+     "available": true,
+     "art_consensus": 5,
+     "plus": 1,
+     "card_id": "p_card-02-act-2_047",
+     "upgrade": 1,
+     "hp_cost": 3,
+     "badge_score": 337
+    }
+   ],
+   "hand_layout": "ok",
+   "unrecognized_cards": 0,
+   "multiplier_votes": [
+    2805,
+    2805
+   ]
+  },
+  "page": "HIF_EXAM"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-r3-00107.jpg",
+  "note": "maindmm1m-20261110-205150-r3",
+  "quick": null,
+  "scene": "HIF_ROUND_INTERVAL",
+  "fields": {
+   "stamina": 17,
+   "max_stamina": 33,
+   "produce_point": 428,
+   "interval": {
+    "cards": [
+     {
+      "index": 0,
+      "price": 50,
+      "purchased": false,
+      "card_id": "p_card-02-act-2_047",
+      "upgrade": 1
+     },
+     {
+      "index": 1,
+      "price": 30,
+      "purchased": false,
+      "card_id": "p_card-02-act-1_028",
+      "upgrade": 1
+     },
+     {
+      "index": 4,
+      "price": 50,
+      "purchased": false,
+      "card_id": "p_card-02-men-3_041",
+      "upgrade": 0
+     },
+     {
+      "index": 5,
+      "price": 30,
+      "purchased": false,
+      "card_id": "p_card-02-men-1_006",
+      "upgrade": 1
+     }
+    ],
+    "changes": [
+     {
+      "index": 2,
+      "price": 30,
+      "purchased": false,
+      "card_id": "p_card-00-men-1_005",
+      "upgrade": 0
+     },
+     {
+      "index": 3,
+      "price": 50,
+      "purchased": false,
+      "card_id": "p_card-00-men-2_014",
+      "upgrade": 0
+     }
+    ],
+    "drinks": [
+     {
+      "index": 6,
+      "price": 100,
+      "purchased": false,
+      "drink_id": "pdrink_02-3-006"
+     },
+     {
+      "index": 7,
+      "price": 75,
+      "purchased": false,
+      "drink_id": "pdrink_00-2-001"
+     }
+    ],
+    "upgrade": {
+     "price": 100,
+     "available": true,
+     "left": 1
+    },
+    "customize": {
+     "left": 2
+    },
+    "recover": {
+     "available": true,
+     "price_per_2hp": 10
+    },
+    "refresh": {
+     "price": 10,
+     "available": true
+    }
+   },
+   "complete": true
+  },
+  "page": "HIF_ROUND_INTERVAL"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-r3-00112.jpg",
+  "note": "maindmm1m-20261110-205150-r3",
+  "quick": null,
+  "scene": "HIF_ROUND_INTERVAL",
+  "fields": {
+   "stamina": 17,
+   "max_stamina": 33,
+   "produce_point": 258,
+   "interval": {
+    "cards": [
+     {
+      "index": 0,
+      "price": 50,
+      "purchased": false,
+      "card_id": "p_card-02-men-2_008",
+      "upgrade": 1
+     },
+     {
+      "index": 1,
+      "price": 30,
+      "purchased": false,
+      "card_id": "p_card-02-men-1_006",
+      "upgrade": 1
+     },
+     {
+      "index": 4,
+      "price": 80,
+      "purchased": false,
+      "card_id": "p_card-02-men-3_044",
+      "upgrade": 1
+     },
+     {
+      "index": 5,
+      "price": 50,
+      "purchased": false,
+      "card_id": "p_card-02-men-2_054",
+      "upgrade": 1
+     }
+    ],
+    "changes": [
+     {
+      "index": 2,
+      "price": 50,
+      "purchased": false,
+      "card_id": "p_card-02-men-2_056",
+      "upgrade": 0
+     },
+     {
+      "index": 3,
+      "price": 80,
+      "purchased": false,
+      "card_id": "p_card-02-men-3_040",
+      "upgrade": 0
+     }
+    ],
+    "drinks": [
+     {
+      "index": 6,
+      "price": 100,
+      "purchased": false,
+      "drink_id": "pdrink_00-3-001"
+     },
+     {
+      "index": 7,
+      "price": 100,
+      "purchased": false,
+      "drink_id": "pdrink_02-3-007"
+     }
+    ],
+    "upgrade": {
+     "price": 100,
+     "available": true,
+     "left": 1
+    },
+    "customize": {
+     "left": 2
+    },
+    "recover": {
+     "available": true,
+     "price_per_2hp": 10
+    },
+    "refresh": {
+     "price": 20,
+     "available": true
+    }
+   },
+   "complete": true
+  },
+  "page": "HIF_ROUND_INTERVAL"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-r3-00178.jpg",
+  "note": "maindmm1m-20261110-205150-r3",
+  "quick": null,
+  "scene": "HIF_FINALS_RANKING",
+  "fields": {
+   "kind": "final",
+   "round_score": 109780,
+   "next": false,
+   "my_score": 343039,
+   "rank": 3,
+   "my_gain": 109780,
+   "finals_round": 2,
+   "final": true,
+   "outcome": "敗退",
+   "retry": {
+    "left": 3,
+    "free": false
+   },
+   "passed": false
+  },
+  "page": "HIF_FINALS_RANKING"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-r3-00201.jpg",
+  "note": "maindmm1m-20261110-205150-r3",
+  "quick": null,
+  "scene": "HIF_EXAM",
+  "fields": {
+   "remaining_turns": 5,
+   "attr": "visual",
+   "multiplier_pct": 1576,
+   "finals_round": 2,
+   "my_rank_index": 3,
+   "my_score": 28663,
+   "finals": true,
+   "genki": 343,
+   "hp": 14,
+   "pitem_charges": 4,
+   "drinks": [
+    {
+     "slot": 0,
+     "asset": "img_general_pdrink_3-001"
+    },
+    null,
+    null,
+    null
+   ],
+   "drink_slots": [
+    {
+     "slot": 0,
+     "state": "drink",
+     "drink_id": "pdrink_00-3-001",
+     "asset": "img_general_pdrink_3-001",
+     "available": true
+    },
+    {
+     "slot": 1,
+     "state": "empty"
+    },
+    {
+     "slot": 2,
+     "state": "empty"
+    },
+    {
+     "slot": 3,
+     "state": "empty"
+    }
+   ],
+   "statuses": [
+    {
+     "slot": 0,
+     "kind": "status",
+     "value": 58
+    },
+    {
+     "slot": 1,
+     "kind": "enchant",
+     "asset": "img_general_skillcard_men-1_026"
+    },
+    {
+     "slot": 2,
+     "kind": "status",
+     "value": 10
+    },
+    {
+     "slot": 3,
+     "kind": "enchant",
+     "asset": "img_general_skillcard_act-3_045-hski",
+     "value": 2
+    },
+    {
+     "slot": 4,
+     "kind": "enchant",
+     "card_id": "p_card-02-men-2_004",
+     "asset": "img_general_skillcard_men-2_004-shro"
+    },
+    {
+     "slot": 5,
+     "kind": "enchant",
+     "card_id": "p_card-02-ido-3_105",
+     "asset": "img_general_skillcard_ido-3_105"
+    },
+    {
+     "slot": 6,
+     "kind": "enchant",
+     "card_id": "p_card-02-act-3_186",
+     "asset": "img_general_skillcard_act-3_186-fktn",
+     "value": 2
+    },
+    {
+     "slot": 7,
+     "kind": "enchant",
+     "card_id": "p_card-02-act-3_186",
+     "asset": "img_general_skillcard_act-3_186-nasr"
+    }
+   ],
+   "status": {
+    "examcardplayaggressive": 58,
+    "examlessonvaluemultiple": 10
+   },
+   "hand": [
+    {
+     "slot": 0,
+     "available": true,
+     "art_consensus": 1,
+     "card_id": "p_card-02-sup-3_182",
+     "genki_cost": 4
+    },
+    {
+     "slot": 1,
+     "available": true,
+     "art_consensus": 1,
+     "card_id": "p_card-02-act-1_028",
+     "hp_cost": 4
+    },
+    {
+     "slot": 2,
+     "available": true,
+     "art_consensus": 5,
+     "plus": 0,
+     "card_id": "p_card-02-men-2_111",
+     "upgrade": 0,
+     "genki_cost": 5
+    },
+    {
+     "slot": 3,
+     "available": true,
+     "art_consensus": 5,
+     "card_id": "p_card-02-act-3_039",
+     "hp_cost": 1
+    },
+    {
+     "slot": 4,
+     "available": true,
+     "art_consensus": 1,
+     "plus": 1,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 1,
+     "genki_cost": 2
+    }
+   ],
+   "hand_layout": "ok",
+   "unrecognized_cards": 0,
+   "multiplier_votes": [
+    1576,
+    1576
+   ]
+  },
+  "page": "HIF_EXAM"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-r3-00290.jpg",
+  "note": "maindmm1m-20261110-205150-r3",
+  "quick": null,
+  "scene": "HIF_EXAM",
+  "fields": {
+   "remaining_turns": 1,
+   "attr": "vocal",
+   "multiplier_pct": 2324,
+   "finals_round": 2,
+   "my_rank_index": 3,
+   "my_score": 327080,
+   "finals": true,
+   "genki": 117,
+   "hp": 13,
+   "pitem_charges": 3,
+   "drinks": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "drink_slots": [
+    {
+     "slot": 0,
+     "state": "empty"
+    },
+    {
+     "slot": 1,
+     "state": "empty"
+    },
+    {
+     "slot": 2,
+     "state": "empty"
+    },
+    {
+     "slot": 3,
+     "state": "empty"
+    }
+   ],
+   "statuses": [
+    {
+     "slot": 0,
+     "kind": "status",
+     "value": 119
+    },
+    {
+     "slot": 1,
+     "kind": "status",
+     "value": 4
+    }
+   ],
+   "status": {
+    "examcardplayaggressive": 119,
+    "examreview": 4
+   },
+   "hand": [
+    {
+     "slot": 0,
+     "available": true,
+     "art_consensus": 1,
+     "plus": 0,
+     "card_id": "p_card-02-men-1_006",
+     "upgrade": 0
+    },
+    {
+     "slot": 1,
+     "available": true,
+     "art_consensus": 5,
+     "plus": 1,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "badge_score": 2998
+    }
+   ],
+   "hand_layout": "ok",
+   "unrecognized_cards": 0,
+   "multiplier_votes": [
+    2324,
+    2324
+   ]
+  },
+  "page": "HIF_EXAM"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-r3-00298.jpg",
+  "note": "maindmm1m-20261110-205150-r3",
+  "quick": null,
+  "scene": "PRODUCE_END",
+  "page": "PRODUCE_END"
+ },
+ {
+  "file": "maindmm1m-20261110-205150-r3-00299.jpg",
+  "note": "maindmm1m-20261110-205150-r3",
+  "quick": null,
+  "scene": "PRODUCE_END",
+  "page": "PRODUCE_END"
+ },
+ {
+  "file": "maindmm1m-resume1-00002.jpg",
+  "note": "换卡阶段 2 牌组：4 张 ゆるふわおしゃべり 强化 1/1/1/0（第 4 张没强化）、きらきら紙吹雪+；DMM 实机认成 4 张都强化，换卡死循环（D9）",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_2",
+  "fields": {
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": false
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-3_039",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 8,
+     "row": 2,
+     "col": 0,
+     "card_id": "p_card-02-act-3_186",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 9,
+     "row": 2,
+     "col": 1,
+     "card_id": "p_card-02-ido-3_105",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 10,
+     "row": 2,
+     "col": 2,
+     "card_id": "p_card-00-sup-3_093",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 11,
+     "row": 2,
+     "col": 3,
+     "card_id": "p_card-02-men-1_006",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    }
+   ]
+  },
+  "page": "SKILL_CARD_CHANGE_2"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00002.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": "ACQUIRE",
+  "scene": "ACQUIRE",
+  "fields": {
+   "kind": "card",
+   "card_id": "p_card-02-act-1_037",
+   "upgrade": 1,
+   "agree": true
+  },
+  "page": "ACQUIRE",
+  "quick_fields": {
+   "kind": "card",
+   "card_id": "p_card-02-act-1_037",
+   "upgrade": 1
+  },
+  "tap": [
+   12,
+   12
+  ]
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00004.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": "STAR_GAIN",
+  "scene": "STAR_GAIN",
+  "fields": {
+   "gain": 15,
+   "star_shown": 7
+  },
+  "page": "STAR_GAIN",
+  "quick_fields": {
+   "gain": 15,
+   "star_shown": 7
+  },
+  "tap": [
+   12,
+   12
+  ]
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00011.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "ACTION_SELECT",
+  "fields": {
+   "exam": "選抜試験1",
+   "days_left": 6,
+   "stamina": 33,
+   "max_stamina": 33,
+   "p_points": 330,
+   "params": {
+    "vo": 230,
+    "da": 372,
+    "vi": 235
+   },
+   "param_caps": {
+    "vo": 3000,
+    "da": 3000,
+    "vi": 3000
+   },
+   "growth_pct": {
+    "vo": 45.5,
+    "da": 44.4,
+    "vi": 41.3
+   },
+   "star": 30,
+   "options": [
+    {
+     "kind": "consult"
+    },
+    {
+     "kind": "present"
+    },
+    {
+     "kind": "special_training"
+    }
+   ],
+   "complete": true,
+   "drink_capacity": 4
+  },
+  "page": "ACTION_SELECT"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00027.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": "GIFT",
+  "scene": "GIFT",
+  "fields": {
+   "bag": [
+    623,
+    673
+   ]
+  },
+  "page": "GIFT",
+  "quick_fields": {
+   "bag": [
+    623,
+    673
+   ]
+  },
+  "tap": [
+   623,
+   673
+  ]
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00038.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "SELECT_DRINK",
+  "fields": {
+   "options": [
+    {
+     "slot": 0,
+     "asset_id": "img_general_pdrink_3-001"
+    },
+    {
+     "slot": 1,
+     "asset_id": "img_general_pdrink_3-007"
+    },
+    {
+     "slot": 2,
+     "asset_id": "img_general_pdrink_2-009"
+    }
+   ],
+   "full": false
+  },
+  "page": "SELECT_DRINK"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00044.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "SELECT_CARD",
+  "fields": {
+   "options": [
+    {
+     "slot": 0,
+     "recommended": false,
+     "card_id": "p_card-02-men-1_009",
+     "upgrade": 0,
+     "genki_cost": 4
+    },
+    {
+     "slot": 1,
+     "recommended": false,
+     "card_id": "p_card-02-men-2_111",
+     "upgrade": 0,
+     "genki_cost": 5
+    },
+    {
+     "slot": 2,
+     "recommended": true,
+     "card_id": "p_card-02-men-1_006",
+     "upgrade": 0
+    }
+   ],
+   "recommended": 2,
+   "excludes_left": 3,
+   "rerolls_left": 4
+  },
+  "page": "SELECT_CARD"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00099.jpg",
+  "note": "qualifydmm1-20261110-192152｜授業选项页；STUDY 交给 KAA 判（scene 不断言）",
+  "quick": null,
+  "page": "STUDY",
+  "fields": {
+   "choices": [
+    {
+     "index": 0,
+     "cost_hp": 5,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 1,
+     "cost_hp": 5,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 2,
+     "trouble": true,
+     "selected": true
+    }
+   ],
+   "selected": 2,
+   "complete": true
+  }
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00161.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "OUTING",
+  "fields": {
+   "choices": [
+    {
+     "index": 0,
+     "cost_p": 50,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 1,
+     "trouble": true,
+     "selected": false
+    },
+    {
+     "index": 2,
+     "trouble": false,
+     "selected": true
+    }
+   ],
+   "selected": 2,
+   "complete": true
+  },
+  "page": "OUTING"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00176.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "SELECT_CARD",
+  "fields": {
+   "options": [
+    {
+     "slot": 0,
+     "recommended": true,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "hp_cost": 4
+    },
+    {
+     "slot": 1,
+     "recommended": false,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 1,
+     "genki_cost": 2
+    },
+    {
+     "slot": 2,
+     "recommended": false,
+     "card_id": "p_card-02-men-2_056",
+     "upgrade": 1,
+     "hp_cost": 4
+    }
+   ],
+   "recommended": 0,
+   "excludes_left": 1,
+   "rerolls_left": 0
+  },
+  "page": "SELECT_CARD"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00252.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": "HIF_EXAM_BRIEFING",
+  "scene": "HIF_EXAM_BRIEFING",
+  "fields": {
+   "exam_no": 1,
+   "rank_line": 64,
+   "participants": 128,
+   "star": 180,
+   "star_ok": true,
+   "params": {
+    "Vo": 542,
+    "Da": 780,
+    "Vi": 327
+   },
+   "multiplier_pct": {
+    "Vo": 1386,
+    "Da": 1467,
+    "Vi": 882
+   },
+   "complete": true,
+   "finals": false
+  },
+  "page": "HIF_EXAM_BRIEFING",
+  "quick_fields": {
+   "exam_no": 1,
+   "rank_line": 64,
+   "participants": 128,
+   "star": 180,
+   "star_ok": true,
+   "params": {
+    "Vo": 542,
+    "Da": 780,
+    "Vi": 327
+   },
+   "multiplier_pct": {
+    "Vo": 1386,
+    "Da": 1467,
+    "Vi": 882
+   },
+   "complete": true,
+   "finals": false
+  },
+  "tap": [
+   365,
+   1200
+  ]
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00257.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "HIF_EXAM",
+  "fields": {
+   "remaining_turns": 10,
+   "attr": "vocal",
+   "multiplier_pct": 1386,
+   "my_rank_index": 1,
+   "my_score": 0,
+   "rank_line": 64,
+   "participants": 128,
+   "finals": false,
+   "genki": 0,
+   "hp": 33,
+   "pitem_charges": 5,
+   "drinks": [
+    {
+     "slot": 0,
+     "asset": "img_general_pdrink_3-001"
+    },
+    {
+     "slot": 1,
+     "asset": "img_general_pdrink_2-010"
+    },
+    null,
+    null
+   ],
+   "drink_slots": [
+    {
+     "slot": 0,
+     "state": "drink",
+     "drink_id": "pdrink_00-3-001",
+     "asset": "img_general_pdrink_3-001",
+     "available": true
+    },
+    {
+     "slot": 1,
+     "state": "drink",
+     "drink_id": "pdrink_00-2-010",
+     "asset": "img_general_pdrink_2-010",
+     "available": true
+    },
+    {
+     "slot": 2,
+     "state": "empty"
+    },
+    {
+     "slot": 3,
+     "state": "empty"
+    }
+   ],
+   "statuses": [
+    {
+     "slot": 0,
+     "kind": "status",
+     "inactive": true,
+     "value": 0
+    },
+    {
+     "slot": 1,
+     "kind": "enchant",
+     "card_id": "p_card-02-men-2_052",
+     "asset": "img_general_skillcard_men-2_052-hski",
+     "value": 1
+    }
+   ],
+   "status": {
+    "examcardplayaggressive": 0
+   },
+   "hand": [
+    {
+     "slot": 0,
+     "available": true,
+     "art_consensus": 1,
+     "plus": 0,
+     "card_id": "p_card-02-men-0_041",
+     "upgrade": 0,
+     "genki_cost": 3
+    },
+    {
+     "slot": 1,
+     "available": true,
+     "art_consensus": 1,
+     "plus": 0,
+     "card_id": "p_card-02-men-0_039",
+     "upgrade": 0,
+     "genki_cost": 2
+    },
+    {
+     "slot": 2,
+     "available": true,
+     "art_consensus": 5,
+     "plus": 0,
+     "card_id": "p_card-02-men-2_052",
+     "upgrade": 0
+    }
+   ],
+   "hand_layout": "ok",
+   "unrecognized_cards": 0,
+   "multiplier_votes": [
+    1386,
+    1386
+   ]
+  },
+  "page": "HIF_EXAM"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00297.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": "SELECT_PITEM",
+  "scene": "SELECT_PITEM",
+  "fields": {
+   "options": [
+    {
+     "slot": 0,
+     "color": "yellow",
+     "selected": false
+    },
+    {
+     "slot": 1,
+     "color": "green",
+     "selected": false
+    },
+    {
+     "slot": 2,
+     "color": "red",
+     "selected": false
+    }
+   ],
+   "confirm_enabled": false
+  },
+  "page": "SELECT_PITEM"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00325.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "OUTING",
+  "fields": {
+   "choices": [
+    {
+     "index": 0,
+     "cost_p": 50,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 1,
+     "trouble": true,
+     "selected": false
+    },
+    {
+     "index": 2,
+     "trouble": false,
+     "selected": true
+    }
+   ],
+   "selected": 2,
+   "complete": true
+  },
+  "page": "OUTING"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00338.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": "ACQUIRE",
+  "scene": "ACQUIRE",
+  "fields": {
+   "kind": "card",
+   "card_id": "p_card-02-act-3_045",
+   "upgrade": 1,
+   "agree": true
+  },
+  "page": "ACQUIRE",
+  "quick_fields": {
+   "kind": "card",
+   "card_id": "p_card-02-act-3_045",
+   "upgrade": 1
+  },
+  "tap": [
+   12,
+   12
+  ]
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00340.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": "STAR_GAIN",
+  "scene": "STAR_GAIN",
+  "fields": {
+   "gain": 15,
+   "star_shown": 277
+  },
+  "page": "STAR_GAIN",
+  "quick_fields": {
+   "gain": 15,
+   "star_shown": 277
+  },
+  "tap": [
+   12,
+   12
+  ]
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00367.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "SKILL_CARD_ENHANCE",
+  "fields": {
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-act-0_038",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-men-0_039",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-men-0_039",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-men-0_039",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-men-1_006",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-men-2_004",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-men-2_052",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 8,
+     "row": 2,
+     "col": 0,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 9,
+     "row": 2,
+     "col": 1,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 10,
+     "row": 2,
+     "col": 2,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 11,
+     "row": 2,
+     "col": 3,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": true
+    }
+   ],
+   "cancelable": false
+  },
+  "page": "SKILL_CARD_ENHANCE"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00390.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "ACTION_SELECT",
+  "fields": {
+   "exam": "選抜試験2",
+   "days_left": 3,
+   "stamina": 20,
+   "max_stamina": 33,
+   "p_points": 450,
+   "params": {
+    "vo": 604,
+    "da": 1123,
+    "vi": 473
+   },
+   "param_caps": {
+    "vo": 3000,
+    "da": 3000,
+    "vi": 3000
+   },
+   "growth_pct": {
+    "vo": 45.5,
+    "da": 44.4,
+    "vi": 41.3
+   },
+   "star": 352,
+   "options": [
+    {
+     "kind": "rest",
+     "hp_gain": 13
+    },
+    {
+     "kind": "class",
+     "attr": "vo"
+    },
+    {
+     "kind": "class",
+     "attr": "da"
+    },
+    {
+     "kind": "class",
+     "attr": "vi"
+    }
+   ],
+   "complete": true,
+   "drinks": [
+    "pdrink_00-3-001",
+    "pdrink_00-3-005",
+    "pdrink_00-3-001",
+    "pdrink_00-3-001"
+   ],
+   "drink_capacity": 4
+  },
+  "page": "ACTION_SELECT"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00399.jpg",
+  "note": "qualifydmm1-20261110-192152｜授業选项页；STUDY 交给 KAA 判（scene 不断言）",
+  "quick": null,
+  "page": "STUDY",
+  "fields": {
+   "choices": [
+    {
+     "index": 0,
+     "cost_hp": 5,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 1,
+     "cost_hp": 5,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 2,
+     "trouble": true,
+     "selected": true
+    }
+   ],
+   "selected": 2,
+   "complete": true
+  }
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00403.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_1",
+  "fields": {
+   "candidates": [
+    {
+     "index": 0,
+     "slot": 0,
+     "card_id": "p_card-02-men-3_041",
+     "upgrade": 0,
+     "recommended": false
+    },
+    {
+     "index": 1,
+     "slot": 1,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 0,
+     "recommended": false
+    },
+    {
+     "index": 2,
+     "slot": 2,
+     "card_id": "p_card-02-men-3_043",
+     "upgrade": 0,
+     "recommended": false
+    }
+   ],
+   "complete": true
+  },
+  "page": "SKILL_CARD_CHANGE_1"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00405.jpg",
+  "note": "qualifydmm1-20261110-192152｜第 1 张是 仕草の基本（看图核对，DMM 实机原帧 Windows 认出）",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_2",
+  "fields": {
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "dimmed": false,
+     "card_id": "p_card-02-act-0_038",
+     "upgrade": 0,
+     "customized": false
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": false
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-3_039",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 8,
+     "row": 2,
+     "col": 0,
+     "card_id": "p_card-02-ido-3_105",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 9,
+     "row": 2,
+     "col": 1,
+     "card_id": "p_card-00-sup-3_093",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 10,
+     "row": 2,
+     "col": 2,
+     "card_id": "p_card-02-men-0_039",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 11,
+     "row": 2,
+     "col": 3,
+     "card_id": "p_card-02-men-0_039",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    }
+   ]
+  },
+  "page": "SKILL_CARD_CHANGE_2",
+  "xfail_on": {
+   "mac": "JPEG 样例上基础卡 仕草の基本 卡面特征少，KAA 匹配只有 2 票（门槛 MIN_VOTES=3）；实机原帧能认出。待识别加强（基础卡低票兜底）"
+  }
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00422.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "PDRINK_MAX",
+  "fields": {
+   "held": [
+    {
+     "index": 0,
+     "drink_id": "pdrink_00-3-001"
+    },
+    {
+     "index": 1,
+     "drink_id": "pdrink_00-3-005"
+    },
+    {
+     "index": 2,
+     "drink_id": "pdrink_00-3-001"
+    }
+   ],
+   "incoming": {
+    "index": 0,
+    "drink_id": "pdrink_00-2-010"
+   },
+   "incomings": [
+    {
+     "index": 0,
+     "drink_id": "pdrink_00-2-010"
+    }
+   ],
+   "select_left": 0,
+   "complete": false
+  },
+  "page": "PDRINK_MAX"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00449.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "CONSULT",
+  "fields": {
+   "shelf": [
+    {
+     "index": 0,
+     "kind": "card",
+     "card_id": "p_card-02-act-1_071",
+     "upgrade": 1,
+     "price": 49,
+     "sale": true,
+     "purchased": false
+    },
+    {
+     "index": 1,
+     "kind": "card",
+     "card_id": "p_card-00-act-2_009",
+     "upgrade": 0,
+     "price": 35,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 2,
+     "kind": "card",
+     "card_id": "p_card-02-men-2_111",
+     "upgrade": 0,
+     "price": 35,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 3,
+     "kind": "card",
+     "card_id": "p_card-02-men-1_006",
+     "upgrade": 1,
+     "price": 70,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 4,
+     "kind": "drink",
+     "drink_id": "pdrink_00-2-009",
+     "price": 52,
+     "sale": true,
+     "purchased": false
+    },
+    {
+     "index": 5,
+     "kind": "drink",
+     "drink_id": "pdrink_00-1-001",
+     "price": 50,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 6,
+     "kind": "drink",
+     "drink_id": "pdrink_02-1-006",
+     "price": 50,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 7,
+     "kind": "drink",
+     "drink_id": "pdrink_00-1-004",
+     "price": 50,
+     "sale": false,
+     "purchased": false
+    }
+   ],
+   "services": {
+    "upgrade": {
+     "price": 100,
+     "available": true
+    },
+    "delete": {
+     "price": 100,
+     "available": true
+    }
+   },
+   "rerolls_left": 1,
+   "complete": true,
+   "drinks": [
+    "pdrink_00-3-001",
+    "pdrink_00-3-001",
+    "pdrink_00-3-001",
+    "pdrink_00-2-010"
+   ],
+   "drink_capacity": 4,
+   "stamina": 7,
+   "max_stamina": 33,
+   "produce_point": 480
+  },
+  "page": "CONSULT"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00468.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": "HIF_EXAM_BRIEFING",
+  "scene": "HIF_EXAM_BRIEFING",
+  "fields": {
+   "exam_no": 2,
+   "rank_line": 32,
+   "participants": 64,
+   "star": 382,
+   "star_ok": true,
+   "params": {
+    "Vo": 841,
+    "Da": 1354,
+    "Vi": 484
+   },
+   "multiplier_pct": {
+    "Vo": 1832,
+    "Da": 2156,
+    "Vi": 1125
+   },
+   "complete": true,
+   "finals": false
+  },
+  "page": "HIF_EXAM_BRIEFING",
+  "quick_fields": {
+   "exam_no": 2,
+   "rank_line": 32,
+   "participants": 64,
+   "star": 382,
+   "star_ok": true,
+   "params": {
+    "Vo": 841,
+    "Da": 1354,
+    "Vi": 484
+   },
+   "multiplier_pct": {
+    "Vo": 1832,
+    "Da": 2156,
+    "Vi": 1125
+   },
+   "complete": true,
+   "finals": false
+  },
+  "tap": [
+   365,
+   1200
+  ]
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00523.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": "SELECT_PITEM",
+  "scene": "PITEM_CUSTOMIZE",
+  "page": "PITEM_CUSTOMIZE"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00541.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "SELECT_DRINK",
+  "fields": {
+   "options": [
+    {
+     "slot": 0,
+     "asset_id": "img_general_pdrink_3-001"
+    },
+    {
+     "slot": 1,
+     "asset_id": "img_general_pdrink_1-001"
+    },
+    {
+     "slot": 2,
+     "asset_id": "img_general_pdrink_1-006"
+    }
+   ],
+   "full": false
+  },
+  "page": "SELECT_DRINK"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00576.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "PDRINK_MAX_CONFIRM",
+  "page": "PDRINK_MAX_CONFIRM"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00585.jpg",
+  "note": "qualifydmm1-20261110-192152｜礼物箱，快速判页 GIFT 负责",
+  "quick": "GIFT",
+  "page": "GIFT",
+  "quick_fields": {
+   "bag": [
+    337,
+    709
+   ]
+  },
+  "tap": [
+   337,
+   709
+  ],
+  "fields": {}
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00620.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_1",
+  "fields": {
+   "candidates": [
+    {
+     "index": 0,
+     "slot": 0,
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 0,
+     "recommended": true
+    },
+    {
+     "index": 1,
+     "slot": 1,
+     "card_id": "p_card-02-men-2_056",
+     "upgrade": 0,
+     "recommended": false
+    },
+    {
+     "index": 2,
+     "slot": 2,
+     "card_id": "p_card-02-men-3_043",
+     "upgrade": 0,
+     "recommended": false
+    }
+   ],
+   "recommended": 0,
+   "complete": true
+  },
+  "page": "SKILL_CARD_CHANGE_1"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00622.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_2",
+  "fields": {
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": false
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-3_039",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 8,
+     "row": 2,
+     "col": 0,
+     "card_id": "p_card-02-act-3_186",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 9,
+     "row": 2,
+     "col": 1,
+     "card_id": "p_card-02-ido-3_105",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 10,
+     "row": 2,
+     "col": 2,
+     "card_id": "p_card-00-sup-3_093",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 11,
+     "row": 2,
+     "col": 3,
+     "card_id": "p_card-02-men-0_039",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    }
+   ]
+  },
+  "page": "SKILL_CARD_CHANGE_2"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00641.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "unknown",
+  "page": "unknown"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00644.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "PDRINK_MAX",
+  "fields": {
+   "held": [
+    {
+     "index": 0,
+     "drink_id": "pdrink_00-3-001"
+    },
+    {
+     "index": 1,
+     "drink_id": "pdrink_02-3-007"
+    },
+    {
+     "index": 2,
+     "partial": true
+    }
+   ],
+   "incoming": {
+    "index": 0,
+    "drink_id": "pdrink_02-3-010"
+   },
+   "incomings": [
+    {
+     "index": 0,
+     "drink_id": "pdrink_02-3-010"
+    }
+   ],
+   "select_left": 0,
+   "complete": false
+  },
+  "page": "PDRINK_MAX"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00651.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "PDRINK_MAX_CONFIRM",
+  "page": "PDRINK_MAX_CONFIRM"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00691.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "HIF_EXAM",
+  "fields": {
+   "remaining_turns": 9,
+   "attr": "visual",
+   "multiplier_pct": 1438,
+   "my_rank_index": 5,
+   "my_score": 1157,
+   "finals": false,
+   "genki": 61,
+   "hp": 20,
+   "pitem_charges": 5,
+   "drinks": [
+    {
+     "slot": 0,
+     "asset": "img_general_pdrink_3-001"
+    },
+    {
+     "slot": 1,
+     "asset": "img_general_pdrink_3-001"
+    },
+    {
+     "slot": 2,
+     "asset": "img_general_pdrink_3-010"
+    },
+    null
+   ],
+   "drink_slots": [
+    {
+     "slot": 0,
+     "state": "drink",
+     "drink_id": "pdrink_00-3-001",
+     "asset": "img_general_pdrink_3-001",
+     "available": true
+    },
+    {
+     "slot": 1,
+     "state": "drink",
+     "drink_id": "pdrink_00-3-001",
+     "asset": "img_general_pdrink_3-001",
+     "available": true
+    },
+    {
+     "slot": 2,
+     "state": "drink",
+     "drink_id": "pdrink_02-3-010",
+     "asset": "img_general_pdrink_3-010",
+     "available": true
+    },
+    {
+     "slot": 3,
+     "state": "empty"
+    }
+   ],
+   "statuses": [
+    {
+     "slot": 0,
+     "kind": "status",
+     "value": 24
+    },
+    {
+     "slot": 1,
+     "kind": "status",
+     "value": 6
+    },
+    {
+     "slot": 2,
+     "kind": "enchant",
+     "card_id": "p_card-02-men-2_052",
+     "asset": "img_general_skillcard_men-2_052-hski",
+     "value": 1
+    },
+    {
+     "slot": 3,
+     "kind": "enchant",
+     "card_id": "p_card-02-act-3_186",
+     "asset": "img_general_skillcard_act-3_186-fktn",
+     "value": 1
+    },
+    {
+     "slot": 4,
+     "kind": "enchant",
+     "card_id": "p_card-02-act-3_186",
+     "asset": "img_general_skillcard_act-3_186-nasr",
+     "value": 0
+    },
+    {
+     "slot": 5,
+     "kind": "enchant",
+     "card_id": "p_card-02-men-2_004",
+     "asset": "img_general_skillcard_men-2_004-shro"
+    },
+    {
+     "slot": 6,
+     "kind": "status",
+     "value": 10
+    },
+    {
+     "slot": 7,
+     "kind": "enchant",
+     "asset": "img_general_skillcard_act-3_045-hski",
+     "value": 5
+    }
+   ],
+   "status": {
+    "examcardplayaggressive": 24,
+    "examreview": 6,
+    "examlessonvaluemultiple": 10
+   },
+   "hand": [
+    {
+     "slot": 0,
+     "available": true,
+     "art_consensus": 1,
+     "card_id": "p_card-02-act-1_037",
+     "hp_cost": 3
+    },
+    {
+     "slot": 1,
+     "available": true,
+     "art_consensus": 1,
+     "card_id": "p_card-02-act-1_028",
+     "hp_cost": 4,
+     "badge_score": 777
+    },
+    {
+     "slot": 2,
+     "available": true,
+     "art_consensus": 5,
+     "plus": 1,
+     "card_id": "p_card-02-men-3_002",
+     "upgrade": 1
+    },
+    {
+     "slot": 3,
+     "available": true,
+     "art_consensus": 1,
+     "plus": 0,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 0,
+     "hp_cost": 4,
+     "badge_score": 590
+    }
+   ],
+   "hand_layout": "ok",
+   "unrecognized_cards": 0,
+   "multiplier_votes": [
+    1438,
+    1438
+   ]
+  },
+  "page": "HIF_EXAM"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00750.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "HIF_EXAM",
+  "fields": {
+   "remaining_turns": 1,
+   "attr": "vocal",
+   "multiplier_pct": 2311,
+   "my_rank_index": 1,
+   "my_score": 143069,
+   "rank_line": 16,
+   "participants": 32,
+   "finals": false,
+   "genki": 63,
+   "hp": 14,
+   "pitem_charges": 2,
+   "drinks": [
+    null,
+    null,
+    null,
+    null
+   ],
+   "drink_slots": [
+    {
+     "slot": 0,
+     "state": "empty"
+    },
+    {
+     "slot": 1,
+     "state": "empty"
+    },
+    {
+     "slot": 2,
+     "state": "empty"
+    },
+    {
+     "slot": 3,
+     "state": "empty"
+    }
+   ],
+   "statuses": [
+    {
+     "slot": 0,
+     "kind": "status",
+     "value": 65
+    },
+    {
+     "slot": 1,
+     "kind": "enchant",
+     "card_id": "p_card-02-men-2_052",
+     "asset": "img_general_skillcard_men-2_052-hski",
+     "value": 1
+    },
+    {
+     "slot": 2,
+     "kind": "enchant",
+     "card_id": "p_card-02-ido-3_105",
+     "asset": "img_general_skillcard_ido-3_105"
+    },
+    {
+     "slot": 3,
+     "kind": "enchant",
+     "card_id": "p_card-02-men-2_004",
+     "asset": "img_general_skillcard_men-2_004-shro"
+    },
+    {
+     "slot": 4,
+     "kind": "enchant",
+     "card_id": "p_card-02-act-1_037",
+     "asset": "img_general_skillcard_act-1_037",
+     "value": 2
+    },
+    {
+     "slot": 5,
+     "kind": "enchant",
+     "card_id": "p_card-02-act-1_037",
+     "asset": "img_general_skillcard_act-1_037",
+     "value": 2
+    }
+   ],
+   "status": {
+    "examcardplayaggressive": 65
+   },
+   "hand": [
+    {
+     "slot": 0,
+     "available": true,
+     "art_consensus": 5,
+     "plus": 1,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "badge_score": 1618
+    },
+    {
+     "slot": 1,
+     "available": true,
+     "art_consensus": 1,
+     "plus": 1,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "hp_cost": 4,
+     "badge_score": 1179
+    },
+    {
+     "slot": 2,
+     "available": false,
+     "art_consensus": 5,
+     "plus": 1,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1
+    }
+   ],
+   "hand_layout": "ok",
+   "unrecognized_cards": 0,
+   "multiplier_votes": [
+    2311,
+    2311
+   ]
+  },
+  "page": "HIF_EXAM"
+ },
+ {
+  "file": "qualifydmm1-20261110-192152-00803.jpg",
+  "note": "qualifydmm1-20261110-192152",
+  "quick": null,
+  "scene": "DIALOG",
+  "fields": {
+   "kind": "other",
+   "danger": false
+  },
+  "page": "DIALOG"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00003.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": "ACQUIRE",
+  "scene": "ACQUIRE",
+  "fields": {
+   "kind": "card",
+   "card_id": "p_card-02-act-1_037",
+   "upgrade": 1,
+   "agree": true
+  },
+  "page": "ACQUIRE",
+  "quick_fields": {
+   "kind": "card",
+   "card_id": "p_card-02-act-1_037",
+   "upgrade": 1
+  },
+  "tap": [
+   12,
+   12
+  ]
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00005.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": "STAR_GAIN",
+  "scene": "STAR_GAIN",
+  "fields": {
+   "gain": 15,
+   "star_shown": 15
+  },
+  "page": "STAR_GAIN",
+  "quick_fields": {
+   "gain": 15,
+   "star_shown": 15
+  },
+  "tap": [
+   12,
+   12
+  ]
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00008.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "ACTION_SELECT",
+  "fields": {
+   "exam": "選抜試験1",
+   "days_left": 6,
+   "stamina": 33,
+   "max_stamina": 33,
+   "p_points": 330,
+   "params": {
+    "vo": 230,
+    "da": 372,
+    "vi": 235
+   },
+   "param_caps": {
+    "vo": 3000,
+    "da": 3000,
+    "vi": 3000
+   },
+   "growth_pct": {
+    "vo": 45.5,
+    "da": 44.4,
+    "vi": 41.3
+   },
+   "star": 30,
+   "options": [
+    {
+     "kind": "consult"
+    },
+    {
+     "kind": "present"
+    },
+    {
+     "kind": "special_training"
+    }
+   ],
+   "complete": true,
+   "drink_capacity": 4
+  },
+  "page": "ACTION_SELECT"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00014.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": "GIFT",
+  "scene": "GIFT",
+  "fields": {
+   "bag": [
+    330,
+    649
+   ]
+  },
+  "page": "GIFT",
+  "quick_fields": {
+   "bag": [
+    330,
+    649
+   ]
+  },
+  "tap": [
+   330,
+   649
+  ]
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00020.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "SELECT_DRINK",
+  "fields": {
+   "options": [
+    {
+     "slot": 0,
+     "asset_id": "img_general_pdrink_2-010"
+    },
+    {
+     "slot": 1,
+     "asset_id": "img_general_pdrink_3-006"
+    },
+    {
+     "slot": 2,
+     "asset_id": "img_general_pdrink_2-006"
+    }
+   ],
+   "full": false
+  },
+  "page": "SELECT_DRINK"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00026.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": "GIFT",
+  "scene": "GIFT",
+  "fields": {
+   "bag": [
+    356,
+    613
+   ]
+  },
+  "page": "GIFT",
+  "quick_fields": {
+   "bag": [
+    356,
+    613
+   ]
+  },
+  "tap": [
+   356,
+   613
+  ]
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00027.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "SELECT_CARD",
+  "fields": {
+   "options": [
+    {
+     "slot": 0,
+     "recommended": false,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1
+    },
+    {
+     "slot": 1,
+     "recommended": false,
+     "card_id": "p_card-02-men-2_056",
+     "upgrade": 0,
+     "hp_cost": 4
+    },
+    {
+     "slot": 2,
+     "recommended": true,
+     "card_id": "p_card-02-act-2_047",
+     "upgrade": 1,
+     "hp_cost": 3
+    }
+   ],
+   "recommended": 2,
+   "excludes_left": 3,
+   "rerolls_left": 4
+  },
+  "page": "SELECT_CARD"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00059.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "STUDY",
+  "fields": {
+   "choices": [
+    {
+     "index": 0,
+     "cost_hp": 5,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 1,
+     "cost_hp": 5,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 2,
+     "trouble": true,
+     "selected": false
+    }
+   ],
+   "complete": true
+  },
+  "page": "STUDY"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00081.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "DIALOG",
+  "fields": {
+   "kind": "other",
+   "danger": false
+  },
+  "page": "DIALOG"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00091.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "OUTING",
+  "fields": {
+   "choices": [
+    {
+     "index": 0,
+     "cost_p": 50,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 1,
+     "trouble": true,
+     "selected": false
+    },
+    {
+     "index": 2,
+     "trouble": false,
+     "selected": false
+    }
+   ],
+   "complete": true
+  },
+  "page": "OUTING"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00099.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "PDRINK_MAX_CONFIRM",
+  "page": "PDRINK_MAX_CONFIRM"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00113.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "SELECT_CARD",
+  "fields": {
+   "options": [
+    {
+     "slot": 0,
+     "recommended": false,
+     "card_id": "p_card-02-men-3_044",
+     "upgrade": 0
+    },
+    {
+     "slot": 1,
+     "recommended": true,
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 1,
+     "genki_cost": 4
+    },
+    {
+     "slot": 2,
+     "recommended": false,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1
+    }
+   ],
+   "recommended": 1,
+   "excludes_left": 1,
+   "rerolls_left": 0
+  },
+  "page": "SELECT_CARD"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00118.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "PDRINK_MAX",
+  "fields": {
+   "held": [
+    {
+     "index": 0,
+     "drink_id": "pdrink_00-2-010"
+    },
+    {
+     "index": 1,
+     "drink_id": "pdrink_02-3-007"
+    },
+    {
+     "index": 2,
+     "drink_id": "pdrink_00-2-009"
+    }
+   ],
+   "incoming": {
+    "index": 0,
+    "drink_id": "pdrink_00-3-001"
+   },
+   "incomings": [
+    {
+     "index": 0,
+     "drink_id": "pdrink_00-3-001"
+    }
+   ],
+   "select_left": 0,
+   "complete": false
+  },
+  "page": "PDRINK_MAX"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00133.jpg",
+  "note": "qualifydmm2-20261111-002000｜授業选项页；STUDY 交给 KAA 判（scene 不断言）",
+  "quick": null,
+  "page": "STUDY",
+  "fields": {
+   "choices": [
+    {
+     "index": 0,
+     "cost_hp": 5,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 1,
+     "cost_hp": 5,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 2,
+     "trouble": true,
+     "selected": true
+    }
+   ],
+   "selected": 2,
+   "complete": true
+  }
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00141.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "PDRINK_MAX",
+  "fields": {
+   "held": [
+    {
+     "index": 0,
+     "drink_id": "pdrink_00-2-010"
+    },
+    {
+     "index": 1,
+     "drink_id": "pdrink_02-3-007"
+    },
+    {
+     "index": 2,
+     "drink_id": "pdrink_00-3-001"
+    }
+   ],
+   "incoming": {
+    "index": 0,
+    "drink_id": "pdrink_00-2-001"
+   },
+   "incomings": [
+    {
+     "index": 0,
+     "drink_id": "pdrink_00-2-001"
+    }
+   ],
+   "select_left": 0,
+   "complete": false
+  },
+  "page": "PDRINK_MAX"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00142.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "PDRINK_MAX_CONFIRM",
+  "page": "PDRINK_MAX_CONFIRM"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00155.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "HIF_EXAM",
+  "fields": {
+   "remaining_turns": 10,
+   "attr": "vocal",
+   "multiplier_pct": 1314,
+   "my_rank_index": 1,
+   "my_score": 0,
+   "rank_line": 64,
+   "participants": 128,
+   "finals": false,
+   "genki": 0,
+   "hp": 33,
+   "pitem_charges": 5,
+   "drinks": [
+    {
+     "slot": 0,
+     "asset": "img_general_pdrink_2-010"
+    },
+    {
+     "slot": 1,
+     "asset": "img_general_pdrink_3-007"
+    },
+    {
+     "slot": 2,
+     "asset": "img_general_pdrink_3-001"
+    },
+    {
+     "slot": 3,
+     "asset": "img_general_pdrink_2-009"
+    }
+   ],
+   "drink_slots": [
+    {
+     "slot": 0,
+     "state": "drink",
+     "drink_id": "pdrink_00-2-010",
+     "asset": "img_general_pdrink_2-010",
+     "available": true
+    },
+    {
+     "slot": 1,
+     "state": "drink",
+     "drink_id": "pdrink_02-3-007",
+     "asset": "img_general_pdrink_3-007",
+     "available": true
+    },
+    {
+     "slot": 2,
+     "state": "drink",
+     "drink_id": "pdrink_00-3-001",
+     "asset": "img_general_pdrink_3-001",
+     "available": true
+    },
+    {
+     "slot": 3,
+     "state": "drink",
+     "drink_id": "pdrink_00-2-009",
+     "asset": "img_general_pdrink_2-009",
+     "available": true
+    }
+   ],
+   "statuses": [
+    {
+     "slot": 0,
+     "kind": "status",
+     "inactive": true,
+     "value": 0
+    },
+    {
+     "slot": 1,
+     "kind": "enchant",
+     "card_id": "p_card-02-men-2_052",
+     "asset": "img_general_skillcard_men-2_052-hski",
+     "value": 1
+    }
+   ],
+   "status": {
+    "examcardplayaggressive": 0
+   },
+   "hand": [
+    {
+     "slot": 0,
+     "available": true,
+     "art_consensus": 4,
+     "plus": 1,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1
+    },
+    {
+     "slot": 1,
+     "available": true,
+     "art_consensus": 5,
+     "plus": 1,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1
+    },
+    {
+     "slot": 2,
+     "available": true,
+     "art_consensus": 5,
+     "plus": 0,
+     "card_id": "p_card-02-men-2_004",
+     "upgrade": 0,
+     "genki_cost": 3
+    }
+   ],
+   "hand_layout": "ok",
+   "unrecognized_cards": 0,
+   "multiplier_votes": [
+    1314,
+    1314
+   ]
+  },
+  "page": "HIF_EXAM"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00184.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": "ACQUIRE",
+  "scene": "ACQUIRE",
+  "fields": {
+   "kind": "card",
+   "card_id": "p_card-02-men-3_002",
+   "upgrade": 1,
+   "agree": true
+  },
+  "page": "ACQUIRE",
+  "quick_fields": {
+   "kind": "card",
+   "card_id": "p_card-02-men-3_002",
+   "upgrade": 1
+  },
+  "tap": [
+   12,
+   12
+  ]
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00189.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": "SELECT_PITEM",
+  "scene": "SELECT_PITEM",
+  "fields": {
+   "options": [
+    {
+     "slot": 0,
+     "color": "green",
+     "selected": false
+    },
+    {
+     "slot": 1,
+     "color": "red",
+     "selected": false
+    },
+    {
+     "slot": 2,
+     "color": "yellow",
+     "selected": false
+    }
+   ],
+   "confirm_enabled": false
+  },
+  "page": "SELECT_PITEM"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00199.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "OUTING",
+  "fields": {
+   "choices": [
+    {
+     "index": 0,
+     "cost_p": 50,
+     "trouble": false,
+     "selected": false
+    },
+    {
+     "index": 1,
+     "trouble": true,
+     "selected": false
+    },
+    {
+     "index": 2,
+     "trouble": false,
+     "selected": true
+    }
+   ],
+   "selected": 2,
+   "complete": true
+  },
+  "page": "OUTING"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00202.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "SELECT_DRINK",
+  "fields": {
+   "options": [
+    {
+     "slot": 0,
+     "asset_id": "img_general_pdrink_2-006"
+    },
+    {
+     "slot": 1,
+     "asset_id": "img_general_pdrink_2-010"
+    },
+    {
+     "slot": 2,
+     "asset_id": "img_general_pdrink_1-001"
+    }
+   ],
+   "full": false
+  },
+  "page": "SELECT_DRINK"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00215.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "ACTION_SELECT",
+  "fields": {
+   "exam": "選抜試験2",
+   "days_left": 4,
+   "stamina": 33,
+   "max_stamina": 33,
+   "p_points": 420,
+   "params": {
+    "vo": 534,
+    "da": 893,
+    "vi": 418
+   },
+   "param_caps": {
+    "vo": 3000,
+    "da": 3000,
+    "vi": 3000
+   },
+   "growth_pct": {
+    "vo": 45.5,
+    "da": 44.4,
+    "vi": 41.3
+   },
+   "star": 300,
+   "options": [
+    {
+     "kind": "open_lesson",
+     "attr": "vo",
+     "hp_cost": 8
+    },
+    {
+     "kind": "open_lesson",
+     "attr": "da",
+     "hp_cost": 8
+    },
+    {
+     "kind": "open_lesson",
+     "attr": "vi",
+     "hp_cost": 6
+    }
+   ],
+   "complete": true,
+   "drinks": [
+    "pdrink_00-2-010"
+   ],
+   "drink_capacity": 4
+  },
+  "page": "ACTION_SELECT"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00229.jpg",
+  "note": "qualifydmm2-20261111-002000｜「選抜試験2まで 4日」倒计时过渡页。快速判页认不出 → 主循环点默认 (12,12)，DMM 上落进左上「選抜試験Nまで」框打开日程表（dmm2 停机的起因，6aebe8f 只在打开后关掉）",
+  "quick": "TRANSITION",
+  "page": "TRANSITION",
+  "xfail_on": {
+   "mac": "待修：倒计时过渡页没有快速判页（应认成 TRANSITION、点安全位置而不是 (12,12)）",
+   "windows": "同 mac"
+  }
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00237.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_1",
+  "fields": {
+   "candidates": [
+    {
+     "index": 0,
+     "slot": 0,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 0,
+     "recommended": false
+    },
+    {
+     "index": 1,
+     "slot": 1,
+     "card_id": "p_card-02-men-2_100",
+     "upgrade": 0,
+     "recommended": false
+    },
+    {
+     "index": 2,
+     "slot": 2,
+     "card_id": "p_card-02-men-1_009",
+     "upgrade": 0,
+     "recommended": false
+    }
+   ],
+   "excludes_left": 1,
+   "complete": true
+  },
+  "page": "SKILL_CARD_CHANGE_1"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00240.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_2",
+  "fields": {
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-act-0_037",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-act-0_038",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": false
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-act-1_071",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-3_039",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 8,
+     "row": 2,
+     "col": 0,
+     "card_id": "p_card-02-ido-3_105",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 9,
+     "row": 2,
+     "col": 1,
+     "card_id": "p_card-02-men-0_039",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 10,
+     "row": 2,
+     "col": 2,
+     "card_id": "p_card-02-men-0_039",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 11,
+     "row": 2,
+     "col": 3,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    }
+   ]
+  },
+  "page": "SKILL_CARD_CHANGE_2"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00250.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "unknown",
+  "page": "unknown"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00265.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "CONSULT",
+  "fields": {
+   "shelf": [
+    {
+     "index": 0,
+     "kind": "card",
+     "card_id": "p_card-02-men-3_041",
+     "upgrade": 1,
+     "price": 73,
+     "sale": true,
+     "purchased": false
+    },
+    {
+     "index": 1,
+     "kind": "card",
+     "card_id": "p_card-02-act-1_004",
+     "upgrade": 1,
+     "price": 70,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 2,
+     "kind": "card",
+     "card_id": "p_card-02-men-1_032",
+     "upgrade": 1,
+     "price": 70,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 3,
+     "kind": "card",
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 1,
+     "price": 77,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 4,
+     "kind": "drink",
+     "drink_id": "pdrink_02-1-008",
+     "price": 35,
+     "sale": true,
+     "purchased": false
+    },
+    {
+     "index": 5,
+     "kind": "drink",
+     "drink_id": "pdrink_00-1-001",
+     "price": 50,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 6,
+     "kind": "drink",
+     "drink_id": "pdrink_00-2-008",
+     "price": 75,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 7,
+     "kind": "drink",
+     "drink_id": "pdrink_02-1-006",
+     "price": 50,
+     "sale": false,
+     "purchased": false
+    }
+   ],
+   "services": {
+    "upgrade": {
+     "price": 100,
+     "available": true
+    },
+    "delete": {
+     "price": 100,
+     "available": true
+    }
+   },
+   "rerolls_left": 1,
+   "complete": true,
+   "drinks": [
+    "pdrink_00-2-010",
+    "pdrink_02-3-010",
+    "pdrink_02-2-006",
+    "pdrink_02-3-010"
+   ],
+   "drink_capacity": 4,
+   "stamina": 20,
+   "max_stamina": 33,
+   "produce_point": 480
+  },
+  "page": "CONSULT"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00270.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "CONSULT",
+  "fields": {
+   "shelf": [
+    {
+     "index": 0,
+     "kind": "card",
+     "card_id": "p_card-02-men-2_056",
+     "upgrade": 1,
+     "price": 53,
+     "sale": true,
+     "purchased": false
+    },
+    {
+     "index": 1,
+     "kind": "card",
+     "card_id": "p_card-02-men-3_041",
+     "upgrade": 0,
+     "price": 70,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 2,
+     "kind": "card",
+     "card_id": "p_card-02-men-2_057",
+     "upgrade": 1,
+     "price": 77,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 3,
+     "kind": "card",
+     "card_id": "p_card-02-men-1_032",
+     "upgrade": 1,
+     "price": 70,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 4,
+     "kind": "drink",
+     "drink_id": "pdrink_02-1-006",
+     "price": 35,
+     "sale": true,
+     "purchased": false
+    },
+    {
+     "index": 5,
+     "kind": "drink",
+     "drink_id": "pdrink_00-1-004",
+     "price": 50,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 6,
+     "kind": "drink",
+     "drink_id": "pdrink_00-2-010",
+     "price": 75,
+     "sale": false,
+     "purchased": false
+    },
+    {
+     "index": 7,
+     "kind": "drink",
+     "drink_id": "pdrink_00-2-001",
+     "price": 75,
+     "sale": false,
+     "purchased": false
+    }
+   ],
+   "services": {
+    "upgrade": {
+     "price": 100,
+     "available": true
+    },
+    "delete": {
+     "price": 125,
+     "available": true
+    }
+   },
+   "complete": true,
+   "drinks": [
+    "pdrink_00-2-010",
+    "pdrink_02-3-010",
+    "pdrink_02-2-006",
+    "pdrink_02-3-010"
+   ],
+   "drink_capacity": 4,
+   "stamina": 20,
+   "max_stamina": 33,
+   "produce_point": 380
+  },
+  "page": "CONSULT"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00288.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "HIF_EXAM",
+  "fields": {
+   "remaining_turns": 11,
+   "attr": "visual",
+   "multiplier_pct": 1170,
+   "my_rank_index": 5,
+   "my_score": 69,
+   "rank_line": 32,
+   "participants": 64,
+   "finals": false,
+   "genki": 11,
+   "hp": 31,
+   "pitem_charges": 5,
+   "drinks": [
+    {
+     "slot": 0,
+     "asset": "img_general_pdrink_2-010"
+    },
+    {
+     "slot": 1,
+     "asset": "img_general_pdrink_3-010"
+    },
+    {
+     "slot": 2,
+     "asset": "img_general_pdrink_2-006"
+    },
+    {
+     "slot": 3,
+     "asset": "img_general_pdrink_3-010"
+    }
+   ],
+   "drink_slots": [
+    {
+     "slot": 0,
+     "state": "drink",
+     "drink_id": "pdrink_00-2-010",
+     "asset": "img_general_pdrink_2-010",
+     "available": true
+    },
+    {
+     "slot": 1,
+     "state": "drink",
+     "drink_id": "pdrink_02-3-010",
+     "asset": "img_general_pdrink_3-010",
+     "available": true
+    },
+    {
+     "slot": 2,
+     "state": "drink",
+     "drink_id": "pdrink_02-2-006",
+     "asset": "img_general_pdrink_2-006",
+     "available": true
+    },
+    {
+     "slot": 3,
+     "state": "drink",
+     "drink_id": "pdrink_02-3-010",
+     "asset": "img_general_pdrink_3-010",
+     "available": true
+    }
+   ],
+   "statuses": [
+    {
+     "slot": 0,
+     "kind": "status",
+     "value": 9
+    },
+    {
+     "slot": 1,
+     "kind": "status",
+     "value": 7
+    }
+   ],
+   "status": {
+    "examcardplayaggressive": 9,
+    "examreview": 7
+   },
+   "hand": [
+    {
+     "slot": 0,
+     "available": true,
+     "art_consensus": 1,
+     "plus": 0,
+     "card_id": "p_card-02-act-0_038",
+     "upgrade": 0,
+     "genki_cost": 2,
+     "badge_score": 129
+    },
+    {
+     "slot": 1,
+     "available": true,
+     "art_consensus": 5,
+     "plus": 1,
+     "card_id": "p_card-02-men-3_002",
+     "upgrade": 1
+    }
+   ],
+   "hand_layout": "ok",
+   "unrecognized_cards": 0,
+   "multiplier_votes": [
+    1170,
+    1170
+   ]
+  },
+  "page": "HIF_EXAM"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00314.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "HIF_EXAM",
+  "fields": {
+   "remaining_turns": 1,
+   "attr": "vocal",
+   "multiplier_pct": 1701,
+   "my_rank_index": 1,
+   "my_score": 198210,
+   "finals": false,
+   "genki": 80,
+   "hp": 17,
+   "drinks": [
+    {
+     "slot": 0,
+     "asset": "img_general_pdrink_3-010"
+    },
+    null,
+    null,
+    null
+   ],
+   "drink_slots": [
+    {
+     "slot": 0,
+     "state": "drink",
+     "drink_id": "pdrink_02-3-010",
+     "asset": "img_general_pdrink_3-010",
+     "available": true
+    },
+    {
+     "slot": 1,
+     "state": "empty"
+    },
+    {
+     "slot": 2,
+     "state": "empty"
+    },
+    {
+     "slot": 3,
+     "state": "empty"
+    }
+   ],
+   "statuses": [
+    {
+     "slot": 0,
+     "kind": "status",
+     "value": 82
+    },
+    {
+     "slot": 1,
+     "kind": "status",
+     "value": 5
+    },
+    {
+     "slot": 2,
+     "kind": "enchant",
+     "card_id": "p_card-02-ido-3_105",
+     "asset": "img_general_skillcard_ido-3_105"
+    },
+    {
+     "slot": 3,
+     "kind": "enchant",
+     "card_id": "p_card-02-men-2_004",
+     "asset": "img_general_skillcard_men-2_004-shro"
+    }
+   ],
+   "status": {
+    "examcardplayaggressive": 82,
+    "examreview": 5
+   },
+   "hand": [
+    {
+     "slot": 0,
+     "available": true,
+     "art_consensus": 1,
+     "plus": 0,
+     "card_id": "p_card-00-acc-0_002",
+     "upgrade": 0
+    },
+    {
+     "slot": 1,
+     "available": true,
+     "art_consensus": 1,
+     "plus": 0,
+     "card_id": "p_card-00-acc-0_002",
+     "upgrade": 0
+    },
+    {
+     "slot": 2,
+     "available": true,
+     "art_consensus": 1,
+     "plus": 0,
+     "card_id": "p_card-02-men-0_039",
+     "upgrade": 0,
+     "genki_cost": 2
+    }
+   ],
+   "hand_layout": "ok",
+   "unrecognized_cards": 0,
+   "multiplier_votes": [
+    1701,
+    1701
+   ]
+  },
+  "page": "HIF_EXAM"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00325.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": "SELECT_PITEM",
+  "scene": "PITEM_CUSTOMIZE",
+  "page": "PITEM_CUSTOMIZE"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00405.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "SKILL_CARD_ENHANCE",
+  "fields": {
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-act-0_038",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-act-1_071",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-men-2_100",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-men-2_111",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": true
+    },
+    {
+     "index": 8,
+     "row": 2,
+     "col": 0,
+     "card_id": "p_card-02-act-1_071",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 9,
+     "row": 2,
+     "col": 1,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 10,
+     "row": 2,
+     "col": 2,
+     "card_id": "p_card-02-act-3_039",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 11,
+     "row": 2,
+     "col": 3,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    }
+   ],
+   "cancelable": false
+  },
+  "page": "SKILL_CARD_ENHANCE"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00406.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "SKILL_CARD_ENHANCE",
+  "fields": {
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-act-0_038",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-act-1_071",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-men-2_100",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-men-2_111",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": true
+    },
+    {
+     "index": 8,
+     "row": 2,
+     "col": 0,
+     "card_id": "p_card-02-act-1_071",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 9,
+     "row": 2,
+     "col": 1,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 10,
+     "row": 2,
+     "col": 2,
+     "card_id": "p_card-02-act-3_039",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    },
+    {
+     "index": 11,
+     "row": 2,
+     "col": 3,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": true
+    }
+   ],
+   "cancelable": false
+  },
+  "page": "SKILL_CARD_ENHANCE"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00411.jpg",
+  "note": "qualifydmm2-20261111-002000",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_1",
+  "fields": {
+   "candidates": [
+    {
+     "index": 0,
+     "slot": 0,
+     "card_id": "p_card-02-men-3_043",
+     "upgrade": 0,
+     "recommended": false
+    },
+    {
+     "index": 1,
+     "slot": 1,
+     "card_id": "p_card-02-act-1_071",
+     "upgrade": 0,
+     "recommended": false
+    },
+    {
+     "index": 2,
+     "slot": 2,
+     "card_id": "p_card-02-men-2_057",
+     "upgrade": 0,
+     "recommended": false
+    }
+   ],
+   "excludes_left": 1,
+   "complete": true
+  },
+  "page": "SKILL_CARD_CHANGE_1"
+ },
+ {
+  "file": "qualifydmm2-20261111-002000-00414.jpg",
+  "note": "qualifydmm2-20261111-002000｜第 1 张是 仕草の基本（看图核对，DMM 实机原帧 Windows 认出）",
+  "quick": null,
+  "scene": "SKILL_CARD_CHANGE_2",
+  "fields": {
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "dimmed": false,
+     "card_id": "p_card-02-act-0_038",
+     "upgrade": 0,
+     "customized": false
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": false
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-act-1_071",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-act-1_071",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-act-3_039",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 8,
+     "row": 2,
+     "col": 0,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 9,
+     "row": 2,
+     "col": 1,
+     "card_id": "p_card-02-ido-3_105",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 10,
+     "row": 2,
+     "col": 2,
+     "card_id": "p_card-00-sup-3_093",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 11,
+     "row": 2,
+     "col": 3,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    }
+   ]
+  },
+  "page": "SKILL_CARD_CHANGE_2",
+  "xfail_on": {
+   "mac": "JPEG 样例上基础卡 仕草の基本 卡面特征少，KAA 匹配只有 2 票（门槛 MIN_VOTES=3）；实机原帧能认出。待识别加强（基础卡低票兜底）"
+  }
+ },
+ {
+  "file": "schedule-overlay-dmm2.png",
+  "note": "dmm2 停机时的日程表覆盖层（6aebe8f 认成 TRANSITION kind=schedule，点底部 ✕）",
+  "quick": "TRANSITION",
+  "page": "TRANSITION",
+  "quick_fields": {
+   "kind": "schedule"
+  },
+  "tap": [
+   360,
+   1200
+  ]
+ },
+ {
+  "file": "start-confirm-dmm1.png",
+  "note": "H.I.F 本战开始确认页：选拔回忆 1459 / 2336 / 865（dmm1 读不出停机，6c407de 修）",
+  "quick": null,
+  "scene": "HIF_FINALS_START",
+  "fields": {
+   "selected_memory": {
+    "idol": "篠澤広",
+    "star": 701,
+    "params": {
+     "Vo": 1459,
+     "Da": 2336,
+     "Vi": 865
+    },
+    "growth_pct": {
+     "Vo": 45.5,
+     "Da": 44.4,
+     "Vi": 41.3
+    }
+   }
+  },
+  "page": "HIF_FINALS_START"
+ }
+]
