@@ -113,3 +113,18 @@ def test_landscape_live_counts_as_progress():
     t[0] = 205
     g.screen(np.full((1280, 720, 3), 40, np.uint8))  # 回到竖屏：重新开始计
     assert g.stalled() == 10 and g._base is not None  # 最后一帧横屏在 195s；竖屏这帧只重设基准
+
+
+def test_non_exam_third_attempt_succeeding_does_not_stop(tmp_path):
+    """DMM dmm1m 相談删 眠気：前两次拼接失败取消（ok=False），第 3 次删成功（ok=True）——执行前局面一样，但不该停机；
+    真没效果的话下一步局面不变，第 4 次照样停。"""
+    t = [0.0]
+    s = _session(tmp_path, t)
+    rm = Action(ActionKind.SHOP_BUY, {"service": "delete", "card_index": 21})
+    fields = {"produce_point": 380}
+    _step(s, "CONSULT", fields, rm, ok=False)
+    _step(s, "CONSULT", fields, rm, ok=False)
+    _step(s, "CONSULT", fields, rm, ok=True)  # 不抛
+    assert s.recoveries.get("tap_no_effect", 0) == 0
+    with pytest.raises(rg.RepeatedNoEffect):
+        _step(s, "CONSULT", fields, rm, ok=False)  # 局面还是一样：说明没效果，停

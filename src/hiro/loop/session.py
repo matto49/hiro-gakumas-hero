@@ -12,6 +12,9 @@ from typing import Any
 from hiro.contracts import Decision, ExecutionResult, GameState, Observation, Preview, Step, TraceWriter
 from hiro.loop.reduce import reduce
 from hiro.loop.transitions import is_transient, successors
+from hiro.log import logging
+
+logger = logging.getLogger(__name__)
 
 # 故障恢复的类别（notes 前缀 recover:<kind>），报告按此统计
 RECOVER_KINDS = ("page_misjudged", "missing_fields", "llm_invalid", "tap_no_effect", "dialog", "crash_restart", "date_change", "unhandled", "llm_rescue")
@@ -231,7 +234,11 @@ class Session:
 
             page = obs.page.name
             self.repeat_streak = self.guard.attempt(page, state_sig(page, state_in.page_fields, state_in.exam, state_in.produce), action_key(decision.action))
-            if self.repeat_streak >= REPEAT_MAX:
+            if self.repeat_streak >= REPEAT_MAX and execution.ok and page != "HIF_EXAM":
+                # 考试外这一下执行成功了（DMM dmm1m 相談删 眠気：前两次拼接失败取消，第 3 次删成功、P 380→280，
+                # 但三次的执行前局面相同，以前照样判重复停机）：先不算无效；真没效果的话下一步局面不变，计数接着涨，第 4 次停
+                logger.info("%s 同一局面下 %s 第 %d 次，这次执行成功，先不算重复无效", page, decision.action.kind.value, self.repeat_streak)
+            elif self.repeat_streak >= REPEAT_MAX:
                 repeated = f"重复无效动作：{page} 同一局面下 {decision.action.kind.value}{decision.action.args} 连续 {self.repeat_streak} 次"
                 self.recover("tap_no_effect", repeated)
                 self.note("blunder:repeat_no_effect " + repeated)
