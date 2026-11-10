@@ -1019,6 +1019,15 @@ def _plugin(kind: str):
     return plugins.get(kind)
 
 
+def r1_deck_to_note(exam: str, session, context: dict) -> list | None:
+    """R1 结束时要记进 finals_context 的牌组（轮间模拟合成 R2 开局用）：本场已经记过牌组就不覆盖（返回 None）——
+    私有存档插件开考时从存档记的、续跑读回的都比培育记账准；没记过才用培育记账的牌组（state.produce.deck）兜底。"""
+    if exam != "r1" or session is None or context.get("deck"):
+        return None
+    rows = (getattr(session.state, "produce", None) or {}).get("deck") or []
+    return [(c["card_id"], int(c.get("upgrade") or 0)) for c in rows if isinstance(c, dict) and c.get("card_id")] or None
+
+
 def run_exam(
     brain: BattleBrain,
     exam: str,
@@ -1221,11 +1230,7 @@ def run_exam(
 
             seen = getattr(memory, "attr_permil", None) or {}
             permil = {**{k: v for k, v in seen.items() if v}, **(CONTEXT.get("permil") or {})} if exam == "r1" else seen
-            # 牌组：开源版读不到考试存档，用培育记账的牌组（state.produce.deck）；轮间模拟（hiro.sim.interval）合成 R2 开局要用
-            deck = None
-            if exam == "r1" and session is not None:
-                rows = (getattr(session.state, "produce", None) or {}).get("deck") or []
-                deck = [(c["card_id"], int(c.get("upgrade") or 0)) for c in rows if isinstance(c, dict) and c.get("card_id")] or None
+            deck = r1_deck_to_note(exam, session, CONTEXT)
             note_exam(exam, deck=deck, drinks=[x.drink_id for x in last_state.drinks if getattr(x, "drink_id", None)], permil=permil,
                       trace_dir=session.trace.dir if session is not None else None)  # fmt: skip
         source.end(result_info or None)
