@@ -18,6 +18,10 @@ from kaa.db.sqlite import select
 from kotonebot.primitives import Rect
 
 UPGRADE_RED_MIN = 20  # 实测：强化 55–62，未强化 0–1
+# 红色占满检测框的比例上限：「+」只占一小块（选卡框 52–97 / 3300 px）；卡面本身偏红（DMM dmm1m 本战 ノートの端の決意 的肤色手，
+# 921 px、28%）时红色是插图不是「+」，改看高饱和红（「+」S≥150 有 40–54 px，肤色 0），至少 UPGRADE_RED_MIN 个才算强化
+UPGRADE_RED_MAX_FRAC = 0.25
+UPGRADE_PLUS_SAT = 150
 
 
 def red_mask(img: MatLike) -> np.ndarray:
@@ -30,17 +34,25 @@ def red_mask(img: MatLike) -> np.ndarray:
 def dialog_card_upgraded(img: MatLike, letter: Rect) -> tuple[bool, int]:
     """选卡弹窗中的卡：letter 为卡图标底部的类型字母框（KAA fetch_cards 返回的 rect）。"""
     cx, top = letter.x1 + letter.w // 2, letter.y1
-    roi = red_mask(img)[top - 110 : top - 50, cx + 2 : cx + 57]
-    pixels = int(np.count_nonzero(roi))
-    return pixels >= UPGRADE_RED_MIN, pixels
+    return _upgraded(img, (slice(top - 110, top - 50), slice(cx + 2, cx + 57)))
 
 
 def hand_card_upgraded(img: MatLike, letter: Rect) -> tuple[bool, int]:
     """出牌画面手牌：红色「+」位于费用心形上方，相对卡名首字母框 x+65..95、y-55..-28（720x1280）。"""
     cx, top = letter.x1 + letter.w // 2, letter.y1
-    roi = red_mask(img)[top - 55 : top - 28, cx + 65 : cx + 95]
+    return _upgraded(img, (slice(top - 55, top - 28), slice(cx + 65, cx + 95)))
+
+
+def _upgraded(img: MatLike, box: tuple[slice, slice]) -> tuple[bool, int]:
+    """检测框里的红色「+」：红色像素够数、又没把框占满（占满 = 卡面插图偏红，改数高饱和红）。返回 (是否强化, 红色像素数)。"""
+    roi = red_mask(img[box])
     pixels = int(np.count_nonzero(roi))
-    return pixels >= UPGRADE_RED_MIN, pixels
+    if pixels < UPGRADE_RED_MIN:
+        return False, pixels
+    if pixels <= UPGRADE_RED_MAX_FRAC * roi.size:
+        return True, pixels
+    sat = cv2.cvtColor(img[box], cv2.COLOR_BGR2HSV)[..., 1]
+    return int(np.count_nonzero((roi > 0) & (sat >= UPGRADE_PLUS_SAT))) >= UPGRADE_RED_MIN, pixels
 
 
 @lru_cache(maxsize=512)
