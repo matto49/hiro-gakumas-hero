@@ -65,8 +65,8 @@
 
 ## 三、环境
 
-平台与 KAA 支持的对齐（见下面「设备」）：**作者实机验证过的只有 macOS（Apple Silicon）+ PlayCover**；
-安卓设备 / 模拟器（ADB）、MuMu、雷电、DMM 版走 KAA 的设备工厂，代码接好了、有离线测试，但没有实机打过一局。
+平台与 KAA 支持的对齐（见下面「设备」）：**作者实机验证过的有 macOS（Apple Silicon）+ PlayCover，和 Windows + MuMu 12**
+（MuMu 6.8，22 局 3 次本战夺冠）；安卓设备 / 模拟器（ADB）、雷电、DMM 版走 KAA 的设备工厂，代码接好了、有离线测试，但没有实机打过一局。
 
 1. 装环境（一条命令，可重复跑，做过的步骤会跳过；需要 uv、git 和网络）：
    ```bash
@@ -104,6 +104,16 @@
      实机打 H.I.F 本战（2026-11-07–09，22 局 3 次夺冠，RapidOCR + Codex）。`HIRO_SCREENSHOT=nemu_ipc` 时截图正常、
      点击不生效（页面一直不变，开局 guard_new 15 秒超时），缺省已改成 `adb`。
      KAA 公开数据的下载镜像连不上时，从别处拷一份 `game_data` 目录，用 `-NoData` 加 `HIRO_KAA_GAME_DATA` 指过去。
+   - Windows 开局用 `scripts\play.ps1`：把作者夺冠时的环境变量设好再调 `tools\play_game.py`，日志写到 `reports\live\play-<tag>.out`：
+     ```powershell
+     powershell -NoProfile -ExecutionPolicy Bypass -File scripts\play.ps1 -Idol i_card-skin-shro-3-007 -MainOnly -Memory <Vo,Da,Vi> -Tag 1
+     ```
+     缺省 `-Device mumu`（截图 / 点击 `adb`）、`-Llm codex`、支援卡 / 回忆编成 4 / 5、模拟器开但考试预演只在 R2
+     （`HIRO_SIM_WORKERS=1`、`HIRO_EXAM_SIM_ROUNDS=r2`，原因见脚本开头注释）。`-Proxy http://…` 给 LLM 设代理，`-NoSim` 关模拟器，
+     `-Relaunch` 让游戏被杀时自己拉起（缺省关），`-Wait` 前台等跑完。参数全表见脚本开头。
+   - Windows 上的坑（实测）：16 GB 内存同时开 MuMu、模拟器和其他常驻程序时 MuMu 会被系统杀掉，开局前先关掉不用的程序；
+     MuMu 拉起游戏时的「加速服务」提示程序会点「不加速」；结算后 LIVE 横屏偶尔整屏黑掉不动，只能
+     `MuMuManager.exe control -v 0 restart` 重启模拟器后 `python -m hiro.run_hif resume` 续跑。
 3. 素材（见 `docs/assets.md`）：识别用的卡面、图标、字体、Sprite、布局随仓库在 `assets/pack/`，开箱即用。
    客户端更新后认不出新图标时，才打一两场考试，用 `tools/assets/capture_icons.py` 补；设了 `HIRO_BUNDLED_ASSETS=0` 时则必须补，
    否则考试效果名和 P 道具名一直是 `None`，策略层只能用保守规则，分数会明显低。

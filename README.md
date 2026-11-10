@@ -67,8 +67,8 @@
 
 ## 快速开始
 
-作者实机验证过的平台只有 macOS（Apple Silicon）+ PlayCover。安卓设备 / 模拟器（ADB）、MuMu、雷电和 Windows DMM 版
-与 [KAA](https://github.com/XcantloadX/kotones-auto-assistant) 对齐，用 `HIRO_DEVICE` 选择、走 KAA 的设备工厂，
+作者实机验证过的平台：macOS（Apple Silicon）+ PlayCover，和 Windows + MuMu 12（22 局 3 次本战夺冠）。安卓设备 / 模拟器（ADB）、
+雷电和 Windows DMM 版与 [KAA](https://github.com/XcantloadX/kotones-auto-assistant) 对齐，用 `HIRO_DEVICE` 选择、走 KAA 的设备工厂，
 代码和离线测试都有，但还没有实机打过一局（见 [AGENTS.md](AGENTS.md)「设备」）。macOS 上默认的截图和点击走 [hguandl 的 PlayCover 分支](https://github.com/hguandl/PlayCover)
 里的 MaaTools 服务，需要用这个分支，并在游戏的 PlayCover 设置里打开 `maaTools`（端口 `maaToolsPort`）；用原版 PlayCover 时会退回 Quartz 截图，
 这时游戏窗口要在前台，点击也更不稳。
@@ -90,6 +90,15 @@ PYTHONPATH=src .venv/bin/python -m pytest -q            # 没有截图样例时�
    ```
 
    也可以让程序按社区攻略选支援卡和回忆、生成开局编成方案，开局时自动核对编成，见 [docs/formation-plan.md](docs/formation-plan.md)。
+
+   **Windows + MuMu**：装环境用 `scripts\setup.ps1`，开局用 `scripts\play.ps1`（缺省就是作者夺冠时的配置）：
+
+   ```powershell
+   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup.ps1
+   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\play.ps1 -Idol <偶像卡 skin id> -MainAttr Da -Tag 1
+   ```
+
+   参数和注意事项见 [AGENTS.md](AGENTS.md)「设备」。
 
 3. **看复盘**：`python tools/viewer/build_exam_view.py <trace>`，打开生成的 HTML。
 
