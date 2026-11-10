@@ -463,7 +463,7 @@ class HiroController(ProduceController):
         不是学マス就抛 GameNotForeground，交给 run_hif 的续跑看守（HIRO_RELAUNCH_GAME=1 时重新拉起，否则讲清原因停下）。"""
         from hiro.loop import game_app
 
-        if game_app.is_landscape(img) and game_app.foreground(game_app.adb_shell()) is False:
+        if game_app.is_landscape(img) and game_app.alive() is False:
             raise game_app.GameNotForeground("学マス不在前台（截到横屏桌面）")
 
     _rescuer = None  # hiro.loop.rescue.Rescuer，首次用到时创建（整局共用：同屏计数、10 分钟次数上限、本局统计）

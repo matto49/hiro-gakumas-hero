@@ -66,7 +66,7 @@
 ## 三、环境
 
 平台与 KAA 支持的对齐（见下面「设备」）：**作者实机验证过的有 macOS（Apple Silicon）+ PlayCover，和 Windows + MuMu 12**
-（MuMu 6.8，22 局 3 次本战夺冠）；安卓设备 / 模拟器（ADB）、雷电、DMM 版走 KAA 的设备工厂，代码接好了、有离线测试，但没有实机打过一局。
+（MuMu 6.8，22 局 3 次本战夺冠）；Windows DMM 版实机开局跑通（见「设备」）；安卓设备 / 模拟器（ADB）、雷电走 KAA 的设备工厂，代码接好了、有离线测试，但没有实机打过一局。
 
 1. 装环境（一条命令，可重复跑，做过的步骤会跳过；需要 uv、git 和网络）：
    ```bash
@@ -90,7 +90,7 @@
    | `adb` | 任意安卓设备 / 模拟器（KAA 的 custom） | `HIRO_SCREENSHOT=adb`（缺省）或 `uiautomator2` | 未实机验证 |
    | `mumu` | MuMu 12 | `adb`（缺省；Windows 上 `nemu_ipc` 截图可用但点击送不到游戏，别用） | Windows + MuMu 6.8 实机打过（见下） |
    | `leidian` | 雷电模拟器 | `adb` / `uiautomator2` | 未实机验证 |
-   | `dmm` | Windows DMM 版 | `windows_background`（缺省）/ `windows_native` | 未实机验证 |
+   | `dmm` | Windows DMM 版 | `windows_background`（缺省：PrintWindow 截图 + SendMessage 点击，窗口不用在前台）/ `windows_native` | 作者实机开局验证（2026-11-10，见下） |
 
    - `HIRO_ADB=ip:port` 指 adb 地址（`adb` / `leidian` 用，缺省 `127.0.0.1:5555`；`mumu` 不设时由 MuMu SDK 自动取）；
      `HIRO_EMULATOR_INSTANCE` 指 MuMu / 雷电的实例 ID（MuMu 缺省 `0`，多开时指定）。
@@ -111,6 +111,13 @@
      缺省 `-Device mumu`（截图 / 点击 `adb`）、`-Llm codex`、支援卡 / 回忆编成 4 / 5、模拟器开但考试预演只在 R2
      （`HIRO_SIM_WORKERS=1`、`HIRO_EXAM_SIM_ROUNDS=r2`，原因见脚本开头注释）。`-Proxy http://…` 给 LLM 设代理，`-NoSim` 关模拟器，
      `-Relaunch` 让游戏被杀时自己拉起（缺省关），`-Wait` 前台等跑完。参数全表见脚本开头。
+   - **DMM 版**（`-Device dmm`）：
+     - 游戏以管理员身份运行，普通权限的进程能截图、点击会被系统挡掉（UIPI），所以 hiro 也要以管理员身份跑。
+       `scripts\play.ps1 -Device dmm` 不是管理员时会自己申请（弹一次 UAC），在新窗口里开局。
+     - 游戏界面必须是日文原版：localify 之类的汉化 / 改文字插件（放在游戏目录的 `version.dll` 代理等）要先拿掉，否则 OCR 认不出页面。
+     - 游戏闪退 / 窗口被关时程序会认出来并停下（按窗口标题「gakumas」判断），不会自己拉起：
+       DMM 版要从 DMM Game Player 启动、每次弹管理员确认，程序点不到。重新启动游戏后 `python -m hiro.run_hif resume` 续跑。
+     - 同一个账号不要同时开 MuMu 和 DMM：另一端进入培育时会弹「プロデュースデータの破棄」。
    - Windows 上的坑（实测）：16 GB 内存同时开 MuMu、模拟器和其他常驻程序时 MuMu 会被系统杀掉，开局前先关掉不用的程序；
      MuMu 拉起游戏时的「加速服务」提示程序会点「不加速」；结算后 LIVE 横屏偶尔整屏黑掉不动，只能
      `MuMuManager.exe control -v 0 restart` 重启模拟器后 `python -m hiro.run_hif resume` 续跑。

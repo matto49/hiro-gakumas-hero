@@ -122,9 +122,12 @@ def _game_gone(session, err: Exception) -> bool:
     from hiro.loop import game_app
     from hiro.loop.resume import ResumeBlocked
 
-    if game_app.foreground(game_app.adb_shell()) is not False:
+    if game_app.alive() is not False:
         return False
     logger.error("主循环异常时学マス不在前台（进程被杀 / 闪退？）：%r", err)
+    if game_app.is_dmm():
+        raise ResumeBlocked("DMM 版学マス的窗口不见了（闪退 / 被关？）。请从 DMM Game Player 重新启动游戏"
+                            "（会弹管理员确认），回到首页后用 resume 续跑") from err
     if not game_app.enabled():
         raise ResumeBlocked("学マス不在前台（进程被杀 / 闪退？内存吃紧时 MuMu 会杀游戏）。请重新打开游戏后续跑，"
                             "或设 HIRO_RELAUNCH_GAME=1 让程序自己拉起") from err

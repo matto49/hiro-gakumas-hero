@@ -6,6 +6,8 @@ GKMS 第五局（Windows + MuMu，2026-11-09 06:45）：可用内存只剩 150�
 - relaunch()：resolve-activity 找启动 Activity，am start -W 拉起（monkey 在 MuMu 上有时只起进程不到前台，07:01 实测）。
   拉起后由 date_change.recover_to_home 走标题页 → 首页（含 MuMu「加速服务」提示点「不加速」）。
 - 开关 HIRO_RELAUNCH_GAME=1 才自动拉起（缺省关：只认出来、报清楚原因后停下，由人重启）。
+- DMM 版（HIRO_DEVICE=dmm）：没有 adb，按 Windows 上有没有标题为「gakumas」的窗口判断（alive()）。不自动拉起：
+  DMM 版游戏要从 DMM Game Player 启动，而且每次都弹管理员确认，程序点不到，只能讲清原因停下。
 """
 
 from __future__ import annotations
@@ -70,6 +72,38 @@ def relaunch(shell) -> bool:
     out = shell(f"am start -W -n {act}") or ""
     logger.info("am start：%s", " ".join(out.split())[:200])
     return foreground(shell) is True
+
+
+WINDOW_TITLE = "gakumas"  # DMM 版游戏窗口标题（KAA 的 WindowQuery 用同一个）
+
+
+def is_dmm() -> bool:
+    from hiro import device as hdev
+
+    return (getattr(hdev, "BACKEND", None) or os.environ.get("HIRO_DEVICE")) == "dmm"
+
+
+def dmm_window_alive(find=None) -> bool | None:
+    """DMM 版游戏窗口在不在（FindWindowW 按标题找）；不是 Windows / 查不了返回 None。"""
+    if find is None:
+        try:
+            import ctypes
+
+            find = lambda title: ctypes.windll.user32.FindWindowW(None, title)  # noqa: E731
+        except (AttributeError, OSError):
+            return None
+    try:
+        return bool(find(WINDOW_TITLE))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("查 DMM 游戏窗口失败：%r", e)
+        return None
+
+
+def alive() -> bool | None:
+    """游戏还在不在：DMM 版看窗口，安卓后端看前台应用；不知道返回 None。"""
+    if is_dmm():
+        return dmm_window_alive()
+    return foreground(adb_shell())
 
 
 def is_landscape(img) -> bool:

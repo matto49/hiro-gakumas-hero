@@ -148,3 +148,24 @@ def test_controller_landscape_desktop_raises(monkeypatch):
     HiroController._check_game_alive(np.zeros((1280, 720, 3), np.uint8))  # 竖屏：不查
     monkeypatch.setattr(ga, "adb_shell", lambda device=None: (lambda cmd: GAME))
     HiroController._check_game_alive(np.zeros((720, 1280, 3), np.uint8))  # 横屏但学マス在前台：LIVE，不抛
+
+
+def test_dmm_window_alive(monkeypatch):
+    assert ga.dmm_window_alive(lambda title: 0x1234) is True
+    assert ga.dmm_window_alive(lambda title: 0) is False
+
+    def broken(title):
+        raise OSError("no user32")
+
+    assert ga.dmm_window_alive(broken) is None
+
+
+def test_alive_dispatches_by_backend(monkeypatch):
+    from hiro import device as hdev
+
+    monkeypatch.setattr(hdev, "BACKEND", "dmm", raising=False)
+    monkeypatch.setattr(ga, "dmm_window_alive", lambda find=None: False)
+    assert ga.is_dmm() and ga.alive() is False
+    monkeypatch.setattr(hdev, "BACKEND", "mumu", raising=False)
+    monkeypatch.setattr(ga, "adb_shell", lambda device=None: None)
+    assert not ga.is_dmm() and ga.alive() is None

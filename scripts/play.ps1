@@ -11,13 +11,15 @@
 #   -Memory      本战要核对的选拔回忆 Vo,Da,Vi；不给就在开始确认页读
 #   -Tag         trace 名里的局号
 #   -SupportSet / -MemorySet  支援卡 / 回忆编成号（缺省 4 / 5，见 AGENTS.md「开局编成」）
-#   -Device      HIRO_DEVICE（缺省 mumu；也可 adb / leidian / dmm，dmm 还没实机验证）
+#   -Device      HIRO_DEVICE（缺省 mumu；也可 adb / leidian / dmm）。dmm = DMM 版：游戏以管理员身份运行，
+#                本脚本会自己申请管理员权限（弹一次 UAC）后在新窗口里开局；先关掉 localify 一类改界面文字的插件
 #   -Llm         HIRO_LLM（缺省 codex；用 Claude Code 写 claude:sonnet）
 #   -Proxy       给 LLM 调用设 HTTPS_PROXY / HTTP_PROXY（国内网络通常要）
 #   -Relaunch    游戏被杀 / 闪退时自己拉起、回首页续跑（HIRO_RELAUNCH_GAME=1；缺省关，关着时讲清原因停下）
 #   -NoSim       关掉模拟器（轮间 / 饮料 / 相談按模拟、考试预演），只按社区规则；内存紧时用
 #   -Wait        前台等跑完再返回（缺省后台起进程，立刻返回 PID）
-#   其余参数原样交给 run_hif（写在 -- 后面），如 -- --no-llm
+#   -AllowDiscard  开局时其他端末有进行中的培育就破弃它（run_hif --allow-discard；不可撤回，只在确认不要那局时加）
+#   -RunHifArgs  原样交给 run_hif 的其他参数，一个字符串，如 -RunHifArgs "--no-llm"
 #
 # 为什么是这些缺省（Windows 实测，2026-11-07–09，22 局 3 次夺冠）：
 #   HIRO_SCREENSHOT=adb：Windows + MuMu 6 用 nemu_ipc 时截图正常但点击送不到游戏（kaa_env 缺省已是 adb，这里写明）。
@@ -39,9 +41,21 @@ param(
     [switch]$Relaunch,
     [switch]$NoSim,
     [switch]$Wait,
-    [Parameter(ValueFromRemainingArguments = $true)][string[]]$Rest
+    [switch]$AllowDiscard,
+    [string]$RunHifArgs = ""
 )
 $ErrorActionPreference = "Stop"
+# DMM 版游戏以管理员身份运行，普通权限的进程截图可以、点击会被系统挡掉（UIPI）：不是管理员就带着同样的参数提权重开
+if ($Device -eq "dmm" -and -not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    $pass = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$PSCommandPath`"")
+    foreach ($kv in $PSBoundParameters.GetEnumerator()) {
+        if ($kv.Value -is [switch]) { if ($kv.Value) { $pass += "-$($kv.Key)" } }
+        else { $pass += @("-$($kv.Key)", "`"$($kv.Value)`"") }
+    }
+    Write-Host "DMM 版要管理员权限：在弹出的 UAC 里点「是」，开局在新窗口里进行"
+    Start-Process powershell -Verb RunAs -ArgumentList $pass
+    exit 0
+}
 $OutputEncoding = [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location $Root
@@ -69,7 +83,10 @@ $argv = @("tools\play_game.py", "--idol", $Idol, "--main-attr", $MainAttr)
 if ($MainOnly) { $argv += "--main-only" }
 if ($Memory) { $argv += @("--memory", $Memory) }
 if ($Tag) { $argv += @("--tag", $Tag) }
-if ($Rest) { $argv += @("--") + ($Rest | Where-Object { $_ -ne "--" }) }
+$extra = @()
+if ($AllowDiscard) { $extra += "--allow-discard" }
+if ($RunHifArgs) { $extra += ($RunHifArgs -split "\s+" | Where-Object { $_ }) }
+if ($extra) { $argv += @("--") + $extra }
 
 $logs = Join-Path $Root "reports\live"
 New-Item -ItemType Directory -Force -Path $logs | Out-Null
