@@ -755,6 +755,17 @@ function renderDeck() {
   $("deck").innerHTML = html;
 }
 function renderAll() { renderHeader(); renderBlunders(); renderDeck(); renderStrip(); renderStep(); renderCharts(); renderResult(); renderNotes(); }
+// 地址定位：#s=<段>:<seq>（段 = 原段 / -r1 / -r2…），审计报告（tools/audit/community.py、blunders.py）的「复盘页」链接用
+function jumpFromHash() {
+  const m = /[#&]s=([^:&]+):(\d+)/.exec(decodeURIComponent(location.hash));
+  if (!m) return;
+  for (const [i, e] of DATA.exams.entries()) {
+    const k = e.steps.findIndex(x => x.seg === m[1] && x.seq === +m[2]);
+    if (k >= 0) { ei = i; si = k; return; }
+  }
+}
+window.addEventListener("hashchange", () => { jumpFromHash(); renderAll(); });
+jumpFromHash();
 renderAll();
 fetchNotes().then(() => renderAll());
 </script>
