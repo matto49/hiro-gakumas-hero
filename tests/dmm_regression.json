@@ -4679,6 +4679,693 @@
   ]
  },
  {
+  "file": "sg-dmm2-1a-action-select-before-tap.jpg",
+  "note": "dmm2 第 19 天特別指導停机现场（1a-action-select-before-tap）",
+  "page": "ACTION_SELECT",
+  "quick": null,
+  "scene": "ACTION_SELECT",
+  "fields": {
+   "exam": "選抜試験3",
+   "days_left": 1,
+   "stamina": 16,
+   "max_stamina": 33,
+   "p_points": 370,
+   "params": {
+    "vo": 1128,
+    "da": 2207,
+    "vi": 705
+   },
+   "param_caps": {
+    "vo": 3000,
+    "da": 3000,
+    "vi": 3000
+   },
+   "growth_pct": {
+    "vo": 45.5,
+    "da": 44.4,
+    "vi": 41.3
+   },
+   "star": 660,
+   "options": [
+    {
+     "kind": "rest",
+     "hp_gain": 16
+    },
+    {
+     "kind": "consult"
+    },
+    {
+     "kind": "special_training"
+    }
+   ],
+   "complete": true
+  }
+ },
+ {
+  "file": "sg-dmm2-1b-selected-not-confirmed.jpg",
+  "note": "dmm2 第 19 天特別指導停机现场（1b-selected-not-confirmed）｜①「特別指導」已选中、浮出说明，确认那下丢了；选行动页的选中态目前不在字段里（执行侧按说明浮条补点）",
+  "page": "ACTION_SELECT",
+  "quick": null,
+  "scene": "ACTION_SELECT",
+  "fields": {
+   "exam": "選抜試験3",
+   "days_left": 1,
+   "stamina": 16,
+   "max_stamina": 33,
+   "p_points": 370,
+   "params": {
+    "vo": 1128,
+    "da": 2207,
+    "vi": 705
+   },
+   "param_caps": {
+    "vo": 3000,
+    "da": 3000,
+    "vi": 3000
+   },
+   "growth_pct": {
+    "vo": 45.5,
+    "da": 44.4,
+    "vi": 41.3
+   },
+   "star": 660,
+   "options": [
+    {
+     "kind": "rest",
+     "hp_gain": 16
+    },
+    {
+     "kind": "consult"
+    },
+    {
+     "kind": "special_training"
+    }
+   ],
+   "complete": true
+  }
+ },
+ {
+  "file": "sg-dmm2-1c-r1-seq23-stuck-on-customize-grid.jpg",
+  "note": "dmm2 第 19 天特別指導停机现场（1c-r1-seq23-stuck-on-customize-grid）",
+  "page": "SPECIAL_GUIDANCE",
+  "quick": null,
+  "scene": "SPECIAL_GUIDANCE",
+  "fields": {
+   "stamina": 16,
+   "max_stamina": 33,
+   "produce_point": 370,
+   "view": "select",
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-men-2_004",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "available": true
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-men-2_111",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-men-2_052",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    }
+   ],
+   "cards_left": 2,
+   "scrollable": true,
+   "at_top": true,
+   "complete": false
+  }
+ },
+ {
+  "file": "sg-dmm2-2a-grid.jpg",
+  "note": "dmm2 第 19 天特別指導停机现场（2a-grid）",
+  "page": "SPECIAL_GUIDANCE",
+  "quick": null,
+  "scene": "SPECIAL_GUIDANCE",
+  "fields": {
+   "stamina": 16,
+   "max_stamina": 33,
+   "produce_point": 370,
+   "view": "select",
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-men-2_004",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "available": true
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-men-2_111",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-men-2_052",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    }
+   ],
+   "cards_left": 2,
+   "scrollable": true,
+   "at_top": true,
+   "complete": false
+  }
+ },
+ {
+  "file": "sg-dmm2-2b-card-picked.jpg",
+  "note": "dmm2 第 19 天特別指導停机现场（2b-card-picked）｜选中 0 号 えいえいおー+（以前取最后一个过门槛的角框 → 4 号，邻格被角框带过门槛）",
+  "page": "SPECIAL_GUIDANCE",
+  "quick": null,
+  "scene": "SPECIAL_GUIDANCE",
+  "fields": {
+   "stamina": 16,
+   "max_stamina": 33,
+   "produce_point": 370,
+   "view": "select",
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-men-2_004",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "available": true
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-men-2_111",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-men-2_052",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    }
+   ],
+   "selected": 0,
+   "selected_card": {
+    "card_id": "p_card-02-men-1_031",
+    "upgrade": 1
+   },
+   "menu": {
+    "items": [
+     {
+      "item_index": 0,
+      "price": 40,
+      "maxed": false,
+      "available": true,
+      "selected": false,
+      "id": "p_card_custom-040_040_070-g_effect-block_add-4-g_effect-block_add-8-g_effect-block_add-17"
+     },
+     {
+      "item_index": 1,
+      "price": 40,
+      "maxed": false,
+      "available": true,
+      "selected": false,
+      "id": "p_card_custom-040_040_070-g_effect-aggressive_add-1-g_effect-aggressive_add-2-g_effect-aggressive_add-5"
+     },
+     {
+      "item_index": 2,
+      "price": 70,
+      "maxed": false,
+      "available": true,
+      "selected": false,
+      "id": "p_card_custom-070-g_effect-effect_add-e_effect-exam_lesson_depend_exam_card_play_aggressive-1100-01"
+     }
+    ]
+   },
+   "cards_left": 2,
+   "scrollable": true,
+   "at_top": true,
+   "complete": false
+  }
+ },
+ {
+  "file": "sg-dmm2-2c-menu-eieio-plus.jpg",
+  "note": "dmm2 第 19 天特別指導停机现场（2c-menu-eieio-plus）｜② 详情卡名「えいえいおー+」：Windows RapidOCR 疑把「ー」读成「一」对不上",
+  "page": "SPECIAL_GUIDANCE",
+  "quick": null,
+  "scene": "SPECIAL_GUIDANCE",
+  "fields": {
+   "stamina": 16,
+   "max_stamina": 33,
+   "produce_point": 370,
+   "view": "menu",
+   "selected_card": {
+    "card_id": "p_card-02-men-1_031",
+    "upgrade": 1
+   },
+   "menu": {
+    "items": [
+     {
+      "item_index": 0,
+      "price": 40,
+      "left": 3,
+      "maxed": false,
+      "available": true,
+      "selected": false,
+      "id": "p_card_custom-040_040_070-g_effect-block_add-4-g_effect-block_add-8-g_effect-block_add-17"
+     },
+     {
+      "item_index": 1,
+      "price": 40,
+      "left": 3,
+      "maxed": false,
+      "available": true,
+      "selected": false,
+      "id": "p_card_custom-040_040_070-g_effect-aggressive_add-1-g_effect-aggressive_add-2-g_effect-aggressive_add-5"
+     },
+     {
+      "item_index": 2,
+      "price": 70,
+      "left": 1,
+      "maxed": false,
+      "available": true,
+      "selected": false,
+      "id": "p_card_custom-070-g_effect-effect_add-e_effect-exam_lesson_depend_exam_card_play_aggressive-1100-01"
+     }
+    ],
+    "total_left": 3
+   }
+  }
+ },
+ {
+  "file": "sg-dmm2-3b-after-end-tap-selected-gamushara.jpg",
+  "note": "dmm2 第 19 天特別指導停机现场（3b-after-end-tap-selected-gamushara）｜③ 选中的 がむしゃら+ 在滚到一半的第 3 行（不整格可见）→ selected None；「終了」在 (653,1083)",
+  "page": "SPECIAL_GUIDANCE",
+  "quick": null,
+  "scene": "SPECIAL_GUIDANCE",
+  "fields": {
+   "stamina": 16,
+   "max_stamina": 33,
+   "produce_point": 370,
+   "view": "select",
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-men-2_004",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "available": true
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-men-2_111",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-men-2_052",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    }
+   ],
+   "selected_card": {
+    "card_id": "p_card-02-act-1_071",
+    "upgrade": 1
+   },
+   "menu": {
+    "items": [
+     {
+      "item_index": 0,
+      "price": 70,
+      "maxed": false,
+      "available": true,
+      "selected": false,
+      "id": "p_card_custom-wrapper-p_card-02-act-1_071-a-01"
+     },
+     {
+      "item_index": 1,
+      "price": 40,
+      "maxed": false,
+      "available": true,
+      "selected": false,
+      "id": "p_card_custom-wrapper-p_card-02-act-1_071-b-01"
+     },
+     {
+      "item_index": 2,
+      "price": 40,
+      "maxed": false,
+      "available": true,
+      "selected": false,
+      "id": "p_card_custom-wrapper-p_card-02-act-1_071-c-01"
+     }
+    ]
+   },
+   "cards_left": 2,
+   "scrollable": true,
+   "at_top": true,
+   "complete": false
+  }
+ },
+ {
+  "file": "sg-dmm2-3c-r2-seq2-stop.jpg",
+  "note": "dmm2 第 19 天特別指導停机现场（3c-r2-seq2-stop）",
+  "page": "SPECIAL_GUIDANCE",
+  "quick": null,
+  "scene": "SPECIAL_GUIDANCE",
+  "fields": {
+   "stamina": 16,
+   "max_stamina": 33,
+   "produce_point": 370,
+   "view": "select",
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-men-2_004",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "available": true
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-men-2_111",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-men-2_052",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 1,
+     "customized": false,
+     "available": true
+    }
+   ],
+   "selected_card": {
+    "card_id": "p_card-02-act-1_071",
+    "upgrade": 1
+   },
+   "menu": {
+    "items": [
+     {
+      "item_index": 0,
+      "price": 70,
+      "maxed": false,
+      "available": true,
+      "selected": false,
+      "id": "p_card_custom-wrapper-p_card-02-act-1_071-a-01"
+     },
+     {
+      "item_index": 1,
+      "price": 40,
+      "maxed": false,
+      "available": true,
+      "selected": false,
+      "id": "p_card_custom-wrapper-p_card-02-act-1_071-b-01"
+     },
+     {
+      "item_index": 2,
+      "price": 40,
+      "maxed": false,
+      "available": true,
+      "selected": false,
+      "id": "p_card_custom-wrapper-p_card-02-act-1_071-c-01"
+     }
+    ]
+   },
+   "cards_left": 2,
+   "scrollable": true,
+   "at_top": true,
+   "complete": false
+  }
+ },
+ {
   "file": "start-confirm-dmm1.png",
   "note": "H.I.F 本战开始确认页：选拔回忆 1459 / 2336 / 865（dmm1 读不出停机，6c407de 修）",
   "quick": null,
