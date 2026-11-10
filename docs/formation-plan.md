@@ -7,7 +7,8 @@
 
 1. 扫库存（实机，只读，会操作游戏翻页）：
    - 支援卡：编成页点一个空格进入「選択」列表，停在第 1 页顶部，运行 `python tools/support_inventory.py --list` → `reports/live/support-inventory.json`
-   - 回忆：编成页点开任意一格回忆，停在回忆选择页，运行 `python tools/memory_inventory.py --live` → `reports/live/memory-inventory.json`
+   - 回忆：编成页点开任意一格回忆，停在回忆选择页，运行 `python -m hiro.memory_scan scan` → `reports/live/memory-inventory.json`
+     （带全局位置，开局自动编成要用；`tools/memory_inventory.py --live` 的库存没有位置）
 2. 出方案（离线）：
 
    ```bash
@@ -24,6 +25,19 @@
      对不上就抛 `FormationMismatch`，不开局，退出码 3。`HIRO_MEMORY_CARD_CHECK=warn` 回忆卡对不上只警告，`off` 不认图标（默认 `block`）。
      没有卡面素材（`AssetSource.card_art_dir()` 为空）时图标一律「认不出」，只警告。
    没有方案文件时一切照旧。`HIRO_FORMATION_PLAN=off` 不读方案，`HIRO_FORMATION_PLAN=<路径>` 读指定文件。
+
+## 开局自动编成（`hiro.produce.formation_writer`，默认关）
+
+`HIRO_FORMATION_AUTOFIX=1` 且有开局编成方案时，开局不用手动存编成：
+
+- 第 2 步：KAA 切到方案的支援卡编成号后，读 5 格，和方案不一致的格子逐个点开、在选择列表里翻页找到方案的卡、确认选中后「決定」，回到第 2 步重读核对。
+- 第 3 步：KAA 选完回忆编成号后，认四格回忆的卡，不一致的格子点开回忆选择页，按库存记录的位置（全局行 / 列）滚过去，点开读详情、
+  和库存记录逐项比对（卡、时机、属性、能力），一致才「決定」，再认一次核对。
+- 只改必须改的格子：已经在编成里的方案卡不动，先换认出来的错卡，再用认不出的格子。
+- 任何一步不对（列表里没有、点了没选中、改完核对不过、回忆附近几行找不到）就キャンセル并停下，不开局（FormationMismatch，退出码 3）；
+  每步存帧到 `reports/live/calib/*-编成修正-*`。
+- 回忆的库存位置只认 `python -m hiro.memory_scan scan` 扫出来的库存（全局行号 + 内容键）；旧库存没有位置，需要改回忆时会提示重扫。
+- 只动 KAA 已经切到的那个编成号（建议用 20 号专用位），不碰其他编成。执行步骤还没实机验证，所以默认关。
 
 ## 回忆小图标认卡（`hiro.vision.memory_icons`）
 
@@ -75,7 +89,7 @@ python -m hiro.vision.card_icon_render build        # 生成渲染库 cache/card
 
 ## 还没做
 
-- 把方案自动写进游戏编成位，目前要手动存。
+- 开局自动编成（上一节）已写好但默认关，等实机验证：第 2 步点格子是否打开同一个选择列表、第 3 步点回忆插图是否打开回忆选择页、選択中的卡在别的格子时怎么处理。
 - 回忆租借：评分（`formation.choose_memory_rental`）早就有，但第 3 步点进回忆租借列表的画面还没取过帧，执行器没法写；已请总控实机取帧。
 - 第 3 步图标位置只按一张实机帧（2026-11-04）标定；游戏改版或别的模式下布局不同时会四格都认不出（只警告，不拦），要重新标定 `STEP3_ICONS`。
 - 其他流派的定制 OCR 关键词（`CUSTOM_TEXT_KEYS` 里新加的几项）还没拿实机回忆页验证。

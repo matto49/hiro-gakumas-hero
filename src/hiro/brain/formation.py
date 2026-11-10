@@ -344,6 +344,17 @@ def _formation_score(mems: list[dict], scored: dict, gains, finals, profile: str
     return total, notes
 
 
+def _inventory_position(raw: dict) -> dict:
+    """库存扫描记录（memory_picker.scan 的 entry）的位置和内容键：开局自动编成（produce.formation_writer）按它找回这份回忆。
+    不是扫描记录（手写 / 旧格式）时返回空。"""
+    # 只认 hiro.memory_scan（memory_picker.scan）的记录：cell 是全局行号、stats 是 dict；tools.memory_inventory 的 cell 是屏内行号，不能用
+    if not isinstance(raw, dict) or "cell" not in raw or not isinstance(raw.get("stats"), dict) or "slot" not in raw:
+        return {}
+    from hiro.produce.memory_picker import entry_key
+
+    return {"cell": list(raw["cell"]), "key": entry_key(raw)}
+
+
 def select_memories(inventory: dict | list, *, gains: dict | None = None, finals: dict | None = None, plan: str = "ProducePlanType_Plan2",
                     profile: str | None = None) -> dict:  # fmt: skip
     """库存 → 推荐的 4 格编成、每格理由、第 2 方案与差距、值得刷的回忆。profile：流派（默认 やる気；见 memory_priority.profile_for_idol）。"""
@@ -394,7 +405,7 @@ def select_memories(inventory: dict | list, *, gains: dict | None = None, finals
         alt = alts[0] if alts else None
         return {"id": m["id"], "card_id": m["card_id"], "name": e.get("name") or m["name"], "upgrade": m["upgrade"],
                 "timing": m["timing"], "weight": s["weight"], "quality": round(s["quality"], 1), "role": e.get("role"), "slot": e.get("slot"),
-                "sources": e.get("sources", []), "why": s["why"],
+                "sources": e.get("sources", []), "why": s["why"], **_inventory_position(m["raw"]),
                 "vs_same_card": (f"同卡另一份 {alt['id']}：质量 {scored[id(alt)]['quality']:.1f}（{'；'.join(scored[id(alt)]['why']) or '无'}）"
                                  if alt else "库存里只有这一份")}  # fmt: skip
 

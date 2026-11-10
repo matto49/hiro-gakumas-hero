@@ -993,6 +993,82 @@ def _check_support(img) -> None:
     logger.info("支援卡编成核对通过（编成 %s）", kaa_env.SUPPORT_SET)
 
 
+def _autofix_on() -> bool:
+    """开局自动编成（produce.formation_writer）：HIRO_FORMATION_AUTOFIX=1 且有开局编成方案时才启用（默认关，执行步骤待实机验证）。"""
+    import os
+
+    from hiro import kaa_env
+
+    return os.environ.get("HIRO_FORMATION_AUTOFIX") == "1" and bool(kaa_env.ACTIVE_PLAN)
+
+
+def _writer_device(tag: str):
+    from pathlib import Path
+
+    import cv2
+
+    from hiro.produce.formation_writer import Device
+
+    d = Path("reports/live/calib") / f"{time.strftime('%Y%m%d-%H%M%S')}-编成修正-{tag}"
+    n = [0]
+
+    def calib(img, name):
+        d.mkdir(parents=True, exist_ok=True)
+        n[0] += 1
+        cv2.imwrite(str(d / f"{n[0]:02d}-{name}.jpg"), img)
+
+    return Device(shoot=device.screenshot, click=lambda x, y: device.click(x, y),
+                  swipe=lambda x1, y1, x2, y2, dur=None: device.swipe(x1, y1, x2, y2, duration=dur), sleep=time.sleep, calib=calib)  # fmt: skip
+
+
+def _autofix_support() -> None:
+    """第 2 步：编成和方案不一致的格子自动改（只在 KAA 已切到方案编成号之后）。失败抛 FormationMismatch，不开局。"""
+    if not _autofix_on():
+        return
+    from hiro import kaa_env
+    from hiro.produce.formation_writer import FormationWriteError, fix_support
+    from hiro.vision.support_screens import read_support_formation, read_support_list
+
+    try:
+        done = fix_support(_writer_device("支援卡"), kaa_env.ACTIVE_PLAN, read_formation=read_support_formation, read_list=read_support_list)
+    except FormationWriteError as e:
+        logger.error("开局自动编成（支援卡）失败，不开局：%s", e)
+        raise FormationMismatch(f"开局自动编成（支援卡）失败：{e}") from e
+    if done:
+        logger.info("开局自动编成（支援卡）：改了 %d 格 %s", len(done), done)
+
+
+def _autofix_memory() -> None:
+    """第 3 步：回忆格和方案不一致时自动改；回忆列表滚动临时用「终点停住」防惯性（同 hiro.memory_scan）。"""
+    if not _autofix_on():
+        return
+    from hiro import device as hdev
+    from hiro import kaa_env
+    from hiro.produce.formation_writer import FormationWriteError, fix_memory
+    from hiro.produce.memory_picker import SWIPE_DURATION, SWIPE_HOLD, Picker
+    from hiro.vision.memory_icons import read_step3_icons
+
+    impl = getattr(hdev.DEVICE, "_touch", None) if hdev.DEVICE is not None else None  # 最近一次 connect() 的设备
+    old_hold = getattr(impl, "swipe_hold", None)
+    if impl is not None and old_hold is not None:
+        impl.swipe_hold = SWIPE_HOLD
+    plan = kaa_env.ACTIVE_PLAN
+    try:
+        def make_picker():
+            return Picker(device.screenshot, lambda x, y: device.click(x, y),
+                          lambda x1, y1, x2, y2: device.swipe(x1, y1, x2, y2, duration=SWIPE_DURATION))  # fmt: skip
+
+        done = fix_memory(_writer_device("回忆"), plan, read_icons=read_step3_icons, make_picker=make_picker)
+    except FormationWriteError as e:
+        logger.error("开局自动编成（回忆）失败，不开局：%s", e)
+        raise FormationMismatch(f"开局自动编成（回忆）失败：{e}") from e
+    finally:
+        if impl is not None and old_hold is not None:
+            impl.swipe_hold = old_hold
+    if done:
+        logger.info("开局自动编成（回忆）：改了 %d 格 %s", len(done), done)
+
+
 def _check_memory_cards(img, plan: dict) -> tuple[list[str], list[str]]:
     """第 3 步四格回忆的技能卡小图标 vs 方案的回忆卡。HIRO_MEMORY_CARD_CHECK：block（默认，有把握认错就拦）/ warn / off。"""
     import os
@@ -1057,6 +1133,7 @@ def _rent_step2(orig):
             return False
         if set_number is not None:
             importlib.import_module("kaa.tasks.produce.prepare")._select_set(set_number)
+        _autofix_support()
         _check_support(device.screenshot())
         if R.Produce.Step2.ButtonNext.q(enabled=True).exists():
             logger.info("支援卡：编成 %s 已满（含租借格），直接下一步", set_number)
@@ -1103,6 +1180,7 @@ def _snap_step3(orig):
             raise RentalPending("第 3 步暂停：总控手动探查回忆租借（HIRO_STEP3_PAUSE=1）")
         r = orig(*a, **k)
         if r:
+            _autofix_memory()
             _check_memory_set()  # KAA 选完编成、点「次へ」之前
         return r
 
