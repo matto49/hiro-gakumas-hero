@@ -310,14 +310,13 @@ def _reset_pool() -> None:
 
 
 def sim_workers(asked: int) -> int:
-    """进程池大小上限（HIRO_SIM_WORKERS；0 = 不限）。Windows 默认 1（不开进程池）：spawn 起的子进程会重新导入主模块
-    （python -m hiro.run_hif → KAA、OCR、控制器整套），4 个子进程加上 MuMu 把 16GB 内存吃满，Windows 第十五局
-    MemoryError、MuMu 崩溃（device offline）。Mac / Linux 用 fork，子进程共享内存，不受限。"""
+    """进程池大小上限（HIRO_SIM_WORKERS；0 = 不限）。没设时用平台缺省（hiro.compat.default_sim_workers：Windows 1，其他不限）。"""
     import os
-    import sys
+
+    from hiro.compat import default_sim_workers
 
     cap = os.environ.get("HIRO_SIM_WORKERS")
-    cap = int(cap) if cap and cap.isdigit() else (1 if sys.platform == "win32" else 0)
+    cap = int(cap) if cap and cap.isdigit() else default_sim_workers()
     return max(1, min(asked, cap)) if cap else asked
 
 

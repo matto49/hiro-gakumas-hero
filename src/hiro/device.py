@@ -304,6 +304,16 @@ def is_playcover() -> bool:
     return name in PLAYCOVER_BACKENDS or (name == "auto" and sys.platform == "darwin")
 
 
+def fallback_click():
+    """控件点了没反应时的兜底点击（produce.ops.Run.real_click）：PlayCover 返回真实鼠标点击（MaaTools 偶尔点不进饮料详情等弹窗），
+    其他设备 None（adb / DMM 的点击没有这个问题）。平台判断放在设备层，执行层只问「有没有兜底」。"""
+    if not is_playcover():
+        return None
+    from hiro import real_click
+
+    return real_click.click
+
+
 def _kaa_config(name: str):
     """KAA 设备工厂要的配置：已 init_kaa 就用当前配置（后端已按环境变量写好）；
     否则（tap 等工具直接 connect）现建一份，后端按环境变量写。"""

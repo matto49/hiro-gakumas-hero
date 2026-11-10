@@ -346,13 +346,10 @@ def swap_receive(
     """差し入れ三选一（SELECT_DRINK）饮料满时：丢饮料栏第 discard 瓶，再拿第 pick 个候选。slots：read_drink_slots 的结果（用其 center）。"""
     r = Run(action or Action.activate_effect(pick), "SELECT_DRINK", shoot or device.screenshot, click or device.click, clock, sleep,
             label="饮料替换", ocr=ocr, calib=calib)  # fmt: skip
-    if click is None:  # 实机：MaaTools 点了没反应时退回真实鼠标（测试注入了 click 就不会碰真鼠标；只有 PlayCover 需要）
-        from hiro.device import is_playcover
+    if click is None:  # 实机：点了没反应时用设备层的兜底点击（PlayCover 是真实鼠标；测试注入了 click 就不会碰）
+        from hiro.device import fallback_click
 
-        if is_playcover():
-            from hiro import real_click
-
-            r.real_click = real_click.click
+        r.real_click = fallback_click()
     r.snap(r.shoot(), "open")
     if not 0 <= pick < len(OFFER_CENTERS):
         return r.result(False, f"没有第 {pick} 个候选饮料")
