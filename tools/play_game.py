@@ -45,6 +45,45 @@ def parse_memory(boxes) -> tuple[int, int, int] | None:
     return tuple(n for _, n in nums[:3]) if len(nums) >= 3 else None
 
 
+ICON_SCAN = 48  # 属性图标在数字框左端的最大宽度（720x1280）
+
+
+def icon_right_edge(img, box) -> int | None:
+    """数字框左端的属性图标（粉 / 蓝 / 橙的实心圆，高饱和高亮）右缘 x；左端没有图标返回 None。
+    DMM 版 RapidOCR 把图标读成数字：1459 → 91459、865 → 89865（图标占一位或两位，只看文字分不出）。"""
+    import cv2
+    import numpy as np
+
+    x1, y1, x2, y2 = (int(v) for v in box)
+    roi = img[max(0, y1):y2, max(0, x1):min(x2, x1 + ICON_SCAN)]
+    if roi.size == 0:
+        return None
+    hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+    colored = ((hsv[:, :, 1] >= 120) & (hsv[:, :, 2] >= 150)).sum(axis=0) >= max(4, roi.shape[0] // 4)
+    cols = np.flatnonzero(colored)
+    if cols.size < 8:  # 图标约 30 像素宽，零星几列是数字描边 / 背景
+        return None
+    return x1 + int(cols.max()) + 1
+
+
+def parse_memory_img(img, boxes, ocr) -> tuple[int, int, int] | None:
+    """parse_memory 加一步：数字框左端有属性图标就把图标裁掉，只放大 OCR 数字部分。ocr(img) → [(text, conf, box)]。"""
+    import cv2
+
+    fixed = []
+    for t, c, (x1, y1, x2, y2) in boxes:
+        cy = (y1 + y2) // 2
+        if PARAM_BAND[0] <= cy <= PARAM_BAND[1] and x1 > 330:
+            edge = icon_right_edge(img, (x1, y1, x2, y2))
+            if edge is not None and x2 - edge > 20:
+                crop = cv2.resize(img[int(y1):int(y2), edge + 1:int(x2)], None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
+                digits = "".join(re.sub(r"\D", "", tt) for tt, _, _ in ocr(crop))
+                if 3 <= len(digits) <= 4:
+                    t = digits
+        fixed.append((t, c, (x1, y1, x2, y2)))
+    return parse_memory(fixed)
+
+
 def read_memory() -> tuple[int, int, int] | None:
     sys.path.insert(0, str(ROOT / "src"))
     import hiro  # noqa: F401
@@ -54,9 +93,10 @@ def read_memory() -> tuple[int, int, int] | None:
     d = connect()
     votes: list[tuple[int, int, int]] = []
     for _ in range(8):
-        boxes = ocr_boxes(d.screenshot())
+        img = d.screenshot()
+        boxes = ocr_boxes(img)
         if any("開始確認" in t or "本戦へ" in t for t, _, _ in boxes):
-            m = parse_memory(boxes)
+            m = parse_memory_img(img, boxes, ocr_boxes)
             if m:
                 votes.append(m)
         if len(votes) >= 3:
