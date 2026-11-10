@@ -311,6 +311,10 @@ def _mark_card_name(img, mark) -> str:
     return card.name if card else "?"
 
 
+STAGE2_MAX_CANCELS = 2
+_STAGE2_CANCELS: dict = {}  # (card_id, remove_upgrade) → 本进程里阶段 2 因找不到那张而取消的次数
+
+
 def change_stage2(self, index: int = 0, card_id: str | None = None, cancel: bool = False, remove_index: int | None = None,
                   remove_upgrade: int | None = None) -> bool:  # fmt: skip
     """换卡阶段 2：选被换掉的原卡 → チェンジ → 确认。认不出 / 只剩保护卡时点キャンセル，返回 False；画面不在阶段 2 也返回 False。
@@ -339,6 +343,14 @@ def change_stage2(self, index: int = 0, card_id: str | None = None, cancel: bool
     run.snap(img, "stage2-deck")
     target, why = (None, "决策判定不换") if cancel else pick_change_target(dialog["cards"], index, card_id, remove_index=remove_index,
                                                                          remove_upgrade=remove_upgrade)  # fmt: skip
+    key = (card_id, remove_upgrade)
+    if target is None and not cancel and card_id and _STAGE2_CANCELS.get(key, 0) >= STAGE2_MAX_CANCELS:
+        # 阶段 1 没有取消键，阶段 2 取消只会回到阶段 1 再选同一张：同一张卡已取消 STAGE2_MAX_CANCELS 次，
+        # 改换这张卡强化次数最低的那份（DMM 版 2026-11-10 dmm1m：4 张 ゆるふわおしゃべり 都认成已强化，转了十几分钟）
+        same = [c for c in dialog["cards"] if c.get("card_id") == card_id]
+        if same:
+            target = min(same, key=lambda c: (c.get("upgrade") is None, c.get("upgrade") or 0))
+            why = f"{why}；已取消 {_STAGE2_CANCELS[key]} 次，改换强化最低的那张（{target.get('upgrade')}）"
     if target is None and not cancel and card_id and not any(c.get("card_id") == card_id for c in dialog["cards"]):
         # 牌组一屏放不下、目标不在这一屏（决策按整副选的）：往下、再往上翻屏找同 card_id + 强化次数的那张
         from hiro.vision.deck import dialog_scroll
@@ -364,6 +376,8 @@ def change_stage2(self, index: int = 0, card_id: str | None = None, cancel: bool
                     break
             run.snap(img, "stage2-scrolled")
     if target is None:
+        if card_id and not cancel:
+            _STAGE2_CANCELS[key] = _STAGE2_CANCELS.get(key, 0) + 1
         logger.warning("换卡阶段 2：%s，不换，点「キャンセル」（卡格 %s）", why, [c.get("name") for c in dialog["cards"]])
         device.click(*CHANGE_CANCEL_TAP)
         time.sleep(CHANGE_POLL)

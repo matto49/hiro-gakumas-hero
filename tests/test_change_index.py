@@ -114,3 +114,8 @@ def test_hif_hands_whole_deck_to_decision(monkeypatch):
     monkeypatch.setattr(kp, "scan_dialog_deck", lambda region, expected=None: {"cards": whole[:30], "complete": False, "screens": 3, "problems": ["x"]})
     assert st._scan_change_deck() is False
     assert len(st.s.state.page_fields["cards"]) == 12 and st.s.state.page_fields["deck_complete"] is False and recovers == ["missing_fields"]
+
+
+def test_stage2_cancel_limit_constants():
+    """阶段 2 找不到要换的那张时先取消；同一张卡取消满 STAGE2_MAX_CANCELS 次后改换强化最低的（不能无限打转）。"""
+    assert kp.STAGE2_MAX_CANCELS >= 1 and isinstance(kp._STAGE2_CANCELS, dict)
