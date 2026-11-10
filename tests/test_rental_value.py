@@ -112,3 +112,24 @@ def test_pick_once_scans_all_then_picks_best(monkeypatch):
                                                     "pager": {"page": 1, "pages": 1}})  # fmt: skip
     assert rental._pick_once("Da", set(), score) == best["support_card_id"]
     assert state["clicked"][-2] == (360, 600) and state["clicked"][-1] == (497, 1157)  # 点那一行、再点「決定」
+
+
+def test_catalog_falls_back_to_sim_master(monkeypatch):
+    """game.db 里没有的新卡（s_card-3-0099）：模拟器主数据构建过时退回查它（2026-11-10）。"""
+    import sqlite3
+
+    from hiro.state import catalog as cat
+
+    db = sqlite3.connect(":memory:")
+    db.execute('CREATE TABLE "SupportCard" (id TEXT, planType TEXT)')
+
+    class _Sim:
+        def by_id(self, table, key):
+            return [{"id": key, "planType": "ProducePlanType_Common"}] if key == "s_card-new" else []
+
+    monkeypatch.setattr(cat, "_sim_catalog", lambda: _Sim())
+    c = cat.Catalog(db)
+    assert c.one("SupportCard", "s_card-new")["planType"] == "ProducePlanType_Common"
+    assert c.by_id("NoSuchTable", "x") == []
+    monkeypatch.setattr(cat, "_sim_catalog", lambda: None)
+    assert c.by_id("SupportCard", "s_card-new") == []  # 没有模拟器主数据：照旧查不到
