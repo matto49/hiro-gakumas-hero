@@ -80,6 +80,11 @@ LOADING_PALE_MIN = 0.5  # 浅蓝花纹底（读取 / 支援卡过场 / 星星金
 WHITE_X = (60, 660)
 PANEL_Y = (650, 940)  # 选择面板 / 卡格面板所在：这里有 ≥ 40 行连续白色 = 是选择页，不是气泡 / 礼物箱
 BUBBLE_Y = (940, 1135)  # 底部消息气泡
+# 日程表覆盖层（スケジュール / 育成目標 / 編成）：点左上「選抜試験Nまで」框会打开。底部青色标签栏 + 下方白色圆形 ✕。
+# DMM dmm2：过渡页点 (12,12) 落进了那个框（DMM 坐标有偏移），日程表的白色时间轴又被当成底部消息气泡，再点 (12,12)，转了 3 分钟停机
+SCHEDULE_BAR_Y = (1078, 1168)
+SCHEDULE_CLOSE = (360, 1200)
+SCHEDULE_CLOSE_BOX = (335, 1180, 385, 1230)
 ACQ_BAR_Y, ACQ_BAR_X, ACQ_BAR_ROWS = (840, 920), (160, 560), (16, 26)  # 获得演出名称栏：白色横条 20–21 行
 
 
@@ -350,6 +355,8 @@ def quick_page(img: MatLike) -> dict | None:
         bag = read_gift(img)["bag"]
         if bag is not None:
             return done("GIFT", tap=tuple(bag), fields={"bag": bag})
+    if _schedule_overlay(hsv):
+        return done("TRANSITION", tap=SCHEDULE_CLOSE, fields={"kind": "schedule"})  # 日程表覆盖层：点底部 ✕ 关掉
     runs = _runs(white, *BUBBLE_Y, 40)
     if runs and not _runs(white, *PANEL_Y, 40) and _hit(gray, "quick_hud_label"):  # 剧情对话框 / 事件过场 / 主页菜单下方也有白块
         # 有字的行白色占比不到 0.85：从白色段往上扩到占比 < 0.5，才是气泡上沿（第一行字在上面）
@@ -361,6 +368,18 @@ def quick_page(img: MatLike) -> dict | None:
         page, fields = read_bubble(img, top, runs[-1][1])
         return done(page, tap=SKIP_TAP, fields=fields)
     return None
+
+
+def _schedule_overlay(hsv) -> bool:
+    """日程表覆盖层：标签栏那几十行每行青色占比 ≥ 0.3（渐变青→蓝，只数青的一段），且底部 ✕ 圆钮那块大半是白色。"""
+    y1, y2 = SCHEDULE_BAR_Y
+    bar = hsv[y1:y2:6, 20:700]
+    cyan = ((bar[..., 0] >= 85) & (bar[..., 0] <= 100) & (bar[..., 1] >= 120) & (bar[..., 2] >= 150)).mean(axis=1)
+    if (cyan >= 0.3).mean() < 0.9:
+        return False
+    x1, cy1, x2, cy2 = SCHEDULE_CLOSE_BOX
+    btn = hsv[cy1:cy2, x1:x2]
+    return float(((btn[..., 2] >= 235) & (btn[..., 1] <= 25)).mean()) >= 0.5
 
 
 def split_card_names(text: str) -> list[dict] | None:
