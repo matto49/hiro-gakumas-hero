@@ -80,6 +80,26 @@ def _orange(hsv) -> np.ndarray:
     return (hsv[:, :, 0] >= 8) & (hsv[:, :, 0] <= 22) & (hsv[:, :, 1] >= 150) & (hsv[:, :, 2] >= 200)
 
 
+def _cursor(grid: list[dict], orange: np.ndarray, selected_card: dict | None) -> int | None:
+    """选中格：四角橙色角框。选中格的角框会伸进右边 / 下边相邻格的检测窗（DMM dmm2 特別指導：选中 0 号 1210 px，
+    右邻 597、下邻 558 都过门槛，以前取最后一个过门槛的 → 4 号）。过门槛的格子里按上方详情的卡（selected_card）认：
+    取同卡里角框最多的；详情卡不在这些格子里（选中的是滚到一半、不整格可见的卡，邻格被角框带过门槛）→ None。
+    没有详情卡时取角框最多的。"""
+    hits = []
+    for c in grid:
+        x, y, w, h = c["rect"]
+        px = _corner_px(orange, x, y, x + w, y + h)
+        if px >= CURSOR_MIN_PX:
+            hits.append((px, c))
+    if not hits:
+        return None
+    if selected_card and selected_card.get("card_id"):
+        same = [(px, c) for px, c in hits if c["card_id"] == selected_card["card_id"]
+                and (selected_card.get("upgrade") is None or c["upgrade"] is None or c["upgrade"] == selected_card["upgrade"])]  # fmt: skip
+        return max(same, key=lambda t: t[0])[1]["index"] if same else None
+    return max(hits, key=lambda t: t[0])[1]["index"]
+
+
 def _corner_px(orange: np.ndarray, x1: int, y1: int, x2: int, y2: int, pad: int = 14, arm: int = 30) -> int:
     """矩形四角外侧的橙色角框像素数。"""
     h, w = orange.shape
@@ -154,13 +174,12 @@ def read_special_guidance(img: MatLike, boxes=None) -> dict:
     if view == "select":
         hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
         orange = _orange(hsv)
-        for c in read_card_grid(img, GRID_REGION, "guidance"):
-            x, y, w, h = c["rect"]
+        grid = read_card_grid(img, GRID_REGION, "guidance")
+        selected = _cursor(grid, orange, selected_card)
+        for c in grid:
             dim = c["dimmed"]  # 压暗 = 不能定制（read_card_grid 已提亮后再判「+」）
             card = {k: c[k] for k in ("index", "row", "col", "card_id", "name", "upgrade", "customized")}
             card.update(available=not dim, center=list(c["center"]))
-            if _corner_px(orange, x, y, x + w, y + h) >= CURSOR_MIN_PX:
-                selected = c["index"]
             same = selected_card and selected == c["index"] and selected_card["card_id"] == c["card_id"]
             if same and menu is not None:
                 card["customizations"] = [{"id": it.get("id"), "item_index": it["item_index"], "price": it["price"], "available": it["available"],

@@ -84,3 +84,19 @@ def test_child_env_keeps_caller_pythonpath(monkeypatch):
     assert parts == [str(play_game.ROOT / "src"), "/x/plugins", "/y"]
     monkeypatch.delenv("PYTHONPATH")
     assert play_game.child_env()["PYTHONPATH"] == str(play_game.ROOT / "src")
+
+
+def test_trace_prefix_shared_with_audit(monkeypatch, tmp_path):
+    """trace 前缀：play_game 起名和 blunders 找段用同一个 HIRO_TRACE_PREFIX；不设就都不带前缀。"""
+    import importlib
+
+    import tools.audit.blunders as B
+    import tools.play_game as pg
+
+    monkeypatch.delenv("HIRO_TRACE_PREFIX", raising=False)
+    assert pg._prefix() == ""
+    monkeypatch.setenv("HIRO_TRACE_PREFIX", "lead35")
+    assert pg._prefix() == "lead35-"
+    monkeypatch.setenv("HIRO_TRACE_PREFIX", "")
+    B = importlib.reload(B)
+    assert B.PREFIX == ""

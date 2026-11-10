@@ -60,6 +60,8 @@ KINDS: dict[str, dict[str, str]] = {
     "流程": {
         "run_stopped": "运行中断（报错停止 / 异常 / 被杀）",
         "crash_restart": "进程内崩溃自恢复",
+        "llm_rescue": "认不出的画面交给 LLM 看图兜底（同类画面多了交识屏补签名）",
+        "rec_pause": "录屏中断，对局暂停（录屏恢复后继续）",
         "resume_failed": "开局 / 续跑接不上",
         "manual_intervention": "人工介入",
     },
@@ -67,6 +69,7 @@ KINDS: dict[str, dict[str, str]] = {
         "shop_not_spent": "相談 / 轮间没按决策花 P 点",
         "drink_full_unhandled": "饮料满了没处理好",
         "retry_unused": "该用的再挑戦没用",
+        "drink_ledger": "轮间持有饮料和 R1 结束时实际剩余不一致",
     },
 }
 GAPS = {
@@ -316,6 +319,56 @@ def read_error(seg: Segment) -> list[Finding]:
                 continue
             seen.add(key)
             out.append(_f(seg, "识别", "read_error", st, f"{c.get('field')}={c.get('observed')!r}（{c.get('rule')}，参考 {c.get('predicted')!r}）"))
+    for st, fld, obs, ref, why in exam_reads(seg):
+        if (st.get("seq"), fld) not in seen:
+            seen.add((st.get("seq"), fld))
+            out.append(_f(seg, "识别", "read_error", st, f"{fld}={obs!r}（{why}，参考 {ref!r}）"))
+    return out
+
+
+def _dropped(a, b) -> bool:
+    """a 是 b 掉了几位后的连续片段（1388 → 388、1010 → 10）。"""
+    return isinstance(a, int) and isinstance(b, int) and 0 <= a < b and len(str(a)) < len(str(b)) and str(a) in str(b)
+
+
+EXAM_READ_FIELDS = ("genki", "score", "hp")
+DROP_LINE = 1000  # 考试中元気 / 分数一步减少这么多以上，又没有清空 / 减半元気的牌：读错
+
+
+def exam_reads(seg: Segment) -> list[tuple[dict, str, int, int, str]]:
+    """考试 HUD 读数的两类核对（协调 2026-11-04：第二十五局 R1 末回合元気 1,388 读成 388）：
+    1. 和存档对比：录像器 battle_decision 的局面来自存档 / 续推（source save / track）时，按时刻和动作对到 trace 那一步，
+       HUD 读数相对存档掉位（388 vs 1388）→ 读错。存档只在出牌时写，两边差一点是常态，只认掉位；
+    2. 无故减少：同一场考试相邻两步，分数减少 ≥ DROP_LINE（分数不会减），或元気减少 ≥ DROP_LINE 而上一步打的不是清空 / 减半元気的牌。
+    返回 [(步, exam.<字段>, 读数, 参考, 规则)]。"""
+    out = []
+    battle = [st for st in seg.steps if (st.get("decision") or {}).get("decider") == "battle"]
+    for ev in seg.events:
+        if ev.get("kind") != "battle_decision" or ev.get("source") not in ("save", "track"):
+            continue
+        act = ((ev.get("contract") or {}).get("action")) or {}
+        st = next((s for s in battle if 0 <= (s.get("t") or 0) - ev["t"] < 60), None)
+        if st is None or ((st.get("decision") or {}).get("action") or {}) != act:
+            continue  # 对不上同一个决策就不比
+        f, sv = st["observation"]["fields"], ev.get("state") or {}
+        for k in EXAM_READ_FIELDS:
+            if _dropped(f.get(k), sv.get(k)):
+                out.append((st, f"exam.{k}", f[k], sv[k], "和存档对比：HUD 掉位"))
+    for a, b in zip(battle, battle[1:], strict=False):
+        fa, fb = a["observation"]["fields"], b["observation"]["fields"]
+        ra, rb = fa.get("remaining_turns"), fb.get("remaining_turns")
+        la, lb = fa.get("exam_label"), fb.get("exam_label")
+        if (la and lb and la != lb) or ra is None or rb is None or rb > ra:
+            continue  # 换场 / 再挑戦重开
+        if (fa.get("score") or 0) - (fb.get("score") or 0) >= DROP_LINE and fb.get("score") is not None:
+            out.append((b, "exam.score", fb["score"], fa["score"], f"分数一步减少 ≥{DROP_LINE}"))
+        ga, gb = fa.get("genki"), fb.get("genki")
+        if ga is not None and gb is not None and ga - gb >= DROP_LINE:
+            slot = (((a.get("execution") or {}).get("action") or {}).get("args") or {}).get("slot")
+            card = next((c for c in fa.get("hand") or [] if c and c.get("slot") == slot), None) if (a.get("execution") or {}).get("action", {}).get("kind") == "PlayCard" else None
+            tags = (card or {}).get("tags") or {}
+            if not (tags.get("clears_genki") or tags.get("halves_genki")):
+                out.append((b, "exam.genki", gb, ga, f"元気一步减少 ≥{DROP_LINE}，上一步没有清空 / 减半元気的牌"))
     return out
 
 
@@ -584,6 +637,9 @@ def flow(segs: list[Segment]) -> list[Finding]:
         crashes = [_f(seg, "流程", "crash_restart", st, n.split(":", 2)[2].strip()[:120]) for st, n in _notes(seg)
                    if n.startswith("recover:crash_restart:")]  # fmt: skip
         out += crashes or _log_crashes(seg)
+        out += [_f(seg, "流程", "llm_rescue", st, n.split(":", 2)[2].strip()[:160]) for st, n in _notes(seg)
+                if n.startswith("recover:llm_rescue:")]  # fmt: skip
+        out += [_f(seg, "流程", "rec_pause", st, n[:160]) for st, n in _notes(seg) if n.startswith(("rec_pause:", "rec_resume:"))]
         if not seg.steps:
             out += _log_unknown(seg)
         reason, detail = end_reason(seg)
@@ -657,9 +713,70 @@ SEGMENT_DETECTORS = [skip_with_playable, slot_mismatch, wrong_card_exam, wrong_c
                      result_no_score, execution, selection_log]  # fmt: skip
 
 
+def _label_of(st: dict) -> str | None:
+    return ((st.get("state") or {}).get("exam_session") or {}).get("label") or st["observation"]["fields"].get("exam_label")
+
+
+def _drink_ids(drinks) -> Counter:
+    return Counter(d.get("drink_id") or d.get("name") for d in drinks or [] if isinstance(d, dict) and (d.get("drink_id") or d.get("name")))
+
+
+def _drink_name(drink_id: str) -> str:
+    try:
+        import importlib
+
+        import hiro  # noqa: F401  先装兼容层，再读 KAA 数据库
+
+        drinks = importlib.import_module("kaa.db.drink").Drink.all()
+        return next((d.name for d in drinks if d.id == drink_id), drink_id)
+    except Exception:  # noqa: BLE001  离线没有 KAA 数据库时用编号
+        return drink_id
+
+
+def interval_drinks(segs: list[Segment]) -> list[Finding]:
+    """轮间决策用的持有饮料（state.produce.drinks）比 R1 结束时实际剩下的多：饮料账没跟上 R1 里喝掉的（第二十九局：R1 四瓶喝完，
+    轮间仍按开局 4 瓶算「饮料栏满」，一瓶没买，协调 2026-11-04）。
+    决策用了纠正后的持有（warnings 有「轮间持有：…不一致，按…」，决策 fix_matto_interval_held）时 produce.drinks 过时也不算失误。
+    R1 实际剩余 = 轮间前最后一个 R1 出牌决策点画面上的饮料栏，减去这一步喝掉的那瓶。"""
+    out = []
+    last_r1: tuple[Segment, dict] | None = None
+    reasons = [(st.get("decision") or {}).get("reason") or "" for seg in segs for st in seg.steps
+               if (st.get("decision") or {}).get("decider") == "interval"]  # fmt: skip
+    # 决策已发现并纠正（fix_matto_interval_held：按画面 / R1 结束剩余取持有，warnings 里报「轮间持有：…不一致，按…」）：不算失误
+    corrected = any(w.startswith("轮间持有：") and "按" in w for seg in segs for st in seg.steps
+                    if (st.get("decision") or {}).get("decider") == "interval" for w in (st.get("decision") or {}).get("warnings") or [])  # fmt: skip
+    for seg in segs:
+        for st in seg.steps:
+            d = st.get("decision") or {}
+            if d.get("decider") == "battle" and _label_of(st) == "r1":
+                last_r1 = (seg, st)
+            elif d.get("decider") == "interval" and last_r1 is not None:
+                rseg, rst = last_r1
+                last_r1 = None  # 每次轮间只核对第一步
+                f = rst["observation"]["fields"]
+                if f.get("drinks") is None:
+                    continue  # R1 最后一步饮料栏没读到，不判
+                left = _drink_ids(f.get("drinks"))
+                a = (rst.get("execution") or {}).get("action") or {}
+                if a.get("kind") == "UseDrink":
+                    used = next((x for x in f.get("drinks") or [] if isinstance(x, dict) and x.get("slot") == (a.get("args") or {}).get("slot")), None)
+                    if used:
+                        left -= Counter([used.get("drink_id") or used.get("name")])
+                held = Counter(x for x in ((st.get("state") or {}).get("produce") or {}).get("drinks") or [] if x)
+                extra = held - left
+                if extra and not corrected:
+                    cap = ((st.get("state") or {}).get("produce") or {}).get("drink_capacity")
+                    full = any("饮料栏满" in r for r in reasons)
+                    out.append(_f(seg, "资源", "drink_ledger", st,
+                                  f"R1 结束时剩 {sum(left.values())} 瓶（{rseg.name} #{rst.get('seq')}），轮间按持有 {sum(held.values())} 瓶算"
+                                  f"{'（判成饮料栏满）' if full else ''}：多算 {'、'.join(map(_drink_name, extra.elements()))}" + (f"；饮料栏 {cap} 格" if cap else ""),
+                                  phantom=sum(extra.values())))  # fmt: skip
+    return out
+
+
 def audit(segs: list[Segment], manual_path: Path = ROOT / MANUAL_LOG) -> list[Finding]:
     out = [f for seg in segs for det in SEGMENT_DETECTORS for f in det(seg)]
-    out += flow(segs) + retry_unused(segs) + manual_log(segs, manual_path)
+    out += flow(segs) + retry_unused(segs) + interval_drinks(segs) + manual_log(segs, manual_path)
     order = {s.name: i for i, s in enumerate(segs)}
     return sorted(out, key=lambda f: (order.get(f.segment, 99), f.seq if f.seq is not None else -1))
 
@@ -687,6 +804,8 @@ def _impact(f: Finding) -> str:
         parts.append(f"{i['seconds']:.0f}s")
     if i.get("price"):
         parts.append(f"{i['price']} P")
+    if i.get("phantom"):
+        parts.append(f"多算 {i['phantom']} 瓶")
     if i.get("auto_fixed"):
         parts.append("已自动纠正")
     return "，".join(parts)
@@ -730,7 +849,7 @@ def write(name: str, segs: list[Segment], findings: list[Finding], out_dir: Path
 
 
 # ------------------------------------------------------------------ 基线
-PREFIX = os.environ.get("HIRO_TRACE_PREFIX", "run")  # trace 基名前缀：<PREFIX>-<qualify|main><N>-<日期>-<时间>
+PREFIX = os.environ.get("HIRO_TRACE_PREFIX", "")  # trace 基名前缀（tools/play_game 同一个变量）：[<PREFIX>-]<qualify|main><N>-<日期>-<时间>
 
 
 def games(traces: Path, numbers=range(9, 13), modes=("qualify", "main")) -> dict[str, list[str]]:
@@ -738,7 +857,7 @@ def games(traces: Path, numbers=range(9, 13), modes=("qualify", "main")) -> dict
     out: dict[str, list[str]] = {}
     for mode in modes:
         for n in numbers:
-            bases = sorted({re.sub(r"-r\d+$", "", p.name) for p in traces.glob(f"{PREFIX}-{mode}{n}-*")})
+            bases = sorted({re.sub(r"-r\d+$", "", p.name) for p in traces.glob(f"{PREFIX + '-' if PREFIX else ''}{mode}{n}-*")})
             if bases:
                 out[f"{mode}{n}"] = bases
     return out

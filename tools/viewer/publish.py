@@ -24,7 +24,7 @@ URL = os.environ.get("HIRO_VIEW_URL", "")  # 发布后的访问地址，只用�
 
 def _meta(p: Path) -> dict:
     name = p.stem
-    m = re.match(r"[^-]+-(qualify|main)(\d+)?-(\d{8})-(\d{6})", name)
+    m = re.match(r"(?:[^-]+-)?(qualify|main)(\d+)?-(\d{8})-(\d{6})", name)
     kind = {"qualify": "选拔", "main": "本战"}.get(m.group(1), "?") if m else "?"
     game = m.group(2) if m and m.group(2) else ""
     when = time.strftime("%m-%d %H:%M", time.localtime(p.stat().st_mtime))

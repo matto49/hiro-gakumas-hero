@@ -120,6 +120,14 @@ def vote_memory(votes: list[tuple[int, int, int]]) -> tuple[int, int, int] | Non
     return tuple(out)
 
 
+def _prefix() -> str:
+    """trace 名前缀（HIRO_TRACE_PREFIX，例如 lead35 → lead35-qualify34-…）；不设就没有前缀。tools/audit/blunders 按同一个变量找段。"""
+    import os
+
+    p = os.environ.get("HIRO_TRACE_PREFIX", "").strip("-")
+    return f"{p}-" if p else ""
+
+
 def run_cmd(mode: str, trace: str, common: list[str], extra: list[str]) -> list[str]:
     cmd = [PY, "-m", "hiro.run_hif", "new", "--mode", mode, *common, *extra, "--trace", trace]
     if sys.platform == "darwin" and shutil.which("caffeinate"):
@@ -140,6 +148,9 @@ def run(mode: str, trace: str, common: list[str], extra: list[str]) -> int:
     log = ROOT / "reports/live" / f"{trace}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     t0 = time.monotonic()
+    cur = ROOT / ".temp/current_run"  # 当前在跑的 trace 名：录屏 / 剪辑等外部流程按它对齐（主仓库同款）
+    cur.parent.mkdir(parents=True, exist_ok=True)
+    cur.write_text(trace)
     with open(log, "w") as f:
         code = subprocess.call(run_cmd(mode, trace, common, extra), cwd=ROOT, stdout=f, stderr=subprocess.STDOUT,
                                env=child_env())  # fmt: skip
@@ -216,7 +227,7 @@ def main(argv: list[str] | None = None) -> int:
             v = str(r.get("verdict"))
             print(f"设置检查：{r.get('settings')}  {'' if v.startswith('ok') else '⚠ '}{v}（只报警）", flush=True)
     if not args.main_only:
-        q = f"qualify{args.tag}-{datetime.now():%Y%m%d-%H%M%S}"
+        q = f"{_prefix()}qualify{args.tag}-{datetime.now():%Y%m%d-%H%M%S}"
         if run("qualify", q, common, []) != 0:
             print("选拔进程非 0 退出，停下（先看日志再决定续跑：python -m hiro.run_hif resume --mode qualify）", flush=True)
             return 3
@@ -231,7 +242,7 @@ def main(argv: list[str] | None = None) -> int:
         print("开始确认页读不出选拔回忆数值，停下", flush=True)
         return 3
     print(f"选拔回忆 {mem}", flush=True)
-    m = f"main{args.tag}-{datetime.now():%Y%m%d-%H%M%S}"
+    m = f"{_prefix()}main{args.tag}-{datetime.now():%Y%m%d-%H%M%S}"
     code = run("main", m, common, ["--expect-memory", ",".join(map(str, mem))])
     print(f"整局 {(time.monotonic() - t0) / 60:.1f} min", flush=True)
     return code
