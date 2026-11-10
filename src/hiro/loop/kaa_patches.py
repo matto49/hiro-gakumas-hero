@@ -219,6 +219,12 @@ def pick_change_target(cards: list[dict], index: int = 0, card_id: str | None = 
             hit = next((c for c in same if c.get("upgrade") == remove_upgrade), None)
             if hit is not None:
                 return hit, f"按决策 card_id + 强化 {remove_upgrade}"
+            # 强化次数认不准（None：「+」位置的红色像素在阈值之间）的那张就是候选：其余几张都明确认出了别的强化次数。
+            # DMM dmm1m：4 张 ゆるふわおしゃべり 实为 +1 / +1 / +1 / 0，没强化那张卡面橙色描边在「+」区域里有零星红色，
+            # 原图读成 None（存下的 JPEG 读成 0）；整副扫描过、不按格子号找时，以前只认强化恰好 0 的，取消后绕回阶段 1 十几分钟
+            unsure = [c for c in same if c.get("upgrade") is None]
+            if unsure:
+                return unsure[0], f"按决策 card_id，强化 {remove_upgrade} 没有明确认出，取强化认不准的那张"
             if len(same) > 1:
                 return None, f"{card_id} 有 {len(same)} 张，没有强化 {remove_upgrade} 的那张"
         return same[0], "按决策 card_id"
@@ -349,7 +355,8 @@ def change_stage2(self, index: int = 0, card_id: str | None = None, cancel: bool
         # 改换这张卡强化次数最低的那份（DMM 版 2026-11-10 dmm1m：4 张 ゆるふわおしゃべり 都认成已强化，转了十几分钟）
         same = [c for c in dialog["cards"] if c.get("card_id") == card_id]
         if same:
-            target = min(same, key=lambda c: (c.get("upgrade") is None, c.get("upgrade") or 0))
+            # 认不准（None）排在明确 0 之后、明确 +1 之前：认不准的多半是没强化的（「+」区域只有零星红色），别换掉强化过的
+            target = min(same, key=lambda c: 0.5 if c.get("upgrade") is None else c["upgrade"])
             why = f"{why}；已取消 {_STAGE2_CANCELS[key]} 次，改换强化最低的那张（{target.get('upgrade')}）"
     if target is None and not cancel and card_id and not any(c.get("card_id") == card_id for c in dialog["cards"]):
         # 牌组一屏放不下、目标不在这一屏（决策按整副选的）：往下、再往上翻屏找同 card_id + 强化次数的那张

@@ -119,3 +119,25 @@ def test_hif_hands_whole_deck_to_decision(monkeypatch):
 def test_stage2_cancel_limit_constants():
     """阶段 2 找不到要换的那张时先取消；同一张卡取消满 STAGE2_MAX_CANCELS 次后改换强化最低的（不能无限打转）。"""
     assert kp.STAGE2_MAX_CANCELS >= 1 and isinstance(kp._STAGE2_CANCELS, dict)
+
+
+def test_dmm_unsure_upgrade_copy_is_the_target():
+    """DMM dmm1m：4 张 ゆるふわおしゃべり 实为 +1 / +1 / +1 / 0，没强化那张原图读成 None（橙色描边落在「+」区域），
+    整副扫描过（不按格子号）时只认强化恰好 0 的 → 取消绕回阶段 1 十几分钟。认不准的那张就是要换的。"""
+    yur = "p_card-02-act-1_028"
+    cards = [{"index": i, "card_id": yur, "upgrade": u, "name": "ゆるふわおしゃべり"} for i, u in enumerate((1, 1, 1, None))]
+    cards.append({"index": 4, "card_id": "p_card-02-act-1_037", "upgrade": 1, "name": "デイドリーミング"})
+    hit, why = kp.pick_change_target(cards, 0, yur, protected=set(), remove_index=None, remove_upgrade=0)
+    assert hit["index"] == 3 and "认不准" in why
+    cards[3]["upgrade"] = 1  # 四张都明确认成 +1：还是不换（不能盲换一张强化过的）
+    hit, _ = kp.pick_change_target(cards, 0, yur, protected=set(), remove_index=None, remove_upgrade=0)
+    assert hit is None
+
+
+def test_cancel_fallback_prefers_unsure_over_upgraded():
+    """取消满次数后的兜底（换强化最低的）：认不准的排在明确 +1 之前（以前 None 排最后，会换掉一张 +1）。"""
+    rank = lambda c: 0.5 if c.get("upgrade") is None else c["upgrade"]  # noqa: E731  与 change_stage2 里的排序一致
+    same = [{"index": i, "upgrade": u} for i, u in enumerate((1, 1, 1, None))]
+    assert min(same, key=rank)["index"] == 3
+    same[1]["upgrade"] = 0
+    assert min(same, key=rank)["index"] == 1
