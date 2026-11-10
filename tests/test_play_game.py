@@ -18,6 +18,35 @@ def test_parse_memory_real_frame():
     assert parse_memory(ocr_boxes(img)) == (1670, 1828, 1011)
 
 
+def test_parse_memory_img_strips_attr_icons():
+    """DMM 版（Windows，RapidOCR）：属性图标读成数字 91459 / と2336 / 89865，旧读法只认出一个数、本战没开。
+    数字框左端有彩色图标就裁掉再读；MuMu 第十六局帧在 RapidOCR 下也靠这一步读出来。"""
+    import pytest
+
+    from play_game import parse_memory_img
+
+    from hiro.produce.ops import ocr_boxes
+
+    for name, want in (("start-confirm-dmm1.png", (1459, 2336, 865)), ("start-confirm-q16.png", (1670, 1828, 1011))):
+        f = Path(__file__).parent / "fixtures" / name
+        if not f.exists():
+            pytest.skip(f"需要实机截图 {f}")
+        img = cv2.resize(cv2.imread(str(f)), (720, 1280))
+        assert parse_memory_img(img, ocr_boxes(img), ocr_boxes) == want
+
+
+def test_icon_right_edge_synthetic():
+    import numpy as np
+
+    from play_game import icon_right_edge
+
+    img = np.full((60, 200, 3), 40, np.uint8)
+    img[10:50, 20:50] = (60, 60, 230)  # 红色实心块（图标）
+    img[15:45, 60:70] = 255  # 白色数字笔画
+    assert icon_right_edge(img, (15, 5, 150, 55)) == 50
+    assert icon_right_edge(img, (55, 5, 150, 55)) is None  # 框从数字开始：没有图标
+
+
 def test_home_move_confirm_variants():
     """第十八局：标题读不全、按钮读成「→OK」也要认出「ホーム移動確認」。"""
     from hiro.loop.resume import is_home_move_confirm
