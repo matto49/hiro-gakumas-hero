@@ -60,3 +60,17 @@ def test_observation_rejects_bad_source_and_unregistered_field():
 
 
 
+
+
+def test_dataset_samples_validate(tmp_path):
+    from hiro.contracts.samples import from_manifest
+
+    ds = Path("datasets/20261029-224103-hif-qualify")
+    if not ds.exists():
+        pytest.skip("数据集不在本机")
+    n = 0
+    for obs in from_manifest(ds, limit=400):
+        assert not obs.problems(strict=True), (obs.seq, obs.problems(strict=True))
+        assert Observation.from_json(obs.to_json()) == obs
+        n += 1
+    assert n == 400
