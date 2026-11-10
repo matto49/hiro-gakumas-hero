@@ -63,6 +63,7 @@ def test_scorer_rejects_wrong_attr_and_unknown():
 
 
 @pytest.mark.skipif(not (FIX / "05-rental-support-list.png").is_file(), reason="需要实机截图 tests/fixtures/support/")
+@pytest.mark.sim_master  # 帧里的 s_card-3-0099 不在 KAA game.db，要退回模拟器主数据查（vendor/gakumas-player/scripts/fetch_master.py）
 def test_scored_best_on_real_rental_frame():
     from hiro.produce.rental import scored_best
     from hiro.vision.support_screens import read_rental_list

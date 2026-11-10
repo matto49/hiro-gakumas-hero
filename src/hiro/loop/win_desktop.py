@@ -9,6 +9,11 @@ KAA / kotonebot 的 DMM 后台输入（SendMessageImpl）每次点击、滑动�
 
 这里给 SendMessageImpl.click / swipe 包一层：遇到「拒绝访问」就每 POLL_S 秒试一次 GetCursorPos，桌面恢复后重做这一下；
 等满 DESKTOP_WAIT_S 还不行，抛 DesktopUnavailable（讲清原因，由人处理）。其他错误照常抛出。
+
+滑动另改一处（HIRO_DMM_SWIPE_HOLD，缺省开）：kotonebot 的拖拽匀速移到终点后立刻松开，游戏的滚动列表按松手瞬间的速度
+惯性继续滑，选卡对话框一次多滑几十到一百多像素（行距 147、一屏露 3 行），相邻两屏没有重叠的行 → 牌组拼接不可信
+（2026-11-10 dmm1m 本战相談删 眠気：「第 2 屏和上一屏没有重叠的行」「拼出 38 张，记账 22 张」，重复无效 3 次停机）。
+改成到终点后原地停 HOLD_S 秒（继续发同一位置的移动消息）再松手，松手速度≈0，不再惯性滑动——和人手「拖到位、停一下、再抬手」一样。
 """
 
 from __future__ import annotations
@@ -21,6 +26,8 @@ logger = logging.getLogger(__name__)
 
 DESKTOP_WAIT_S = 600.0
 POLL_S = 2.0
+HOLD_S = 0.3  # 拖到终点后原地停多久再松手（60 Hz 下约 18 帧，滚动列表的速度衰减到几乎为 0）
+FPS = 60
 
 
 class DesktopUnavailable(RuntimeError):
@@ -72,17 +79,53 @@ def guard(method: Callable, probe: Callable[[], object], *, name: str, **wait_kw
     return wrapped
 
 
+def swipe_hold(self, x1: int, y1: int, x2: int, y2: int, duration: float | None = None, *, hold: float = HOLD_S,
+               sleep: Callable[[float], None] = time.sleep) -> None:  # fmt: skip
+    """SendMessageImpl.swipe 的替换：同 kotonebot 的拖拽（对齐窗口 → 按下 → 60 Hz 插值移动），到终点后原地停 hold 秒再松开。"""
+    w = self._require_wrapper()
+    duration = 0.5 if duration is None else duration
+    w._send_activate()
+    w._align_window(x1, y1)
+    if not w._send_mouse_button(x1, y1, "left", down=True):
+        raise RuntimeError("Swipe operation failed（按下）")
+    steps = max(1, int(duration * FPS))
+    for i in range(1, steps + 1):
+        t = i / steps
+        xi, yi = int(x1 + (x2 - x1) * t), int(y1 + (y2 - y1) * t)
+        w._send_mouse_move(xi, yi, button="left")
+        w._align_window(xi, yi)
+        sleep(duration / steps)
+    for _ in range(max(1, int(hold * FPS))):  # 原地停：继续发同一位置的移动，让滚动列表的速度衰减到 0
+        w._send_mouse_move(x2, y2, button="left")
+        w._align_window(x2, y2)
+        sleep(1 / FPS)
+    if not w._send_mouse_button(x2, y2, "left", down=False):
+        raise RuntimeError("Swipe operation failed（松开）")
+
+
+_APPLIED = False
+
+
 def apply() -> bool:
-    """给 kotonebot 的 SendMessageImpl.click / swipe 装上等待；不是 Windows / 没有这个实现时什么都不做。返回是否装上。"""
+    """给 kotonebot 的 SendMessageImpl.click / swipe 装上等待（和滑动停顿）；不是 Windows / 没有这个实现时什么都不做。
+    返回是否装上。重复调用只装一次。"""
+    global _APPLIED
+    if _APPLIED:
+        return True
     try:
         import win32gui  # noqa: F401
         from kotonebot.client.implements.windows.send_message import SendMessageImpl
     except Exception:  # noqa: BLE001  非 Windows / 没装 pywin32
         return False
+    import os
+
     import win32gui
 
+    if os.environ.get("HIRO_DMM_SWIPE_HOLD", "1") != "0":
+        SendMessageImpl.swipe = swipe_hold
     for attr, name in (("click", "点击"), ("swipe", "滑动")):
         fn = getattr(SendMessageImpl, attr, None)
         if fn is not None and not getattr(fn, "_hiro_desktop_guard", False):
             setattr(SendMessageImpl, attr, guard(fn, win32gui.GetCursorPos, name=name))
+    _APPLIED = True
     return True

@@ -93,3 +93,42 @@ def test_supervised_resume_stops_on_desktop_unavailable(monkeypatch):
     with pytest.raises(resume.ResumeBlocked, match="UAC"):
         run_hif._supervised_resume("main", "idol", object(), Strategy=object)
     assert runs["n"] == 1
+
+
+class _Wrapper:
+    def __init__(self):
+        self.log = []
+
+    def _send_activate(self):
+        self.log.append("activate")
+
+    def _align_window(self, x, y):
+        pass
+
+    def _send_mouse_button(self, x, y, button, down):
+        self.log.append(("down" if down else "up", x, y))
+        return True
+
+    def _send_mouse_move(self, x, y, button=None):
+        self.log.append(("move", x, y))
+        return True
+
+
+class _Impl:
+    def __init__(self):
+        self.w = _Wrapper()
+
+    def _require_wrapper(self):
+        return self.w
+
+
+def test_swipe_holds_at_end_before_release():
+    """dmm1m 本战相談删卡：拖到终点立刻松手 → 滚动列表惯性多滑、两屏没重叠。改成终点原地停一会儿再松手。"""
+    impl = _Impl()
+    wd.swipe_hold(impl, 360, 900, 360, 740, duration=1.0, hold=0.3, sleep=lambda s: None)
+    log = impl.w.log
+    assert log[1] == ("down", 360, 900) and log[-1] == ("up", 360, 740)
+    moves = [e for e in log if e[0] == "move"]
+    assert moves[59] == ("move", 360, 740)  # 1 秒 60 步匀速移到终点
+    tail = moves[60:]
+    assert len(tail) == 18 and set(tail) == {("move", 360, 740)}  # 再原地停 0.3 秒（18 帧）才松开

@@ -118,6 +118,10 @@
      - 游戏闪退 / 窗口被关时程序会认出来并停下（按窗口标题「gakumas」判断），不会自己拉起：
        DMM 版要从 DMM Game Player 启动、每次弹管理员确认，程序点不到。重新启动游戏后 `python -m hiro.run_hif resume` 续跑。
      - 同一个账号不要同时开 MuMu 和 DMM：另一端进入培育时会弹「プロデュースデータの破棄」。
+     - 后台点击要读真实光标（游戏认的是光标位置，SendMessage 前先把窗口挪到目标点落在光标下）：程序在跑时别在这台 Windows 上
+       弹 UAC / 锁屏。真碰上了，`hiro.loop.win_desktop` 会等桌面恢复（最多 10 分钟）再重做，超时讲清原因停下。
+     - 滑动到终点会原地停 0.3 秒再松手（`HIRO_DMM_SWIPE_HOLD=0` 关掉）：直接松手时选卡对话框按松手速度惯性多滑，
+       相邻两屏没有重叠的行，牌组拼接不可信。
    - Windows 上的坑（实测）：16 GB 内存同时开 MuMu、模拟器和其他常驻程序时 MuMu 会被系统杀掉，开局前先关掉不用的程序；
      MuMu 拉起游戏时的「加速服务」提示程序会点「不加速」；结算后 LIVE 横屏偶尔整屏黑掉不动，只能
      `MuMuManager.exe control -v 0 restart` 重启模拟器后 `python -m hiro.run_hif resume` 续跑。
