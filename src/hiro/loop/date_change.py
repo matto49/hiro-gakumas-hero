@@ -104,6 +104,13 @@ def recover_to_home(shoot: Callable, click: Callable[[int, int], None], ocr: Cal
             click(*tap)
         elif close := next((_center(b) for t, b in texts if any(t == k or t.endswith(k) for k in CLOSE) and _center(b)[1] > 900), None):
             click(*close)
+        elif _event_login_bonus(img):
+            # 活动登录奖励（「開催期間」白字；奖励里有「ジュエル」，会命中下面的购买字样）：点底部空白翻页。
+            # DMM dmm2 日切换「学マス水曜日」送 250 ジュエル：以前停在这里等不存在的「閉じる」，240s 后停机
+            from hiro.vision.quick import LOGIN_BONUS_TAP
+
+            logger.info("日期切换：活动登录奖励，点底部空白")
+            click(*LOGIN_BONUS_TAP)
         elif any(any(k in t for k in PURCHASE_HINTS) for t, _ in texts):
             logger.info("日期切换：画面有购买相关字样，不点空白，等「閉じる」")
         elif _safe_step(assist, img, boxes):
@@ -113,6 +120,18 @@ def recover_to_home(shoot: Callable, click: Callable[[int, int], None], ocr: Cal
         sleep(interval)
     logger.warning("日期切换：%.0fs 内没回到首页", timeout)
     return False
+
+
+def _event_login_bonus(img) -> bool:
+    """活动登录奖励弹窗：快速判页的「開催期間」白字模板（hiro.vision.quick，fixtures 反例 ≤ 0.52）。截图不是图像时不判。"""
+    if getattr(img, "ndim", 0) < 2:
+        return False
+    try:
+        from hiro.vision.quick import _white_hit
+
+        return bool(_white_hit(img, "quick_event_period"))
+    except Exception:  # noqa: BLE001
+        return False
 
 
 MUMU_NO_BOOST = "不加速"  # MuMu 加速服务提示的取消按钮（另一个是「立即加速」）

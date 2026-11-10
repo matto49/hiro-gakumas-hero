@@ -191,3 +191,25 @@ def test_real_download_dialog_button():
     texts = [(dc._norm(t), b) for t, _, b in ops.ocr_boxes(img)]
     assert any("ダウンロード" in t for t, _ in texts)
     assert next((dc._center(b) for t, b in texts if t in dc.DOWNLOAD_OK and dc._center(b)[1] > 700), None) is not None
+
+
+def test_event_login_bonus_with_jewel_reward_is_tapped():
+    """DMM dmm2 日切换：「学マス水曜日」登录奖励送 250 ジュエル，「ジュエル」命中购买字样 → 以前一直等「閉じる」240s 停机。
+    「開催期間」白字认出是活动登录奖励，点底部空白；没有「開催期間」的购买画面照旧不点。"""
+    f = Path(__file__).parent / "fixtures/date_change/event-login-bonus-jewel-dmm2.png"
+    if not f.exists():
+        pytest.skip(f"需要实机截图 {f}")
+    from hiro.vision.quick import LOGIN_BONUS_TAP
+
+    img = cv2.imread(str(f))
+    clicks, t = [], {"now": 0.0}
+    seq = iter([img, img, "home"])
+    cur = {"v": None}
+
+    def shoot():
+        cur["v"] = next(seq, "home")
+        return cur["v"]
+
+    ok = dc.recover_to_home(shoot, lambda x, y: clicks.append((x, y)), lambda im: [] if isinstance(im, str) else [box("ジュエル", 260, 760), box("250", 300, 820)],
+                            lambda im: isinstance(im, str), clock=lambda: t["now"], sleep=lambda s: t.__setitem__("now", t["now"] + s))  # fmt: skip
+    assert ok and clicks and all(c == LOGIN_BONUS_TAP for c in clicks)
