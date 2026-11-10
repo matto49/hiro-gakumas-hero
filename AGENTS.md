@@ -71,10 +71,12 @@
 
 1. 装环境（一条命令，可重复跑，做过的步骤会跳过；需要 uv、git 和网络）：
    ```bash
-   git clone --recurse-submodules https://github.com/matto49/hiro-gakumas-hero && cd hiro-gakumas-hero
+   git clone https://github.com/matto49/hiro-gakumas-hero && cd hiro-gakumas-hero
    scripts/setup.sh      # 子模块 → .venv（Python 3.10）→ 安装 → 生成 KAA 的 R.py → 下载 KAA 公开数据 + 卡图索引 → 自检
    ```
    从零约 4 分钟。KAA 换版本后加 `--regen` 重新生成；已用 `HIRO_KAA_GAME_DATA` 指向现成数据时加 `--no-data`。
+   不要用 `git clone --recurse-submodules`：会递归拉 KAA 自己嵌套的 GkmasObjectManager（资源解包工具，运行用不到，
+   体积大，Windows 上 20 分钟还没拉完，2026-11-11 W4）；子模块由安装脚本只拉 `vendor/kaa` 这一层。
    自检最后会打印插件来源、有没有主数据和自建素材，以及开局命令。
 2. 游戏窗口：用 [hguandl 的 PlayCover 分支](https://github.com/hguandl/PlayCover)，在游戏的 PlayCover 设置里打开 `maaTools`（端口 `maaToolsPort`）。
    默认的截图和点击走游戏进程内的 MaaTools 服务（见 `hiro/device.py` 开头注释），**不要求窗口在前台，也不动鼠标**；

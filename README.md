@@ -76,7 +76,7 @@ setup 检测到 Rust 工具链时编译（快约 8 倍），没有时自动用 P
 这时游戏窗口要在前台，点击也更不稳。
 
 ```bash
-git clone --recurse-submodules https://github.com/matto49/hiro-gakumas-hero
+git clone https://github.com/matto49/hiro-gakumas-hero
 cd hiro-gakumas-hero
 scripts/setup.sh                                        # 装依赖、生成 KAA 文件、下载公开游戏数据、自检（约 4 分钟）
 PYTHONPATH=src .venv/bin/python -m pytest -q            # 没有截图样例时，读截图的用例会跳过

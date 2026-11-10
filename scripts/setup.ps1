@@ -25,7 +25,7 @@ if (Test-Path .git) {
     git submodule update --init vendor/kaa
     if ($LASTEXITCODE) { throw "拉取 vendor/kaa 失败" }
 } elseif (-not (Test-Path vendor/kaa/kaa)) {
-    throw "这不是 git 仓库，也没有 vendor/kaa：请用 git clone --recurse-submodules 获取本仓库"
+    throw "这不是 git 仓库，也没有 vendor/kaa：请用 git clone 获取本仓库（子模块由本脚本拉）"
 } else {
     Write-Host "不是 git 仓库，沿用已有的 vendor/kaa"
 }
