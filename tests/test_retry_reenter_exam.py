@@ -123,3 +123,78 @@ def test_comm_error_after_retry_not_counted(monkeypatch):
     monkeypatch.setattr(hif, "ocr", NS(ocr=lambda: [NS(text="通信エラー"), NS(text="リトライしますか?"), NS(text="はい")]))
     btn = NS(text="再挑戦", rect=NS(center=NS(y=1100)))
     assert st._click_retry("r2", btn, [btn]) is None and any("通信エラー" in n for n in notes)
+
+
+def _finals_strategy(tmp_path, notes_by_seg):
+    """本战策略替身：trace 基名 main-x 的各段 steps.jsonl 里放给定说明（模拟之前各段的再挑戦记录）。"""
+    import json
+    from types import SimpleNamespace as NS
+
+    import hiro.produce.hif as hif
+    from kaa.config.const import HifScenario
+
+    for name, notes in notes_by_seg.items():
+        d = tmp_path / name
+        d.mkdir()
+        with (d / "steps.jsonl").open("w", encoding="utf-8") as f:
+            for n in notes:
+                f.write(json.dumps(n if isinstance(n, dict) else {"seq": 1, "notes": [n]}, ensure_ascii=False) + "\n")
+    cur = tmp_path / "main-x-r9"
+    cur.mkdir()
+    st = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    st.s = NS(note=lambda *a: None, notes=[], trace=NS(dir=str(cur)))
+    st.scenario = HifScenario.MAIN
+    st.exam_count = 1
+    return st
+
+
+def test_retry_cap_ignores_label(tmp_path):
+    """DMM dmm2：R2 四次挑战标签是 lesson-1 / lesson-2 / r2 / lesson-3。不管标签，本局累计 3 次「本战…使用再挑戦」就到上限。"""
+    notes = ["本战敗退（第 3 名，总分 374041），使用再挑戦（free）", "本战敗退（第 3 名，总分 414205），使用再挑戦（ticket）",
+             "本战敗退（第 3 名，总分 423062），使用再挑戦（ticket）"]  # fmt: skip
+    st = _finals_strategy(tmp_path, {"main-x": notes})
+    for label in ("lesson-3", "r2", "lesson-9"):
+        assert st._retries_so_far(label) >= st.MAX_RETRIES_PER_EXAM
+
+
+def test_r2_label_after_r1_result_ignores_scene(tmp_path, monkeypatch):
+    """R1 结算过（trace 里有 HIF_FINALS_RANKING round_result）之后的考试一律 r2，不看那一刻的场景（DMM 过场里不是 HIF_EXAM）。"""
+    import hiro.vision.scene as scene
+
+    r1 = {"seq": 147, "observation": {"page": {"name": "HIF_FINALS_RANKING"}, "fields": {"kind": "round_result"}}}
+    st = _finals_strategy(tmp_path, {"main-x": [r1]})
+    monkeypatch.setattr(scene, "classify_current", lambda: (_ for _ in ()).throw(AssertionError("不该再看场景")))
+    assert st._battle_label(None) == "r2"
+
+
+def test_exam_scene_settles_before_lesson(tmp_path, monkeypatch):
+    """没有 R1 结算记录、开头那一刻认不出：连看几秒，认出 HIF_EXAM 就不当レッスン。"""
+    from types import SimpleNamespace as NS
+
+    import hiro.vision.scene as scene
+
+    st = _finals_strategy(tmp_path, {})
+    seq = iter(["IDLE", "IDLE", "HIF_EXAM"])
+    monkeypatch.setattr(scene, "classify_current", lambda: NS(scene=next(seq, "HIF_EXAM")))
+    t = [0.0]
+    assert st._settle_exam_scene("IDLE", clock=lambda: t[0], sleep=lambda s: t.__setitem__(0, t[0] + s)) == "HIF_EXAM"
+    seq2 = iter(["IDLE"] * 100)
+    monkeypatch.setattr(scene, "classify_current", lambda: NS(scene=next(seq2)))
+    t[0] = 0.0
+    assert st._settle_exam_scene("IDLE", clock=lambda: t[0], sleep=lambda s: t.__setitem__(0, t[0] + s)) == "IDLE"
+    assert t[0] >= st.EXAM_SCENE_SETTLE_S
+
+
+def test_fourth_finals_retry_refused_without_screen_count(tmp_path, monkeypatch):
+    """画面上没读到「あと N回」时按 trace 累计：三次标签各不相同的「本战…使用再挑戦」之后，第 4 次（标签又变了）必须拒绝、不点按钮。"""
+    from types import SimpleNamespace as NS
+
+    import hiro.produce.hif as hif
+
+    notes = ["lesson-1 本战敗退（第 3 名），使用再挑戦（free）", "lesson-2 本战敗退（第 3 名），使用再挑戦（ticket）",
+             "r2 本战敗退（第 3 名），使用再挑戦（ticket）"]  # fmt: skip
+    st = _finals_strategy(tmp_path, {"main-x": notes})
+    clicks = []
+    monkeypatch.setattr(hif, "device", NS(click=lambda *a: clicks.append(a)))
+    btn = NS(text="再挑戦", rect=NS(center=NS(y=1100)))
+    assert st._click_retry("lesson-3", btn, [btn]) is None and clicks == []

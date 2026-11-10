@@ -1402,7 +1402,15 @@ class HiroHifStrategy(HifGrindStrategy):
         """KAA 把 H.I.F 的公開レッスン也当 EXAM 场景；用我们的场景识别区分：HIF_EXAM 才是选拔 / 本战。"""
         from hiro.vision.scene import classify_current
 
+        if self.scenario != HifScenario.QUALIFY and self._r1_done_in_trace():
+            # 本战 R1 结算过之后只剩 R2（中间只有轮间，没有レッスン）：不看场景直接是 r2。DMM dmm2（maindmm2-20261111-043916）：
+            # 考试刚开始那一刻画面还在过场，classify_current 不是 HIF_EXAM，R2 四次挑战三次标成 lesson-N（不走 R2 预演 / 打法）
+            self.exam_count += 1
+            HiroHifStrategy.exams_done = self.exam_count
+            return "r2"
         scene = classify_current().scene
+        if scene != "HIF_EXAM" and self.scenario != HifScenario.QUALIFY:
+            scene = self._settle_exam_scene(scene)
         if scene == "HIF_EXAM" and self.scenario != HifScenario.QUALIFY:
             try:
                 from hiro.vision.hif import read_hif_exam
@@ -1441,6 +1449,18 @@ class HiroHifStrategy(HifGrindStrategy):
             return f"qualify-{self.exam_count}"
         HiroHifStrategy.exams_done = self.exam_count
         return "r2" if ctx.is_final_exam() else "r1"
+
+    EXAM_SCENE_SETTLE_S = 6.0  # 本战流程里考试开头认不出 HIF_EXAM 时，再看这么久才当成レッスン
+
+    def _settle_exam_scene(self, scene: str, *, clock=time.monotonic, sleep=time.sleep) -> str:
+        """考试刚开始的过场里 classify_current 认不出：本战流程再连看几秒，认出 HIF_EXAM 就用它（截图快的后端更容易撞上）。"""
+        from hiro.vision.scene import classify_current
+
+        deadline = clock() + self.EXAM_SCENE_SETTLE_S
+        while scene != "HIF_EXAM" and clock() < deadline:
+            sleep(0.5)
+            scene = classify_current().scene
+        return scene
 
     RETRY_CONFIRM = ("再挑戦する", "決定", "はい", "OK")
 
