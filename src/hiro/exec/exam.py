@@ -418,7 +418,11 @@ def _settle_fast(img, *, on_tick=None, clock=time.monotonic):
             prev = sig
             # HIRO_SETTLE_CALM_S（默认关）：两次一致的读数相隔达到这么久也算稳（负载高时一轮 0.6–0.9s，3 次读数要 2–3s）
             timed = SETTLE_CALM_S > 0 and calm >= 1 and now - calm_t >= SETTLE_CALM_S
-            if calm >= SETTLE_CALM or timed:
+            # HIRO_SETTLE_MIN_S（默认关）：一致的读数还要持续这么久才算稳。截图很快的后端（DMM PrintWindow 约 0.19s，MuMu adb 约 1.3s）
+            # 3 次读数不到 1 秒，会落在两段动画之间的停顿里：回合还没切完就决策，点之前发现回合变了（dmm1m-r3 190 次决策 23 次过时、
+            # 重决策平均 12.5s；MuMu 第十八 / 二十一局 0–1 次）
+            settled = calm >= SETTLE_CALM and (SETTLE_MIN_S <= 0 or now - calm_t >= SETTLE_MIN_S)
+            if settled or timed:
                 f = Frame(img)
                 if _usable_fast(f):
                     return f
@@ -434,6 +438,8 @@ SETTLE_CALM = 2  # 轻量签名连续几次一致（3 次读数）才读完整 F
 # 开关（默认关 = 0，由总控 / 用户打开）：两次一致读数相隔 ≥ 这么多秒也算稳。第二十四局截图中位 229ms（第二十一局 63ms），
 # 稳帧检测一轮 0.6–0.9s，37% 的步等满 SETTLE_FAST_MAX 4s 再退回 _stable_frame（约 2.3s）
 SETTLE_CALM_S = float(os.environ.get("HIRO_SETTLE_CALM_S") or 0)
+# 开关（默认关 = 0）：稳帧还要求一致读数持续 ≥ 这么多秒（见 _settle_fast）。DMM 版建议 1.5（≈ MuMu 三次读数自然跨过的时长的一半）
+SETTLE_MIN_S = float(os.environ.get("HIRO_SETTLE_MIN_S") or 0)
 STALE_MAX = 3
 
 

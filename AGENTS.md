@@ -122,6 +122,8 @@
        弹 UAC / 锁屏。真碰上了，`hiro.loop.win_desktop` 会等桌面恢复（最多 10 分钟）再重做，超时讲清原因停下。
      - 滑动到终点会原地停 0.3 秒再松手（`HIRO_DMM_SWIPE_HOLD=0` 关掉）：直接松手时选卡对话框按松手速度惯性多滑，
        相邻两屏没有重叠的行，牌组拼接不可信。
+     - 考试里判「画面稳了」另要求一致读数持续 1.5 秒（`play.ps1 -Device dmm` 缺省设 `HIRO_SETTLE_MIN_S=1.5`，自己设了就用自己的）：
+       DMM 截图约 0.19 秒一张，三次读数不到 1 秒，会落在两段动画之间，回合没切完就决策（dmm1m：190 次决策 23 次作废重来）。
    - Windows 上的坑（实测）：16 GB 内存同时开 MuMu、模拟器和其他常驻程序时 MuMu 会被系统杀掉，开局前先关掉不用的程序；
      MuMu 拉起游戏时的「加速服务」提示程序会点「不加速」；结算后 LIVE 横屏偶尔整屏黑掉不动，只能
      `MuMuManager.exe control -v 0 restart` 重启模拟器后 `python -m hiro.run_hif resume` 续跑。
