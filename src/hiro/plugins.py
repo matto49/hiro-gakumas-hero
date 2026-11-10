@@ -63,8 +63,10 @@ class AssetSource(Protocol):
          "open_lesson_ids"?: [...], "exam_number"?: int}。
         **选行动页（ACTION_SELECT）离不开它**：返回 None 时决策器只能等待，整局会卡住，所以默认实现必须给出。"""
 
-    def support_effects(self, support_id: str, level: int) -> list[dict[str, Any]] | None:
-        """支援卡技能：[{"effect_type", "value", "trigger_id", "limit"}]；None 时编成只按属性张数 / 等级排。"""
+    def support_effects(self, support_id: str, level: int, *, limit_rank: str | None = None, plan: str | None = None) -> list[dict[str, Any]] | None:
+        """支援卡技能：[{"effect_type", "value", "trigger_id", "limit"}]；None 时编成只按属性张数 / 等级排。
+        limit_rank：突破段（None = 等级够得着的最低段）；plan：培育方案（ProducePlanType_*，None = 卡自己的方案）。
+        老实现只接 (support_id, level) 也行：调用方先带这两个参数，不接受时退回两参数调用。"""
 
     def exam_requirements(self, scenario: str) -> dict[str, Any] | None:
         """考试要求、属性 → 倍率、星级基准（选课 / 课程预演用）。返回函数表：

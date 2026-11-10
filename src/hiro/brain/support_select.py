@@ -95,13 +95,15 @@ def _trigger_count(tid: str, sp: dict) -> float:
 
 @lru_cache(maxsize=None)
 def _compiled(card_id: str, level: int, limit_rank: str | None, plan: str | None = None) -> tuple:
-    """(属性, ((效果类型, 效果值, 触发 ID, 次数上限), ...))。素材源给不出技能时返回 (属性, ())。plan 与主仓库签名一致，素材源不分方案。"""
+    """(属性, ((效果类型, 效果值, 触发 ID, 次数上限), ...))。素材源给不出技能时返回 (属性, ())。"""
     from hiro.brain.formation import _support_skills
     from hiro.state.context import catalog
 
     card = catalog().one("SupportCard", card_id)
     attr = ATTR_OF.get(card["type"])
-    return attr, tuple((s["effect_type"], s.get("value"), s.get("trigger_id"), s.get("limit")) for s in _support_skills(card_id, level))
+    rank = limit_rank or None  # 和主仓库一样：空当成没给（突破段是 SupportCardLevelLimitRank__N 这样的枚举名）
+    skills = _support_skills(card_id, level, rank, plan or PLAN)
+    return attr, tuple((s["effect_type"], s.get("value"), s.get("trigger_id"), s.get("limit")) for s in skills)
 
 
 @lru_cache(maxsize=None)

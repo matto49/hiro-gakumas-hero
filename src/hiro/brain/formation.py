@@ -21,15 +21,21 @@ ATTR_OF = {"SupportCardType_Vocal": "Vo", "SupportCardType_Dance": "Da", "Suppor
 EFFECT_ATTR = {"Vo": "Vocal", "Da": "Dance", "Vi": "Visual"}
 
 
-def _support_skills(card_id: str, level: int) -> list[dict]:
-    """AssetSource.support_effects(card_id, level) → [{"effect_type", "value", "trigger_id", "limit"}]；拿不到返回 []
-    （编成 / 支援卡选择就只按稀有度、属性和等级排）。"""
+def _support_skills(card_id: str, level: int, limit_rank: str | None = None, plan: str | None = None) -> list[dict]:
+    """AssetSource.support_effects(card_id, level, limit_rank=, plan=) → [{"effect_type", "value", "trigger_id", "limit"}]；
+    拿不到返回 []（编成 / 支援卡选择就只按稀有度、属性和等级排）。只接受两参数的老插件退回两参数调用。"""
     from hiro import plugins
 
     src = plugins.get("asset_source")
     fn = getattr(src, "support_effects", None) if src is not None else None
+    if not fn:
+        return []
     try:
-        return list(fn(card_id, level) or []) if fn else []
+        try:
+            out = fn(card_id, level, limit_rank=limit_rank, plan=plan)
+        except TypeError:
+            out = fn(card_id, level)
+        return list(out or [])
     except Exception:  # noqa: BLE001 素材源出错不能打断编成
         return []
 
@@ -37,7 +43,7 @@ def _support_skills(card_id: str, level: int) -> list[dict]:
 @lru_cache(maxsize=None)
 def _skills(card_id: str, level: int, limit_rank: int | None, plan: str) -> tuple:
     """支援卡在该等级生效的技能：((effect_type, trigger_id), ...)。素材源给不出来返回 ()。"""
-    return tuple((s["effect_type"], s.get("trigger_id")) for s in _support_skills(card_id, level))
+    return tuple((s["effect_type"], s.get("trigger_id")) for s in _support_skills(card_id, level, limit_rank, plan))
 
 
 def support_profile(cards: list[dict], plan: str) -> dict:

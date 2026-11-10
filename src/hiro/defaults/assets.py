@@ -162,8 +162,48 @@ class PublicAssetSource:
                     return [dict(st) for st in stages]
         return None
 
-    def support_effects(self, support_id: str, level: int) -> list[dict[str, Any]] | None:
-        return None  # 支援卡效果：公开数据里暂无可靠整理，编成按属性张数 / 等级排（策略层退路）
+    def support_effects(self, support_id: str, level: int, *, limit_rank: str | None = None, plan: str | None = None) -> list[dict[str, Any]] | None:
+        """支援卡技能：用培育层公式 gakumas_produce.supports.compile_card 从社区公开 master 编译（和主仓库同一套）。
+        主数据没构建（vendor/gakumas-player/scripts/fetch_master.py）或编不出来时 None，编成按属性张数 / 等级排。"""
+        try:
+            from hiro.brain.deciders import _sim_ready
+
+            if not _sim_ready():
+                return None
+            from gakumas_produce import supports
+        except Exception:  # noqa: BLE001  引擎导入失败
+            return None
+        c = self._produce_catalog()
+        try:
+            card = c.one("SupportCard", support_id)
+        except Exception:  # noqa: BLE001  主数据里没有这张卡
+            return None
+        plan = plan or card["planType"]
+        if limit_rank is not None:
+            ranks = [limit_rank]
+        else:  # 等级够得着的突破段，从低到高试（和主仓库 formation._skills 一样）
+            rows = sorted(c.by_id("SupportCardLevelLimit", card["supportCardLevelLimitId"]), key=lambda r: r["levelLimit"])
+            ranks = [r["rank"] for r in rows if r["levelLimit"] >= level]
+        for rank in ranks:
+            try:
+                out = supports.compile_card(c, support_id, level, rank, plan)
+            except Exception:  # noqa: BLE001  等级 / 突破 / 方案对不上、未移植的形状
+                continue
+            return [{"effect_type": s["effect"]["produceEffectType"], "value": s["effect"]["effectValueMin"], "trigger_id": s["trigger"]["id"],
+                     "limit": s["limit"]} for s in out["skills"]]  # fmt: skip
+        return None
+
+    def _produce_catalog(self):
+        """培育层公式用的主数据目录（gakumas_exam.catalog，sqlite 连接每个线程一份）。"""
+        import threading
+
+        from gakumas_exam.catalog import Catalog
+
+        local = self.__dict__.setdefault("_produce_local", threading.local())
+        c = getattr(local, "c", None)
+        if c is None:
+            c = local.c = Catalog()
+        return c
 
     def exam_requirements(self, scenario: str) -> dict[str, Any] | None:
         """考试要求 / 倍率换算 / 星级基准：用培育层公式 gakumas_produce（vendor/gakumas-player，社区公开 master）算。

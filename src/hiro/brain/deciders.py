@@ -2054,6 +2054,10 @@ class ProduceDeciders:
 
         p, hp, max_hp = ps.produce_point, ps.stamina, ps.max_stamina
         target = interval_hp_target(self.profile.idol_id if self.profile else None, max_hp)
+        if _sim_ready():  # HP_TARGET_VALUE（默认关）：回体力目标按价值表每 P 回报逐段往上（主仓库 1b16f1b）
+            from hiro.sim import interval as _iv
+
+            target = _iv.value_hp_target(max_hp, target)
         shelf = [dict(it, kind=kind) for kind in ("card", "drink") for it in items.get(kind + "s") or []]
         recover = items.get("recover") or {}
         upgrade = items.get("upgrade") or {}
