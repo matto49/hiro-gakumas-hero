@@ -79,6 +79,10 @@ def _supervised_resume(scenario, idol, session, Strategy=None) -> None:
                 raise ResumeBlocked("日期切换后没能回到首页，需要人工处理") from None
             logger.info("日期切换已处理（第 %d 次），从首页续跑", date_changes)
         except Exception as e:
+            from hiro.loop.win_desktop import DesktopUnavailable
+
+            if isinstance(e, DesktopUnavailable):
+                raise ResumeBlocked(str(e)) from e  # 已经等过桌面恢复（win_desktop）：再重试也是同样结果，讲清原因停下
             if _game_gone(session, e):
                 relaunches += 1
                 if relaunches > MAX_RELAUNCHES or not _relaunch_game(session):

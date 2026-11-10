@@ -1138,4 +1138,7 @@ def apply() -> None:
         fn = getattr(prep, name, None)
         if fn is not None and not getattr(fn, "_hiro_progress", False):
             setattr(prep, name, _prep_progress(fn, name))
+    from hiro.loop import win_desktop
+
+    win_desktop.apply()  # DMM 后台点击：桌面暂时不可用（UAC / 锁屏）时等它恢复，不让主循环连崩
     logger.info("已启用 KAA 补丁：locate_idol 改为上滑翻页；授業换卡放宽卡片定位、阶段 2 不换保护卡；H.I.F P 道具按实测位置点击；破弃对话框只点キャンセル")
