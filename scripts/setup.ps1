@@ -121,7 +121,8 @@ print(f"主数据 game.db：{'有' if m.master_db else '没有'}；随仓库素�
 for p in m.problems:
     print(f"  ⚠ {p}")
 if not os.environ.get("HIRO_DEVICE"):
-    print("  ⚠ 开局前设 HIRO_DEVICE（adb / mumu / leidian / dmm），见 AGENTS.md「设备」。这些后端走 KAA 的设备工厂，作者没有实机验证过")
+    print("  ⚠ 开局用 scripts\\play.ps1 -Device mumu / dmm（会设好 HIRO_DEVICE 等环境变量），见 AGENTS.md「设备」。"
+          "MuMu 与 DMM 版作者在 Windows 上实机打过；adb / 雷电走 KAA 的设备工厂，没有实机验证过")
 from hiro.vision import ocr
 print(f"文字识别后端：{ocr.engine()}")
 import hiro.sim
@@ -134,7 +135,7 @@ print("自检通过：入口和 KAA 都能导入")
 if ($LASTEXITCODE) { throw "自检失败" }
 
 Write-Host ""
-Write-Host "装好了。开一局（先在游戏里编好支援卡 / 回忆编成）："
-Write-Host '  $env:HIRO_DEVICE="mumu"; $env:HIRO_SUPPORT_SET="<支援卡编成号>"; $env:HIRO_MEMORY_SET="<回忆编成号>"'
-Write-Host '  .venv\Scripts\python.exe tools\play_game.py --idol <偶像卡 skin id> --main-attr <Vo|Da|Vi>'
+Write-Host "装好了。开一局（先在游戏里编好支援卡 / 回忆编成，缺省用编成 4 / 5；参数见 scripts\play.ps1 开头）："
+Write-Host '  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\play.ps1 -Device mumu -Idol <偶像卡 skin id> -Tag 1'
+Write-Host '  （DMM 版用 -Device dmm，会弹一次 UAC；只打本战加 -MainOnly）'
 Write-Host "离线测试：.venv\Scripts\python.exe -m pytest -q"
