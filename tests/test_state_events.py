@@ -2,7 +2,7 @@
 
 import pytest
 
-import hiro.sim  # noqa: F401  gakumas_sim 路径
+import hiro.sim  # noqa: F401  gakumas-player 路径
 from hiro.state.events import EVENT_KINDS, check_value, deck_keys, initial_deck, make_event, predict
 
 DAY, TODOITE, EIEI, SLEEP = "p_card-02-act-1_037", "p_card-02-act-3_039", "p_card-02-men-1_031", "p_card-00-acc-0_002"

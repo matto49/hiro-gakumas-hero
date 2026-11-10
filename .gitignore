@@ -29,3 +29,4 @@ vendor/gakumas-player/data/master/*/catalog*.sqlite
 vendor/gakumas-player/data/master/*/manifest.json
 vendor/gakumas-player/data/master/*/build.json
 vendor/gakumas-player/**/__pycache__/
+vendor/gakumas-player/gakumas_exam_rs/target/

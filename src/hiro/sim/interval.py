@@ -100,7 +100,7 @@ def r2_opening(setup: R2Setup) -> dict:
 
 
 def star_factor(star: int | None) -> float:
-    from gakumas_sim.multiplier import star_factor as f
+    from gakumas_produce.multiplier import star_factor as f
 
     return f(star, STAR_BASELINE_R2) if star else 2.0
 
@@ -108,36 +108,18 @@ def star_factor(star: int | None) -> float:
 # ---------------------------------------------------------------- 评估
 
 
-DRINK_SWAP = True  # 考试按「去掉饮料、体力的组合」编译一次，饮料按 id 单独编译、体力直接写进局面（协调 2026-11-03 选拔提速）
-
-
 def _env(setup: R2Setup, seed: int):
-    """setup 的一局。DRINK_SWAP：每换一个饮料组合就重新编译整场考试要 4–5 秒（一局续打只要 0.05–0.26 秒），
-    所以考试按无饮料的组合编译、缓存，饮料定义按 id 单独编译（_drink_def，小牌组约 0.6 秒，每个进程每种一次）后放进局面；
-    体力同理（选拔里几乎每个行动体力都变）：按满体力编译，开局后写 env.hp。同一种子下和整场编译的分数逐局一致（tests/test_drink_swap.py）。
-    完整组合的 key 也指向这场考试（meta 不含饮料 / 体力），_exam_cached(setup.key()) 照常可用。"""
-    if not DRINK_SWAP:
-        obs = _opening_cached(setup.key(), setup)
-        return _exam_cached(setup.key(), obs).episode(seed)
-    exam = bare_exam(setup)
-    _EXAMS.setdefault(setup.key(), exam)
-    env = _episode(setup, exam, seed)
-    safe = [d for d in setup.drinks if not _swap_unsafe(d)]
-    if safe:
-        # 引用牌组的饮料（_swap_unsafe）已经编在考试里；其余按 id 换入。槽位顺序：编进去的在前、换入的在后
-        unsafe = [d for d in setup.drinks if _swap_unsafe(d)]
-        env.drink_definitions = {**env.drink_definitions, **{d: _drink_def(d) for d in set(safe)}}
-        env.drinks = {str(i): d for i, d in enumerate(unsafe + safe)}
-    env.hp = min(setup.hp, setup.max_hp)
-    return env
+    """setup 的一局：开考快照合成好（饮料、体力、倍率都写在快照里），考试引擎按 seed 开局。"""
+    obs = _opening_cached(setup.key(), setup)
+    return _episode(setup, _exam_cached(setup.key(), obs), seed)
 
 
 _EPISODES: "OrderedDict" = None  # type: ignore[assignment]
-EPISODE_CACHE = 512  # 每个进程缓存的开局数（同一牌组 × 种子）
+EPISODE_CACHE = 512  # 每个进程缓存的开局数（同一组合 × 种子）
 
 
 def _episode(setup: R2Setup, exam, seed: int):
-    """开局（exam.episode 约 0.6–0.8 秒，几乎全是引擎深拷贝考试文档）按（无饮料组合, 种子）缓存，每次返回一份 clone（约 0.3ms）。"""
+    """开局按（组合, 种子）缓存，每次返回一份 clone。"""
     global _EPISODES
     from collections import OrderedDict
 
@@ -145,7 +127,7 @@ def _episode(setup: R2Setup, exam, seed: int):
 
     if _EPISODES is None:
         _EPISODES = OrderedDict()
-    k = (_with(setup, drinks=[d for d in setup.drinks if _swap_unsafe(d)], hp=setup.max_hp).key(), seed)
+    k = (setup.key(), seed)
     env = _EPISODES.get(k)
     if env is None:
         env = _EPISODES[k] = exam.episode(seed)
@@ -157,30 +139,8 @@ def _episode(setup: R2Setup, exam, seed: int):
 
 
 def bare_exam(setup: R2Setup):
-    """setup 去掉（可换入的）饮料、体力按满后的那场考试（编译一次、缓存）。引用牌组的饮料（_swap_unsafe）留在里面一起编译，
-    其余饮料组合都共用这一场。resource.prewarm / note_exam 提前编译它。"""
-    bare = _with(setup, drinks=[d for d in setup.drinks if _swap_unsafe(d)], hp=setup.max_hp)
-    return _exam_cached(bare.key(), _opening_cached(bare.key(), bare))
-
-
-# 效果引用牌组的饮料（强化手牌要每张牌的强化绑定、生成卡要卡池定义、检索按标签找牌组）：定义不能脱离牌组单独编译，含它们的组合整场编译
-SWAP_UNSAFE_OPS = frozenset({"upgrade_hand", "create_hand_pool", "fetch_tag"})
-
-
-@lru_cache(maxsize=None)
-def _swap_unsafe(drink_id: str) -> bool:
-    try:
-        return bool({e.get("op") for e in _drink_def(drink_id)["effects"]} & SWAP_UNSAFE_OPS)
-    except Exception:  # noqa: BLE001  编不出来就按不安全处理（整场编译）
-        return True
-
-
-@lru_cache(maxsize=None)
-def _drink_def(drink_id: str) -> dict:
-    """一瓶饮料的编译定义（和牌组无关）：用 3 张基础卡的小牌组编一场取出来。"""
-    tiny = R2Setup(deck=[("p_card-02-men-0_039", 0)] * 3, drinks=[drink_id], hp=24, max_hp=33, permil={"Vo": 30000, "Da": 30000, "Vi": 20000}, fill=False)
-    obs = _opening_cached(tiny.key(), tiny)
-    return _exam_cached(tiny.key(), obs).episode(0).drink_definitions[drink_id]
+    """setup 的那场考试（开考配置缓存；resource.prewarm / note_exam 提前建好）。"""
+    return _exam_cached(setup.key(), _opening_cached(setup.key(), setup))
 
 
 def _couple(env, base_env, seed: int) -> None:
@@ -313,10 +273,10 @@ def _opening_cached(key, setup):
 
 
 def _exam_cached(key, obs):
-    from gakumas_sim.campus import CampusExam
+    from hiro.sim.engine import Exam
 
     if key not in _EXAMS and obs is not None:
-        _EXAMS[key] = CampusExam(obs)
+        _EXAMS[key] = Exam(obs)
     return _EXAMS[key]
 
 
@@ -563,7 +523,7 @@ def _prewarm_r2(workers: int = 4) -> None:
     """R1 结束（note_exam 记下倍率）时，让常驻进程池的每个进程先把 R2 的考试编译好（R1 牌组、无饮料），进轮间时方案 / 增益表不用等编译。不阻塞。"""
     deck = [tuple(x) for x in CONTEXT.get("deck") or []]
     permil = {a: v for a, v in (CONTEXT.get("permil") or {}).items() if v}
-    if not deck or not permil or not DRINK_SWAP:
+    if not deck or not permil:
         return
     for a in ("Vo", "Da", "Vi"):
         permil.setdefault(a, min(permil.values()))

@@ -178,7 +178,7 @@ class SimTracker:
     def _advance(self, base, actions: list[dict], screen_hand: list, notes: list[str]):
         """按画面推进一步：先原样推；手牌不同时把画面上新出现的牌放到山札顶重放；回合开始「随机强化 1 张」之类的随机效果
         再换几个随机种子重放，取手牌与强化次数都和画面一致的那次。都不完全一致时取卡 ID 一致的第一次，强化次数按画面改。"""
-        from gakumas_sim.core import NativeRandom
+        from gakumas_exam.rng import NativeRandom
 
         want = [cid for cid, _ in screen_hand]
         tries = []

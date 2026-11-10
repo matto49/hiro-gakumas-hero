@@ -83,7 +83,7 @@ def _sim_catalog():
         import hiro.sim
 
         if hiro.sim.master_ready():
-            from gakumas_sim.catalog import Catalog as SimCatalog
+            from gakumas_exam.catalog import Catalog as SimCatalog
 
             _LOCAL.sim = SimCatalog()
     except Exception:  # noqa: BLE001

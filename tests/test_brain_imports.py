@@ -8,7 +8,7 @@ MODULES = ["hiro.brain.llm", "hiro.brain.rules", "hiro.brain.state", "hiro.brain
 
 
 def test_imports_without_private_deps(monkeypatch):
-    for m in ("kaa", "kotonebot", "gakumas_sim"):
+    for m in ("kaa", "kotonebot", "gakumas_exam", "gakumas_produce"):
         monkeypatch.setitem(sys.modules, m, None)  # 导入这些会报 ImportError
     for m in MODULES:
         sys.modules.pop(m, None)

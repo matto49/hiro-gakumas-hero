@@ -101,4 +101,4 @@
 - `~/Documents/github/gakumas-player/strategy/skills/{hif-run,training,card-pick,card-remove,drinks,play-cards}/SKILL.md`
 - `~/Documents/github/gakumas-player/hif-series/ep07–ep15-notes.json`（いおん 攻略系列熟肉笔记），PDF：`hif-series/render-delivery/学园偶像大师攻略系列学习手册.pdf`
 - `~/Documents/github/gakumas-player/live-runs/hif-campus-hiro-20261019/{本局复盘,研究与执行}.md`
-- 机制细节：`~/Documents/github/gakumas-player/mechanics/`（55 篇），模拟器：`gakumas_sim`
+- 机制细节：`~/Documents/github/gakumas-player/mechanics/`（55 篇），模拟器：`gakumas_exam`

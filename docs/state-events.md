@@ -39,7 +39,7 @@
 | `kind` | str | 事件类型，见 §3 事件表（如 `CARD_ACQUIRE`） |
 | `origin` | str | `action`（由已执行的 Decision 推出）/ `observed`（识别认出）/ `inferred`（互验差异反推）/ `review`（主动查看覆盖） |
 | `args` | dict | 事件参数：`card_id`、`upgrade`、`deck_index`、`drink_id`、`price`、`option`、`exam`、`score` 等 |
-| `basis` | str | 推算依据：`master`（主数据）/ `community`（`gakumas_sim.community_rules`）/ `sim`（模拟器）/ `observe_only`（只能观测，无法推算） |
+| `basis` | str | 推算依据：`master`（主数据）/ `community`（`gakumas_produce.community_rules`）/ `sim`（模拟器）/ `observe_only`（只能观测，无法推算） |
 | `confirmed` | bool \| None | 观测是否确认事件确实发生（`None` 未确认） |
 | `ref` | dict | 关联：`decision_seq`、`observation_seq`、`screenshot` |
 

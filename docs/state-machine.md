@@ -54,7 +54,7 @@ GameState 只在外面包一层：当前做什么、在哪个页面、字段来�
 | `params` {vo,da,vi} | `params` {Vo,Da,Vi} | 键名 |
 | `growth_pct` 41.3 | `growth_permil` 1413 | 1000 + 百分比 × 10 |
 | `param_caps` | `param_cap` | 三项一致时取其值 |
-| `options[].kind` | 选项名对齐 gakumas_sim 日程 | open_lesson→training、consult→shop、present→gift、special_training→special_guidance；rest 不在日程里 |
+| `options[].kind` | 选项名对齐 gakumas_produce 日程 | open_lesson→training、consult→shop、present→gift、special_training→special_guidance；rest 不在日程里 |
 
 考试：`battle_observation(read_hif_exam(img))` 直接作为 `BattleState.build(memory, profile, **obs)` 的参数，
 手牌经 `card_version(card_id, upgrade)` 走决策层自己的 `card_view()`，饮料按图标查 `Drink` 走 `drink_view()`；
@@ -80,7 +80,7 @@ GameState 只在外面包一层：当前做什么、在哪个页面、字段来�
 
 | 页面 | 动作 | 预演内容 | 依据 |
 |---|---|---|---|
-| 考试出牌 | 出牌 / 喝饮料 / 跳过 | 分数、元气、体力、状态的变化，对后续回合的影响 | `hiro.sim`（gakumas_sim），已能对存档局面预演 |
+| 考试出牌 | 出牌 / 喝饮料 / 跳过 | 分数、元气、体力、状态的变化，对后续回合的影响 | `hiro.sim`（考试引擎 gakumas_exam），已能对存档局面预演 |
 | 选行动 | 上课 / 外出 / 商店 / 休息 … | 三维、体力、P 点数变化；离考试天数 | 主数据 + `schedules/hif.json` |
 | 三选一 | 选哪张卡 / 哪瓶饮料 | 牌组变化及牌组强度变化 | 模拟器跑牌组评估（`sim/bench`） |
 | 商店 / 强化 / 删卡 | 买 / 强化 / 删 | P 点数与牌组变化 | 主数据 |

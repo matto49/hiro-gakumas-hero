@@ -3,7 +3,7 @@
 
 - 培育：字段名对齐 hiro.state.produce.ProduceState（客户端协议 UserProduceProgress），
   只给出当前画面能观测到的字段，可直接 ProduceState.from_dict 或合并进已有状态；
-  选项名对齐 gakumas_sim 日程（training / class / outing / gift / shop / special_guidance）。
+  选项名对齐 gakumas_produce 日程（training / class / outing / gift / shop / special_guidance）。
 - 考试：BattleState.build 的观测参数（手牌 CardView、饮料 DrinkView 等）。
 """
 

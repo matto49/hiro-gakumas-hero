@@ -478,15 +478,7 @@ def determinize(env, meta: dict | None, rng: random.Random):
     w = clone(env)
     # 世界自己的随机数也是未知信息：山札不够时弃牌堆洗回（ミックススムージー 的整手牌重抽、回合末弃牌后抽牌等）用的是对局 rng，
     # clone 出来的世界共享同一个状态，会让所有世界洗出同一个顺序（没有抽样，且和真实顺序无关）。每个世界换成自己的状态。
-    if getattr(w, "fidelity", False) is True:  # 高保真引擎：同样重设对局随机数、重排山札（保留公开的顶部），直接在引擎牌区上做
-        w.determinize_hidden(rng)
-    else:
-        w.rng.state = rng.randrange(1, 2**32)
-        # 漢方等检索后，山札顶部若干张是公开已知的顺序：保留，只重排其后的部分
-        known = len([c for c in getattr(w, "known_deck_prefix", []) if c in w.zones["deck"]])
-        rest = w.zones["deck"][known:]
-        rng.shuffle(rest)
-        w.zones["deck"][known:] = rest
+    w.determinize_hidden(rng)  # 漢方等检索后，山札顶部若干张是公开已知的顺序：引擎保留它，只重排其后的部分
     attrs = getattr(w, "turn_attributes", None)
     if meta and attrs:
         prefix = sum(meta["allocation"]["random_prefix_counts"].values())

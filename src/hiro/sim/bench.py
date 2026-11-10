@@ -39,24 +39,6 @@ def parse_seeds(text: str) -> list[int]:
     return out
 
 
-class SkillAdapter:
-    """gakumas_sim 原有的 skill 规则策略（较慢，作历史基线）。"""
-
-    name = "skill"
-
-    def start(self, game):
-        from gakumas_sim.evaluate import make_policy
-
-        self.p = make_policy("skill", None)
-
-    def act(self, game):
-        a, _ = self.p.choose(game.env.observe(), game.env.legal_actions())
-        return a, None, None
-
-    def after(self, game, state, d):
-        pass
-
-
 def make(name: str, exam: SimExam, args):
     if name == "heuristic":
         return HeuristicPolicy(seed=0)
@@ -66,8 +48,6 @@ def make(name: str, exam: SimExam, args):
         from hiro.sim.policies import PreviewExpert
 
         return PreviewExpert(exam.exam.meta, worlds=args.worlds)
-    if name == "skill":
-        return SkillAdapter()
     if name in ("brain-llm-preview", "brain-rules-preview"):
         from hiro.sim.policies import PreviewBrainPolicy
 

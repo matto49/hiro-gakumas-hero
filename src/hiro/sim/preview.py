@@ -79,27 +79,13 @@ CRN_INTURN = False
 
 
 # ---------- 回合内搜索剪枝（协调 2026-11-02 预演加速一期第 3 项）----------
-SIG_SCALARS = ("hp", "max_hp", "shield", "motivation", "focus", "score", "impression", "permanent_boost", "turn", "actions", "play_count",
-               "mental_motivation", "end_turn_motivation", "extra_turns_added", "anti_debuff", "stamina_down_fix", "bonus", "in_turn_start")  # fmt: skip
-SIG_LISTS = ("boosts", "ticks", "reservations", "stamina_modifiers", "impression_score_boosts", "impression_boosts", "free_stamina", "repeat_buffs",
-             "hooks", "support_used")  # fmt: skip
 BEAM = 2  # 回合内每层展开几个出牌（按 community_value 排序）；None = 全展开（现行）
 MIN_ACTIONS_TO_SEARCH = 2  # 剩余行动少于这个数时只再看一层（选本回合最好的一张），不再往下穷举
 
 
 def state_signature(w) -> int:
-    """置换表用的局面签名：会影响后续的运行时字段（标量、牌区、饮料、buff / 预约效果、各卡状态）。手牌和弃牌按集合（顺序不影响后续），
-    牌堆按顺序（同一世界里决定抽牌）。日志类字段不算。"""
-    import pickle
-
-    if getattr(w, "fidelity", False) is True:  # 高保真引擎：签名含全部状态（附魔计数、各卡成长）
-        return w.signature()
-    z = w.zones
-    zones = tuple((k, tuple(v) if k == "deck" else tuple(sorted(v))) for k, v in sorted(z.items()))
-    scal = tuple(getattr(w, k, None) for k in SIG_SCALARS)
-    lists = tuple(repr(getattr(w, k, None)) for k in SIG_LISTS)
-    cards = tuple(sorted((i, repr(c)) for i, c in w.cards.items() if i in z.get("hand", ()) or i in z.get("deck", ()) or i in z.get("grave", ())))
-    return hash(pickle.dumps((scal, zones, tuple(sorted(w.drinks)), lists, cards), protocol=4))
+    """置换表用的局面签名（引擎提供）：标量、牌区（山札按序、其余按集合）、饮料、全部状态（含附魔计数、各卡成长与附魔）。"""
+    return w.signature()
 
 
 def _inturn_candidates(w, beam: int | None) -> list:
@@ -306,17 +292,18 @@ def preview_actions(env, meta: dict | None, *, worlds: int = 16, seed: int = 0, 
             a = acc[key]
             r = random.Random(ws)
             w = determinize(env, meta, r)
+            kept = set(w.zones["hand"]) - ({action["id"]} if action["kind"] == "play" else set())
             fast_apply(w, action)
             after = _snap(w)
             for k, _ in FIELDS:
                 a["deltas"][k].append(after[k] - before[k])
             a["acts"].append(after["actions"])
             # 打出的牌离手算 -1，其余手牌增量就是抽到/检索到的张数
-            redraws = [e for e in w.card_mutation_events if e["kind"] == "discard-redraw"]
-            if redraws:
-                # 手札を全部入れ替える（ミックススムージー）：手牌数不变，但整手牌被换掉；抽到的张数以重抽事件为准
+            hand_after = list(w.zones["hand"]) if after["turn"] == before["turn"] and not after["ended"] else []
+            if kept and hand_after and not kept & set(hand_after):
+                # 手札を全部入れ替える（ミックススムージー）：手牌数不变，但原来的手牌一张不剩；抽到的就是现在整手
                 a["replaced"] = True
-                a["drawn"].append(sum(len(e["drawn"]) for e in redraws))
+                a["drawn"].append(len(hand_after))
             else:
                 a["drawn"].append(after["hand"] - before["hand"] + (1 if action["kind"] == "play" else 0))
             a["passed"] = a["passed"] or after["turn"] != before["turn"] or after["ended"]

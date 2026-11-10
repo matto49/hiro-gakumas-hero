@@ -1,0 +1,884 @@
+{
+ "enum": {
+  "0": "Unknown",
+  "1": "ParameterBuff",
+  "2": "ParameterDebuff",
+  "3": "Enthusiastic",
+  "4": "LessonBuff",
+  "5": "LessonDebuff",
+  "6": "LessonParameterMultiple",
+  "7": "LessonParameterBuffMultiple",
+  "8": "StaminaConsumptionAdd",
+  "9": "StaminaConsumptionAddFix",
+  "10": "StaminaConsumptionDown",
+  "11": "StaminaConsumptionDownFix",
+  "12": "BlockAddDown",
+  "13": "BlockAddDownFix",
+  "14": "StaminaConsumptionAddDown",
+  "15": "StaminaConsumptionDownAdd",
+  "16": "StaminaRecoverAdd",
+  "17": "StaminaReduceChange",
+  "18": "BlockRestriction",
+  "19": "BlockAddDownRestriction",
+  "20": "StaminaRecoverRestriction",
+  "21": "PlayCountBuff",
+  "22": "SearchPlayCardCostChange",
+  "24": "SearchPlayCardLimitLesson",
+  "25": "SearchPlayCardLimitPower",
+  "26": "SearchPlayCardLimitSkill",
+  "27": "HandHold",
+  "30": "EffectTimer",
+  "31": "TriggerEffect",
+  "34": "ExamPlayableValueAdd",
+  "35": "Review",
+  "36": "ReviewValueMultiple",
+  "37": "Uplifting",
+  "38": "Aggressive",
+  "40": "StartTurnCardDrawDown",
+  "41": "Slump",
+  "42": "FullPowerPoint",
+  "43": "AntiDebuff",
+  "45": "GetCardUpgrade",
+  "47": "LessonChangeSpecifyLessThan",
+  "48": "LessonChangeSpecifyMoreThan",
+  "49": "Panic",
+  "50": "ParameterBuffMultiplePerTurn",
+  "51": "StanceLock",
+  "52": "LessonParameterMultipleDown",
+  "53": "EnthusiasticAdditive",
+  "54": "EnthusiasticMultiple",
+  "55": "FullPowerLessonMultipleAdditive",
+  "56": "ConcentrationLessonMultipleAdditive",
+  "57": "LessonBuffAdditive",
+  "58": "ParameterBuffAdditive",
+  "59": "AggressiveAdditive",
+  "60": "ReviewAdditive",
+  "61": "FullPowerPointAdditive",
+  "62": "GrowEffectLessonAddAdditive",
+  "63": "ReviewMultiple",
+  "64": "LessonParameterMultipleDependReviewOrAggressive",
+  "65": "StanceLockConcentration",
+  "66": "StanceLockFullPower",
+  "67": "StanceLockPreservation",
+  "68": "ReviewCountAdd",
+  "69": "EffectTimerEndTurn",
+  "70": "ReviewTurnEndReduceLock",
+  "71": "ParameterBuffTurnEndReduceLock",
+  "72": "BuffConsumptionDown",
+  "73": "BuffConsumptionAdd",
+  "74": "SearchPlayCardBuffConsumptionChange",
+  "75": "PlayCardLimitPlayableValueAdd",
+  "76": "ParameterBuffAdditiveFix",
+  "77": "LessonBuffAdditiveFix",
+  "78": "AggressiveAdditiveFix",
+  "79": "ReviewAdditiveFix",
+  "80": "FullPowerPointAdditiveFix"
+ },
+ "classes": {
+  "AggressiveAdditiveFixStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 78,
+   "type_name": "AggressiveAdditiveFix",
+   "fields": []
+  },
+  "AggressiveAdditiveStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 59,
+   "type_name": "AggressiveAdditive",
+   "fields": []
+  },
+  "AggressiveStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 38,
+   "type_name": "Aggressive",
+   "fields": []
+  },
+  "AntiDebuffStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 43,
+   "type_name": "AntiDebuff",
+   "fields": [
+    [
+     "_count",
+     "int",
+     "0x28"
+    ]
+   ]
+  },
+  "BlockAddDownFixStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 13,
+   "type_name": "BlockAddDownFix",
+   "fields": []
+  },
+  "BlockAddDownRestrictionStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 19,
+   "type_name": "BlockAddDownRestriction",
+   "fields": []
+  },
+  "BlockAddDownStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 12,
+   "type_name": "BlockAddDown",
+   "fields": []
+  },
+  "BlockRestrictionStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 18,
+   "type_name": "BlockRestriction",
+   "fields": []
+  },
+  "BuffConsumptionAddStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 73,
+   "type_name": "BuffConsumptionAdd",
+   "fields": []
+  },
+  "BuffConsumptionDownStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 72,
+   "type_name": "BuffConsumptionDown",
+   "fields": []
+  },
+  "ExamCardValueStatusEffect": {
+   "base": "IExamTimerStatusEffect",
+   "type": null,
+   "type_name": null,
+   "fields": [
+    [
+     "_turn",
+     "int",
+     "0x10"
+    ],
+    [
+     "_intValue",
+     "int",
+     "0x14"
+    ],
+    [
+     "_boolValue",
+     "bool",
+     "0x18"
+    ],
+    [
+     "_count",
+     "int",
+     "0x1C"
+    ],
+    [
+     "_isTurnLimited",
+     "bool",
+     "0x20"
+    ],
+    [
+     "_isCountLimited",
+     "bool",
+     "0x21"
+    ],
+    [
+     "_isPassingTurnStart",
+     "bool",
+     "0x22"
+    ]
+   ]
+  },
+  "ConcentrationLessonMultipleAdditiveStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 56,
+   "type_name": "ConcentrationLessonMultipleAdditive",
+   "fields": []
+  },
+  "EnthusiasticAdditiveStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 53,
+   "type_name": "EnthusiasticAdditive",
+   "fields": []
+  },
+  "EnthusiasticMultipleStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 54,
+   "type_name": "EnthusiasticMultiple",
+   "fields": []
+  },
+  "EnthusiasticStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 3,
+   "type_name": "Enthusiastic",
+   "fields": []
+  },
+  "FullPowerLessonMultipleAdditiveStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 55,
+   "type_name": "FullPowerLessonMultipleAdditive",
+   "fields": []
+  },
+  "FullPowerPointAdditiveFixStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 80,
+   "type_name": "FullPowerPointAdditiveFix",
+   "fields": []
+  },
+  "FullPowerPointAdditiveStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 61,
+   "type_name": "FullPowerPointAdditive",
+   "fields": []
+  },
+  "FullPowerPointStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 42,
+   "type_name": "FullPowerPoint",
+   "fields": []
+  },
+  "GetCardUpgradeStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 45,
+   "type_name": "GetCardUpgrade",
+   "fields": []
+  },
+  "GrowEffectLessonAddAdditiveStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 62,
+   "type_name": "GrowEffectLessonAddAdditive",
+   "fields": []
+  },
+  "HandHoldStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 27,
+   "type_name": "HandHold",
+   "fields": []
+  },
+  "LessonBuffAdditiveFixStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 77,
+   "type_name": "LessonBuffAdditiveFix",
+   "fields": []
+  },
+  "LessonBuffAdditiveStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 57,
+   "type_name": "LessonBuffAdditive",
+   "fields": []
+  },
+  "LessonBuffMultipleStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 7,
+   "type_name": "LessonParameterBuffMultiple",
+   "fields": []
+  },
+  "LessonBuffStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 4,
+   "type_name": "LessonBuff",
+   "fields": []
+  },
+  "LessonChangeSpecifyLessThanStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 47,
+   "type_name": "LessonChangeSpecifyLessThan",
+   "fields": [
+    [
+     "_value2",
+     "int",
+     "0x2C"
+    ],
+    [
+     "_fromExamEffectId",
+     "string",
+     "0x30"
+    ],
+    [
+     "_descriptions",
+     "List<ProduceDescriptionSegment>",
+     "0x38"
+    ]
+   ]
+  },
+  "LessonChangeSpecifyMoreThanStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 48,
+   "type_name": "LessonChangeSpecifyMoreThan",
+   "fields": [
+    [
+     "_value2",
+     "int",
+     "0x2C"
+    ],
+    [
+     "_fromExamEffectId",
+     "string",
+     "0x30"
+    ],
+    [
+     "_descriptions",
+     "List<ProduceDescriptionSegment>",
+     "0x38"
+    ]
+   ]
+  },
+  "LessonDebuffStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 5,
+   "type_name": "LessonDebuff",
+   "fields": []
+  },
+  "LessonParameterMultipleDependReviewOrAggressiveStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 64,
+   "type_name": "LessonParameterMultipleDependReviewOrAggressive",
+   "fields": []
+  },
+  "LessonParameterMultipleDownStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 52,
+   "type_name": "LessonParameterMultipleDown",
+   "fields": []
+  },
+  "LessonParameterMultipleStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 6,
+   "type_name": "LessonParameterMultiple",
+   "fields": []
+  },
+  "PanicStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 49,
+   "type_name": "Panic",
+   "fields": []
+  },
+  "ParameterBuffAdditiveFixStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 76,
+   "type_name": "ParameterBuffAdditiveFix",
+   "fields": []
+  },
+  "ParameterBuffAdditiveStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 58,
+   "type_name": "ParameterBuffAdditive",
+   "fields": []
+  },
+  "ParameterBuffMultiplePerTurnStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 50,
+   "type_name": "ParameterBuffMultiplePerTurn",
+   "fields": []
+  },
+  "ParameterBuffStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 1,
+   "type_name": "ParameterBuff",
+   "fields": []
+  },
+  "ParameterBuffTurnEndReduceLockStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 71,
+   "type_name": "ParameterBuffTurnEndReduceLock",
+   "fields": []
+  },
+  "ParameterDebuffStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 2,
+   "type_name": "ParameterDebuff",
+   "fields": []
+  },
+  "PlayCardLimitPlayableValueAddStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 75,
+   "type_name": "PlayCardLimitPlayableValueAdd",
+   "fields": [
+    [
+     "_searchId",
+     "string",
+     "0x30"
+    ],
+    [
+     "_fromExamEffectId",
+     "string",
+     "0x38"
+    ],
+    [
+     "_limitCountInTurn",
+     "int",
+     "0x40"
+    ],
+    [
+     "_limitCountInTurnRemain",
+     "int",
+     "0x44"
+    ],
+    [
+     "_descriptions",
+     "List<ProduceDescriptionSegment>",
+     "0x48"
+    ]
+   ]
+  },
+  "PlayCountBuffStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 21,
+   "type_name": "PlayCountBuff",
+   "fields": [
+    [
+     "_count",
+     "int",
+     "0x2C"
+    ],
+    [
+     "_searchId",
+     "string",
+     "0x30"
+    ],
+    [
+     "_descriptions",
+     "List<ProduceDescriptionSegment>",
+     "0x38"
+    ]
+   ]
+  },
+  "PlayableValueAddStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 34,
+   "type_name": "ExamPlayableValueAdd",
+   "fields": []
+  },
+  "ReviewAdditiveFixStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 79,
+   "type_name": "ReviewAdditiveFix",
+   "fields": []
+  },
+  "ReviewAdditiveStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 60,
+   "type_name": "ReviewAdditive",
+   "fields": []
+  },
+  "ReviewCountAddStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 68,
+   "type_name": "ReviewCountAdd",
+   "fields": []
+  },
+  "ReviewMultipleStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 63,
+   "type_name": "ReviewMultiple",
+   "fields": []
+  },
+  "ReviewStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 35,
+   "type_name": "Review",
+   "fields": []
+  },
+  "ReviewTurnEndReduceLockStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 70,
+   "type_name": "ReviewTurnEndReduceLock",
+   "fields": []
+  },
+  "SearchPlayCardBuffConsumptionChangeStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 74,
+   "type_name": "SearchPlayCardBuffConsumptionChange",
+   "fields": [
+    [
+     "_count",
+     "int",
+     "0x2C"
+    ],
+    [
+     "_searchId",
+     "string",
+     "0x30"
+    ],
+    [
+     "_fromExamEffectId",
+     "string",
+     "0x38"
+    ],
+    [
+     "_descriptions",
+     "List<ProduceDescriptionSegment>",
+     "0x40"
+    ]
+   ]
+  },
+  "SearchPlayCardLimitStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": null,
+   "type_name": null,
+   "fields": [
+    [
+     "_searchId",
+     "string",
+     "0x28"
+    ],
+    [
+     "_descriptions",
+     "List<ProduceDescriptionSegment>",
+     "0x30"
+    ]
+   ]
+  },
+  "SearchPlayCardStaminaConsumptionChangeStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 22,
+   "type_name": "SearchPlayCardCostChange",
+   "fields": [
+    [
+     "_count",
+     "int",
+     "0x2C"
+    ],
+    [
+     "_searchId",
+     "string",
+     "0x30"
+    ],
+    [
+     "_fromExamEffectId",
+     "string",
+     "0x38"
+    ],
+    [
+     "_descriptions",
+     "List<ProduceDescriptionSegment>",
+     "0x40"
+    ]
+   ]
+  },
+  "SlumpStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 41,
+   "type_name": "Slump",
+   "fields": []
+  },
+  "StaminaConsumptionAddDownStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 14,
+   "type_name": "StaminaConsumptionAddDown",
+   "fields": []
+  },
+  "StaminaConsumptionAddFixStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 9,
+   "type_name": "StaminaConsumptionAddFix",
+   "fields": []
+  },
+  "StaminaConsumptionAddStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 8,
+   "type_name": "StaminaConsumptionAdd",
+   "fields": []
+  },
+  "StaminaConsumptionDownAddStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 15,
+   "type_name": "StaminaConsumptionDownAdd",
+   "fields": []
+  },
+  "StaminaConsumptionDownFixStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 11,
+   "type_name": "StaminaConsumptionDownFix",
+   "fields": []
+  },
+  "StaminaConsumptionDownStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 10,
+   "type_name": "StaminaConsumptionDown",
+   "fields": []
+  },
+  "StaminaRecoverAddStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 16,
+   "type_name": "StaminaRecoverAdd",
+   "fields": [
+    [
+     "_isDisable",
+     "bool",
+     "0x2C"
+    ]
+   ]
+  },
+  "StaminaRecoverRestrictionStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 20,
+   "type_name": "StaminaRecoverRestriction",
+   "fields": []
+  },
+  "StaminaReduceChangeStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 17,
+   "type_name": "StaminaReduceChange",
+   "fields": [
+    [
+     "_isDisable",
+     "bool",
+     "0x2C"
+    ]
+   ]
+  },
+  "StanceLockConcentrationEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 65,
+   "type_name": "StanceLockConcentration",
+   "fields": []
+  },
+  "StanceLockFullPowerEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 66,
+   "type_name": "StanceLockFullPower",
+   "fields": []
+  },
+  "StanceLockPreservationEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 67,
+   "type_name": "StanceLockPreservation",
+   "fields": []
+  },
+  "StanceLockStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 51,
+   "type_name": "StanceLock",
+   "fields": []
+  },
+  "StartTurnCardDrawDownStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 40,
+   "type_name": "StartTurnCardDrawDown",
+   "fields": []
+  },
+  "TriggerEffectStatusEffect": {
+   "base": "ExamStatusEffectBase",
+   "type": 31,
+   "type_name": "TriggerEffect",
+   "fields": [
+    [
+     "_overrideType",
+     "ExamStatusEffectType",
+     "0x28"
+    ],
+    [
+     "_triggerItem",
+     "ProduceItemData",
+     "0x30"
+    ],
+    [
+     "_isItemDirectEnchant",
+     "bool",
+     "0x38"
+    ],
+    [
+     "_triggerDrink",
+     "ProduceDrinkData",
+     "0x40"
+    ],
+    [
+     "_triggerCard",
+     "ExamCardData",
+     "0x48"
+    ],
+    [
+     "_triggerGimmickGroup",
+     "ProduceGimmickEffectGroupData",
+     "0x50"
+    ],
+    [
+     "_startEnchantOriginId",
+     "string",
+     "0x58"
+    ],
+    [
+     "_startEnchantOriginLevel",
+     "int",
+     "0x60"
+    ],
+    [
+     "_startEnchantOwnerId",
+     "string",
+     "0x68"
+    ],
+    [
+     "_startEnchantOriginType",
+     "ExamTriggerOriginType",
+     "0x70"
+    ],
+    [
+     "_trigger",
+     "ProduceExamTrigger",
+     "0x78"
+    ],
+    [
+     "_effectList",
+     "List<ProduceExamEffect>",
+     "0x80"
+    ],
+    [
+     "_turnCount",
+     "int",
+     "0x88"
+    ],
+    [
+     "_phaseCountDictionary",
+     "SerializableDictionary<ProduceExamPhaseType, PhaseCountData>",
+     "0x90"
+    ],
+    [
+     "_limitCount",
+     "int",
+     "0x98"
+    ],
+    [
+     "_limitCountInTurn",
+     "int",
+     "0x9C"
+    ],
+    [
+     "_limitCountInTurnRemain",
+     "int",
+     "0xA0"
+    ],
+    [
+     "_statusEnchantId",
+     "string",
+     "0xA8"
+    ],
+    [
+     "_fromExamEffectIdList",
+     "List<string>",
+     "0xB0"
+    ],
+    [
+     "_fromExamEffectListCache",
+     "List<IExamEffect>",
+     "0xB8"
+    ],
+    [
+     "_descriptionReactiveDataTypeList",
+     "List<ExamDescriptionType>",
+     "0xC0"
+    ],
+    [
+     "_descriptionReactiveDataTextList",
+     "List<string>",
+     "0xC8"
+    ],
+    [
+     "_originType",
+     "TriggerEffectStatusEffectOriginType",
+     "0xD0"
+    ],
+    [
+     "_isFromEnchantEffect",
+     "bool",
+     "0xD4"
+    ],
+    [
+     "_isEncoreEnchant",
+     "bool",
+     "0xD5"
+    ],
+    [
+     "_descriptionsCache",
+     "IReadOnlyList<ProduceDescriptionSegment>",
+     "0xD8"
+    ],
+    [
+     "_descriptionReactiveDataListCache",
+     "Dictionary<ExamDescriptionType, string>",
+     "0xE0"
+    ]
+   ]
+  },
+  "TriggerMissionStatusEffect": {
+   "base": "TriggerEffectStatusEffect",
+   "type": 31,
+   "type_name": "TriggerEffect",
+   "fields": [
+    [
+     "_achieveCount",
+     "int",
+     "0xE8"
+    ],
+    [
+     "_missionId",
+     "string",
+     "0xF0"
+    ]
+   ]
+  },
+  "UpliftingStatusEffect": {
+   "base": "IntParameterBuffStatusEffect",
+   "type": 37,
+   "type_name": "Uplifting",
+   "fields": []
+  },
+  "ProduceStatusEffect": {
+   "base": "IProduceStatusEffect",
+   "type": null,
+   "type_name": null,
+   "fields": []
+  },
+  "ProduceCardStatusEffect": {
+   "base": "IProduceCardStatusEffect",
+   "type": null,
+   "type_name": null,
+   "fields": [
+    [
+     "_id",
+     "string",
+     "0x10"
+    ],
+    [
+     "_produceExamTriggerId",
+     "string",
+     "0x18"
+    ],
+    [
+     "_produceExamTrigger",
+     "IProduceExamTrigger",
+     "0x20"
+    ],
+    [
+     "_produceCardGrowEffectIdList",
+     "List<string>",
+     "0x28"
+    ],
+    [
+     "_effectGroupIdList",
+     "List<string>",
+     "0x30"
+    ],
+    [
+     "_descriptionList",
+     "List<ProduceDescriptionSegment>",
+     "0x38"
+    ],
+    [
+     "_triggerCount",
+     "int",
+     "0x40"
+    ],
+    [
+     "_phaseCountDictionary",
+     "SerializableDictionary<ProduceExamPhaseType, PhaseCountData>",
+     "0x48"
+    ],
+    [
+     "_spendTurn",
+     "int",
+     "0x50"
+    ],
+    [
+     "_spendCount",
+     "int",
+     "0x54"
+    ]
+   ]
+  }
+ }
+}

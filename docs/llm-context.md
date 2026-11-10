@@ -157,7 +157,7 @@ P 点、体力、饮料栏、牌组仍从 `GameState.produce` 取（`produce_poi
 
 - 来源优先级：page_fields（识别读编成页）> 参数 > `conf/formations.json`（识别到位前由用户手写游戏里预存的编成内容，格式同上）。
 - 支援卡：主属性 = 张数最多的属性，比较「主属性张数（封顶 4）→ SP 发生率张数 → SP 结束奖励 → 成长率 → 等级」[seesaa][もりし][もなみ]；
-  技能用 `gakumas_sim.supports.compile_card` 从 master 编译，`limit_rank` 缺省时取等级能达到的突破段。
+  技能用 `gakumas_produce.supports.compile_card` 从 master 编译，`limit_rank` 缺省时取等级能达到的突破段。
 - 记忆：`knowledge.MEMORY_WANT`（决策-07 按 game8：デイドリーミング 5 > 紙吹雪 4 > 仕切り直し / アイドル魂 3 > 届いて！ / せのび / ワクワク / アイドル宣言 2，带推荐定制 +1）。
 - 输出 `SelectFormation{support_set, memory_set, main_attr}`；`main_attr` 同时写进决策器，之后选行动用它（不再需要 `--main-attr`）。
 

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import hiro.sim  # noqa: F401  开源版：把 vendor/gakumas-player 加进 sys.path（预测里用 gakumas_sim 的社区规则 / 支援卡表）
+import hiro.sim  # noqa: F401  开源版：把 vendor/gakumas-player 加进 sys.path（预测里用 gakumas_produce 的社区规则 / 支援卡表）
 from hiro.contracts import EVENT_KINDS, Event, Expect, Prediction
 from hiro.state.context import _scale, catalog, schedule
 from hiro.state.produce import ATTRS, ProduceState
@@ -43,7 +43,7 @@ GAIN_BASIS = {
                                                            "缺时按合计分数给区间；未达上界部分社区只有样本 [wiki]"),
     "exam.finals_star": ("samples", "本战星星只有社区样本（finals_star_base 插值），给 ±3 区间"),
     "exam.r1_points": ("samples", "R1 获得 P 点只有社区样本（r1_points 插值），给 ±5 区间"),
-    "support.bonus": ("fixed_if_known", "支援卡技能（gakumas_sim.supports）：触发时机与数值是 master 精确值，需要编成与已触发次数；"
+    "support.bonus": ("fixed_if_known", "支援卡技能（gakumas_produce.supports）：触发时机与数值是 master 精确值，需要编成与已触发次数；"
                                         "编成未知时用 SUPPORT_SLACK 上界"),
     "auto_process": ("random", "选拔①② 通过后随机删 2 张「基本」卡 [wiki]：张数固定、哪两张随机 → 只给张数，牌组 pending"),
     "card_reward": ("observe_only", "三选一 / 礼物 / 外出拿到哪张卡、哪瓶饮料：由候选识别给出，不能推算"),
@@ -222,7 +222,7 @@ def support_bonus(prod: dict, phase: str, context: dict | None = None) -> dict |
     sups = prod.get("supports") or []
     if not sups or any(_get(s, "level") is None or _get(s, "limit_rank") is None for s in sups):
         return None
-    from gakumas_sim import supports as gs
+    from gakumas_produce import supports as gs
 
     c = catalog()
     plan = c.one("IdolCard", prod["idol_card_id"])["planType"]
@@ -295,7 +295,7 @@ def _lesson(prod: dict, args: dict, seq: int) -> list[Prediction]:
 
 def _study(prod: dict, args: dict, seq: int) -> list[Prediction]:
     """STUDY {attr, choice: A|B|trouble}：属性 + CLASS_PARAMETER（不套成长率）；A/B 体力 -5；眠気档加一张眠気；获得日 +1 张卡。"""
-    from gakumas_sim import community_rules as rules
+    from gakumas_produce import community_rules as rules
 
     attr, choice = args.get("attr"), args.get("choice")
     value = rules.CLASS_PARAMETER.get((prod.get("mode"), prod.get("step")))
@@ -316,7 +316,7 @@ def _study(prod: dict, args: dict, seq: int) -> list[Prediction]:
 
 def _outing(prod: dict, args: dict, seq: int) -> list[Prediction]:
     """OUTING {tier: paid|trouble|free}：回复最大体力 60%；付费档 -50P；眠気档 +眠気；饮料 / 卡另由获得事件记。"""
-    from gakumas_sim import community_rules as rules
+    from gakumas_produce import community_rules as rules
 
     hp, mx = prod.get("stamina"), prod.get("max_stamina")
     tier = args.get("tier")
@@ -333,7 +333,7 @@ def _outing(prod: dict, args: dict, seq: int) -> list[Prediction]:
 
 def _gift(prod: dict, args: dict, seq: int) -> list[Prediction]:
     """GIFT（差し入れ）：+80P；SR/SSR 饮料一瓶与卡一张另由获得事件记。"""
-    from gakumas_sim import community_rules as rules
+    from gakumas_produce import community_rules as rules
 
     fields = {}
     if prod.get("produce_point") is not None:
@@ -410,7 +410,7 @@ def _card_exclude(prod: dict, args: dict, seq: int) -> list[Prediction]:
 
 def _card_upgrade(prod: dict, args: dict, seq: int) -> list[Prediction]:
     """CARD_UPGRADE {card_id, upgrade(强化前), source: consult|event|interval, price?}：牌组里这张 +1；相談 / 轮间扣 P。"""
-    from gakumas_sim import community_rules as rules
+    from gakumas_produce import community_rules as rules
 
     cid, up = args.get("card_id"), args.get("upgrade") or 0
     fields = _deck_change(prod, add=[(cid, up + 1)], remove=[(cid, up)], note="强化") if cid else {}
@@ -426,7 +426,7 @@ def _card_upgrade(prod: dict, args: dict, seq: int) -> list[Prediction]:
 
 def _card_delete(prod: dict, args: dict, seq: int) -> list[Prediction]:
     """CARD_DELETE {card_id, upgrade, source: consult|event, price?}：牌组 -1；相談扣 P。"""
-    from gakumas_sim import community_rules as rules
+    from gakumas_produce import community_rules as rules
 
     cid, up = args.get("card_id"), args.get("upgrade") or 0
     fields = _deck_change(prod, remove=[(cid, up)], note="删卡") if cid else {}
@@ -448,7 +448,7 @@ def _card_change(prod: dict, args: dict, seq: int) -> list[Prediction]:
 
 def _card_auto_process(prod: dict, args: dict, seq: int) -> list[Prediction]:
     """CARD_AUTO_PROCESS {exam: 1|2|3}：选拔①② 通过后随机删 2 张「基本」卡 [wiki]：只能预测张数，具体哪两张 pending。"""
-    from gakumas_sim import community_rules as rules
+    from gakumas_produce import community_rules as rules
 
     n = rules.SELECTION_BASIC_REMOVALS.get(args.get("exam"), 0)
     if not n or not _deck_known(prod):
@@ -561,7 +561,7 @@ def _exam_start(prod: dict, args: dict, seq: int) -> list[Prediction]:
 
 def _exam_result(prod: dict, args: dict, seq: int) -> list[Prediction]:
     """EXAM_RESULT {exam: 1|2|3|"r1"|"r2", score, turn_scores?}：星星、属性奖励、R1 的 P 点（社区公式 / 样本）。"""
-    from gakumas_sim import community_rules as rules
+    from gakumas_produce import community_rules as rules
 
     exam, score = args.get("exam"), args.get("score")
     if score is None or exam is None:
@@ -601,7 +601,7 @@ def _exam_result(prod: dict, args: dict, seq: int) -> list[Prediction]:
 
 def _interval_buy(prod: dict, args: dict, seq: int) -> list[Prediction]:
     """ROUND_INTERVAL_BUY {service: recover|card|drink|upgrade, price?, hp_gain?, card_id?, drink_id?}。"""
-    from gakumas_sim import community_rules as rules
+    from gakumas_produce import community_rules as rules
 
     fields = {}
     p, hp, mx = prod.get("produce_point"), prod.get("stamina"), prod.get("max_stamina")

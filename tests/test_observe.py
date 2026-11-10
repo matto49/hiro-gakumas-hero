@@ -15,7 +15,7 @@ from hiro.vision.observe import battle_observation, produce_observation
 from hiro.vision.offline import load
 
 FIX = Path(__file__).with_name("fixtures")
-# 选拔①之前的日程（gakumas_sim produce-007），与画面「選抜試験1まで N日」推出的 step 对应
+# 选拔①之前的日程（gakumas_produce produce-007），与画面「選抜試験1まで N日」推出的 step 对应
 SCHEDULE = {1: {"shop", "gift", "special_guidance"}, 2: {"training"}, 3: {"class"}, 4: {"training"}, 5: {"outing", "shop"}}
 
 

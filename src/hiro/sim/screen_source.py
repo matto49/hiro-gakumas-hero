@@ -162,11 +162,12 @@ class SimScreenExamStateSource(ScreenExamStateSource):
         return game
 
     def _add_basic(self, missing: list) -> bool:
-        """R2 応援棒随机补的基础卡（名字含「基本」，实机随机、模拟器按固定轮换补）、考试里生成的基础类卡在模拟器里没有：
-        把画面上这几张加进合成牌组（応援棒少补几张，总数不变）重新编译，接着按画面重建。只对基础类卡（ID 含 -0_）做，一场最多加 6 张。"""
+        """R2 応援棒随机补的基础卡（名字含「基本」，实机随机、模拟器按固定轮换补）、考试里生成的基础类卡（成長痛 塞进山札的 眠気 等，
+        考试引擎按客户端规则会生成）在合成开局里没有：把画面上这几张加进合成牌组（R2 応援棒少补几张，总数不变）重新编译，
+        接着按画面重建。R1 / R2 都做；只对基础类卡（ID 含 -0_）做，一场最多加 6 张。"""
         from hiro.sim import interval as iv
 
-        if self.label != "r2" or getattr(self, "setup", None) is None:
+        if self.label not in FINALS_LABELS or getattr(self, "setup", None) is None:
             return False
         basics = [(cid, up or 0) for cid, up in missing if cid and "-0_" in cid]
         self._added = getattr(self, "_added", 0)
@@ -177,7 +178,7 @@ class SimScreenExamStateSource(ScreenExamStateSource):
         memory = self.tracker.game.memory if self.tracker is not None else None
         self.tracker.game = self._new_game(self.setup, memory)
         self.tracker.pending = None
-        logger.info("模拟器跟踪：R2 応援棒的基础卡 %s 不在合成牌组，加进去重新编译", basics)
+        logger.info("模拟器跟踪：%s 画面上的基础类卡 %s 不在合成牌组（応援棒 / 考试中生成），加进去重新编译", self.label, basics)
         return True
 
     def _deck(self) -> list:

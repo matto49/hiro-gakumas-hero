@@ -166,7 +166,7 @@ class PublicAssetSource:
         return None  # 支援卡效果：公开数据里暂无可靠整理，编成按属性张数 / 等级排（策略层退路）
 
     def exam_requirements(self, scenario: str) -> dict[str, Any] | None:
-        """考试要求 / 倍率换算 / 星级基准：用模拟器引擎 gakumas_sim（vendor/gakumas-player，社区公开 master）算。
+        """考试要求 / 倍率换算 / 星级基准：用培育层公式 gakumas_produce（vendor/gakumas-player，社区公开 master）算。
         主数据没构建（vendor/gakumas-player/scripts/fetch_master.py）时 None，选课退回补最低属性 / 主属性规则。"""
         if scenario != "hif":
             return None
@@ -175,9 +175,9 @@ class PublicAssetSource:
 
             if not _sim_ready():
                 return None
-            from gakumas_sim import multiplier
-            from gakumas_sim.attributes import assessment, hif_preview
-            from gakumas_sim.catalog import Catalog
+            from gakumas_produce import multiplier
+            from gakumas_produce.attributes import assessment, hif_preview
+            from gakumas_exam.catalog import Catalog
         except Exception:  # noqa: BLE001  引擎导入失败
             return None
         import threading

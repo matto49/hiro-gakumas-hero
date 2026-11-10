@@ -1,79 +1,26 @@
 # 来源：digital-hiro src/hiro/sim/env.py（develop 864e037）
-"""gakumas_sim 对局 ↔ 决策层 BattleState / Decision 的转换，以及搜索用的快速克隆与推进。
+"""考试引擎（gakumas_exam）对局 ↔ 决策层 BattleState / Decision 的转换，以及搜索用的克隆与推进。
 
 状态转换刻意对齐实机：卡牌文本优先用 KAA 卡面（定制过的卡改用引擎效果渲染），记忆（持续效果剩余、道具次数）
 由决策层自己的 ExamMemory 推算，不直接读引擎内部。hide 参数可以把实机读不到的字段置为未知。
 """
 
-import copy
 import json
 from functools import lru_cache
 
 import hiro.sim  # noqa: F401  引擎路径
-from gakumas_sim.campus import CampusExam, restore
+from hiro.sim.engine import Exam
 
 from hiro.brain.cards import CardView, DrinkView, card_view, parse_tags
 from hiro.brain.rules import Decision
 from hiro.brain.state import BattleState, ExamMemory, IdolProfile
 
-SHARED = ("document", "definitions", "public_definitions", "drink_definitions")
-LOGS = ("events", "hook_events", "draw_events", "fetch_events", "card_mutation_events", "initialization_trace")
 LIVE_HIDDEN = frozenset({"motivation", "impression", "score"})  # 当前实机感知还读不到的字段
 
 
-_ATOMIC = (int, float, str, bool, type(None), bytes)
-
-
-def _fc(v, memo: dict):
-    """只含 dict / list / tuple / set 和不可变标量的结构手写深拷贝（同一对象只拷一次，别名关系保持）；其余类型交给 copy.deepcopy。"""
-    t = type(v)
-    if t in _ATOMIC:
-        return v
-    i = id(v)
-    r = memo.get(i)
-    if r is not None:
-        return r
-    if t is list:
-        r = []
-        memo[i] = r
-        r.extend(_fc(x, memo) for x in v)
-    elif t is dict:
-        r = {}
-        memo[i] = r
-        for k, x in v.items():
-            r[k] = _fc(x, memo)
-    elif t is tuple:
-        r = tuple(_fc(x, memo) for x in v)
-        memo[i] = r
-    elif t is set or t is frozenset:
-        r = t(_fc(x, memo) for x in v)
-        memo[i] = r
-    else:
-        r = copy.deepcopy(v, memo)
-        memo[i] = r
-    return r
-
-
-FAST_CLONE = True  # 纯提速：手写深拷贝（0.69 → 0.24 ms），续打 / 每步克隆 / 预演结果与 copy.deepcopy 逐个相同（2026-11-04 B 提速）
-
-
 def clone(env):
-    """共享不可变的定义与文档，只复制运行时状态。日志清空。"""
-    if getattr(env, "fidelity", False) is True:  # 高保真引擎（hiro.sim.fidelity）：自带共享主数据的克隆
-        return env.clone()
-    memo = {id(getattr(env, k)): getattr(env, k) for k in SHARED}
-    if not FAST_CLONE or not hasattr(env, "__dict__"):
-        for k in LOGS:
-            v = getattr(env, k, None)
-            if isinstance(v, list):
-                memo[id(v)] = []
-        return copy.deepcopy(env, memo)
-    new = object.__new__(type(env))
-    d = {}
-    for k, v in env.__dict__.items():
-        d[k] = [] if (k in LOGS and isinstance(v, list)) else _fc(v, memo)
-    new.__dict__ = d
-    return new
+    """搜索用克隆：运行时状态复制，主数据与卡牌定义共享，日志清空（gakumas_exam 的 FidelityBattle / NativeBattle.clone）。"""
+    return env.clone()
 
 
 def fast_apply(env, action: dict) -> None:
@@ -280,19 +227,16 @@ class SimExam:
 
         path = FIXTURES / f"{fixture}.json"
         self.observation = json.loads(path.read_text())
-        self.exam = CampusExam(self.observation, **kw)
+        self.exam = Exam(self.observation, **kw)
         self.label = exam_label
         self.profile = profile
 
     def episode(self, seed: int, **kw) -> SimGame:
-        from hiro.sim import fidelity
-
-        if fidelity.enabled():  # 高保真引擎：从开考快照按 seed 重新开局（hiro.sim.fidelity.episode）
-            return SimGame(fidelity.episode(self.observation, self.exam, seed), self.label, self.profile, **kw)
+        """从开考快照按 seed 重新开局。"""
         return SimGame(self.exam.episode(seed), self.label, self.profile, **kw)
 
     def restore(self, snapshot: str, seed: int, **kw) -> SimGame:
         from hiro.sim import FIXTURES
 
         obs = json.loads((FIXTURES / f"{snapshot}.json").read_text())
-        return SimGame(restore(self.exam, obs, seed), self.label, self.profile, **kw)
+        return SimGame(self.exam.restore(obs, seed), self.label, self.profile, **kw)

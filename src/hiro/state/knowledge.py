@@ -140,7 +140,7 @@ def drink_label(drink_id: str | None) -> str:
 
 
 # ---- 考试 ----
-# 选拔考试：属性奖励 / 星星奖励拿满的分数（社区公式反推，见 gakumas_sim.community_rules）
+# 选拔考试：属性奖励 / 星星奖励拿满的分数（社区公式反推，见 gakumas_produce.community_rules）
 SELECTION_TARGETS = {1: (10463, 14001), 2: (80611, 146364), 3: (204894, 390910)}
 FINALS_WIN_LINE = 1_110_000  # 优胜评价点目安（R1×1.2 + R2）[seesaa]
 

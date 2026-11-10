@@ -1,6 +1,6 @@
 """决策-08：删卡 / 强化 / 報酬スキップ 确认 / 兜底不选第 0 项。"""
 
-import hiro.sim  # noqa: F401  gakumas_sim 路径
+import hiro.sim  # noqa: F401  gakumas-player 路径
 from hiro.brain.deciders import ProduceDeciders, action_key
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import ActionKind, GameState
