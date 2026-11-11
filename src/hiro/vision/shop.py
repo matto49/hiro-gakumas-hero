@@ -282,7 +282,8 @@ def _vote_price(img: MatLike, x: int, band: tuple[int, int], region_nums: list[i
     if sale:
         # SALE 格：任一读法里同时出现原价和约七折的数，取七折的那个（Windows 第七局 #115 记成原价 75，实付 53）
         seen = {v for r in reads for v in r}
-        paid = sorted(v for v in seen if any(abs(v - o * SALE_RATE) <= 1 for o in seen if o > v))
+        # 两个数都得像价格（≥ SALE_PAID_MIN）：单格 3 倍读出的残片「7 5」也满足 5≈7×0.7（DMM qualifydmm2-00270，实付 53 记成 5）
+        paid = sorted(v for v in seen if v >= SALE_PAID_MIN and any(abs(v - o * SALE_RATE) <= 1 for o in seen if o > v))
         if paid:
             return paid[0]
         # 看到了原价，读出的实付价和「原价 × 0.7」只差一位数以内（Windows 第八、十局 70→49 读成 40，几种读法一致地错）：按原价七折取整

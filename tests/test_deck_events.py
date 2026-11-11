@@ -194,3 +194,12 @@ def test_enhance_dialog_upgradable_selected():
 
     raw, _ = extract("SKILL_CARD_ENHANCE", cv2.imread(str(FIX.parent / "deck" / "enhance-selected-kaa.png")))
     assert raw["selected"] == 1 and raw["upgradable"] is True
+
+
+def test_card_from_name_dash_normalized():
+    """RapidOCR 把长音「ー」读成「一」（DMM dmm2 特別指導 sg-dmm2-2c）：统一长音后仍命中主数据。"""
+    exact = deck.card_from_name("えいえいおー+")
+    assert exact is not None and exact["upgrade"] == 1
+    got = deck.card_from_name("えいえいお一+")
+    assert got == exact
+    assert deck.card_from_name("えいえいお一一+") is None

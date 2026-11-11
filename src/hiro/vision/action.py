@@ -233,10 +233,16 @@ def _days_dddd(img: MatLike) -> int | None:
     return v if v is not None and 1 <= v <= 30 else None
 
 
+def normalize_hif(text: str) -> str:
+    """「H.I.F」的点和 I 常被 RapidOCR 读走样：「HI.F本戦」「H.「.F本戦」「H.、F本戦」（DMM maindmm1m-00058）。H、F 之间只剩标点 / 竖线类字符时统一回「H.I.F」。"""
+    return re.sub(r"H[\s.．。、,，「」|｜lI1Ｉ]{0,4}F", "H.I.F", text)
+
+
 def read_action_select(img: MatLike) -> ActionSelectState:
     header = " ".join(t for t, _ in ocr(img[:HEADER_BAND, :280], scale=2))
     exam = re.search(r"(\S+?)まで", header)
-    days = re.search(r"(\d+)\s*日", header)
+    # 选行动页剩余天数 ≥ 1：RapidOCR 会在左上装饰上读出幻影「0日」排在真数字前（DMM qualifydmm1-00390「0日 … ふ日」），跳过它交给 ddddocr
+    days = next((int(d) for d in re.findall(r"(\d+)\s*日", header) if 1 <= int(d) <= 30), None)
     stamina = read_stamina(img)
     points = re.search(r"\d+", "".join(t for t, _ in ocr(img[slice(*POINTS_BOX[1::2]), slice(*POINTS_BOX[::2])], scale=4, languages=("en-US",))))
 
@@ -253,8 +259,8 @@ def read_action_select(img: MatLike) -> ActionSelectState:
         growth[a] = float(g.group(1)) if g else None
     advice = "".join(t for t, _ in ocr(img[slice(*ADVICE_BAND)], scale=2)) or None
     return ActionSelectState(
-        exam=re.sub(r"H\.?I\.?F", "H.I.F", exam.group(1)) if exam else None,  # RapidOCR 会漏点（「HI.F本戦」）
-        days_left=int(days.group(1)) if days else _days_dddd(img),
+        exam=normalize_hif(exam.group(1)) if exam else None,
+        days_left=days if days is not None else _days_dddd(img),
         stamina=stamina[0] if stamina else None,
         max_stamina=stamina[1] if stamina else None,
         p_points=int(points.group()) if points else None,

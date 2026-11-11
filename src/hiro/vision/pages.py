@@ -130,7 +130,14 @@ def _has(boxes, word: str, y_range: tuple[int, int] = (0, 1280)) -> tuple | None
     from hiro.vision.ocr import engine
 
     loose = len(word) >= 4 and engine() != "vision"  # RapidOCR 等常错一个字（「スター性獲得」→「ネター性獲得」）
+    if loose:
+        # 长音「ー」常读成「一」，再错一个字就超出容错（DMM qualifydmm1-00340「ス夕一性獲得」）：先统一长音再比
+        word = word.translate(_DASHES)
+        boxes = [(t.translate(_DASHES), b) for t, b in boxes]
     return next((b for t, b in boxes if (word in t or (loose and _contains_near(t, word))) and y_range[0] <= (b[1] + b[3]) // 2 <= y_range[1]), None)
+
+
+_DASHES = str.maketrans({"一": "ー", "－": "ー", "-": "ー", "―": "ー", "ｰ": "ー"})
 
 
 def _contains_near(text: str, word: str) -> bool:
@@ -668,6 +675,15 @@ def read_refresh_confirm(img: MatLike, header_y: int | None = None) -> dict:
             "jewel": any("ジュエル" in t for t, _ in boxes), "cancel": button("キャンセル", REFRESH_CANCEL), "ok": button("更新する", REFRESH_OK)}  # fmt: skip
 
 
+def _growth_pct(text: str) -> float | None:
+    """成长率「45.5%」（总是一位小数）。RapidOCR 会把小数点读成「:」「,」或读丢（DMM start-confirm-dmm1「ヘ455%」「〜44:4%」）。"""
+    if m := re.search(r"(\d{1,2})\s*[.:,，．]\s*(\d)(?!\d)", text):
+        return float(f"{m.group(1)}.{m.group(2)}")
+    if m := re.search(r"(?<!\d)(\d{2})(\d)\s*%", text):
+        return float(f"{m.group(1)}.{m.group(2)}")
+    return None
+
+
 def read_finals_start(boxes) -> dict:
     """本战「開始確認」页（H.I.F本戦へ 之前）：当前选中的那份选拔回忆的概要。
     {selected_memory: {idol, star, params{Vo,Da,Vi}, growth_pct{Vo,Da,Vi}, deck: None, pitems: None}, qualify_memories: None}。
@@ -679,7 +695,7 @@ def read_finals_start(boxes) -> dict:
         return sorted(((b[0] + b[2]) // 2, t) for t, b in boxes if y_lo <= (b[1] + b[3]) // 2 <= y_hi and re.search(pattern, t))
 
     nums = [int(re.sub(r"\D", "", t)) for _, t in row(482, 512, r"^\D?\d{2,4}$")]
-    pcts = [float(m.group(1)) for _, t in row(514, 540, r"\d+\.\d") if (m := re.search(r"(\d+\.\d)", t))]
+    pcts = [v for _, t in row(514, 540, r"\d") if (v := _growth_pct(t)) is not None]
     star = next((int(t) for x, t in row(430, 465, r"^\d{2,4}$") if 440 <= x <= 600), None)
     idol = next((t for t, b in boxes if b[0] >= 480 and 150 <= (b[1] + b[3]) // 2 <= 230 and not re.search(r"\d", t)), None)
     return {"selected_memory": {"idol": idol, "star": star,

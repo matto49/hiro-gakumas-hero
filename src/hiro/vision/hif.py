@@ -243,7 +243,16 @@ def _breakthrough_crop(img: MatLike) -> MatLike:
 
 def _parse_breakthrough(texts: str) -> dict:
     m = re.search(r"(\d+)\s*/\s*(\d+)", texts)
-    return {"rank_line": int(m.group(1)) if m else None, "participants": int(m.group(2)) if m else None}
+    if m:
+        return {"rank_line": int(m.group(1)), "participants": int(m.group(2))}
+    # RapidOCR 读不出斜杠：「64」「128人」拼成「64128人」（DMM qualifydmm1-00257 / -00750、qualifydmm2-00155 / -00288）。
+    # 选拔考的突破线是参赛人数的一半：只在「后半 = 前半 × 2」的切法唯一时取，否则仍给 None
+    if d := re.search(r"(\d{3,})\s*人", texts):
+        digits = d.group(1)
+        cuts = [(int(digits[:k]), int(digits[k:])) for k in range(1, len(digits)) if digits[k] != "0" and int(digits[k:]) == 2 * int(digits[:k])]
+        if len(cuts) == 1:
+            return {"rank_line": cuts[0][0], "participants": cuts[0][1]}
+    return {"rank_line": None, "participants": None}
 
 
 def _breakthrough(img: MatLike) -> dict:

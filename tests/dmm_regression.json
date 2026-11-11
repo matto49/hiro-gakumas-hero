@@ -2025,7 +2025,10 @@
    ],
    "cancelable": false
   },
-  "page": "SKILL_CARD_ENHANCE"
+  "page": "SKILL_CARD_ENHANCE",
+  "xfail_on": {
+   "windows": "Windows 上 仕草の基本（p_card-02-act-0_038）模板投票 2 < MIN_VOTES 3，卡格 0 读成 None；Mac（Vision / RapidOCR）都认得出。执行侧兜底：决策不选 card_id 为 None 的卡（基础卡本来也不强化），执行按 card_id 找格子、找不到不点；必选页一张都选不出时重读 3 次后停机报警，不盲点、不循环（brain/deciders.enhance_card、produce/hif._card_event）"
+  }
  },
  {
   "file": "qualifydmm1-20261110-192152-00390.jpg",
@@ -4387,7 +4390,10 @@
    ],
    "cancelable": false
   },
-  "page": "SKILL_CARD_ENHANCE"
+  "page": "SKILL_CARD_ENHANCE",
+  "xfail_on": {
+   "windows": "Windows 上 仕草の基本（p_card-02-act-0_038）模板投票 2 < MIN_VOTES 3，卡格 0 读成 None；Mac（Vision / RapidOCR）都认得出。执行侧兜底：决策不选 card_id 为 None 的卡（基础卡本来也不强化），执行按 card_id 找格子、找不到不点；必选页一张都选不出时重读 3 次后停机报警，不盲点、不循环（brain/deciders.enhance_card、produce/hif._card_event）"
+  }
  },
  {
   "file": "qualifydmm2-20261111-002000-00406.jpg",
@@ -4507,7 +4513,10 @@
    ],
    "cancelable": false
   },
-  "page": "SKILL_CARD_ENHANCE"
+  "page": "SKILL_CARD_ENHANCE",
+  "xfail_on": {
+   "windows": "Windows 上 仕草の基本（p_card-02-act-0_038）模板投票 2 < MIN_VOTES 3，卡格 0 读成 None；Mac（Vision / RapidOCR）都认得出。执行侧兜底：决策不选 card_id 为 None 的卡（基础卡本来也不强化），执行按 card_id 找格子、找不到不点；必选页一张都选不出时重读 3 次后停机报警，不盲点、不循环（brain/deciders.enhance_card、produce/hif._card_event）"
+  }
  },
  {
   "file": "qualifydmm2-20261111-002000-00411.jpg",

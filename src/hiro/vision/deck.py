@@ -361,10 +361,29 @@ def _cards_by_full_name() -> dict[str, list[tuple[str, int]]]:
     return out
 
 
+_DASHES = str.maketrans({"一": "ー", "－": "ー", "-": "ー", "―": "ー", "ｰ": "ー"})
+
+
+@cache
+def _cards_by_dash_name() -> dict[str, tuple[str, list[tuple[str, int]]]]:
+    """长音符号统一后的卡名 → (主数据原名, [(card_id, upgrade)])；两张卡统一后撞名的不收（取不定）。"""
+    out: dict[str, tuple[str, list[tuple[str, int]]]] = {}
+    clash: set[str] = set()
+    for name, hits in _cards_by_full_name().items():
+        key = name.translate(_DASHES)
+        if key in out and out[key][0] != name:
+            clash.add(key)
+        out[key] = (name, hits)
+    return {k: v for k, v in out.items() if k not in clash}
+
+
 def card_from_name(text: str, candidates: set[str] | None = None) -> dict | None:
-    """卡名（OCR，带「+」）精确命中主数据 → {card_id, name, upgrade}；同名多张时按 candidates（如本页卡格认出的 id）取，取不定给 None。"""
+    """卡名（OCR，带「+」）精确命中主数据 → {card_id, name, upgrade}；同名多张时按 candidates（如本页卡格认出的 id）取，取不定给 None。
+    精确没命中时把长音符号统一再查（RapidOCR 常把「ー」读成「一」：DMM dmm2 特別指導「えいえいお一+」，Windows 回归集 sg-dmm2-2c）。"""
     name = text.replace("＋", "+").replace(" ", "").strip()
     hits = _cards_by_full_name().get(name) or []
+    if not hits and (alt := _cards_by_dash_name().get(name.translate(_DASHES))) is not None:
+        name, hits = alt
     if candidates:
         hits = [h for h in hits if h[0] in candidates] or hits
     if len({h[0] for h in hits}) != 1:
@@ -752,8 +771,18 @@ def read_change_candidates(img: MatLike) -> dict:
                       "upgrade": _plus(crop) if card else None, "recommended": rec, "center": [int(cx), int(y + CHANGE1_CELL // 2)]})  # fmt: skip
 
     def left_count(xr) -> int | None:
-        m = re.search(r"あと(\d+)回", "".join(t for t, b in boxes if xr[0] <= (b[0] + b[2]) // 2 <= xr[1]))
-        return int(m.group(1)) if m else None
+        col = [(t, b) for t, b in boxes if xr[0] <= (b[0] + b[2]) // 2 <= xr[1]]
+        if m := re.search(r"あと(\d+)回", "".join(t for t, _ in col)):
+            return int(m.group(1))
+        # 整块 OCR 把数字读丢（RapidOCR「あと回」，DMM qualifydmm2-00237）：只裁这一行再读一次
+        from hiro.vision.ocr import ocr
+
+        for t, (a, b, c, d) in col:
+            if "あと" in t and "回" in t:
+                line = "".join(t for t, _ in ocr(img[max(0, b - 10) : d + 10, max(0, a - 10) : c + 10], scale=2))
+                if m := re.search(r"あと(\d+)回", line.replace(" ", "")):
+                    return int(m.group(1))
+        return None
 
     complete = len(cands) == 3 and all(c["card_id"] and c["upgrade"] is not None for c in cands)
     return {"candidates": cands, "recommended": next((c["index"] for c in cands if c["recommended"]), None),
