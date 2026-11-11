@@ -18,6 +18,7 @@
 由操作层滑到底再读一屏，用 merge_deck_pages 按行号拼接。
 """
 
+import os
 from functools import cache
 from pathlib import Path
 
@@ -189,8 +190,6 @@ def read_card_grid(img: MatLike, region: tuple[int, int, int, int], geometry: st
 
     index 是本屏内的顺序；row 从 0 起，是本屏可见的第几行（不是牌组里的绝对行号）。
     """
-    from kaa.game_ui.skill_card_select import match_card_region
-
     marks = _marks(img, region)
     if not marks:
         return []
@@ -215,7 +214,7 @@ def read_card_grid(img: MatLike, region: tuple[int, int, int, int], geometry: st
         #（main10 相談強化：届いて！+ / デイドリーミング+ / 紙吹雪+ 压暗后 upgrade 全读成 0）
         gain = min(DIM_GAIN_MAX, DIM_TARGET_V / max(v_mean, 1.0))
         look = cv2.convertScaleAbs(crop, alpha=gain) if dimmed else crop
-        card = _dimmed_card(crop, gain, match_card_region) if dimmed else match_card_region(crop)
+        card = _dimmed_card(crop, gain, match_grid_card) if dimmed else match_grid_card(crop)
         upgrade = _plus(look) if card is not None else None
         out.append({
             "index": len(out), "row": len(row_ys) - 1, "col": int(col),
@@ -754,8 +753,6 @@ def read_change_candidates(img: MatLike) -> dict:
     complete：找到 3 张且都认出（含强化次数）。没有实机样本，只在 KAA 参考图上核对过。"""
     import re
 
-    from kaa.game_ui.skill_card_select import match_card_region
-
     from hiro.vision.ocr import ocr_boxes
 
     marks = _change1_row(_marks(img, CHANGE1_MARKS))
@@ -765,7 +762,7 @@ def read_change_candidates(img: MatLike) -> dict:
     for i, (mx, my) in enumerate(marks):
         x, y = mx + CHANGE1_DX, my + CHANGE1_DY
         crop = img[max(0, y) : y + CHANGE1_CELL, max(0, x) : x + CHANGE1_CELL]
-        card = match_card_region(crop)
+        card = match_grid_card(crop)
         cx = x + CHANGE1_CELL // 2
         rec = any("おすすめ" in t and abs((b[0] + b[2]) // 2 - cx) <= 60 for t, b in boxes)
         cands.append({"index": i, "slot": i, "card_id": card._id if card else None, "name": card.name if card else None,
@@ -788,3 +785,100 @@ def read_change_candidates(img: MatLike) -> dict:
     complete = len(cands) == 3 and all(c["card_id"] and c["upgrade"] is not None for c in cands)
     return {"candidates": cands, "recommended": next((c["index"] for c in cands if c["recommended"]), None),
             "excludes_left": left_count((0, 260)), "rerolls_left": left_count((460, 720)), "complete": complete}  # fmt: skip
+
+
+# ---------------------------------------------------------------- 卡格认卡：KAA 票数临界时用卡图相关核对
+GRID_ART_SIZE = 36  # 卡图中心区域缩成 36x36 灰度
+GRID_ART_INSET = 0.2  # 四边各去掉 20%：避开左上费用、右上「+」、下方定制 / 体力徽章
+GRID_SURE_VOTES = 4  # KAA 票数达到这个数（且不并列）直接采信：票数多时卡图相关反而常错（act-1_071 16 票正确，相关第一是别的卡）
+GRID_ART_MIN = 0.55  # 票数临界时：相关第一达到这个数、比次佳卡高 GRID_ART_MARGIN 以上才认
+GRID_ART_MARGIN = 0.13
+# 票数临界、相关没有明显胜出时：KAA 并列第一（≥3 票）的卡里取相关分最高的，至少这么多才采信，否则给 None。
+# 样例里 KAA 选对的卡相关分最低 0.22（票数多的也一样），选错的（被弹窗 / 横幅挡住的格、Mac 3:2 认成 アイドル魂）都 ≤ 0.09
+GRID_KAA_ART_MIN = 0.15
+GRID_ART_CACHE = os.path.join("cache", "grid_art_index.npz")
+
+
+def _grid_norm(img) -> np.ndarray:
+    h, w = img.shape[:2]
+    i, j = int(h * GRID_ART_INSET), int(w * GRID_ART_INSET)
+    g = cv2.cvtColor(img[i : h - i, j : w - j], cv2.COLOR_BGR2GRAY)
+    g = cv2.resize(g, (GRID_ART_SIZE, GRID_ART_SIZE), interpolation=cv2.INTER_AREA).astype(np.float32)
+    g -= g.mean()
+    return (g / (np.linalg.norm(g) + 1e-6)).ravel()
+
+
+@cache
+def _grid_art_index() -> tuple[list[str], np.ndarray]:
+    """KAA 卡格缩略图库（游戏数据 skill_cards/*.png，正方形图标）→ (base asset_id 列表, 归一化矩阵)。角色专属变体各占一行、同一个 base。"""
+    from kaa.game_data.paths import sprites_path
+    from kaa.game_ui.skill_card_select import strip_character_suffix
+
+    folder = str(sprites_path("skill_cards"))
+    if not os.path.isdir(folder):
+        return [], np.zeros((0, GRID_ART_SIZE * GRID_ART_SIZE), np.float32)
+    names = sorted(n for n in os.listdir(folder) if n.endswith(".png"))
+    stamp = f"{len(names)}-{int(os.path.getmtime(folder))}-{GRID_ART_SIZE}-{GRID_ART_INSET}"
+    if os.path.exists(GRID_ART_CACHE):
+        data = np.load(GRID_ART_CACHE, allow_pickle=False)
+        if str(data["stamp"]) == stamp:
+            return list(data["keys"]), data["matrix"]
+    keys, rows = [], []
+    for n in names:
+        img = cv2.imread(os.path.join(folder, n))
+        if img is None:
+            continue
+        keys.append(strip_character_suffix(n.removesuffix(".png")))
+        rows.append(_grid_norm(img))
+    matrix = np.stack(rows).astype(np.float32)
+    os.makedirs(os.path.dirname(GRID_ART_CACHE), exist_ok=True)
+    np.savez(GRID_ART_CACHE, keys=np.array(keys), matrix=matrix, stamp=np.array(stamp))
+    return keys, matrix
+
+
+def grid_art_scores(crop) -> list[tuple[str, float]]:
+    """卡格缩略图和全部卡图的相关分，按 base asset_id 取各变体最高分，降序。"""
+    keys, matrix = _grid_art_index()
+    if not keys:
+        return []
+    s = matrix @ _grid_norm(crop)
+    best: dict[str, float] = {}
+    for k, v in zip(keys, s.tolist()):
+        if v > best.get(k, -2.0):
+            best[k] = v
+    return sorted(best.items(), key=lambda kv: -kv[1])
+
+
+def match_grid_card(crop):
+    """卡格缩略图认卡：KAA 票数（match_card_region 同一套图库）为主，票数临界（≤3 票或并列）时用卡图相关核对。
+    Windows 上同一帧票数常比 Mac 少 1：仕草の基本 2:2:2 平票、定制过的 えいえいおー+ 2:2（Mac 3:2 却认成 アイドル魂，卡图完全不像）。
+    改前改后逐帧对比见私有仓库 .temp/platforms/w3-windows/卡格认卡改前改后.md。"""
+    from kaa.db.skill_card import SkillCard
+    from kaa.game_ui import skill_card_select as scs
+
+    db = scs.dialog_cards_db()
+    results = db.query(crop, k=len(db), threshold=None)
+    votes: dict[str, int] = {}
+    dist: dict[str, float] = {}
+    for r in results or []:
+        a = scs.strip_character_suffix(r.key.removesuffix(".png"))
+        votes[a] = votes.get(a, 0) + r.votes
+        dist[a] = min(dist.get(a, float("inf")), r.distance)
+    if not votes:
+        return None
+    ranked = sorted(votes, key=lambda b: (-votes[b], dist[b]))
+    top = votes[ranked[0]]
+    second = votes[ranked[1]] if len(ranked) > 1 else 0
+    if top >= GRID_SURE_VOTES and top > second:
+        return SkillCard.from_asset_id(ranked[0])
+    art = grid_art_scores(crop)
+    if len(art) >= 2 and art[0][1] >= GRID_ART_MIN and art[0][1] - art[1][1] >= GRID_ART_MARGIN:
+        return SkillCard.from_asset_id(art[0][0])
+    if top < scs.MIN_VOTES:
+        return None
+    if not art:  # 没有卡图素材：按 KAA 原规则（并列时按特征距离排第一的）
+        return SkillCard.from_asset_id(ranked[0])
+    corr = dict(art)
+    tied = [b for b in ranked if votes[b] == top]
+    best = max(tied, key=lambda b: corr.get(b, -1.0))
+    return SkillCard.from_asset_id(best) if corr.get(best, -1.0) >= GRID_KAA_ART_MIN else None

@@ -130,7 +130,7 @@
  },
  {
   "file": "decklist-maindmm2-044024-01.jpg",
-  "note": "maindmm2 本战开局主动查看牌组第 2 屏（04:40 Windows RapidOCR 认不出第 18 张 えいえいおー+，牌组没记账、整局无预演）",
+  "note": "maindmm2 本战开局主动查看牌组第 2 屏（04:40 Windows RapidOCR 认不出第 18 张 えいえいおー+，牌组没记账、整局无预演）；第 [9] 格是定制过的 えいえいおー+（绿色定制徽章「3」），不是 アイドル魂（Mac 3:2 票认错，手牌全局没出现过 アイドル魂）",
   "page": "DECK_LIST",
   "quick": "DECK_LIST",
   "tap": [
@@ -226,7 +226,7 @@
      "index": 9,
      "row": 2,
      "col": 1,
-     "card_id": "p_card-00-men-3_003",
+     "card_id": "p_card-02-men-1_031",
      "upgrade": 1,
      "customized": true,
      "dimmed": false
@@ -2283,10 +2283,7 @@
    ],
    "cancelable": false
   },
-  "page": "SKILL_CARD_ENHANCE",
-  "xfail_on": {
-   "windows": "Windows 上 仕草の基本（p_card-02-act-0_038）模板投票 2 < MIN_VOTES 3，卡格 0 读成 None；Mac（Vision / RapidOCR）都认得出。执行侧兜底：决策不选 card_id 为 None 的卡（基础卡本来也不强化），执行按 card_id 找格子、找不到不点；必选页一张都选不出时重读 3 次后停机报警，不盲点、不循环（brain/deciders.enhance_card、produce/hif._card_event）"
-  }
+  "page": "SKILL_CARD_ENHANCE"
  },
  {
   "file": "qualifydmm1-20261110-192152-00390.jpg",
@@ -4647,10 +4644,7 @@
    ],
    "cancelable": false
   },
-  "page": "SKILL_CARD_ENHANCE",
-  "xfail_on": {
-   "windows": "Windows 上 仕草の基本（p_card-02-act-0_038）模板投票 2 < MIN_VOTES 3，卡格 0 读成 None；Mac（Vision / RapidOCR）都认得出。执行侧兜底：决策不选 card_id 为 None 的卡（基础卡本来也不强化），执行按 card_id 找格子、找不到不点；必选页一张都选不出时重读 3 次后停机报警，不盲点、不循环（brain/deciders.enhance_card、produce/hif._card_event）"
-  }
+  "page": "SKILL_CARD_ENHANCE"
  },
  {
   "file": "qualifydmm2-20261111-002000-00406.jpg",
@@ -4770,10 +4764,7 @@
    ],
    "cancelable": false
   },
-  "page": "SKILL_CARD_ENHANCE",
-  "xfail_on": {
-   "windows": "Windows 上 仕草の基本（p_card-02-act-0_038）模板投票 2 < MIN_VOTES 3，卡格 0 读成 None；Mac（Vision / RapidOCR）都认得出。执行侧兜底：决策不选 card_id 为 None 的卡（基础卡本来也不强化），执行按 card_id 找格子、找不到不点；必选页一张都选不出时重读 3 次后停机报警，不盲点、不循环（brain/deciders.enhance_card、produce/hif._card_event）"
-  }
+  "page": "SKILL_CARD_ENHANCE"
  },
  {
   "file": "qualifydmm2-20261111-002000-00411.jpg",

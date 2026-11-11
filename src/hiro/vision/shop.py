@@ -61,11 +61,11 @@ def _red_plus(img: MatLike, x: int, y: int) -> tuple[int, int]:
 
 
 def _card(img: MatLike, x: int, y: int = CARD_Y) -> dict:
-    from kaa.game_ui.skill_card_select import match_card_region
+    from hiro.vision.deck import match_grid_card
 
     from hiro.vision.cards import card_version
 
-    card = match_card_region(img[y : y + CELL, x : x + CELL])
+    card = match_grid_card(img[y : y + CELL, x : x + CELL])
     strict, loose = _red_plus(img, x, y)
     # 看得清有「+」→ 1；严格阈值没有、宽松阈值有（压暗的过渡帧）→ None（看不清，不冒充基础版）；都没有 → 0
     upgrade = 1 if strict >= PLUS_MIN_PX else (None if loose >= PLUS_MIN_PX else 0)
