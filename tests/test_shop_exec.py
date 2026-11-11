@@ -28,6 +28,12 @@ def near(xy, target, r=40):
     return abs(xy[0] - target[0]) <= r and abs(xy[1] - target[1]) <= r
 
 
+def in_cancel_pill(xy) -> bool:
+    """点在左下白色「キャンセル」按钮里（按 OCR 文字框中心点：Vision 框窄、RapidOCR 框宽，中心差 60 像素，都在按钮里）。"""
+    x, y, w, h = shop.CANCEL_PILL
+    return near(xy, shop.CANCEL_TAP, 60) or (x - 20 <= xy[0] <= x + w + 20 and y - 10 <= xy[1] <= y + h + 10)
+
+
 class FakeConsult:
     """状态机：idle →(点第 0 格) selected0 →(交換する) confirm →(交換) acquire_anim →(跳过) star_overlay →(跳过) purchased01。
     删卡：idle →(削除) delete_deck →(キャンセル) idle。终了：→ left。stuck 里的状态点什么都不变。"""
@@ -54,7 +60,7 @@ class FakeConsult:
             self.state = "selected0"
         elif s == "idle" and near(xy, shop.SERVICE_TAP["delete"], 60):
             self.state = "delete_deck"
-        elif s == "delete_deck" and near(xy, shop.CANCEL_TAP, 60):
+        elif s == "delete_deck" and in_cancel_pill(xy):
             self.state = "idle"
         elif s == "selected0" and near(xy, shop.EXCHANGE_TAP):
             self.state = "confirm"

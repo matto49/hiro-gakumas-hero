@@ -16,7 +16,9 @@ FIX = Path(__file__).parent / "fixtures/nonexam"
 
 
 def test_find_receive_on_real_select_card():
-    assert ops.find_receive(cv2.imread(str(FIX / "q21-select-card.jpg"))) == (355, 1096)
+    # 文字框中心：Vision (355, 1096)，RapidOCR 框宽一点给 (359, 1096)；点按钮差几个像素没关系
+    x, y = ops.find_receive(cv2.imread(str(FIX / "q21-select-card.jpg")))
+    assert abs(x - 355) <= 8 and abs(y - 1096) <= 8
 
 
 def _lit(img):
