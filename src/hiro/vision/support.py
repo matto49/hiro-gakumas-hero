@@ -18,7 +18,7 @@ from cv2.typing import MatLike
 
 from hiro.vision import assets
 from hiro.vision.hif import _match_white
-from hiro.vision.ocr import ocr_digits
+from hiro.vision.ocr import engine, ocr_digits
 
 STEP_BOX = (120, 25, 280, 75)
 SUPPORT_LABEL_BOX = (40, 535, 170, 590)
@@ -90,6 +90,13 @@ def read_supports(img: MatLike) -> dict:
         info = index.get(key) if score >= MIN_SCORE else None
         lx1, ly1, lx2, ly2 = LEVEL_BOX
         level = ocr_digits(img[cy + ly1 : cy + ly2, cx + lx1 : cx + lx2], white_min=LEVEL_WHITE)
+        if engine() != "vision":
+            # RapidOCR 把等级「60」稳定读成「30」（start_confirm 00025 第 4 格，放大几倍都一样）；ddddocr 读对，两者不一致时以它为准
+            from hiro.vision.digits import read_dddd
+
+            d = read_dddd(img, (cx + lx1, cy + ly1, cx + lx2, cy + ly2))
+            if d is not None and 1 <= d <= 70:
+                level = d
         supports.append({"slot": slot, "support_card_id": info["id"] if info else None, "name": info["name"] if info else None,
                          "type": info["type"] if info else None, "rarity": info["rarity"] if info else None,
                          "level": level if level is not None and 1 <= level <= 70 else None,
