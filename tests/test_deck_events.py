@@ -203,3 +203,9 @@ def test_card_from_name_dash_normalized():
     got = deck.card_from_name("えいえいお一+")
     assert got == exact
     assert deck.card_from_name("えいえいお一一+") is None
+
+
+def test_card_from_name_halfwidth_exclamation():
+    """RapidOCR 把「届いて！」读成半角「届いて!」（main10 相談強化详情）。"""
+    assert deck.card_from_name("届いて!") == deck.card_from_name("届いて！")
+    assert deck.card_from_name("届いて!+")["upgrade"] == 1

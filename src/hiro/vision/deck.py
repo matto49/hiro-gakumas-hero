@@ -361,12 +361,13 @@ def _cards_by_full_name() -> dict[str, list[tuple[str, int]]]:
     return out
 
 
-_DASHES = str.maketrans({"一": "ー", "－": "ー", "-": "ー", "―": "ー", "ｰ": "ー"})
+# 统一长音（RapidOCR 常把「ー」读成「一」）和半角 / 全角感叹号、问号（「届いて!」）后再查卡名
+_DASHES = str.maketrans({"一": "ー", "－": "ー", "-": "ー", "―": "ー", "ｰ": "ー", "!": "！", "?": "？"})
 
 
 @cache
 def _cards_by_dash_name() -> dict[str, tuple[str, list[tuple[str, int]]]]:
-    """长音符号统一后的卡名 → (主数据原名, [(card_id, upgrade)])；两张卡统一后撞名的不收（取不定）。"""
+    """长音符号 / 感叹号问号统一后的卡名 → (主数据原名, [(card_id, upgrade)])；两张卡统一后撞名的不收（取不定）。"""
     out: dict[str, tuple[str, list[tuple[str, int]]]] = {}
     clash: set[str] = set()
     for name, hits in _cards_by_full_name().items():
