@@ -111,6 +111,14 @@ def _corner_px(orange: np.ndarray, x1: int, y1: int, x2: int, y2: int, pad: int 
     return total
 
 
+_SMALL_KANA = str.maketrans("ァィゥェォャュョッヮ", "アイウエオヤユヨツワ")
+
+
+def _fold_kana(text: str) -> str:
+    """小写片假名 → 大写，去掉长音 / 空格：只用于 RapidOCR 的标题容错比较。"""
+    return re.sub(r"[ー一－\-\s]", "", text.translate(_SMALL_KANA))
+
+
 def read_menu(img: MatLike, boxes) -> dict | None:
     """「カスタマイズメニュー」→ {items: [{item_index, name, price, left, maxed, available, selected, center}], total_left}；没有菜单时 None。"""
     hdr = next((b for t, b in boxes if "カスタマイズメニュー" in t), None)
@@ -118,8 +126,9 @@ def read_menu(img: MatLike, boxes) -> dict | None:
         from hiro.vision.ocr import engine
         from hiro.vision.pages import _contains_near
 
-        if engine() != "vision":  # RapidOCR 常错一个字
-            hdr = next((b for t, b in boxes if _contains_near(t.replace(" ", ""), "カスタマイズメニュー")), None)
+        if engine() != "vision":  # RapidOCR 常错一个字；小写假名读成大写、长音读丢（q10「カスタマイズメニユ」）时先归一再比
+            want = _fold_kana("カスタマイズメニュー")
+            hdr = next((b for t, b in boxes if _contains_near(t.replace(" ", ""), "カスタマイズメニュー") or want in _fold_kana(t)), None)
     if hdr is None:
         return None
     hy = _cy(hdr)
@@ -166,6 +175,15 @@ def read_special_guidance(img: MatLike, boxes=None) -> dict:
     name = "".join(t for t, b in boxes if DETAIL_NAME_Y[0] <= _cy(b) <= DETAIL_NAME_Y[1] and b[0] >= 180).replace("＋", "+").replace(" ", "")
     selected_card = card_from_name(name) if name else None
     menu = read_menu(img, boxes)
+    from hiro.vision.ocr import engine
+
+    loose = engine() != "vision"  # RapidOCR 常把卡名末尾的「+」读丢（「きらきら紙吹雪+」→「きらきら紙吹雪」，q10）
+    if loose and menu is not None and selected_card is not None and menu["items"]:
+        # 定制项页：读到的强化数对不上菜单项数时往上找（未强化的卡没有定制项）
+        cid, up, n = selected_card["card_id"], selected_card["upgrade"], len(menu["items"])
+        if len(master_offers(cid, up)) != n:
+            up = next((u for u in range(up + 1, up + 3) if len(master_offers(cid, u)) == n), up)
+            selected_card = {**selected_card, "upgrade": up}
     if menu is not None and selected_card is not None:
         offers = master_offers(selected_card["card_id"], selected_card["upgrade"])
         for it in menu["items"]:
@@ -176,6 +194,12 @@ def read_special_guidance(img: MatLike, boxes=None) -> dict:
         orange = _orange(hsv)
         grid = read_card_grid(img, GRID_REGION, "guidance")
         selected = _cursor(grid, orange, selected_card)
+        if selected is None and loose and selected_card is not None:
+            # 详情卡名丢了「+」：按卡 ID 认选中格，强化数以卡格（看图认「+」）为准
+            selected = _cursor(grid, orange, {**selected_card, "upgrade": None})
+            cell = next((c for c in grid if c["index"] == selected), None)
+            if cell is not None and cell["upgrade"] is not None:
+                selected_card = {**selected_card, "upgrade": cell["upgrade"]}
         for c in grid:
             dim = c["dimmed"]  # 压暗 = 不能定制（read_card_grid 已提亮后再判「+」）
             card = {k: c[k] for k in ("index", "row", "col", "card_id", "name", "upgrade", "customized")}
