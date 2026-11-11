@@ -1,5 +1,263 @@
 [
  {
+  "file": "decklist-maindmm2-044024-00.jpg",
+  "note": "maindmm2 本战开局主动查看牌组第 1 屏（04:40 Windows RapidOCR 认不出第 18 张 えいえいおー+，牌组没记账、整局无预演）",
+  "page": "DECK_LIST",
+  "quick": "DECK_LIST",
+  "tap": [
+   360,
+   1157
+  ],
+  "scene": "DECK_LIST",
+  "fields": {
+   "deck_size": 20,
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-act-3_039",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-act-3_045",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-ido-3_105",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-act-2_062",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": false
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-act-1_028",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-act-1_037",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": false
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-act-1_071",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 8,
+     "row": 2,
+     "col": 0,
+     "card_id": "p_card-02-act-1_071",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 9,
+     "row": 2,
+     "col": 1,
+     "card_id": "p_card-02-men-3_002",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 10,
+     "row": 2,
+     "col": 2,
+     "card_id": "p_card-02-sup-3_094",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 11,
+     "row": 2,
+     "col": 3,
+     "card_id": "p_card-02-men-2_004",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    }
+   ],
+   "rows_visible": 3,
+   "complete": false,
+   "problems": [
+    null
+   ]
+  }
+ },
+ {
+  "file": "decklist-maindmm2-044024-01.jpg",
+  "note": "maindmm2 本战开局主动查看牌组第 2 屏（04:40 Windows RapidOCR 认不出第 18 张 えいえいおー+，牌组没记账、整局无预演）",
+  "page": "DECK_LIST",
+  "quick": "DECK_LIST",
+  "tap": [
+   360,
+   1157
+  ],
+  "scene": "DECK_LIST",
+  "fields": {
+   "deck_size": 20,
+   "cards": [
+    {
+     "index": 0,
+     "row": 0,
+     "col": 0,
+     "card_id": "p_card-02-act-1_071",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 1,
+     "row": 0,
+     "col": 1,
+     "card_id": "p_card-02-men-3_002",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 2,
+     "row": 0,
+     "col": 2,
+     "card_id": "p_card-02-sup-3_094",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 3,
+     "row": 0,
+     "col": 3,
+     "card_id": "p_card-02-men-2_004",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 4,
+     "row": 1,
+     "col": 0,
+     "card_id": "p_card-02-men-2_008",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 5,
+     "row": 1,
+     "col": 1,
+     "card_id": "p_card-02-men-2_052",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 6,
+     "row": 1,
+     "col": 2,
+     "card_id": "p_card-02-men-2_057",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 7,
+     "row": 1,
+     "col": 3,
+     "card_id": "p_card-02-men-2_100",
+     "upgrade": 0,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 8,
+     "row": 2,
+     "col": 0,
+     "card_id": "p_card-02-men-2_111",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 9,
+     "row": 2,
+     "col": 1,
+     "card_id": "p_card-00-men-3_003",
+     "upgrade": 1,
+     "customized": true,
+     "dimmed": false
+    },
+    {
+     "index": 10,
+     "row": 2,
+     "col": 2,
+     "card_id": "p_card-02-men-1_031",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    },
+    {
+     "index": 11,
+     "row": 2,
+     "col": 3,
+     "card_id": "p_card-00-sup-3_093",
+     "upgrade": 1,
+     "customized": false,
+     "dimmed": false
+    }
+   ],
+   "rows_visible": 3,
+   "complete": false,
+   "problems": [
+    null
+   ]
+  }
+ },
+ {
   "file": "maindmm1m-20261110-205150-00051.jpg",
   "note": "maindmm1m-20261110-205150",
   "quick": "ACQUIRE",
