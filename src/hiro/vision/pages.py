@@ -348,6 +348,8 @@ def read_upgrade_result(text: str) -> dict:
 
     name = text.removesuffix("を強化しました")
     card = card_from_name(name)
+    if card:  # 认出了就用主数据卡名（RapidOCR 长音读成「一」：「えいえいお一」），保留 OCR 读到的「+」
+        name = card["name"] + "+" * card["upgrade"]
     return {"name": name, "card_id": card["card_id"] if card else None, "upgrade": card["upgrade"] + 1 if card else None, "text": text}
 
 
