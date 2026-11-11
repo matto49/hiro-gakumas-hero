@@ -247,6 +247,7 @@ def _cell_price(img: MatLike, x: int, band: tuple[int, int], scale: int = 3) -> 
 
 SALE_RATE = 0.7  # SALE 价 = 原价 × 0.7 取整（75→52、70→49、100→70、105→73）
 PRICE_MIN = 5  # 货架价格不会低于这个数：更小的是「50」漏读首位
+PRICE_MAX = 300  # 货架 / 服务价格不会超过这个数（见过最贵 150 左右）：更大的是原价和 SALE 价粘在一起
 SALE_PRICES_SEEN = (35, 49, 52, 53, 70, 73)  # 实机见过的 SALE 实付价（原价 50 / 70 / 75 / 100 / 105 的七折）
 SALE_PAID_MIN = 20  # SALE 实付价不会低于这个数（见过的最低 49）：更小的是丢了位
 
@@ -304,6 +305,10 @@ def _vote_price(img: MatLike, x: int, band: tuple[int, int], region_nums: list[i
             # 只修「同位数、只差一位数字」的读错（40↔49）；杂数（76 之类）算出来差两位的不改
             if o > votes0 and len(a) == len(b) and sum(x != y for x, y in zip(a, b)) == 1:
                 return fixed
+    # 丢首位是最常见的读错（「35」→「5」、「50」→「0」）：某个读数是另一个读数的末尾几位时不算它（consult-r5 格 1：5 / 35 / 5 / 35 平票取了 5）
+    # 长的那个本身得像价格（≤ PRICE_MAX）：SALE 格「75 52」粘成「552」时，52 才是对的（consult-r5 格 4）
+    whole = [v for v in last if not any(o != v and o <= PRICE_MAX and str(o).endswith(str(v)) for o in last)]
+    last = whole or last
     votes = Counter(last)
     top = max(votes.values())
     return next(v for v in last if votes[v] == top)
