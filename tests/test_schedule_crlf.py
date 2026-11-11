@@ -1,5 +1,5 @@
 """HIF 日程的社区表按 sha256 核对来源：Windows 上 Git（core.autocrlf=true）把它检出成 CRLF 时也要认得
-（DMM 第 1 局 qualifydmmw1-20261111-193326：hiro-w4 在 Windows 上 git clone，选行动预演报
+（Windows 上全新 git clone 的检出跑 DMM 实机，选行动预演报
 「Calendar source changed; rebuild explicitly」，3 次 Wait 后停机）。"""
 
 import shutil
