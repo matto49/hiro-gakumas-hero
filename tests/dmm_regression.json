@@ -2520,10 +2520,7 @@
     }
    ]
   },
-  "page": "SKILL_CARD_CHANGE_2",
-  "xfail_on": {
-   "mac": "JPEG 样例上基础卡 仕草の基本 卡面特征少，KAA 匹配只有 2 票（门槛 MIN_VOTES=3）；实机原帧能认出。待识别加强（基础卡低票兜底）"
-  }
+  "page": "SKILL_CARD_CHANGE_2"
  },
  {
   "file": "qualifydmm1-20261110-192152-00422.jpg",
@@ -4917,10 +4914,7 @@
     }
    ]
   },
-  "page": "SKILL_CARD_CHANGE_2",
-  "xfail_on": {
-   "mac": "JPEG 样例上基础卡 仕草の基本 卡面特征少，KAA 匹配只有 2 票（门槛 MIN_VOTES=3）；实机原帧能认出。待识别加强（基础卡低票兜底）"
-  }
+  "page": "SKILL_CARD_CHANGE_2"
  },
  {
   "file": "schedule-overlay-dmm2.png",
