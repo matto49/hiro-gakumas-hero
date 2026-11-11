@@ -31,7 +31,9 @@ DIALOGS = {
 
 QUICK_WAIT_TAP_S = 15.0  # 快速判页认出的「不点」页连续这么久没变：点一下 (12,12) 兜底
 # 按种类缩短：差し入れ的「Pドリンク獲得」光效之后就是饮料三选一，(12,12) 在弹窗外，点了安全（第二十一局「已等 15 / 17 秒才点」）
-QUICK_WAIT_TAP_BY_KIND = {"gift_effect": 1.0}
+QUICK_WAIT_TAP_BY_KIND = {"gift_effect": 1.0, "day_countdown": 4.0}
+# 不点的页等久了的兜底点击位置：缺省 (12,12)（KAA skip()）；倒计时下面就是选行动页，(12,12) 会点进左上「選抜試験Nまで」框
+QUICK_WAIT_TAP_POS = {"day_countdown": "safe"}
 QUICK_WAIT_S = 0.3  # 快速判页认出读取 / 过场时等多久再看
 
 
@@ -358,9 +360,12 @@ class HiroController(ProduceController):
                 self._quick_wait = (key, time.monotonic())
             elif time.monotonic() - self._quick_wait[1] >= QUICK_WAIT_TAP_BY_KIND.get(key[1], QUICK_WAIT_TAP_S):
                 # 不点的页（读取 / 闪屏 / 考前说明页演出）停太久：点一下 (12,12)（KAA skip() 同位置），防止一直等不到定格
-                logger.info("快速判页 %s 已等 %.0f 秒，点 (12,12)", key, time.monotonic() - self._quick_wait[1])
+                from hiro.vision.quick import SAFE_BLANK_TAP
+
+                pos = SAFE_BLANK_TAP if QUICK_WAIT_TAP_POS.get(key[1]) == "safe" else (12, 12)
+                logger.info("快速判页 %s 已等 %.0f 秒，点 %s", key, time.monotonic() - self._quick_wait[1], pos)
                 self._quick_wait = (key, time.monotonic())
-                device.click(12, 12)
+                device.click(*pos)
                 return "handled"
             time.sleep(QUICK_WAIT_S)  # 读取 / 过场：不点，等一下再看
             return "handled"

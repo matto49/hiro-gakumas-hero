@@ -97,6 +97,22 @@ LOADING_PALE_MIN = 0.5  # 浅蓝花纹底（读取 / 支援卡过场 / 星星金
 WHITE_X = (60, 660)
 PANEL_Y = (650, 940)  # 选择面板 / 卡格面板所在：这里有 ≥ 40 行连续白色 = 是选择页，不是气泡 / 礼物箱
 BUBBLE_Y = (940, 1135)  # 底部消息气泡
+# 日初倒计时横幅（屏幕上方正中一条：「選抜試験2まで 4 日」）：没有 HUD 的帧才 OCR 这一条（约 30ms）
+COUNTDOWN_BAND = (60, 180, 120, 620)  # (y1, y2, x1, x2)
+# 两个平台都安全的空白点：选行动页左侧中部是背景（黑板 / 操场 / 窗帘），倒计时页是海报背景，ACQUIRE / STAR_GAIN 的说明面板
+# 上沿约 y≈434（MuMu win18 / 21 / gkms4、DMM dmm1 / dmm2 共 60 帧逐帧核对：附近 40px 没有按钮文字）
+SAFE_BLANK_TAP = (40, 380)
+
+
+def day_countdown(img) -> str | None:
+    """倒计时横幅的文字（含「まで」和「日」），不是返回 None。"""
+    from hiro.vision.ocr import ocr
+
+    y1, y2, x1, x2 = COUNTDOWN_BAND
+    text = "".join(t for t, _ in ocr(img[y1:y2, x1:x2])).replace(" ", "")
+    return text if "まで" in text and "日" in text else None
+
+
 # 日程表覆盖层（スケジュール / 育成目標 / 編成）：点左上「選抜試験Nまで」框会打开。底部青色标签栏 + 下方白色圆形 ✕。
 # DMM dmm2：过渡页点 (12,12) 落进了那个框（DMM 坐标有偏移），日程表的白色时间轴又被当成底部消息气泡，再点 (12,12)，转了 3 分钟停机
 SCHEDULE_BAR_Y = (1078, 1168)
@@ -375,6 +391,10 @@ def quick_page(img: MatLike) -> dict | None:
         bag = read_gift(img)["bag"]
         if bag is not None:
             return done("GIFT", tap=tuple(bag), fields={"bag": bag})
+    if not _hit(gray, "quick_hud_label") and (cd := day_countdown(img)) is not None:
+        # 「選抜試験Nまで N日」/「H.I.F本戦まで N日」日初倒计时：会自己切到选行动页，不点（以前认不出、连点 (12,12)，
+        # 切过去后正好点进左上「選抜試験Nまで」框打开日程表，DMM dmm2 qualifydmm2-…-00229）；等久了由主循环点 SAFE_BLANK_TAP
+        return done("TRANSITION", fields={"kind": "day_countdown", "text": cd})
     if _schedule_overlay(hsv):
         return done("TRANSITION", tap=SCHEDULE_CLOSE, fields={"kind": "schedule"})  # 日程表覆盖层：点底部 ✕ 关掉
     runs = _runs(white, *BUBBLE_Y, 40)

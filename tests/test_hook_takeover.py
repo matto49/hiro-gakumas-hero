@@ -120,6 +120,11 @@ def test_unknown_screen_stops_after_limit(monkeypatch):
     stopped = []
     c.strategy = type("S", (), {"_stop": lambda self, page, why: stopped.append(page)})()
     monkeypatch.setattr(HiroController, "session", None)
+    import kotonebot
+
+    # _watch_unknown 先截一帧查游戏是否还活着：单独跑时 kotonebot 上下文没初始化，给 device 打桩
+    monkeypatch.setattr(kotonebot, "device", type("D", (), {"screenshot": lambda self: None})())
+    monkeypatch.setattr(HiroController, "_check_game_alive", lambda self, shot: None)
     t = [1000.0]
     monkeypatch.setattr(_time, "monotonic", lambda: t[0])
     c._watch_unknown(Scene(SceneType.UNKNOWN))
