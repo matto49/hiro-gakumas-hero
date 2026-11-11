@@ -258,8 +258,9 @@ def _transition_kind(boxes) -> str | None:
         return "day_countdown"
     if _has(boxes, "選抜試験", (650, 820)) and any(re.fullmatch(r"第\d回", t) for t in texts):
         return "exam_title"
-    if any(re.fullmatch(r"選抜試験\d", t) and b[3] - b[1] >= 40 and 560 <= (b[1] + b[3]) // 2 <= 720 for t, b in boxes):
-        return "exam_title"  # 考场入场的「選抜試験1」
+    # 考场入场的「選抜試験1」大字：RapidOCR 常读不出艺术字数字，只剩「選抜試験」（大字高度和位置已经够区分）
+    if any(re.fullmatch(r"選抜試験\d?", t) and b[3] - b[1] >= 40 and 560 <= (b[1] + b[3]) // 2 <= 720 for t, b in boxes):
+        return "exam_title"
     if any(t in ("突破", "敗退") and b[3] - b[1] >= 60 and 820 <= (b[1] + b[3]) // 2 <= 1000 for t, b in boxes):
         return "exam_result_anim"  # 结算前的「突破」大字动画
     return None
