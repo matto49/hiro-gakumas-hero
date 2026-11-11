@@ -295,6 +295,7 @@ def read_star_gain(img: MatLike) -> dict:
 
 
 BRIEF_ROWS = {"Vo": 930, "Da": 1010, "Vi": 1090}  # 属性行中心 y（720x1280）
+BRIEF_EXAM_BY_PARTICIPANTS = {128: 1, 64: 2, 32: 3}  # 选拔第几场 ← 参赛人数（briefing-1 / -2 / q17-427 核对过）
 
 
 def _brief_pct(img: MatLike, digits: str, b) -> int | None:
@@ -338,7 +339,11 @@ def read_exam_briefing(img: MatLike, boxes) -> dict:
     animating = _has(boxes, "ボーナス") is not None
     if animating:
         mult = {k: None for k in mult}
-    return {"exam_no": int(exam.group(1)) if exam else None, "rank_line": rank_line, "participants": participants,
+    exam_no = int(exam.group(1)) if exam else None
+    if exam_no is None and rank_line is not None:
+        # RapidOCR 把「選抜試験1突破ライン」读成「選抜試験突破ライン」（q17-123）：选拔三场的参赛人数固定 128 / 64 / 32
+        exam_no = BRIEF_EXAM_BY_PARTICIPANTS.get(participants)
+    return {"exam_no": exam_no, "rank_line": rank_line, "participants": participants,
             "star": star, "star_ok": True if _has(boxes, "達成", (820, 880)) else None, "params": params, "multiplier_pct": mult,
             "complete": not animating, "finals": _has(boxes, "優勝条件") is not None}  # fmt: skip
 
