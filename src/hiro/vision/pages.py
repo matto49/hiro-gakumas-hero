@@ -141,9 +141,10 @@ _DASHES = str.maketrans({"一": "ー", "－": "ー", "-": "ー", "―": "ー", "
 
 
 def _contains_near(text: str, word: str) -> bool:
-    """text 里有一段与 word 等长、只差一个字；≥6 字的 word 掉了首字或末字也算（RapidOCR「カスタマイズメニュ」丢了末尾长音）。"""
+    """text 里有一段与 word 等长、只差一个字；≥6 字的 word 掉了任意一个字也算
+    （RapidOCR「カスタマイズメニュ」丢了末尾长音，「ス一性獲得」丢了中间的「タ」）。"""
     n = len(word)
-    if n >= 6 and (word[:-1] in text or word[1:] in text):
+    if n >= 6 and any(word[:i] + word[i + 1 :] in text for i in range(n)):
         return True
     return any(sum(a != b for a, b in zip(text[i : i + n], word, strict=True)) <= 1 for i in range(len(text) - n + 1))
 
@@ -283,8 +284,12 @@ def read_star_gain(img: MatLike) -> dict:
     # 累计星数单独裁数字那一块读：左边的橙色星形图标会被认成「1」（90→190），右边的光圈弧线会被认成「-1」
     from hiro.vision.ocr import ocr
 
-    m = re.fullmatch(r"(\d{1,4})[)）]?", "".join(t for t, _ in ocr(img[775:840, 352:520])).replace(" ", ""))
-    shown = int(m.group(1)) if m else None
+    shown = None
+    for scale in (None, 2):  # 默认放大读不出时（RapidOCR 在 00320 上什么都没读到）换 2 倍再读一次
+        text = "".join(t for t, _ in (ocr(img[775:840, 352:520]) if scale is None else ocr(img[775:840, 352:520], scale=scale)))
+        if m := re.fullmatch(r"(\d{1,4})[)）]?", text.replace(" ", "")):
+            shown = int(m.group(1))
+            break
     return {"gain": max(gains)[1] if gains else None, "star": None, "star_shown": shown}
 
 
