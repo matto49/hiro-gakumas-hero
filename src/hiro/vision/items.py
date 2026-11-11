@@ -318,6 +318,21 @@ def _scroll_complete(img: MatLike) -> bool:
     return int(ys.max()) + 250 >= SCROLL_TRACK_BOTTOM
 
 
+LINE_DY = 12  # 同一行文字的框中心 y 差在这以内算同一视觉行
+
+
+def _reading_order(part: list[tuple[int, str, int]]) -> list[tuple[int, str]]:
+    """一个饮料行里的文字框按阅读顺序排：先分视觉行（y 差 ≤ LINE_DY），行内按 x。
+    只按 y 排时，RapidOCR 把一行拆成几个框、中心 y 差几个像素就会乱序（q33-00111「以降、ターン終了時 / は / やる気+1」读成「はやる気+1以降…」）。"""
+    out: list[list[tuple[int, str, int]]] = []
+    for y, t, x in sorted(part):
+        if out and y - out[-1][0][0] <= LINE_DY:
+            out[-1].append((y, t, x))
+        else:
+            out.append([(y, t, x)])
+    return [(y, t) for line in out for y, t, _ in sorted(line, key=lambda p: p[2])]
+
+
 def read_pdrink_max(img: MatLike) -> dict | None:
     """饮料溢出页 → {held: [{index, drink_id, name, y, center, method, score}]（从上到下，只含画面上看到的行）,
     incoming: {...} | None（最下面那瓶新饮料，兼容旧读法）, incomings: [...]（全部新饮料，从上到下；一次可能来两瓶，calib 151258）,
@@ -338,15 +353,16 @@ def read_pdrink_max(img: MatLike) -> dict | None:
     hy = (header[1] + header[3]) // 2
     keep = next((b for t, b in boxes if "残す" in t and b[1] > hy), None)
     bottom = min(OVERFLOW_LIST_BOTTOM, keep[1] - 20) if keep else OVERFLOW_LIST_BOTTOM  # 「残す」之下是按钮与弹窗文字
-    lines = sorted(((b[1] + b[3]) // 2, t) for t, b in boxes
+    lines = sorted(((b[1] + b[3]) // 2, t, b[0]) for t, b in boxes
                    if OVERFLOW_TEXT_X[0] <= b[0] <= OVERFLOW_TEXT_X[1] and b[1] > top and b[3] < bottom
                    and "手持ち" not in t and "受け取った" not in t and abs((b[1] + b[3]) // 2 - hy) > 20)  # fmt: skip
     rows: list[list[tuple[int, str]]] = []
-    for y, t in lines:
+    for y, t, x in lines:
         if rows and y - rows[-1][-1][0] < OVERFLOW_ROW_GAP and (rows[-1][0][0] < hy) == (y < hy):
-            rows[-1].append((y, t))
+            rows[-1].append((y, t, x))
         else:
-            rows.append([(y, t)])
+            rows.append([(y, t, x)])
+    rows = [_reading_order(r) for r in rows]
     lib = _library("pdrink", 56)
     complete = _scroll_complete(img)
 
