@@ -41,9 +41,9 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-          - os: macos-14
+          - os: macos-latest  # macos-14 已不可用（2026-11 CI：configuration not supported）
             target: aarch64-apple-darwin
-          - os: macos-14  # Intel Mac 包在 Apple Silicon runner 上交叉编译（GitHub 已下线 Intel runner）
+          - os: macos-latest  # Intel Mac 包在 Apple Silicon runner 上交叉编译（GitHub 已下线 Intel runner）
             target: x86_64-apple-darwin
             cross: true
           - os: ubuntu-latest

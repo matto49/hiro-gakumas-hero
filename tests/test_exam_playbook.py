@@ -37,6 +37,7 @@ def test_free_action_card_first():
     assert d is not None and d.action == "play:1" and d.source == "rule"  # ゆめみごこち（使用数追加 + やる気）先打
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_last_turn_drink_after_free_cards():
     whey = DrinkView(0, "初星ホエイプロテイン", WHEY, "スキルカード使用数追加+1")
     # 有不耗行动的牌：先打它（加元気后再喝再兑现）

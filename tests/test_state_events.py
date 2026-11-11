@@ -25,6 +25,7 @@ def test_every_event_has_a_predictor():
     assert set(PREDICTORS) == set(EVENT_KINDS)
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_initial_deck_matches_removal_frame():
     """开局牌组：基础卡 7 张（1 张距離感の基本 被能力换成 えいえいおー+）+ エウレカ！+；与删卡实拍帧 00144 的基础部分一致。"""
     from hiro.state.context import card_name
@@ -34,6 +35,7 @@ def test_initial_deck_matches_removal_frame():
     assert len(initial_deck("i_card-shro-3-007", memories=[{"card_id": DAY, "upgrade": 1}])) == 9
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_produce_start():
     f = predict({"produce": {}}, make_event("PRODUCE_START", {"idol_card_id": "i_card-shro-3-007"}))[0].fields
     assert f["produce.deck_size"].value == 8 and f["produce.step"].value == 1
@@ -43,6 +45,7 @@ def test_day_advance():
     assert _f("DAY_ADVANCE")["produce.step"].value == 3
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_lesson_matches_real_day2():
     f = _f("LESSON", {"attr": "Da", "sp": False}, star_permil=None)  # 实机 trace 里星星倍率没读到
     obs = {"produce.params.Vo": 436, "produce.params.Da": 426, "produce.params.Vi": 243, "produce.stamina": 27, "produce.produce_point": 340,
@@ -51,6 +54,7 @@ def test_lesson_matches_real_day2():
     assert f["produce.params.Da"].min == 426  # 主属性基础收益精确：69 × 1.380
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_lesson_sub_known_is_tighter_and_catches_read_error():
     f = _f("LESSON", {"attr": "Da", "sp": True, "sub": "Vi"})
     assert f["produce.params.Vo"].min == 436 and not check_value(f["produce.params.Da"], 73)  # 第 2 局 Da 读成 73
@@ -109,6 +113,7 @@ def test_card_change_keeps_upgrade():
     assert f"{EIEI}+1" in f["produce.deck"].value and f"{DAY}+1" not in f["produce.deck"].value
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_card_auto_process():
     f = predict({"produce": DAY2}, make_event("CARD_AUTO_PROCESS", {"exam": 1}))[0]
     assert f.fields["produce.deck_size"].value == 2 and f.due == "DECK_LIST"  # 只有 1 张基础卡：最多删 1

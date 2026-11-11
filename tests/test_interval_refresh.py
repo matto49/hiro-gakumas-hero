@@ -25,12 +25,14 @@ def _decide(fields, d=None):
     return d, d.interval(GameState(page_fields=copy.deepcopy(fields)))
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_off_buys_drink(monkeypatch):
     monkeypatch.setattr(dmod, "INTERVAL_REFRESH", False)
     _, dec = _decide(WIN7)
     assert dec.action.kind is ActionKind.INTERVAL_BUY and dec.action.args.get("index") in (6, 7)
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_on_refreshes_without_copy_or_burst(monkeypatch):
     monkeypatch.setattr(dmod, "INTERVAL_REFRESH", True)
     d, dec = _decide(WIN7)
@@ -40,6 +42,7 @@ def test_on_refreshes_without_copy_or_burst(monkeypatch):
     assert dec2.action.kind is ActionKind.INTERVAL_BUY
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_on_stops_after_max(monkeypatch):
     monkeypatch.setattr(dmod, "INTERVAL_REFRESH", True)
     d = ProduceDeciders(CAMPUS_HIRO, None)
@@ -58,6 +61,7 @@ def test_on_stops_after_max(monkeypatch):
     lambda f: f.update(produce_point=200),  # 刷完不够买两瓶
     lambda f: f["interval"]["drinks"][1].update(drink_id=None),  # 有一格没认出
 ])  # fmt: skip
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_on_no_refresh(monkeypatch, patch):
     monkeypatch.setattr(dmod, "INTERVAL_REFRESH", True)
     f = copy.deepcopy(WIN7)

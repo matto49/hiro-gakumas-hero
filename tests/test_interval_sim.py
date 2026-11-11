@@ -57,6 +57,7 @@ def _interval_state(hp=18, p=575):
                      produce={"mode": "produce-008", "star": 865, "drink_capacity": 4})  # fmt: skip
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_decider_executes_sim_plan(monkeypatch):
     plan = {"target_hp": 24, "buy": [7], "labels": ["回体力到 24/33", "买饮料 特製ハツボシエキス"], "gain": 50000, "gain_se": 9000,
             "cost": 130, "rows": [{"labels": ["x"], "cost": 130, "mean": 300000, "gain": 50000, "gain_se": 9000}], "seconds": 1.0,
@@ -72,6 +73,7 @@ def test_decider_executes_sim_plan(monkeypatch):
     assert d.action.kind.value == "IntervalEnd"
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_rule_fallback_targets_half_hp_and_skips_junk(monkeypatch):
     monkeypatch.setattr(iv, "plan_tiered", lambda *a, **k: None)
     shelf = dict(SHELF, drinks=[])
@@ -116,6 +118,7 @@ def test_final_interval_buys_every_nonnegative_option():
     assert iv.greedy_final(rows, opts, 150, drinks_held=0, drink_capacity=4)[0][0].key == "upgrade"
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_decider_executes_final_plan_with_upgrade(monkeypatch):
     plan = {"target_hp": 24, "buy": [7], "upgrade": "p_card-02-act-3_186", "labels": ["回体力到 24/33", "买饮料 特製", "强化 せのび"],
             "gain": 25770, "gain_se": 4169, "cost": 270, "significant": True, "final": True,

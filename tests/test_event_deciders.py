@@ -1,6 +1,7 @@
 """决策-08：删卡 / 强化 / 報酬スキップ 确认 / 兜底不选第 0 项。"""
 
 import hiro.sim  # noqa: F401  gakumas-player 路径
+import pytest
 from hiro.brain.deciders import ProduceDeciders, action_key
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import ActionKind, GameState
@@ -27,6 +28,7 @@ def test_removal_order_and_protection():
     assert action_key(_d("SKILL_CARD_REMOVAL").action) == "remove:cancel"
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_enhance_order():
     assert action_key(_d("SKILL_CARD_ENHANCE", cards=_grid(BASIC, DAY, TODOITE)).action) == "enhance:" + TODOITE
     grid = _grid(BASIC, DAY, TODOITE)
@@ -35,6 +37,7 @@ def test_enhance_order():
     assert action_key(_d("SKILL_CARD_ENHANCE", cards=_grid(DAY, TODOITE, up=1)).action) == "enhance:cancel"
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_reward_skip_follows_overflow_decision():
     deciders = ProduceDeciders(CAMPUS_HIRO, None)
     held = [{"index": i, "drink_id": d} for i, d in enumerate(["pdrink_02-3-010", "pdrink_00-3-001", "pdrink_00-2-010"])]
@@ -47,6 +50,7 @@ def test_reward_skip_follows_overflow_decision():
     assert action_key(deciders.decide("PDRINK_MAX_CONFIRM", GameState()).action) == "dialog:reward_skip:no"
 
 
+@pytest.mark.master  # 决策器 / 状态机经 catalog 查主数据 game.db；CI 没有主数据时跳过
 def test_fallbacks_never_zero():
     choices = [{"index": i, "text": "?"} for i in range(3)]
     d = ProduceDeciders(CAMPUS_HIRO, None).decide("STUDY", GameState(page_fields={"choices": choices}), n_options=1)  # 越界
