@@ -38,9 +38,12 @@ def _dialog_counter(img: MatLike, box, button: tuple | None = None) -> int | Non
     """「あと N回」角标 → N。角标读不到时看按钮：按钮也不在 → 0（次数用完）；按钮还在、角标读不出 → None（不猜）。
     以前一律给 None，reduce 保留旧值，决策器以为还剩 1 次（第六局 23:29 连刷三次「还剩 1」、23:27:44 点灰掉的カード除去）。"""
     x1, y1, x2, y2 = box
-    m = re.search(r"あと\s*(\d+)\s*回", "".join(t for t, _ in ocr(img[y1:y2, x1:x2])))
-    if m:
-        return int(m.group(1))
+    crop = img[y1:y2, x1:x2]
+    # 默认放大读不出数字时换 1 / 2 倍再读（RapidOCR 3 倍下「あと1回」→「あと回」，q6-00040）
+    for scale in (None, 1, 2):
+        m = re.search(r"あと\s*(\d+)\s*回", "".join(t for t, _ in (ocr(crop) if scale is None else ocr(crop, scale=scale))))
+        if m:
+            return int(m.group(1))
     if button is not None:
         (bx1, by1, bx2, by2), word = button
         if word not in "".join(t for t, _ in ocr(img[by1:by2, bx1:bx2])):
