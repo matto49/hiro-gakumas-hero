@@ -207,7 +207,7 @@ def _classify_page(img: MatLike) -> tuple[str, dict] | None:
         if acquired is not None:
             return "ACQUIRE", acquired
     if _has(boxes, "開始確認", (0, 90)) and _has(boxes, "選抜試験メモリー") and _has(boxes, "本戦へ"):
-        return "HIF_FINALS_START", read_finals_start(boxes)  # 本战开始确认：当前选中的选拔回忆
+        return "HIF_FINALS_START", read_finals_start(boxes, img)  # 本战开始确认：当前选中的选拔回忆
     if _has(boxes, "現在順位", (100, 300)):
         return "HIF_FINALS_RANKING", read_finals_ranking_page(img, boxes)  # 本战开考前 / 各轮之后的名次页（识别-05）
     if _has(boxes, "スター性獲得", (280, 520)):
@@ -692,7 +692,7 @@ def _growth_pct(text: str) -> float | None:
     return None
 
 
-def read_finals_start(boxes) -> dict:
+def read_finals_start(boxes, img: MatLike | None = None) -> dict:
     """本战「開始確認」页（H.I.F本戦へ 之前）：当前选中的那份选拔回忆的概要。
     {selected_memory: {idol, star, params{Vo,Da,Vi}, growth_pct{Vo,Da,Vi}, deck: None, pitems: None}, qualify_memories: None}。
     - 星星在三角徽章旁（y≈447）、属性一行（y≈496，从左到右 Vo / Da / Vi）、成长率一行（y≈524）；
@@ -704,7 +704,16 @@ def read_finals_start(boxes) -> dict:
 
     nums = [int(re.sub(r"\D", "", t)) for _, t in row(482, 512, r"^\D?\d{2,4}$")]
     pcts = [v for _, t in row(514, 540, r"\d") if (v := _growth_pct(t)) is not None]
+    star_box = next((b for t, b in boxes if 430 <= (b[1] + b[3]) // 2 <= 465 and re.fullmatch(r"\d{2,4}", t) and 440 <= (b[0] + b[2]) // 2 <= 600), None)
     star = next((int(t) for x, t in row(430, 465, r"^\d{2,4}$") if 440 <= x <= 600), None)
+    from hiro.vision.ocr import engine
+
+    if star_box is not None and img is not None and engine() != "vision":
+        # RapidOCR 把「759」读成「159」（start-confirm-540）：同一框 ddddocr 再读，读得出就以它为准
+        from hiro.vision.digits import read_dddd
+
+        d = read_dddd(img, tuple(star_box))
+        star = d if d is not None and 10 <= d <= 9999 else star
     idol = next((t for t, b in boxes if b[0] >= 480 and 150 <= (b[1] + b[3]) // 2 <= 230 and not re.search(r"\d", t)), None)
     return {"selected_memory": {"idol": idol, "star": star,
                                 "params": dict(zip(("Vo", "Da", "Vi"), nums)) if len(nums) == 3 else None,
