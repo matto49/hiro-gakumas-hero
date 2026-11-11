@@ -445,7 +445,15 @@ def read_bubble(img: MatLike, y1: int, y2: int) -> tuple[str, dict]:
     from hiro.vision.ocr import ocr
     from hiro.vision.pages import read_upgrade_result
 
-    text = "".join(t for t, _ in ocr(img[max(0, y1 - 10) : y2 + 10, 30:690], scale=2)).replace(" ", "")
+    crop = img[max(0, y1 - 10) : y2 + 10, 30:690]
+    text = "".join(t for t, _ in ocr(crop, scale=2)).replace(" ", "")
+    from hiro.vision.ocr import engine
+
+    if engine() != "vision" and re.search(r"を(強化|削.|カスタマイズ)しまし", text):
+        # RapidOCR 2 倍下卡名末尾的「+」会丢（q17-159「距離感の基本+」），3 倍读得到：只差「+」时取「+」多的那次
+        alt = "".join(t for t, _ in ocr(crop, scale=3)).replace(" ", "")
+        if alt.replace("+", "") == text.replace("+", "") and alt.count("+") > text.count("+"):
+            text = alt
     if "を強化しました" in text:
         return "UPGRADE_RESULT", read_upgrade_result(text[: text.index("を強化しました") + len("を強化しました")])
     if "をカスタマイズしまし" in text:
