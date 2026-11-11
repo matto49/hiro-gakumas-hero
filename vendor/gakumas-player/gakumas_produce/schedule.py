@@ -20,7 +20,8 @@ class HIFSchedule:
         self.document=json.loads(self.path.read_text())
         if self.document['master_commit']!=self.catalog.info['commit']:raise Unsupported('Schedule/master version mismatch')
         source=ROOT/'data/community/hif-wiki-tables.json'
-        if hashlib.sha256(source.read_bytes()).hexdigest()!=self.document['provenance']['calendar_source_sha256']:
+        # Windows 上 Git（core.autocrlf=true）会把它检出成 CRLF：行尾统一成 LF 再算，和生成时一致
+        if hashlib.sha256(source.read_bytes().replace(b'\r\n',b'\n')).hexdigest()!=self.document['provenance']['calendar_source_sha256']:
             raise Unsupported('Calendar source changed; rebuild explicitly')
         if produce_id not in self.document['modes']:raise Unsupported('Only HIF has a fully sourced per-day calendar')
         self.mode=self.document['modes'][produce_id];self.produce_id=produce_id

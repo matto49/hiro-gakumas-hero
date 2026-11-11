@@ -14,7 +14,8 @@ VISION = Path(__file__).resolve().parents[1] / "vision"
 
 
 def _sha1(path: Path) -> str | None:
-    return hashlib.sha1(path.read_bytes()).hexdigest()[:12] if path.exists() else None
+    # 行尾统一成 LF：Windows 上 Git（core.autocrlf=true）检出成 CRLF，指纹和 Mac 不同，跨平台对比 trace 时会误以为素材不一样
+    return hashlib.sha1(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()[:12] if path.exists() else None
 
 
 @dataclass

@@ -1,0 +1,2 @@
+# 考试引擎的数据（主数据快照清单、社区日程表等）有按字节核对的 sha256：按二进制检出，Windows 上 Git 的 core.autocrlf 不改行尾
+vendor/gakumas-player/data/** -text
