@@ -103,7 +103,7 @@ def no_font(monkeypatch):
     monkeypatch.setattr(hif, "_templates", dict)
 
 
-@pytest.mark.parametrize("name", [pytest.param(n, marks=pytest.mark.vision_only("模拟「没有数字字体」时 ddddocr 两读不一致、用 OCR 判的路径；Windows / DMM 用的素材包带数字字体（hiro-w4 assets/pack/font），实机走字形比对，不走这条")) if n in NO_FONT_VISION_ONLY else n for n in sorted(TRUTH)])
+@pytest.mark.parametrize("name", [pytest.param(n, marks=pytest.mark.vision_only("模拟「没有数字字体」时 ddddocr 两读不一致、用 OCR 判的路径；Windows / DMM 用随仓库的素材包（assets/pack/font 带数字字体），实机走字形比对，不走这条")) if n in NO_FONT_VISION_ONLY else n for n in sorted(TRUTH)])
 def test_no_font_ranking_scores(no_font, name):
     r = read_ranking(_img(name))
     assert (r["my_score"], r["my_rank_index"], r["npc_scores"]) == TRUTH[name]
