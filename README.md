@@ -59,7 +59,7 @@
 
 考试引擎 `gakumas_exam` 按客户端规则逐条实现考试（效果、附魔、成长、指针、费用、随机数），主数据用社区公开的 master
 （vertesan/gakumasu-diff 固定提交，setup 时下载构建），并用实机记录整体对账；`gakumas_exam_rs` 是同一套规则的 Rust 实现，
-setup 检测到 Rust 工具链时本地编译（快约 8 倍）；没有时下载 CI 编好的预编译包（GitHub Release「engine-rs-<源码哈希>」，Windows / macOS / Linux，校验 sha256），下载不到再用 Python 版，结果相同。培育层的公式（日程、考试倍率、星星系数、
+setup 检测到 Rust 工具链时本地编译（快约 8 倍）；没有时下载 CI 编好的预编译包（GitHub Release「engine-rs-<源码哈希>」，Windows / macOS / Linux，校验 sha256），下载不到再用 Python 版，结果相同（Intel Mac 的预编译包是在 Apple Silicon 上交叉编译的，未经实机验证）。培育层的公式（日程、考试倍率、星星系数、
 支援卡技能）在 `gakumas_produce`。
 每一步把合法动作放进若干「确定化世界」（只打乱看不到的信息：牌堆顺序、未公开的回合属性），回合内搜索后续打到考试结束，
 按配对差比较期望终局分；轮间买卖、饮料取舍等资源决策用同一批种子配对模拟。社区攻略是先验，模拟显著更好（约 2 个标准误）才偏离。
