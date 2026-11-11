@@ -18,6 +18,7 @@ def frame(name):
     return cv2.resize(cv2.imread(str(FIX / name)), (720, 1280))
 
 
+@pytest.mark.lowres_sample("回忆选择页样例 picker-*.jpg 是 360x640 截图放大，RapidOCR 读不出「開始時 / 後に獲得」；DMM 回忆页待编成库存扫描取实机帧补进回归集")
 def test_page_readers_on_real_frames():
     p1 = frame("picker-p1-daydreaming.jpg")
     b = ops.ocr_boxes(p1)
@@ -29,6 +30,7 @@ def test_page_readers_on_real_frames():
     assert k["timing"] == "mid" and k["card"]["card_id"] == "p_card-02-act-2_062"
 
 
+@pytest.mark.lowres_sample("回忆选择页样例 picker-*.jpg 是 360x640 截图放大，RapidOCR 读不出「開始時 / 後に獲得」；DMM 回忆页待编成库存扫描取实机帧补进回归集")
 def test_ability_tiles_grouped():
     ab = mp.read_ability_page(ops.ocr_boxes(frame("picker-p2.jpg")))
     texts = [a["text"] for a in ab]
@@ -82,6 +84,7 @@ class FakeDevice:
         self.t += s
 
 
+@pytest.mark.lowres_sample("回忆选择页样例 picker-*.jpg 是 360x640 截图放大，RapidOCR 读不出「開始時 / 後に獲得」；DMM 回忆页待编成库存扫描取实机帧补进回归集")
 @pytest.mark.fixtures
 def test_scan_reads_each_cell_and_cancels(tmp_path):
     dev = FakeDevice()

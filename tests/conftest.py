@@ -152,12 +152,24 @@ def _source(path: Path) -> str:
     return _SRC[path]
 
 
+def _ocr_engine() -> str:
+    try:
+        from hiro.vision.ocr import engine
+
+        return engine()
+    except Exception:  # noqa: BLE001  识别层不可用时按非 Vision 处理
+        return "unknown"
+
+
 def pytest_configure(config):
     config.addinivalue_line("markers", "user_assets(*kinds): 需要自建素材（HIRO_USER_ASSETS）；kinds 见 hiro.vision.assets.USER_ASSETS")
     config.addinivalue_line("markers", "synthetic: 只用合成图（源码里的 .png 是自己画的），不按「读样例截图」跳过")
     config.addinivalue_line("markers", "fixtures: 要读 tests/fixtures 的截图样例（经类 / 多层辅助函数间接读，自动判断看不出来时显式标）")
     config.addinivalue_line("markers", "master: 要主数据 game.db（经决策器 / 识别层间接查，自动判断看不出来时显式标）")
     config.addinivalue_line("markers", "sim_master: 要真跑模拟器（vendor/gakumas-player 的主数据 catalog.sqlite 已构建）")
+    config.addinivalue_line("markers", "lowres_sample(why): 样例是低分辨率截图（360x640 / 540x960 放大），只在 Vision OCR 下断言；"
+                                       "RapidOCR（Windows / DMM 默认）读这类放大图错字多，DMM 实机帧 1081x1921 另有回归集")
+    config.addinivalue_line("markers", "vision_only(why): 测的是以 Apple Vision 为裁判的路径，非 Vision OCR 下跳过（写明为什么实机不走这条路）")
 
 
 def _missing_user_assets(kinds) -> list[str]:
@@ -189,6 +201,13 @@ def pytest_collection_modifyitems(config, items):
             if not kaa_ok:
                 item.add_marker(pytest.mark.skip(reason="需要 KAA（pip install -e '.[play]'）"))
                 continue
+        low = item.get_closest_marker("lowres_sample")
+        if low is not None and _ocr_engine() != "vision":
+            why = low.args[0] if low.args else ""
+            item.add_marker(pytest.mark.skip(reason=f"低分辨率样例只在 Vision OCR 下断言（当前 {_ocr_engine()}）：{why}"))
+        only = item.get_closest_marker("vision_only")
+        if only is not None and _ocr_engine() != "vision":
+            item.add_marker(pytest.mark.skip(reason=f"只在 Vision OCR 下有意义（当前 {_ocr_engine()}）：{only.args[0] if only.args else ''}"))
         if item.get_closest_marker("sim_master") is not None and not _sim_master_ok():
             item.add_marker(pytest.mark.skip(reason="需要模拟器主数据（python vendor/gakumas-player/scripts/fetch_master.py）"))
             continue

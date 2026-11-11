@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import cv2
+import pytest
 
 import hiro  # noqa: F401
 from hiro.vision import assets
@@ -141,6 +142,7 @@ def test_multiplier_occluded_first_digit():
     hif._MULT_SEEN.clear()
 
 
+@pytest.mark.vision_only("模拟「没有数字字体」时 ddddocr 两读不一致、用 OCR 判的路径；Windows / DMM 用的素材包带数字字体（hiro-w4 assets/pack/font），实机走字形比对，不走这条")
 def test_no_font_hud_numbers(monkeypatch):
     """没有数字字体（开源默认素材）：HUD 数字走 ddddocr（整框 / 收左边两次，不一致用 Apple Vision 判）。
     元気 0 曾被整框读成 10（体力条右端的圆头当成「1」）；白点花纹背景上收左边会丢首位（1283→283）。"""

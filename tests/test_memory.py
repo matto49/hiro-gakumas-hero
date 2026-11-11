@@ -17,6 +17,7 @@ def _read(name: str) -> dict:
     return read_memory_detail(img)
 
 
+@pytest.mark.lowres_sample("回忆详情框样例是 360x640 截图放大，RapidOCR 把「獲得」读成「獅得 / 幾得」、能力框错字；DMM 回忆页待编成库存扫描取实机帧补进回归集")
 @pytest.mark.parametrize(
     ("name", "timing", "card_id", "card_name", "upgrade", "plan", "customized"),
     [("memscan-0-140-647", "mid", "p_card-01-men-2_099", "一発勝負", 1, "sense", False),
@@ -32,6 +33,7 @@ def test_card_page(name, timing, card_id, card_name, upgrade, plan, customized):
     assert d["card_text"]
 
 
+@pytest.mark.lowres_sample("回忆详情框样例是 360x640 截图放大，RapidOCR 把「獲得」读成「獅得 / 幾得」、能力框错字；DMM 回忆页待编成库存扫描取实机帧补进回归集")
 def test_ability_page_with_hif_ability():
     d = _read("memscan2-0-140-647")
     assert d["page"] == 2 and d["ability"].startswith("試験ごとに、以降1回まで、ペース配分使用後") and d["ability_truncated"] is False
@@ -41,6 +43,7 @@ def test_ability_page_with_hif_ability():
     assert (passive["trigger"], passive["chance_pct"], passive["effect"]) == ("ビジュアルレッスン終了時", 45, "体力回復")
 
 
+@pytest.mark.lowres_sample("回忆详情框样例是 360x640 截图放大，RapidOCR 把「獲得」读成「獅得 / 幾得」、能力框错字；DMM 回忆页待编成库存扫描取实机帧补进回归集")
 def test_ability_page_old_memory_inactive_tiles():
     """旧回忆没有 H.I.F 能力框，词条从顶部开始；灰底「発動不可」（【センス専用】…）在 H.I.F 里不触发。"""
     d = _read("memscan2-4-360-920")
@@ -50,12 +53,14 @@ def test_ability_page_old_memory_inactive_tiles():
                    ("initial_param", "Da", 15, True, None), ("initial_param", "Vi", 15, True, None)]  # fmt: skip
 
 
+@pytest.mark.lowres_sample("回忆详情框样例是 360x640 截图放大，RapidOCR 把「獲得」读成「獅得 / 幾得」、能力框错字；DMM 回忆页待编成库存扫描取实机帧补进回归集")
 def test_ability_page_truncated_tiles():
     d = _read("memscan2-6-360-787")
     assert [(s["type"], s["active"], s["truncated"]) for s in d["stats"]] == [
         ("passive", False, True), ("produce_point", True, False), ("passive", False, True), ("param_bonus_pct", True, False), ("passive", True, False)]
 
 
+@pytest.mark.lowres_sample("回忆详情框样例是 360x640 截图放大，RapidOCR 把「獲得」读成「獅得 / 幾得」、能力框错字；DMM 回忆页待编成库存扫描取实机帧补进回归集")
 def test_merge_detail():
     rec = merge_detail(_read("memscan-0-140-647"), _read("memscan2-0-140-647"))
     assert rec["card"]["name"] == "一発勝負" and rec["timing"] == "mid" and len(rec["stats"]) == 3 and rec["ability"]

@@ -23,6 +23,7 @@ def test_fix_plan_keeps_present_cards_and_prefers_wrong_slots():
         fix_plan(["a", "b"], ["c", "d", "e"])
 
 
+@pytest.mark.lowres_sample("支援卡列表样例 list-01 是 540x960 截图；自动编成默认关，DMM 支援卡列表待编成库存扫描取实机帧补进回归集")
 def test_find_support_tile_on_real_list_frame():
     from hiro.vision.support_screens import read_support_list
 

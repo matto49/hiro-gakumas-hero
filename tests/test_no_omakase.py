@@ -112,6 +112,7 @@ def test_best_row_excludes_plan_mismatch():
     assert best_row(rows, exclude={"なぜこんなところにッ！？"})["card"]["name"] == "いつまでも続けばいいのに"
 
 
+@pytest.mark.lowres_sample("租借页样例 step2-rental-mismatch 是 540x960 截图；DMM 租借页待编成库存扫描（任务单第 6 步）取实机帧补进回归集")
 def test_rental_mismatch_reads_real_frame(monkeypatch):
     """第十七局实机帧：租借格（右下）标「プラン不一致」。"""
     from pathlib import Path
