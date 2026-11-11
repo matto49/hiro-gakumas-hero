@@ -159,6 +159,16 @@ def test_selection_logs(monkeypatch):
     「没看到 SELECT」按 battle.py 的日志格式补一行（现有日志里还没出现过）。"""
     import time
 
+    import pytest
+
+    # 日志时刻按本地时区解析（复盘的日志是东八区）。Windows 没有 time.tzset 改不了时区：本机已是东八区就照跑，否则跳过
+    if not hasattr(time, "tzset"):
+        if time.timezone != -8 * 3600:
+            pytest.skip("本平台不能切时区（没有 time.tzset），本机也不是东八区")
+        s = seg("select_logs")
+        s.log.append("[2026-11-02 05:34:55,100] [INFO] [hiro.produce.battle] 出牌 (332,1010)：1.6s 内没看到 SELECT，底部文字 ['SELEC1']")
+        assert [(x.kind, x.seq) for x in B.selection_log(s)] == [("select_retap", 26), ("select_cancel", 30), ("select_not_seen", 31)]
+        return
     monkeypatch.setenv("TZ", "Asia/Shanghai")
     time.tzset()
     try:
