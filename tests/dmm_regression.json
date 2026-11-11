@@ -3678,12 +3678,11 @@
  },
  {
   "file": "qualifydmm2-20261111-002000-00229.jpg",
-  "note": "qualifydmm2-20261111-002000｜「選抜試験2まで 4日」倒计时过渡页。快速判页认不出 → 主循环点默认 (12,12)，DMM 上落进左上「選抜試験Nまで」框打开日程表（dmm2 停机的起因，6aebe8f 只在打开后关掉）",
+  "note": "qualifydmm2-20261111-002000｜「選抜試験2まで 4日」倒计时过渡页：快速判页认成 TRANSITION kind=day_countdown（2ab6096），主循环点安全空白处，不点 (12,12)（dmm2 停机的起因）",
   "quick": "TRANSITION",
   "page": "TRANSITION",
-  "xfail_on": {
-   "mac": "待修：倒计时过渡页没有快速判页（应认成 TRANSITION、点安全位置而不是 (12,12)）",
-   "windows": "同 mac"
+  "quick_fields": {
+   "kind": "day_countdown"
   }
  },
  {
