@@ -251,6 +251,10 @@ def main():
     # 空转看门狗（协调 2026-11-03）：画面和局面都 3 分钟没进展就停机报警（第二十三局 R2 空转 40 分钟、第二十一局选拔① 17.8 分钟没人发现）
     kb_conf().loop.loop_callbacks.append(watchdog(session))
     logger.info("trace → %s", trace.dir)
+    from hiro.produce.exam_policy import policy_from_env
+
+    # 实际生效的考试局面来源 / 出招（scripts/play.ps1 外面设了 HIRO_EXAM_STATE_SOURCE / HIRO_EXAM_POLICY 就透传）
+    logger.info("考试局面来源 %s；出招 %s；HIRO_EXAM_POLICY=%s", manifest.exam_state_source, manifest.exam_advisor, policy_from_env())
     try:
         if args.command == "resume":
             # KAA 的 resume_produce 只认本战的再開对话框；用自己的入口，遇到「データの破棄」只取消不破弃

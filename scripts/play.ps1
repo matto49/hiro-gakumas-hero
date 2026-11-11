@@ -78,8 +78,11 @@ if ($NoSim) {
 } else {
     Remove-Item Env:HIRO_SIM -ErrorAction SilentlyContinue
     $env:HIRO_SIM_WORKERS = "1"; $env:HIRO_EXAM_SIM_ROUNDS = "r2"
-    $env:HIRO_EXAM_STATE_SOURCE = "hiro.sim.screen_source:SimScreenExamStateSource"
+    # 调用前已设（如私有存档插件）就保留；没设才用带模拟器的画面来源
+    if (-not $env:HIRO_EXAM_STATE_SOURCE) { $env:HIRO_EXAM_STATE_SOURCE = "hiro.sim.screen_source:SimScreenExamStateSource" }
 }
+# HIRO_EXAM_POLICY 不在这里设：外面设了原样透传（默认 llm，见 hiro.produce.exam_policy.policy_from_env）
+Write-Host "考试局面来源 HIRO_EXAM_STATE_SOURCE=$(if ($env:HIRO_EXAM_STATE_SOURCE) { $env:HIRO_EXAM_STATE_SOURCE } else { '（默认画面识别）' })；出招 HIRO_EXAM_POLICY=$(if ($env:HIRO_EXAM_POLICY) { $env:HIRO_EXAM_POLICY } else { 'llm（默认）' })"
 
 $argv = @("tools\play_game.py", "--idol", $Idol, "--main-attr", $MainAttr)
 if ($MainOnly) { $argv += "--main-only" }
