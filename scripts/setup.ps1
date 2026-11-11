@@ -93,7 +93,8 @@ if ($NoData) {
     & $Py vendor/gakumas-player/scripts/fetch_master.py
     if ($LASTEXITCODE) { Write-Host "  ⚠ 模拟器主数据没装好（网络？）：可稍后重跑本脚本；没有时模拟相关决策退回社区规则" }
 }
-# 考试引擎的 Rust 后端（可选，快约 8 倍）：有 Rust 工具链就编译装进 .venv；没有就用 Python 版（同一套规则，结果相同）
+# 考试引擎的 Rust 后端（可选，快约 8 倍）：有 Rust 工具链就编译装进 .venv；没有就下预编译包（GitHub Release，按源码哈希对版本、校验 sha256）；
+# 都不行就用 Python 版（同一套规则，结果相同）
 if (Get-Command cargo -ErrorAction SilentlyContinue) {
     Write-Host "  编译考试引擎 Rust 后端（vendor/gakumas-player/gakumas_exam_rs，首次约 1 分钟）…"
     uv pip install --python $Py -q maturin
@@ -101,7 +102,9 @@ if (Get-Command cargo -ErrorAction SilentlyContinue) {
     & $Py -m maturin develop --release -q -m vendor/gakumas-player/gakumas_exam_rs/Cargo.toml
     if ($LASTEXITCODE) { Write-Host "  ⚠ Rust 后端没编译成：考试引擎用 Python 版（结果相同，慢一些）" }
 } else {
-    Write-Host "  没有 Rust 工具链（cargo）：考试引擎用 Python 版（结果相同，慢一些）；装了 Rust（https://rustup.rs）后重跑本脚本可提速"
+    Write-Host "  没有 Rust 工具链（cargo）：下载预编译的 Rust 后端…"
+    & $Py scripts/engine_rs.py install --python $Py
+    if ($LASTEXITCODE) { Write-Host "  考试引擎用 Python 版（结果相同，慢一些）；装了 Rust（https://rustup.rs）后重跑本脚本可本地编译" }
 }
 
 Step "7/7 自检"

@@ -58,7 +58,7 @@
   换实现：环境变量 `HIRO_ASSET_SOURCE` / `HIRO_EXAM_STATE_SOURCE` / `HIRO_EXAM_ADVISOR`（写成 `包.模块:类名`），
   或在 `pyproject.toml` 的入口点组 `hiro_gakumas.plugins` 里登记，或代码里 `hiro.plugins.register(...)`。
 
-- **模拟器**（`hiro/sim`，考试引擎 `vendor/gakumas-player/gakumas_exam`（Rust 后端 `gakumas_exam_rs`，没编译时用 Python 版）、
+- **模拟器**（`hiro/sim`，考试引擎 `vendor/gakumas-player/gakumas_exam`（Rust 后端 `gakumas_exam_rs`：有 cargo 本地编，没有就下预编译包 `scripts/engine_rs.py install`，都不行用 Python 版）、
   培育层公式 `gakumas_produce`，主数据由 setup 第 6 步从社区公开的 gakumasu-diff 下载构建）：
   轮间买什么 / 刷不刷货架、饮料取舍、本战相談按模拟算第二轮期望分（`HIRO_SIM=0` 关掉，只按社区规则）；
   考试出牌的预演要选用 `SimScreenExamStateSource`（见上表）。主数据没构建时这些自动退回社区规则。
