@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -35,7 +36,11 @@ type BootEnv struct {
 	MirrorCN              bool
 	LookPath              func(string) (string, error)
 	Exists                func(string) bool
+	FreeBytes             func(dir string) (uint64, error) // nil：不查
 }
+
+// needFree 是装环境要的磁盘空间（Python、依赖、游戏数据、下载缓存；2026-11-17 实测装到一半已占 2.5 GB）。
+const needFree = 6 << 30
 
 const (
 	defaultRepoURL = "https://github.com/matto49/hiro-gakumas-hero"
@@ -76,6 +81,12 @@ func PlanBootstrap(e BootEnv) ([]Step, *CliError) {
 			hint = "打开「终端」运行 xcode-select --install，装好后再点「安装」"
 		}
 		return nil, &CliError{Code: "git_missing", Message: "这台电脑没有 git（下载小广的程序要用）", Hint: hint}
+	}
+	if e.FreeBytes != nil {
+		if free, err := e.FreeBytes(e.Home); err == nil && free < needFree {
+			return nil, &CliError{Code: "disk_full", Message: fmt.Sprintf("磁盘只剩 %.1f GB，装环境要 %d GB 左右", float64(free)/(1<<30), needFree>>30),
+				Hint: "清掉一些大文件（下载、录屏、旧安装包）后再点「安装」"}
+		}
 	}
 	var steps []Step
 	if !e.Exists(filepath.Join(src, ".git")) {
@@ -138,7 +149,7 @@ type Bootstrap struct {
 func (b *Bootstrap) env(ctx context.Context, probeMirror bool) BootEnv {
 	res, _ := mygo.App.Path(mygo.PathResources)
 	e := BootEnv{Home: b.Home, Resources: res, GOOS: runtime.GOOS, RepoURL: os.Getenv("HIRO_REPO_URL"), Ref: os.Getenv("HIRO_REPO_REF"),
-		LookPath: exec.LookPath, Exists: func(p string) bool { _, err := os.Stat(p); return err == nil }}
+		LookPath: exec.LookPath, Exists: func(p string) bool { _, err := os.Stat(p); return err == nil }, FreeBytes: freeBytes}
 	if probeMirror {
 		e.MirrorCN = needMirror(ctx)
 	}

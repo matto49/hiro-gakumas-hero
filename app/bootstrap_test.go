@@ -93,3 +93,23 @@ func hasEnvPrefix(env []string, p string) bool {
 	}
 	return false
 }
+
+func TestPlanRefusesWhenTheDiskIsTooFull(t *testing.T) {
+	e := bootEnv("darwin", "/r/bin/uv", "path:git")
+	e.FreeBytes = func(string) (uint64, error) { return 2 << 30, nil }
+	_, err := PlanBootstrap(e)
+	if err == nil || err.Code != "disk_full" || !strings.Contains(err.Message, "2.0 GB") {
+		t.Fatalf("err %+v", err)
+	}
+	e.FreeBytes = func(string) (uint64, error) { return 10 << 30, nil }
+	if _, err := PlanBootstrap(e); err != nil {
+		t.Fatalf("err %+v", err)
+	}
+}
+
+func TestFreeBytesReadsTheRealDisk(t *testing.T) {
+	n, err := freeBytes(filepath.Join(t.TempDir(), "not", "yet"))
+	if err != nil || n == 0 {
+		t.Fatalf("free %d err %v", n, err)
+	}
+}
