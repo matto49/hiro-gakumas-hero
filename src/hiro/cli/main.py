@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 from hiro.cli import registry
@@ -24,6 +25,8 @@ def _load_all() -> None:
 
 
 PENDING_EXIT = 3  # 待确认：信封 ok=true，data.pending 有编号
+# 桌面程序以 Codex / Claude 命令行当对话后端时设 HIRO_AGENT_SANDBOX=1：这些命令一律拒绝（除了 ACT 命令）
+AGENT_READONLY_DENY = {"confirm", "cancel", "secret copy", "secret set", "secret delete"}
 
 
 class _ArgError(Exception):
@@ -78,6 +81,9 @@ def run(argv: list[str]) -> tuple[int, dict]:
         args = _parse(cmd, rest)
     except _ArgError as e:
         return 2, fail("bad_args", f"{cmd.name} 的参数不对：{e}", f"运行 hiro tools 查看 {cmd.name} 的参数")
+    if os.environ.get("HIRO_AGENT_SANDBOX") and (cmd.risk is Risk.ACT or cmd.name in AGENT_READONLY_DENY):
+        return 1, fail("agent_readonly", f"程序内置的对话模式只能查信息，不能运行 hiro {cmd.name}",
+                       "要开局或扫描时，在回答里单独写一行 HIRO_ACTION: run start <参数>，程序会给玩家出确认卡")
     if cmd.risk is Risk.ACT:
         from hiro.cli import pending
 

@@ -58,27 +58,60 @@ func TestAskWithoutProviderExplains(t *testing.T) {
 	}
 }
 
-func TestCLIAgentTurnsNewPendingsIntoCards(t *testing.T) {
+func TestCLIAgentIsReadOnlyAndActionsBecomeConfirmCards(t *testing.T) {
 	dir := t.TempDir()
-	state := filepath.Join(dir, "state")
-	// 假 hiro：pending list 第一次空，第二次有一条（agent 跑的时候开了待确认）
+	calls := filepath.Join(dir, "calls")
 	hiro := filepath.Join(dir, "hiro")
 	_ = os.WriteFile(hiro, []byte(`#!/bin/sh
-if [ "$1 $2" = "pending list" ]; then
-  if [ -f "`+state+`" ]; then echo '{"ok":true,"data":{"pending":[{"id":"p7","command":"run start","summary":"领日常奖励","expires_at":1}]}}'
-  else echo '{"ok":true,"data":{"pending":[]}}'; fi
-fi
+echo "$*" >> "`+calls+`"
+case "$1 $2" in
+  "run start") echo '{"ok":true,"data":{"pending":{"id":"p7","command":"run start","summary":"领日常奖励","expires_at":1}}}'; exit 3 ;;
+  "run status") echo '{"ok":true,"data":{"current":null,"recent":[]}}' ;;
+esac
 `), 0o755)
-	// 假的 claude：把状态文件建出来，再说一句话
+	// 假的 claude：记下参数和沙箱环境变量，回答里请求一个开局、一个不允许的确认
+	argsFile := filepath.Join(dir, "args")
 	agentBin := filepath.Join(dir, "claude")
-	_ = os.WriteFile(agentBin, []byte("#!/bin/sh\ntouch "+state+"\necho '好的，已经发起，等你确认。'\n"), 0o755)
+	script := strings.ReplaceAll(`#!/bin/sh
+for a in "$@"; do echo "$a"; done > ARGS
+echo "sandbox=$HIRO_AGENT_SANDBOX" >> ARGS
+echo '好的，给你出确认卡。'
+echo 'HIRO_ACTION: run start daily'
+echo 'HIRO_ACTION: confirm p7'
+`, "ARGS", argsFile)
+	_ = os.WriteFile(agentBin, []byte(script), 0o755)
 	c := CLIAgent{Kind: "claude", Bin: agentBin, Hiro: &Hiro{Command: []string{hiro}}, Home: dir}
 	r, err := c.Ask(context.Background(), nil, "帮我领日常")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Text != "好的，已经发起，等你确认。" || len(r.Cards) != 1 || r.Cards[0]["type"] != "confirm" {
-		t.Fatalf("reply %+v", r)
+	if r.Text != "好的，给你出确认卡。" {
+		t.Fatalf("text %q", r.Text)
+	}
+	if len(r.Cards) != 1 || r.Cards[0]["type"] != "confirm" {
+		t.Fatalf("cards %+v", r.Cards)
+	}
+	b, _ := os.ReadFile(calls)
+	if strings.Contains(string(b), "confirm") || !strings.Contains(string(b), "run start daily") {
+		t.Fatalf("hiro calls %q", b)
+	}
+	a, _ := os.ReadFile(argsFile)
+	args := string(a)
+	if strings.Contains(args, "Bash(hiro:*)") || !strings.Contains(args, "Bash(hiro info:*)") || !strings.Contains(args, "sandbox=1") {
+		t.Fatalf("claude args %q", args)
+	}
+	for _, deny := range []string{"Bash(hiro confirm:*)", "Bash(hiro secret:*)", "Bash(hiro run start:*)"} {
+		if !strings.Contains(args, deny) {
+			t.Fatalf("missing deny %s in %q", deny, args)
+		}
+	}
+}
+
+func TestCodexRunsReadOnly(t *testing.T) {
+	argv := CLIAgent{Kind: "codex", Bin: "codex", Home: "/h"}.argv("p", "/h/last.txt")
+	j := strings.Join(argv, " ")
+	if !strings.Contains(j, "-s read-only") || strings.Contains(j, "workspace-write") || strings.Contains(j, "network_access") {
+		t.Fatalf("codex argv %v", argv)
 	}
 }
 

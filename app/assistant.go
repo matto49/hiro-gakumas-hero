@@ -24,7 +24,8 @@ import (
 //	codex     用户已登录的 codex 命令行，当外部 agent 跑：读 hiro 的说明、自己调 hiro 命令
 //	claude    用户已登录的 claude 命令行，同上
 //
-// 命令行模式绕不过待确认：它们开局只能拿到待确认编号，跑完后程序把新出现的待确认做成确认卡。
+// 命令行模式只读：它们只能查信息；要开局时在回答里写 HIRO_ACTION 行，由程序发起、拿到待确认后出确认卡。
+// hiro 命令行在 HIRO_AGENT_SANDBOX 下另外拒绝 confirm / secret / run start。
 
 // Settings 是模型设置（不含 Key）。
 type Settings struct {
@@ -190,9 +191,23 @@ type CLIAgent struct {
 
 const cliRules = `
 
-工具：在终端里运行 hiro 命令（例如 hiro info summary、hiro tools）。每条命令打印一行 JSON。
-会动游戏的命令（hiro run start …）返回「待确认」（退出码 3）：不要运行 hiro confirm，把 summary 告诉玩家，界面会给玩家确认卡。
-不要运行 hiro secret set / hiro secret delete。只回答玩家，不要改任何文件。`
+工具：在终端里运行只读的 hiro 命令查信息，例如 hiro info summary、hiro info supports --rarity SSR、hiro catalog search 好調、hiro run status、hiro tools。每条命令打印一行 JSON。
+你不能开局、扫描、确认或碰账号密码：hiro run start、hiro confirm、hiro secret … 都会被拒绝。
+要开局或扫描时，在回答最后单独写一行：
+HIRO_ACTION: run start <种类> [参数]
+例如 HIRO_ACTION: run start daily、HIRO_ACTION: run start hif --command new --mode qualify、HIRO_ACTION: run start tower --idol 篠澤広 --layers 1。
+程序会替你发起，并给玩家一张确认卡，玩家点了才开始。一次回答最多写一行。只回答玩家，不要改任何文件。`
+
+// cliAllowed 是命令行 agent 能跑的只读命令（Claude 的权限白名单）；cliDenied 明确拒绝（压过用户自己设置里更宽的规则）。
+var (
+	cliAllowed = []string{"Bash(hiro info:*)", "Bash(hiro catalog:*)", "Bash(hiro run status:*)", "Bash(hiro run events:*)",
+		"Bash(hiro pending list:*)", "Bash(hiro tools:*)", "Bash(hiro doctor)"}
+	cliDenied = []string{"Bash(hiro confirm:*)", "Bash(hiro cancel:*)", "Bash(hiro secret:*)", "Bash(hiro run start:*)",
+		"Bash(hiro run stop:*)", "Bash(hiro run pause:*)", "Bash(hiro run resume:*)", "Bash(hiro run takeover:*)", "Bash(pbpaste:*)"}
+)
+
+// actionLine 是 agent 请求开局的那一行。
+var actionLine = regexp.MustCompile(`(?m)^\s*HIRO_ACTION:\s*(.+?)\s*$`)
 
 func (c CLIAgent) prompt(history []Turn, text string) string {
 	var b strings.Builder
@@ -232,18 +247,36 @@ func (c CLIAgent) shim() (string, error) {
 	return dir, os.WriteFile(filepath.Join(dir, "hiro"), []byte("#!/bin/sh\nexec "+strings.Join(parts, " ")+` "$@"`+"\n"), 0o755)
 }
 
-func (c CLIAgent) pendingIDs(ctx context.Context) map[string]Pending {
-	out := map[string]Pending{}
-	r := c.Hiro.Call(ctx, []string{"pending", "list"})
+// argv 是命令行 agent 的参数：Claude 只给只读命令白名单、不读用户自己的设置；Codex 用只读沙箱（不能写文件、不能联网）。
+func (c CLIAgent) argv(prompt, lastFile string) []string {
+	if c.Kind == "codex" {
+		return []string{c.Bin, "exec", "--skip-git-repo-check", "-s", "read-only", "-C", c.Home, "--output-last-message", lastFile,
+			SystemPrompt + cliRules + "\n\n" + prompt}
+	}
+	argv := []string{c.Bin, "-p", prompt, "--append-system-prompt", SystemPrompt + cliRules,
+		"--permission-mode", "default", "--setting-sources", "project"}
+	argv = append(argv, "--allowedTools")
+	argv = append(argv, cliAllowed...)
+	argv = append(argv, "--disallowedTools")
+	return append(argv, cliDenied...)
+}
+
+// status 把当前任务写成一句话放进提示词（Codex 的只读沙箱连不上本机服务）。
+func (c CLIAgent) status(ctx context.Context) string {
+	r := c.Hiro.Call(ctx, []string{"run", "status"})
 	var d struct {
-		Pending []Pending `json:"pending"`
+		Current *struct {
+			Summary string `json:"summary"`
+			State   string `json:"state"`
+		} `json:"current"`
 	}
-	if r.OK && json.Unmarshal(r.Data, &d) == nil {
-		for _, p := range d.Pending {
-			out[p.ID] = p
-		}
+	if !r.OK || json.Unmarshal(r.Data, &d) != nil {
+		return ""
 	}
-	return out
+	if d.Current == nil {
+		return "（现在没有在跑的任务）\n"
+	}
+	return "（现在在跑：" + d.Current.Summary + "，状态 " + d.Current.State + "）\n"
 }
 
 func (c CLIAgent) Ask(ctx context.Context, history []Turn, text string) (Reply, error) {
@@ -251,25 +284,16 @@ func (c CLIAgent) Ask(ctx context.Context, history []Turn, text string) (Reply, 
 	if err != nil {
 		return Reply{}, err
 	}
-	before := c.pendingIDs(ctx)
+	prompt := c.status(ctx) + c.prompt(history, text)
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
-	prompt := c.prompt(history, text)
-	var cmd *exec.Cmd
-	var lastFile string
-	switch c.Kind {
-	case "codex":
-		lastFile = filepath.Join(c.Home, "codex-last.txt")
-		_ = os.Remove(lastFile)
-		cmd = exec.CommandContext(ctx, c.Bin, "exec", "--skip-git-repo-check", "-s", "workspace-write",
-			"-c", "sandbox_workspace_write.network_access=true", "-C", c.Home, "--output-last-message", lastFile,
-			SystemPrompt+cliRules+"\n\n"+prompt)
-	default:
-		cmd = exec.CommandContext(ctx, c.Bin, "-p", prompt, "--append-system-prompt", SystemPrompt+cliRules,
-			"--allowedTools", "Bash(hiro:*)")
-	}
+	lastFile := filepath.Join(c.Home, "codex-last.txt")
+	_ = os.Remove(lastFile)
+	argv := c.argv(prompt, lastFile)
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = c.Home
-	cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "PYTHONUTF8=1")
+	// HIRO_AGENT_SANDBOX：hiro 命令行在这个环境变量下拒绝开局、确认和账号密码（第二道拦截）
+	cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "PYTHONUTF8=1", "HIRO_AGENT_SANDBOX=1")
 	hideWindow(cmd)
 	out, err := cmd.Output()
 	if err != nil {
@@ -284,24 +308,27 @@ func (c CLIAgent) Ask(ctx context.Context, history []Turn, text string) (Reply, 
 		return Reply{}, fmt.Errorf("%s 出错：%w", c.Kind, err)
 	}
 	reply := strings.TrimSpace(string(out))
-	if lastFile != "" {
+	if c.Kind == "codex" {
 		if b, err := os.ReadFile(lastFile); err == nil {
 			reply = strings.TrimSpace(string(b))
 		}
 	}
+	// 回答里的 HIRO_ACTION 行：只认 run start，由程序自己发起（拿到的是待确认），做成确认卡；行本身从回答里去掉
 	var cards []map[string]any
-	after := c.pendingIDs(ctx)
-	var ids []string
-	for id := range after {
-		if _, ok := before[id]; !ok {
-			ids = append(ids, id)
+	for _, m := range actionLine.FindAllStringSubmatch(reply, 2) {
+		args := strings.Fields(m[1])
+		if len(args) < 3 || args[0] != "run" || args[1] != "start" {
+			continue
+		}
+		r := c.Hiro.Call(ctx, args)
+		switch {
+		case r.Pending != nil:
+			cards = append(cards, map[string]any{"type": "confirm", "pending": r.Pending, "status": "waiting"})
+		case !r.OK && r.Error != nil:
+			cards = append(cards, map[string]any{"type": "error", "error": r.Error})
 		}
 	}
-	sort.Strings(ids)
-	for _, id := range ids {
-		p := after[id]
-		cards = append(cards, map[string]any{"type": "confirm", "pending": p, "status": "waiting"})
-	}
+	reply = strings.TrimSpace(actionLine.ReplaceAllString(reply, ""))
 	return Reply{Text: reply, Cards: cards}, nil
 }
 

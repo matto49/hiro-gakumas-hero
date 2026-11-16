@@ -59,3 +59,24 @@ func TestLiveBootstrap(t *testing.T) {
 	}
 	t.Logf("doctor: %s", r.Data)
 }
+
+// 实测：命令行 agent 要开局时只能产出确认卡（HIRO_LIVE=claude|codex）。
+func TestLiveCLIAgentAction(t *testing.T) {
+	kind := os.Getenv("HIRO_LIVE")
+	if kind != "claude" && kind != "codex" {
+		t.Skip("设 HIRO_LIVE=claude 或 codex 才跑")
+	}
+	bin, err := exec.LookPath(kind)
+	if err != nil {
+		t.Skip(kind + " 不在 PATH")
+	}
+	c := CLIAgent{Kind: kind, Bin: bin, Hiro: &Hiro{}, Home: HiroHome()}
+	r, err := c.Ask(context.Background(), nil, "帮我领日常奖励")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("reply: %s cards: %v", r.Text, r.Cards)
+	if len(r.Cards) != 1 || r.Cards[0]["type"] != "confirm" {
+		t.Fatalf("want one confirm card, got %v", r.Cards)
+	}
+}
