@@ -23,6 +23,9 @@ def _load_all() -> None:
         importlib.import_module(m)
 
 
+PENDING_EXIT = 3  # 待确认：信封 ok=true，data.pending 有编号
+
+
 class _ArgError(Exception):
     pass
 
@@ -75,6 +78,19 @@ def run(argv: list[str]) -> tuple[int, dict]:
         args = _parse(cmd, rest)
     except _ArgError as e:
         return 2, fail("bad_args", f"{cmd.name} 的参数不对：{e}", f"运行 hiro tools 查看 {cmd.name} 的参数")
+    if cmd.risk is Risk.ACT:
+        from hiro.cli import pending
+
+        summary = cmd.confirm_summary(args) if cmd.confirm_summary else f"执行 hiro {cmd.name}"
+        rec = pending.create(cmd.name, args, summary)
+        return PENDING_EXIT, {"ok": True, "data": {
+            "pending": {k: rec[k] for k in ("id", "command", "summary", "expires_at")},
+            "message": f"需要用户确认：{summary}。用户同意后运行 hiro confirm {rec['id']}；不要自己确认。",
+        }}
+    return _execute(cmd, args)
+
+
+def _execute(cmd: registry.Command, args: dict) -> tuple[int, dict]:
     try:
         data = cmd.handler(args)
     except CliError as e:
@@ -91,6 +107,36 @@ def main(argv: list[str] | None = None) -> int:
 @command("tools", Risk.READ, "列出全部命令：名字、风险等级（read 直接执行 / act 先返回待确认）、说明、参数。")
 def _tools(args: dict) -> dict:
     return {"tools": [c.describe() for c in registry.COMMANDS.values()]}
+
+
+@command("confirm", Risk.READ, "用户同意后执行一条待确认的命令（只能由用户发起，agent 不要调用）。",
+         args=(Arg("id", "待确认编号"),), agent=False)
+def _confirm(a: dict) -> dict:
+    from hiro.cli import pending
+
+    rec = pending.take(a["id"])
+    cmd = registry.COMMANDS.get(rec["command"])
+    if cmd is None:
+        raise CliError("unknown_command", f"待确认里的命令已经不存在：{rec['command']}", "重新发起")
+    code, env = _execute(cmd, rec["args"])
+    if not env["ok"]:
+        e = env["error"]
+        raise CliError(e["code"], e["message"], e["hint"], exit_code=code)
+    return env["data"]
+
+
+@command("cancel", Risk.READ, "取消一条待确认（用户说「先不」时）。", args=(Arg("id", "待确认编号"),))
+def _cancel(a: dict) -> dict:
+    from hiro.cli import pending
+
+    return {"cancelled": pending.cancel(a["id"])}
+
+
+@command("pending list", Risk.READ, "列出还没确认、没过期的待确认。")
+def _pending_list(a: dict) -> dict:
+    from hiro.cli import pending
+
+    return {"pending": pending.listing()}
 
 
 if __name__ == "__main__":
