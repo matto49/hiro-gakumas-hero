@@ -1,0 +1,48 @@
+from pathlib import Path
+
+from hiro.cli.store import Store
+
+DATA = Path(__file__).parent / "data"
+
+
+def test_latest_snapshot_wins(hiro_home):
+    s = Store(hiro_home / "hiro.db")
+    s.save_snapshot("supports", [{"id": "a"}], source="list")
+    s.save_snapshot("supports", [{"id": "b"}, {"id": "c"}], source="list")
+    meta, rows = s.latest("supports")
+    assert [r["id"] for r in rows] == ["b", "c"]
+    assert meta["count"] == 2 and meta["scanned_at"]
+    assert len(s.history("supports")) == 2
+
+
+def test_info_without_scan_says_so(run_cli):
+    code, env = run_cli("info", "supports")
+    assert code == 0
+    assert env["data"]["scanned_at"] is None
+    assert env["data"]["items"] == []
+    assert "扫描" in env["data"]["hint"]
+
+
+def test_import_supports_then_filter_by_rarity(run_cli):
+    code, env = run_cli("info", "import", "--kind", "supports", str(DATA / "support-inventory.json"))
+    assert code == 0 and env["data"]["count"] == 4
+    code, env = run_cli("info", "supports", "--rarity", "SSR")
+    names = [c["name"] for c in env["data"]["items"]]
+    assert len(names) == 3 and "テストSR" not in names
+    first = env["data"]["items"][0]
+    assert first["rarity"] == "SSR" and first["level"] == 60 and first["attr"] == "Vi"
+
+
+def test_import_memories_and_filter_by_timing(run_cli):
+    run_cli("info", "import", "--kind", "memories", str(DATA / "memory-inventory.json"))
+    code, env = run_cli("info", "memories", "--timing", "start")
+    assert len(env["data"]["items"]) == 1
+    assert env["data"]["complete"] is True
+
+
+def test_summary_counts_each_kind(run_cli):
+    run_cli("info", "import", "--kind", "supports", str(DATA / "support-inventory.json"))
+    code, env = run_cli("info", "summary")
+    kinds = env["data"]["kinds"]
+    assert kinds["supports"]["count"] == 4
+    assert kinds["idols"]["count"] == 0 and kinds["idols"]["scanned_at"] is None
