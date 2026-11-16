@@ -41,7 +41,7 @@ export function Cockpit({ jobId, onBack }: { jobId: string; onBack: () => void }
   const feed = [...steps].reverse().slice(0, 40);
   const tail = events.filter((e) => e.type !== "step").slice(-1)[0];
   return (
-    <div className="flex h-full min-h-0">
+    <div className="flex h-full min-h-0 min-w-0 flex-1">
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-center gap-2.5 px-5 pt-3.5 pb-2.5">
           <button type="button" className="text-ink-3 hover:text-ink" onClick={onBack} aria-label="返回对话">
