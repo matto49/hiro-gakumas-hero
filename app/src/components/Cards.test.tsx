@@ -53,7 +53,7 @@ test("对话：点快捷指令 → 确认卡 → 点开始后出对局卡", asyn
   const { AssistantCtx } = await import("../lib/assistant");
   const saved: unknown[] = [];
   const api = {
-    settings: async () => ({ provider: "" as const, has_key: false }),
+    settings: async () => ({ provider: "" as const, has_key: false, wizard_done: true }),
     save: async () => {},
     test: async () => ({ ok: true, message: "" }),
     ask: async () => ({ cards: [] }),

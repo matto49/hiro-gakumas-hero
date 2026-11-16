@@ -21,7 +21,7 @@ function Field({ label, children, hint }: { label: string; children: React.React
 
 const input = "h-9 rounded-lg border border-line bg-white px-3 outline-none focus:border-acc";
 
-function ModelSection({ onChanged }: { onChanged: () => void }) {
+export function ModelSection({ onChanged, onTested }: { onChanged: () => void; onTested?: (ok: boolean) => void }) {
   const api = useAssistant();
   const [s, setS] = useState<Settings | null>(null);
   const [key, setKey] = useState("");
@@ -34,7 +34,8 @@ function ModelSection({ onChanged }: { onChanged: () => void }) {
   const save = async () => {
     setBusy(true);
     try {
-      await api.save({ ...s, has_key: false }, key);
+      const cur = await api.settings();
+      await api.save({ ...s, wizard_done: cur.wizard_done, has_key: false }, key);
       setKey("");
       setS(await api.settings());
       setMsg({ ok: true, text: "已保存" });
@@ -51,6 +52,7 @@ function ModelSection({ onChanged }: { onChanged: () => void }) {
     try {
       const r = await api.test();
       setMsg({ ok: r.ok, text: r.message });
+      onTested?.(r.ok);
     } finally {
       setBusy(false);
     }
@@ -133,7 +135,7 @@ function SecretRow({ name, label, saved, onSaved }: { name: string; label: strin
   );
 }
 
-function SecretsSection() {
+export function SecretsSection() {
   const call = useHiro();
   const [saved, setSaved] = useState<Set<string>>(new Set());
   const load = () =>
@@ -156,6 +158,25 @@ function SecretsSection() {
   );
 }
 
+function RedoWizard({ onChanged }: { onChanged: () => void }) {
+  const api = useAssistant();
+  return (
+    <div>
+      <button
+        type="button"
+        className="text-xs font-bold text-acc"
+        onClick={async () => {
+          const s = await api.settings();
+          await api.save({ ...s, wizard_done: false, has_key: false }, "");
+          onChanged();
+        }}
+      >
+        重新走一遍新手向导 ›
+      </button>
+    </div>
+  );
+}
+
 export function SettingsPage({ onChanged }: { onChanged: () => void }) {
   return (
     <div className="h-full overflow-auto px-6 py-5">
@@ -163,6 +184,7 @@ export function SettingsPage({ onChanged }: { onChanged: () => void }) {
       <div className="flex max-w-[640px] flex-col gap-4">
         <ModelSection onChanged={onChanged} />
         <SecretsSection />
+        <RedoWizard onChanged={onChanged} />
       </div>
     </div>
   );

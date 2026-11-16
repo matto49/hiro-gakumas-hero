@@ -105,4 +105,5 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | 命令 | 用途 |
 |---|---|
 | `hiro tools` | 全部命令和参数 |
+| `hiro doctor [--probe]` | 自检：每项 `ok`（true / false / null = 要用户自己确认）、`detail`、`next`。出问题先跑它；`--probe` 真的连一次游戏截图（只读） |
 | `hiro confirm <id>` / `hiro cancel <id>` / `hiro pending list` | 待确认（见上） |

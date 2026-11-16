@@ -12,6 +12,7 @@ import { useThreads } from "./lib/threads";
 import { Cockpit } from "./pages/Cockpit";
 import { InfoPage } from "./pages/InfoPage";
 import { SettingsPage } from "./pages/Settings";
+import { Wizard } from "./pages/Wizard";
 
 const STATUS_POLL_MS = 2000;
 
@@ -129,6 +130,8 @@ export function App({ agent: agentProp }: { agent?: Agent }) {
     },
     [t, thread.id],
   );
+
+  if (settings && !settings.wizard_done && !agentProp) return <Wizard onDone={reloadSettings} />;
 
   const liveStatus = current ? `${current.summary} · ${STATE_LABEL[current.state] ?? current.state}` : null;
 

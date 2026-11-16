@@ -41,6 +41,8 @@ export interface Settings {
   model?: string;
   base_url?: string;
   has_key: boolean;
+  /** WizardDone：新手向导走完了（或跳过了），之后打开直接进主窗口。 */
+  wizard_done?: boolean;
 }
 
 /** TestResult 是「测试」按钮的结果。 */

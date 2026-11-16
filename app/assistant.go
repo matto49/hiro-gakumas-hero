@@ -32,6 +32,8 @@ type Settings struct {
 	Model    string `json:"model,omitempty"`
 	BaseURL  string `json:"base_url,omitempty"`
 	HasKey   bool   `json:"has_key"`
+	// WizardDone：新手向导走完了（或跳过了），之后打开直接进主窗口。
+	WizardDone bool `json:"wizard_done,omitempty"`
 }
 
 // DefaultDeepSeek 是 DeepSeek 的缺省地址和模型。

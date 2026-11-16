@@ -8,6 +8,7 @@ export interface Settings {
   model?: string;
   base_url?: string;
   has_key: boolean;
+  wizard_done?: boolean;
 }
 
 export interface Turn {

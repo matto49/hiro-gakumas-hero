@@ -28,11 +28,11 @@ func TestSettingsRoundTripKeepsKeyOutOfTheFile(t *testing.T) {
 	if s := a.Settings(); s.Provider != "" || s.HasKey {
 		t.Fatalf("fresh settings %+v", s)
 	}
-	if err := a.Save(Settings{Provider: "deepseek", Model: "deepseek-chat"}, "sk-secret-123"); err != nil {
+	if err := a.Save(Settings{Provider: "deepseek", Model: "deepseek-chat", WizardDone: true}, "sk-secret-123"); err != nil {
 		t.Fatal(err)
 	}
 	s := a.Settings()
-	if s.Provider != "deepseek" || !s.HasKey || s.Model != "deepseek-chat" {
+	if s.Provider != "deepseek" || !s.HasKey || s.Model != "deepseek-chat" || !s.WizardDone {
 		t.Fatalf("settings %+v", s)
 	}
 	raw, _ := os.ReadFile(filepath.Join(home, "settings.json"))
