@@ -3,13 +3,23 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"github.com/egoist/mygo"
 )
 
 func main() {
-	mygo.Bind(&Hiro{})
+	hiro := &Hiro{}
+	mygo.Bind(hiro)
+	// 网页里的小图和对局截图：hiro://localhost/sprites/…、/traces/…（只读 HIRO_HOME 下这两处）
+	mygo.Protocol.Handle("hiro", homeFiles(HiroHome(), func(ctx context.Context, asset string) error {
+		r := hiro.Call(ctx, []string{"catalog", "sprite", asset})
+		if !r.OK {
+			return context.Canceled
+		}
+		return nil
+	}))
 
 	mygo.App.WhenReady(func() {
 		mygo.NewWindow(mygo.WindowOptions{

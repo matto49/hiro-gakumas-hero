@@ -149,3 +149,8 @@ func (h *Hiro) run(ctx context.Context, args []string, stdin []byte) Result {
 	}
 	return r
 }
+
+func exists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}

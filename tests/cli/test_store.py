@@ -46,3 +46,12 @@ def test_summary_counts_each_kind(run_cli):
     kinds = env["data"]["kinds"]
     assert kinds["supports"]["count"] == 4
     assert kinds["idols"]["count"] == 0 and kinds["idols"]["scanned_at"] is None
+
+
+def test_import_keeps_the_scan_time_from_generated(run_cli):
+    # support_inventory 的输出把扫描时间记在 generated（epoch 秒），不是 scanned_at
+    run_cli("info", "import", "--kind", "supports", str(DATA / "support-inventory.json"))
+    _, env = run_cli("info", "supports")
+    from datetime import datetime
+
+    assert env["data"]["scanned_at"] == datetime.fromtimestamp(1763300000.0).strftime("%Y-%m-%d %H:%M:%S")

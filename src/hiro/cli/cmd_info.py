@@ -66,7 +66,12 @@ def import_inventory(kind: str, inv: dict, source: str) -> dict:
     complete = inv.get("complete")
     if complete is None and kind == "supports":
         complete = inv.get("source") == "list"  # 编成页扫描只含编成里出现过的卡
-    sid = open_store().save_snapshot(kind, rows, source=source, scanned_at=inv.get("scanned_at"), complete=complete)
+    scanned_at = inv.get("scanned_at")
+    if not scanned_at and isinstance(inv.get("generated"), (int, float)):  # support_inventory：epoch 秒
+        from datetime import datetime
+
+        scanned_at = datetime.fromtimestamp(inv["generated"]).strftime("%Y-%m-%d %H:%M:%S")
+    sid = open_store().save_snapshot(kind, rows, source=source, scanned_at=scanned_at, complete=complete)
     return {"kind": kind, "snapshot": sid, "count": len(rows)}
 
 
