@@ -14,6 +14,7 @@ func main() {
 	mygo.Bind(hiro)
 	mygo.Bind(&Assistant{Home: HiroHome(), Keys: systemKeys{}, Hiro: hiro})
 	mygo.Bind(&Threads{Home: HiroHome()})
+	mygo.Bind(&Bootstrap{Home: HiroHome(), Hiro: hiro})
 	// 网页里的小图和对局截图：hiro://localhost/sprites/…、/traces/…（只读 HIRO_HOME 下这两处）
 	mygo.Protocol.Handle("hiro", homeFiles(HiroHome(), func(ctx context.Context, asset string) error {
 		r := hiro.Call(ctx, []string{"catalog", "sprite", asset})

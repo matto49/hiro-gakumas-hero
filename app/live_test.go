@@ -28,3 +28,34 @@ func TestLiveCLIAgent(t *testing.T) {
 		t.Fatalf("want 45 in reply: %q", r.Text)
 	}
 }
+
+// 实测安装：HIRO_LIVE=bootstrap，HIRO_HOME 指向一个空目录；HIRO_REPO_URL / HIRO_REPO_REF 指向要装的源。
+func TestLiveBootstrap(t *testing.T) {
+	if os.Getenv("HIRO_LIVE") != "bootstrap" {
+		t.Skip("设 HIRO_LIVE=bootstrap 才跑")
+	}
+	b := &Bootstrap{Home: HiroHome(), Hiro: &Hiro{}}
+	e := b.env(context.Background(), true)
+	steps, perr := PlanBootstrap(e)
+	if perr != nil {
+		t.Fatal(perr.Message, perr.Hint)
+	}
+	for _, st := range steps {
+		t.Logf("==> %s %v", st.Title, st.Argv)
+		cmd := exec.Command(st.Argv[0], st.Argv[1:]...)
+		cmd.Dir, cmd.Env = st.Dir, append(os.Environ(), st.Env...)
+		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+		if err := cmd.Run(); err != nil {
+			t.Fatalf("%s: %v", st.Title, err)
+		}
+	}
+	if steps, _ := PlanBootstrap(e); len(steps) != 0 {
+		t.Fatalf("still steps after install: %v", steps)
+	}
+	h := &Hiro{}
+	r := h.Call(context.Background(), []string{"doctor"})
+	if !r.OK {
+		t.Fatalf("doctor after install: %+v", r.Error)
+	}
+	t.Logf("doctor: %s", r.Data)
+}

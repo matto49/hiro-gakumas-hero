@@ -23,13 +23,13 @@ func TestHomeFilesServesOnlySpritesAndTraceFrames(t *testing.T) {
 	must(filepath.Join(home, "service.json"), "token")
 	h := homeFiles(home, nil)
 	cases := map[string]int{
-		"/sprites/a.png":                 200,
-		"/traces/j1/frames/00001.jpg":    200,
-		"/hiro.db":                       404,
-		"/service.json":                  404,
-		"/sprites/../service.json":       404,
-		"/traces/j1/../../../hiro.db":    404,
-		"/traces/j1/steps.jsonl":         404,
+		"/sprites/a.png":              200,
+		"/traces/j1/frames/00001.jpg": 200,
+		"/hiro.db":                    404,
+		"/service.json":               404,
+		"/sprites/../service.json":    404,
+		"/traces/j1/../../../hiro.db": 404,
+		"/traces/j1/steps.jsonl":      404,
 	}
 	for path, want := range cases {
 		rec := httptest.NewRecorder()

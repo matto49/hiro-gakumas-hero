@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ConfirmCard } from "../components/Cards";
 import { Button, Panel, cx } from "../components/ui";
 import { useAssistant } from "../lib/assistant";
+import { useBoot, type BootStatus } from "../lib/bootstrap";
 import type { Card } from "../lib/chat";
 import { cardsFor } from "../lib/quick";
 import { data, useHiro } from "../lib/hiro";
@@ -34,9 +35,56 @@ function ItemRow({ it }: { it: Item | undefined }) {
   );
 }
 
+/** 环境没装好时：列出要做的步骤，点「安装」后一行行显示输出。 */
+function Install({ status, onInstalled }: { status: BootStatus; onInstalled: () => void }) {
+  const boot = useBoot();
+  const [lines, setLines] = useState<string[]>([]);
+  const [running, setRunning] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const run = async () => {
+    setRunning(true);
+    setErr(null);
+    try {
+      await boot.run((p) => setLines((ls) => [...ls.slice(-200), p.line]));
+      onInstalled();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRunning(false);
+    }
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="text-ink-2">第一次用要先装好小广的运行环境（不用你装 Python，全自动）：</div>
+      <ul className="m-0 pl-5 text-ink-2">
+        {status.steps.map((s) => (
+          <li key={s.id}>{s.title}</li>
+        ))}
+      </ul>
+      {status.error && (
+        <div className="text-err">
+          {status.error.message}
+          {status.error.hint && <div className="text-xs text-ink-2">{status.error.hint}</div>}
+        </div>
+      )}
+      <div>
+        <Button primary disabled={running || !!status.error} onClick={run}>
+          {running ? "安装中…" : "安装"}
+        </Button>
+      </div>
+      {lines.length > 0 && (
+        <pre className="m-0 max-h-56 overflow-auto rounded-lg bg-[#1d1915] p-2.5 text-[11px] leading-[1.45] whitespace-pre-wrap text-[#d9d0c5]">{lines.slice(-40).join("\n")}</pre>
+      )}
+      {err && <div className="text-xs text-err">{err}</div>}
+    </div>
+  );
+}
+
 export function Wizard({ onDone }: { onDone: () => void }) {
   const call = useHiro();
   const api = useAssistant();
+  const boot = useBoot();
+  const [bootStatus, setBootStatus] = useState<BootStatus | null>(null);
   const [step, setStep] = useState(0);
   const [items, setItems] = useState<Record<string, Item>>({});
   const [busy, setBusy] = useState<string | null>(null);
@@ -59,9 +107,14 @@ export function Wizard({ onDone }: { onDone: () => void }) {
     },
     [call],
   );
+  const recheckBoot = useCallback(async () => {
+    const st = await boot.status().catch(() => ({ ready: true, steps: [] }) as BootStatus);
+    setBootStatus(st);
+    if (st.ready) check();
+  }, [boot, check]);
   useEffect(() => {
-    check();
-  }, [check]);
+    recheckBoot();
+  }, [recheckBoot]);
 
   const syncCatalog = async () => {
     setBusy("catalog");
@@ -102,7 +155,8 @@ export function Wizard({ onDone }: { onDone: () => void }) {
         {step === 0 && (
           <Panel className="flex flex-col gap-3">
             <h2 className="m-0 text-[17px] font-bold">装环境</h2>
-            {!items.python && <div className="text-ink-3">正在检查…（第一次打开要几秒）</div>}
+            {bootStatus && !bootStatus.ready && <Install status={bootStatus} onInstalled={recheckBoot} />}
+            {bootStatus?.ready && !items.python && <div className="text-ink-3">正在检查…（第一次打开要几秒）</div>}
             <ItemRow it={items.python} />
             <ItemRow it={items.catalog} />
             <div className="flex gap-2">

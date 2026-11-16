@@ -10,7 +10,8 @@
     "build:web": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "bun test src",
-    "package": "bun scripts/mygo.mjs package"
+    "package": "bun scripts/mygo.mjs package",
+    "fetch-uv": "bun scripts/fetch-uv.mjs"
   },
   "dependencies": {
     "mygo-runtime": "^0.9.2",

@@ -10,12 +10,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 )
 
 // Hiro 调工具层的 hiro 命令行：界面和内置 agent 都只通过它干活（设计稿 §4）。
 type Hiro struct {
-	// Command 是 hiro 命令本身（不含子命令），例如 ["/…/venv/bin/python", "-m", "hiro.cli.main"]。
+	// Command 是 hiro 命令本身（不含子命令），例如 ["/…/venv/bin/python", "-m", "hiro.cli.main"]；空的时候按 ResolveHiroCommand 找。
 	Command []string `json:"-"`
+	mu      sync.Mutex
 }
 
 // CliError 是命令失败时信封里的 error：code 给程序判断，message / hint 是写给人看的白话。
@@ -45,7 +47,7 @@ type Result struct {
 // PendingExit 是待确认的退出码（hiro.cli.main.PENDING_EXIT）。
 const PendingExit = 3
 
-// ResolveHiroCommand 找 hiro 命令：HIRO_CLI（JSON 数组）> 程序自己的 Python 环境（向导装在 HIRO_HOME/venv）> PATH 上的 hiro。
+// ResolveHiroCommand 找 hiro 命令：HIRO_CLI（JSON 数组）> 程序自己装的环境（HIRO_HOME/src/.venv，见 bootstrap.go）> PATH 上的 hiro。
 func ResolveHiroCommand() []string {
 	if v := os.Getenv("HIRO_CLI"); v != "" {
 		var argv []string
@@ -54,11 +56,7 @@ func ResolveHiroCommand() []string {
 		}
 		return strings.Fields(v)
 	}
-	py := filepath.Join(HiroHome(), "venv", "bin", "python")
-	if runtime.GOOS == "windows" {
-		py = filepath.Join(HiroHome(), "venv", "Scripts", "python.exe")
-	}
-	if _, err := os.Stat(py); err == nil {
+	if py := venvPython(HiroHome(), runtime.GOOS); exists(py) {
 		return []string{py, "-m", "hiro.cli.main"}
 	}
 	return []string{"hiro"}
@@ -87,10 +85,19 @@ func HiroHome() string {
 }
 
 func (h *Hiro) command() []string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	if len(h.Command) == 0 {
 		h.Command = ResolveHiroCommand()
 	}
 	return h.Command
+}
+
+// reset 让下次调用重新找 hiro（装好新环境之后）。
+func (h *Hiro) reset() {
+	h.mu.Lock()
+	h.Command = nil
+	h.mu.Unlock()
 }
 
 // Call 运行一条 hiro 命令，例如 ["info", "summary"]，返回解析后的信封。不会返回 Go 错误：失败都在 Result.Error 里。

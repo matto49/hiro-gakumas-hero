@@ -3,7 +3,10 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { AssistantCtx, type AssistantApi, type Settings } from "../lib/assistant";
 import { HiroCtx } from "../lib/hiro";
 import { fakeCaller } from "../test/fake";
+import { BootCtx, type BootApi } from "../lib/bootstrap";
 import { Wizard } from "./Wizard";
+
+const readyBoot: BootApi = { status: async () => ({ ready: true, steps: [] }), run: async () => {} };
 
 afterEach(cleanup);
 
@@ -46,11 +49,13 @@ test("向导：六步走完后记下 wizard_done", async () => {
   };
   let finished = false;
   render(
-    <HiroCtx.Provider value={hiro.call}>
-      <AssistantCtx.Provider value={api}>
-        <Wizard onDone={() => (finished = true)} />
-      </AssistantCtx.Provider>
-    </HiroCtx.Provider>,
+    <BootCtx.Provider value={readyBoot}>
+      <HiroCtx.Provider value={hiro.call}>
+        <AssistantCtx.Provider value={api}>
+          <Wizard onDone={() => (finished = true)} />
+        </AssistantCtx.Provider>
+      </HiroCtx.Provider>
+    </BootCtx.Provider>,
   );
   // 1 装环境：显示自检结果，下载资料库
   await waitFor(() => expect(screen.getByText("Python 3.10.14，依赖齐全")).toBeTruthy());
@@ -77,4 +82,43 @@ test("向导：六步走完后记下 wizard_done", async () => {
   fireEvent.click(screen.getByRole("button", { name: "完成" }));
   await waitFor(() => expect(finished).toBe(true));
   expect(saved[saved.length - 1]!.wizard_done).toBe(true);
+});
+
+
+test("没装环境时先装：点「安装」，输出一行行显示，装完重新自检", async () => {
+  let ready = false;
+  const lines: string[] = [];
+  const boot: BootApi = {
+    status: async () => (ready ? { ready: true, steps: [] } : { ready: false, steps: [{ id: "setup", title: "安装 Python、依赖和游戏数据（约 5 分钟）" }] }),
+    run: async (onLine) => {
+      onLine({ step: "setup", line: "==> 2/7 虚拟环境" });
+      lines.push("ran");
+      ready = true;
+    },
+  };
+  const hiro = fakeCaller({ doctor });
+  const api: AssistantApi = {
+    settings: async () => ({ provider: "", has_key: false }),
+    save: async () => {},
+    test: async () => ({ ok: true, message: "" }),
+    ask: async () => ({ cards: [] }),
+    listThreads: async () => [],
+    saveThread: async () => {},
+    deleteThread: async () => {},
+  };
+  render(
+    <BootCtx.Provider value={boot}>
+      <HiroCtx.Provider value={hiro.call}>
+        <AssistantCtx.Provider value={api}>
+          <Wizard onDone={() => {}} />
+        </AssistantCtx.Provider>
+      </HiroCtx.Provider>
+    </BootCtx.Provider>,
+  );
+  await waitFor(() => expect(screen.getByText("安装 Python、依赖和游戏数据（约 5 分钟）")).toBeTruthy());
+  expect(hiro.calls.length).toBe(0); // 没装好之前不调工具层
+  fireEvent.click(screen.getByRole("button", { name: "安装" }));
+  await waitFor(() => expect(screen.getByText("==> 2/7 虚拟环境")).toBeTruthy());
+  await waitFor(() => expect(hiro.calls.some((c) => c[0] === "doctor")).toBe(true));
+  expect(lines).toEqual(["ran"]);
 });

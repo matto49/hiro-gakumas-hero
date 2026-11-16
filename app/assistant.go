@@ -63,7 +63,7 @@ func (systemKeys) Get(name string) (string, error) {
 	return string(b), err
 }
 func (systemKeys) Set(name, value string) error { return mygo.Secrets.Set(name, []byte(value)) }
-func (systemKeys) Delete(name string) error      { return mygo.Secrets.Delete(name) }
+func (systemKeys) Delete(name string) error     { return mygo.Secrets.Delete(name) }
 
 // Assistant 是界面用的对话入口（绑定给网页）。
 type Assistant struct {
