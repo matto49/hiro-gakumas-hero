@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+/* 设计稿 §14：制作人的培育日程表——暖白纸面底、橙色强调，Vo / Da / Vi 粉蓝黄 */
+@theme {
+  --color-bg: #f7f3ec;
+  --color-panel: #fffdf9;
+  --color-ink: #2b241f;
+  --color-ink-2: #6b6159;
+  --color-ink-3: #9a9088;
+  --color-line: #e7dfd3;
+  --color-chip: #f1ebe2;
+  --color-acc: #ec6a3c;
+  --color-acc-t: #fde9e0;
+  --color-ok: #2f8f6b;
+  --color-ok-t: #e1f2ea;
+  --color-warn: #b7791f;
+  --color-warn-t: #fbf0dc;
+  --color-err: #c2410c;
+  --color-err-t: #fdebe3;
+  --color-vo: #c2185b;
+  --color-vo-t: #fde3ec;
+  --color-da: #1f5fb3;
+  --color-da-t: #e0ecfd;
+  --color-vi: #a06a00;
+  --color-vi-t: #fdf3d6;
+  --font-sans: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-jp: "Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font: 13px/1.55 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.jp {
+  font-family: var(--font-jp);
+}
