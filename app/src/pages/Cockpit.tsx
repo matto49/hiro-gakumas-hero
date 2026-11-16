@@ -28,6 +28,7 @@ export function Cockpit({ jobId, onBack }: { jobId: string; onBack: () => void }
   const [busy, setBusy] = useState(false);
   const img = frameUrl(lastFrame);
   const live = state === "running" || state === "paused" || state === "takeover";
+  const pausable = job?.pausable !== false;
   const control = async (action: string) => {
     setBusy(true);
     try {
@@ -83,12 +84,12 @@ export function Cockpit({ jobId, onBack }: { jobId: string; onBack: () => void }
         <Panel>
           <h3 className="m-0 mb-2 text-xs font-medium text-ink-3">操作</h3>
           <div className="grid grid-cols-2 gap-2">
-            {state === "running" && (
+            {state === "running" && pausable && (
               <Button disabled={busy} onClick={() => control("pause")}>
                 暂停
               </Button>
             )}
-            {state === "running" && (
+            {state === "running" && pausable && (
               <Button disabled={busy} onClick={() => control("takeover")}>
                 我来接手
               </Button>
@@ -106,6 +107,7 @@ export function Cockpit({ jobId, onBack }: { jobId: string; onBack: () => void }
           </div>
           {state === "takeover" && <div className="mt-2 text-xs text-ink-2">自动操作已停下，你在游戏里点完后按「继续自动打」，小广会从当前画面接着打。</div>}
           {!live && <div className="mt-1 text-xs text-ink-3">这局已经结束。</div>}
+          {live && !pausable && <div className="mt-2 text-xs text-ink-3">这个任务不能中途暂停；要自己操作就先停止（不会放弃培育）。</div>}
         </Panel>
       </div>
     </div>

@@ -54,6 +54,7 @@ class Kind:
     summary: Callable[[dict], str]  # 确认卡上的一句话
     output: str | None = None  # 任务目录里的结果文件（扫描任务）；结束后由 scan_ingest 导入信息库
     env: dict = field(default_factory=dict)
+    pausable: bool = True  # 主循环认 HIRO_PAUSE_FLAG（hif / tower / selftest）；日常和扫描脚本不认，只能停止
 
 
 _PY = sys.executable
@@ -107,13 +108,13 @@ KINDS: dict[str, Kind] = {
                   + (["--no-llm"] if p.get("no_llm") else []),
                   lambda p: f"爬偶像之路（{p.get('idol') or '?'}，{p.get('layers') or 1} 层）", env={"HIRO_RUNTIME": "own"}),
     "daily": Kind("daily", "日常：礼物、活動費、任务奖励、社团", lambda p, d: [_PY, str(REPO / "tools" / "daily" / "run_daily.py")],
-                  lambda p: "领日常奖励"),
+                  lambda p: "领日常奖励", pausable=False),
     "scan-supports": Kind("scan-supports", "扫描支援卡（只读：在「選択」列表里滚动，最后点キャンセル）",
                           lambda p, d: [_PY, str(REPO / "tools" / "support_inventory.py"), "--list", "--out", str(d / "out.json")],
-                          lambda p: "扫描支援卡库存（只读，不改编成）", output="supports"),
+                          lambda p: "扫描支援卡库存（只读，不改编成）", output="supports", pausable=False),
     "scan-memories": Kind("scan-memories", "扫描回忆（只读：在「メモリー選択」里逐格读）",
                           lambda p, d: [_PY, "-m", "hiro.memory_scan", "scan", "--out", str(d / "out.json")],
-                          lambda p: "扫描回忆库存（只读，不改编成）", output="memories"),
+                          lambda p: "扫描回忆库存（只读，不改编成）", output="memories", pausable=False),
 }
 
 
@@ -163,7 +164,8 @@ class Job:
     def describe(self) -> dict:
         return {"id": self.id, "kind": self.kind.name, "params": self.params, "state": self.state,
                 "summary": self.kind.summary(self.params), "started_at": self.started_at, "ended_at": self.ended_at,
-                "exit_code": self.exit_code, "pause_flag": str(self.flag), "dir": str(self.dir)}
+                "exit_code": self.exit_code, "pause_flag": str(self.flag), "dir": str(self.dir),
+                "pid": self.proc.pid if self.proc else None, "pausable": self.kind.pausable}
 
     def _save(self) -> None:
         (self.dir / "job.json").write_text(json.dumps(self.describe(), ensure_ascii=False), encoding="utf-8")
@@ -177,8 +179,8 @@ class Job:
         env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
         argv = self.kind.argv(self.params, self.dir)
         kw = {}
-        if sys.platform == "win32":
-            kw["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        if sys.platform == "win32":  # 服务没有控制台；不加 CREATE_NO_WINDOW 会给每个任务弹一个黑窗口，用户一关这局就没了
+            kw["creationflags"] = 0x00000200 | 0x08000000  # CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
         self.emit("start", self.kind.summary(self.params), kind=self.kind.name)
         self.proc = subprocess.Popen(argv, cwd=self.work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                      stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace", **kw)
@@ -229,15 +231,16 @@ class Job:
                 self._on_exit(self)
             except Exception as e:  # noqa: BLE001 收尾出错不影响任务状态
                 self.emit("import_failed", f"收尾出错：{e}")
+        # 先写结束事件、再改状态：客户端读到结束状态时，结束事件（含失败原因）一定已经在事件流里
         if self.state == "stopping":
-            self.state = "stopped"
             self.emit("stopped", "已停止")
+            self.state = "stopped"
         elif code == 0:
-            self.state = "done"
             self.emit("done", "完成")
+            self.state = "done"
         else:
-            self.state = "failed"
             self.emit("failed", f"任务出错退出（代码 {code}），看上面的日志", exit_code=code)
+            self.state = "failed"
         self._save()
 
     def pause(self, why: str, state: str) -> None:

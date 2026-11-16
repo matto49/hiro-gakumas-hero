@@ -44,7 +44,7 @@ def _status(a: dict) -> dict:
 
 @command("run events", Risk.READ, "读一个任务的事件（每一步的日志和结果）。--since 从第几条开始；--follow 一直跟到任务结束（每条事件一行 JSON）。",
          args=(Arg("--job", "任务编号（缺省：当前任务）"), Arg("--since", "从第几条事件开始", type="int", default=0),
-               Arg("--follow", "一直跟到任务结束", type="bool")))
+               Arg("--follow", "一直跟到任务结束", type="bool", agent=False)))
 def _events(a: dict) -> dict:
     body = {"job": a["job"], "since": a["since"]}
     if not a["follow"]:

@@ -24,6 +24,41 @@ from hiro.cli.jobs import KINDS, LIVE, Job, jobs_dir
 RECENT = 10
 
 
+def _is_our_python(pid: int) -> bool:
+    """pid 还活着，而且是一个 python 进程（防 pid 被别的程序复用时误杀）。"""
+    import subprocess
+
+    try:
+        if sys.platform == "win32":
+            out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"], capture_output=True, text=True,
+                                 timeout=10).stdout
+        else:
+            out = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True, timeout=10).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return "python" in out.lower()
+
+
+def _kill_orphan(pid) -> None:
+    import signal
+    import time
+
+    if not isinstance(pid, int) or pid <= 0 or not _is_our_python(pid):
+        return
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except OSError:
+        return
+    t0 = time.monotonic()
+    while time.monotonic() - t0 < 5 and _is_our_python(pid):
+        time.sleep(0.1)
+    if sys.platform != "win32" and _is_our_python(pid):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except OSError:
+            pass
+
+
 class Manager:
     def __init__(self, home: Path):
         self.home = home
@@ -39,6 +74,7 @@ class Manager:
             except (OSError, ValueError):
                 continue
             if rec.get("state") in LIVE + ("stopping",):
+                _kill_orphan(rec.get("pid"))  # 上一个服务的子进程还在点游戏：先停掉，免得两个主循环同时操作
                 rec["state"] = "lost"
                 p.write_text(json.dumps(rec, ensure_ascii=False), encoding="utf-8")
                 (p.parent / "pause.flag").unlink(missing_ok=True)
@@ -112,6 +148,9 @@ class Manager:
         job = self._job(jid)
         if job is None or job.state not in LIVE:
             return _err("no_job", "现在没有在跑的任务", "hiro run status 看状态")
+        if action in ("pause", "takeover") and not job.kind.pausable:
+            return _err("not_pausable", f"「{job.kind.summary(job.params)}」不能暂停或接手，只能停止",
+                        "要自己操作就先 hiro run stop（不会放弃培育）")
         if action == "pause":
             job.pause("用户暂停", "paused")
         elif action == "takeover":
@@ -190,6 +229,12 @@ def write_info(home: Path, port: int, token: str) -> Path:
 
 def main() -> int:
     home = ensure_home()
+    from hiro.cli.lock import FileLock
+
+    lock = FileLock(home / "service.lock")  # 整个服务进程一直拿着：同一个 HIRO_HOME 只能有一个服务
+    if not lock.acquire(blocking=False):
+        print("已经有一个 hiro 服务在跑", file=sys.stderr)
+        return 3
     srv, token = make_server(home)
     info = write_info(home, srv.server_port, token)
     try:

@@ -9,11 +9,11 @@ from hiro.cli.registry import Arg, CliError, Risk, command
 from hiro.cli.store import KINDS, open_store
 
 SCAN_HINT = {
-    "account": "还没读过首页数值：运行 hiro run start scan-account",
-    "idols": "还没扫描偶像卡：运行 hiro run start scan-idols",
+    "account": "还没读过首页数值（这一项的扫描还没做）",
+    "idols": "还没扫描偶像卡（这一项的扫描还没做，先在游戏里看）",
     "supports": "还没扫描支援卡：运行 hiro run start scan-supports",
     "memories": "还没扫描回忆：运行 hiro run start scan-memories",
-    "affection": "还没扫描好感度：运行 hiro run start scan-affection",
+    "affection": "还没扫描好感度（这一项的扫描还没做，先在游戏里看）",
 }
 
 

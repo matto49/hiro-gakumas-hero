@@ -37,6 +37,7 @@ type ToolArg struct {
 	Type     string   `json:"type"`
 	Required bool     `json:"required"`
 	Choices  []string `json:"choices,omitempty"`
+	Agent    *bool    `json:"agent,omitempty"` // false：不给模型（例如 run events --follow 会把对话卡到一局打完）
 }
 
 func (a ToolArg) positional() bool { return !strings.HasPrefix(a.Name, "-") }
@@ -107,6 +108,9 @@ func toolDefs(tools []ToolSpec) []toolDef {
 		props := map[string]any{}
 		required := []string{}
 		for _, a := range t.Args {
+			if a.Agent != nil && !*a.Agent {
+				continue
+			}
 			p := map[string]any{"description": a.Help}
 			switch a.Type {
 			case "int":
@@ -146,6 +150,9 @@ func toolArgv(t ToolSpec, arguments string) ([]string, error) {
 	argv := strings.Fields(t.Name)
 	var opts []string
 	for _, a := range t.Args {
+		if a.Agent != nil && !*a.Agent {
+			continue // 模型给了也不认
+		}
 		v, ok := in[a.key()]
 		if !ok || v == nil {
 			if a.Required || a.positional() {

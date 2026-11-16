@@ -37,6 +37,7 @@ class Arg:
     choices: tuple[str, ...] | None = None
     required: bool = False
     default: Any = None
+    agent: bool = True  # 给内置 agent 的工具描述里带不带这个参数（会卡住对话的不带）
 
     @property
     def positional(self) -> bool:
@@ -47,7 +48,8 @@ class Arg:
         return self.name.lstrip("-").replace("-", "_")
 
     def describe(self) -> dict:
-        d = {"name": self.name, "help": self.help, "type": self.type, "required": self.required or self.positional}
+        d = {"name": self.name, "help": self.help, "type": self.type, "required": self.required or self.positional,
+             "agent": self.agent}
         if self.choices:
             d["choices"] = list(self.choices)
         if self.default is not None:

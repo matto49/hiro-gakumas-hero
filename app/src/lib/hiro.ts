@@ -42,6 +42,8 @@ export interface Job {
   started_at: number;
   ended_at: number | null;
   exit_code: number | null;
+  /** 主循环认暂停旗标（对局）；日常、扫描只能停止 */
+  pausable?: boolean;
 }
 
 export interface JobEvent {

@@ -37,14 +37,37 @@ def _alive(info: dict | None) -> bool:
     if not info:
         return False
     try:
-        return _post(info, "ping", {}, timeout=2).get("ok") is True
+        return _post(info, "ping", {}, timeout=5).get("ok") is True
     except (urllib.error.URLError, OSError, ValueError):
         return False
 
 
 def _spawn() -> dict:
+    """拉起服务。拿着 spawn.lock 做：几个客户端同时发现服务没在跑时只拉起一个；服务锁被拿着（服务在跑、只是慢）就等它。"""
+    from hiro.cli.lock import FileLock, held_elsewhere
+
     home = ensure_home()
-    (home / "service.json").unlink(missing_ok=True)
+    with FileLock(home / "spawn.lock"):
+        info = _info()
+        if _alive(info):
+            return info
+        if not held_elsewhere(home / "service.lock"):
+            (home / "service.json").unlink(missing_ok=True)
+            _start_process(home)
+        return _wait_alive(home)
+
+
+def _wait_alive(home) -> dict:
+    t0 = time.time()
+    while time.time() - t0 < SPAWN_TIMEOUT:
+        info = _info()
+        if _alive(info):
+            return info
+        time.sleep(0.1)
+    raise CliError("service_down", "hiro 服务没能启动", f"看日志：{home / 'service.log'}")
+
+
+def _start_process(home) -> None:
     src = str(Path(__file__).resolve().parents[2])
     env = os.environ.copy()
     env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
@@ -53,13 +76,6 @@ def _spawn() -> dict:
         "creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
     subprocess.Popen([sys.executable, "-m", "hiro.cli.service"], stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                      env=env, cwd=home, **kw)
-    t0 = time.time()
-    while time.time() - t0 < SPAWN_TIMEOUT:
-        info = _info()
-        if _alive(info):
-            return info
-        time.sleep(0.1)
-    raise CliError("service_down", "hiro 服务没能启动", f"看日志：{home / 'service.log'}")
 
 
 def call(path: str, body: dict | None = None) -> dict:

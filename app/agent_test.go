@@ -13,9 +13,11 @@ import (
 	"testing"
 )
 
+var no = false
+
 var testTools = []ToolSpec{
 	{Name: "info supports", ToolName: "info_supports", Risk: "read", Help: "支援卡", Agent: true,
-		Args: []ToolArg{{Name: "--rarity", Help: "稀有度", Type: "string", Choices: []string{"SSR", "SR", "R"}}}},
+		Args: []ToolArg{{Name: "--rarity", Help: "稀有度", Type: "string", Choices: []string{"SSR", "SR", "R"}}, {Name: "--follow", Help: "跟到结束", Type: "bool", Agent: &no}}},
 	{Name: "run start", ToolName: "run_start", Risk: "act", Help: "开任务", Agent: true,
 		Args: []ToolArg{{Name: "kind", Help: "种类", Type: "string", Required: true}, {Name: "--no-llm", Help: "不用模型", Type: "bool"}, {Name: "--layers", Help: "层数", Type: "int"}}},
 	{Name: "confirm", ToolName: "confirm", Risk: "read", Help: "确认", Agent: false, Args: []ToolArg{{Name: "id", Type: "string", Required: true}}},
@@ -163,6 +165,9 @@ func TestToolDefinitionsOnlyAgentTools(t *testing.T) {
 	}
 	if strings.Join(names, ",") != "info_supports,run_start,secret_copy" {
 		t.Fatalf("names %v", names)
+	}
+	if _, ok := defs[0].Function.Parameters["properties"].(map[string]any)["follow"]; ok {
+		t.Fatal("agent=false 的参数不该给模型")
 	}
 	rs := defs[1].Function.Parameters
 	if req := rs["required"].([]string); len(req) != 1 || req[0] != "kind" {
