@@ -61,6 +61,7 @@ export function RunCard({ card, onOpen }: { card: Of<"run">; onOpen: (jobId: str
   const { job, state, steps, lastFrame, events } = useJob(card.jobId);
   const recent = steps.slice(-3).reverse();
   const end = [...events].reverse().find((e) => ["done", "failed", "stopped"].includes(e.type));
+  const imported = [...events].reverse().find((e) => e.type === "imported" || e.type === "import_failed");
   const logs = events.filter((e) => e.type === "log").slice(-2);
   const img = frameUrl(lastFrame);
   return (
@@ -87,6 +88,7 @@ export function RunCard({ card, onOpen }: { card: Of<"run">; onOpen: (jobId: str
                 {l.text}
               </span>
             ))}
+          {imported && <span className={cx("text-xs", imported.type === "import_failed" ? "text-err" : "text-ok")}>{imported.text}</span>}
           {end && <span className={cx("text-xs", end.type === "failed" ? "text-err" : "text-ok")}>{end.text}</span>}
           <div className="mt-auto">
             <Button onClick={() => onOpen(card.jobId)}>打开这局的驾驶舱</Button>

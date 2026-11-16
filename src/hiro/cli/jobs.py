@@ -224,6 +224,11 @@ class Job:
         self._read_steps()  # 最后几步
         self.flag.unlink(missing_ok=True)
         self.exit_code, self.ended_at = code, time.time()
+        if self._on_exit:  # 扫描结果入库等收尾：在结束事件之前做完，跟事件流的客户端看到结束时信息库已经更新
+            try:
+                self._on_exit(self)
+            except Exception as e:  # noqa: BLE001 收尾出错不影响任务状态
+                self.emit("import_failed", f"收尾出错：{e}")
         if self.state == "stopping":
             self.state = "stopped"
             self.emit("stopped", "已停止")
@@ -234,8 +239,6 @@ class Job:
             self.state = "failed"
             self.emit("failed", f"任务出错退出（代码 {code}），看上面的日志", exit_code=code)
         self._save()
-        if self._on_exit:
-            self._on_exit(self)
 
     def pause(self, why: str, state: str) -> None:
         self.flag.write_text(f"{int(time.time())} {why}\n", encoding="utf-8")

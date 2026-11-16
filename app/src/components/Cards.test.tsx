@@ -75,3 +75,29 @@ test("对话：点快捷指令 → 确认卡 → 点开始后出对局卡", asyn
   expect(fake.calls.some((c) => c.join(" ") === "confirm p9")).toBe(true);
   await waitFor(() => expect(saved.length).toBeGreaterThan(0));
 });
+
+test("扫描任务的对局卡写出信息库更新了几条", async () => {
+  const { RunCard } = await import("./Cards");
+  const fake = fakeCaller({
+    "run events": {
+      ok: true,
+      exit: 0,
+      data: {
+        job: "j1",
+        state: "done",
+        events: [
+          { seq: 0, t: 1, type: "start", text: "扫描支援卡库存（只读，不改编成）" },
+          { seq: 1, t: 2, type: "imported", text: "已更新信息库：67 条" },
+          { seq: 2, t: 3, type: "done", text: "完成" },
+        ],
+      },
+    },
+    "run status": { ok: true, exit: 0, data: { current: null, recent: [] } },
+  });
+  render(
+    <HiroCtx.Provider value={fake.call}>
+      <RunCard card={{ type: "run", jobId: "j1" }} onOpen={() => {}} />
+    </HiroCtx.Provider>,
+  );
+  await waitFor(() => expect(screen.getByText("已更新信息库：67 条")).toBeTruthy());
+});
