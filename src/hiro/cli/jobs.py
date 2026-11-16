@@ -23,6 +23,27 @@ import hiro
 REPO = Path(hiro.__file__).resolve().parents[2]  # 仓库根（tools/ 下的脚本从这里找）
 LIVE = ("running", "paused", "takeover")
 STOP_GRACE = 10.0
+TRACE_POLL = 0.5
+
+
+def step_event(rec: dict, trace: Path) -> dict:
+    """trace 的一步（steps.jsonl 一行）→ 事件字段：页面、动作、理由、谁定的（规则 / 算法 / LLM / 兜底）、截图。"""
+    obs = rec.get("observation") or {}
+    dec = rec.get("decision") or {}
+    seq = rec.get("seq")
+    frame = trace / "frames" / f"{int(seq):05d}.jpg" if isinstance(seq, int) or str(seq).isdigit() else None
+    return {
+        "step": seq,
+        "page": ((obs.get("page") or {}).get("name")),
+        "action": ((dec.get("action") or {}).get("kind")),
+        "args": ((dec.get("action") or {}).get("args")),
+        "source": dec.get("source"),
+        "decider": dec.get("decider"),
+        "warnings": dec.get("warnings") or [],
+        "notes": rec.get("notes") or [],
+        "frame": str(frame) if frame is not None and frame.is_file() else None,
+        "text": dec.get("reason") or "",
+    }
 
 
 @dataclass(frozen=True)
@@ -38,8 +59,15 @@ class Kind:
 _PY = sys.executable
 
 _SELFTEST = r"""
-import os, sys, time
+import json, os, sys, time
 flag = os.environ.get("HIRO_PAUSE_FLAG")
+trace = os.path.join("traces", sys.argv[2])
+os.makedirs(os.path.join(trace, "frames"), exist_ok=True)
+open(os.path.join(trace, "frames", "00001.jpg"), "wb").write(b"")
+step = {"seq": 1, "observation": {"page": {"name": "SELFTEST"}},
+        "decision": {"action": {"kind": "Wait"}, "reason": "自检：不碰游戏", "source": "rule", "decider": "selftest"},
+        "notes": []}
+open(os.path.join(trace, "steps.jsonl"), "a", encoding="utf-8").write(json.dumps(step, ensure_ascii=False) + "\n")
 n = max(1, int(float(sys.argv[1]) * 5))
 i = 0
 while i < n:
@@ -69,7 +97,7 @@ def _hif_summary(p: dict) -> str:
 
 
 KINDS: dict[str, Kind] = {
-    "selftest": Kind("selftest", "自检：只打印几行，不碰游戏", lambda p, d: [_PY, "-c", _SELFTEST, str(p.get("seconds") or 1)],
+    "selftest": Kind("selftest", "自检：只打印几行，不碰游戏", lambda p, d: [_PY, "-c", _SELFTEST, str(p.get("seconds") or 1), d.name],
                      lambda p: "跑一次自检（不碰游戏）"),
     "hif": Kind("hif", "H.I.F 培育：选拔 / 本战 / 续跑", _hif_argv, _hif_summary, env={"HIRO_RUNTIME": "own"}),
     "tower": Kind("tower", "偶像之路：按偶像路线往上爬",
@@ -103,6 +131,7 @@ class Job:
         self.work = home / "work"
         self.work.mkdir(parents=True, exist_ok=True)
         self.flag = self.dir / "pause.flag"
+        self.trace = self.work / "traces" / self.id  # hif / tower / selftest 用 --trace <任务编号>
         self.state = "running"
         self.started_at, self.ended_at, self.exit_code = time.time(), None, None
         self._lock = threading.Lock()
@@ -153,7 +182,36 @@ class Job:
         self.proc = subprocess.Popen(argv, cwd=self.work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                      stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace", **kw)
         self._save()
+        self._tail_pos = 0
+        self._tail_lock = threading.Lock()
         threading.Thread(target=self._pump, daemon=True).start()
+        threading.Thread(target=self._tail_trace, daemon=True).start()
+
+    def _read_steps(self) -> None:
+        with self._tail_lock:  # 跟读线程和收尾都会调
+            self._read_steps_locked()
+
+    def _read_steps_locked(self) -> None:
+        p = self.trace / "steps.jsonl"
+        if not p.is_file():
+            return
+        with p.open("rb") as f:
+            f.seek(self._tail_pos)
+            for raw in f:
+                if not raw.endswith(b"\n"):
+                    break  # 半行：下次再读
+                self._tail_pos += len(raw)
+                try:
+                    rec = json.loads(raw)
+                except ValueError:
+                    continue
+                ev = step_event(rec, self.trace)
+                self.emit("step", ev.pop("text"), **ev)
+
+    def _tail_trace(self) -> None:
+        while self.proc and self.proc.poll() is None:
+            self._read_steps()
+            time.sleep(TRACE_POLL)
 
     def _pump(self) -> None:
         assert self.proc and self.proc.stdout
@@ -162,6 +220,7 @@ class Job:
             if line:
                 self.emit("log", line)
         code = self.proc.wait()
+        self._read_steps()  # 最后几步
         self.flag.unlink(missing_ok=True)
         self.exit_code, self.ended_at = code, time.time()
         if self.state == "stopping":

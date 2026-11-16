@@ -91,3 +91,15 @@ def test_requests_without_token_are_refused(run_cli, service, hiro_home):
 def test_unknown_kind_is_a_usage_error(run_cli, service):
     code, env = run_cli("run", "start", "no-such-kind")
     assert code == 2 and env["error"]["code"] == "bad_args"
+
+
+def test_trace_steps_become_step_events(run_cli, service):
+    _, env = start(run_cli, "selftest", "--seconds", "1")
+    job = env["data"]["job"]["id"]
+    wait_state(run_cli, {"done"})
+    _, env = run_cli("run", "events", "--job", job)
+    steps = [e for e in env["data"]["events"] if e["type"] == "step"]
+    assert steps, env["data"]["events"]
+    s = steps[0]
+    assert s["page"] == "SELFTEST" and s["action"] == "Wait" and s["source"] == "rule"
+    assert s["text"] == "自检：不碰游戏" and s["frame"].endswith("00001.jpg")
