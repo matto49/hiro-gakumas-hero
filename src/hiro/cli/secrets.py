@@ -188,45 +188,85 @@ def _mac_write(value: str, clear_after: int) -> None:
 
 _WIN_CLEAR = r"""
 import ctypes, sys, time
+from ctypes import wintypes as w
 u = ctypes.windll.user32
+u.CreateWindowExW.restype = w.HWND
+u.OpenClipboard.argtypes = [w.HWND]
 seq = int(sys.argv[1]); time.sleep(int(sys.argv[2]))
-if u.GetClipboardSequenceNumber() == seq and u.OpenClipboard(None):
-    u.EmptyClipboard(); u.CloseClipboard()
+if u.GetClipboardSequenceNumber() == seq:
+    hwnd = u.CreateWindowExW(0, "STATIC", None, 0, 0, 0, 0, 0, None, None, None, None)
+    if u.OpenClipboard(hwnd):
+        u.EmptyClipboard(); u.CloseClipboard()
+    u.DestroyWindow(hwnd)
 """
 
 
-def _win_write(value: str, clear_after: int) -> None:
-    from ctypes import wintypes
+def _win_write(value: str, clear_after: int, u=None, k=None) -> None:
+    """Windows：用一个隐藏窗口当剪贴板所有者（OpenClipboard(NULL) 时 SetClipboardData 会失败），每一步都查返回值。
+    u / k 是 user32 / kernel32（测试里换成假的）。"""
+    from ctypes import wintypes as w
 
-    u, k = ctypes.windll.user32, ctypes.windll.kernel32  # type: ignore[attr-defined]
-    k.GlobalAlloc.restype = wintypes.HGLOBAL
-    k.GlobalLock.restype = ctypes.c_void_p
-    u.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
+    if u is None:
+        u, k = ctypes.windll.user32, ctypes.windll.kernel32  # type: ignore[attr-defined]
+    # 句柄都是指针宽度：不设 argtypes / restype 时 ctypes 按 32 位 int 截断，64 位上 GlobalLock 会拿到坏句柄
+    k.GlobalAlloc.argtypes, k.GlobalAlloc.restype = [w.UINT, ctypes.c_size_t], w.HGLOBAL
+    k.GlobalLock.argtypes, k.GlobalLock.restype = [w.HGLOBAL], ctypes.c_void_p
+    k.GlobalUnlock.argtypes, k.GlobalUnlock.restype = [w.HGLOBAL], w.BOOL
+    k.GlobalFree.argtypes, k.GlobalFree.restype = [w.HGLOBAL], w.HGLOBAL
+    u.CreateWindowExW.argtypes = [w.DWORD, w.LPCWSTR, w.LPCWSTR, w.DWORD, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                                  ctypes.c_int, w.HWND, w.HMENU, w.HINSTANCE, w.LPVOID]
+    u.CreateWindowExW.restype = w.HWND
+    u.DestroyWindow.argtypes, u.DestroyWindow.restype = [w.HWND], w.BOOL
+    u.OpenClipboard.argtypes, u.OpenClipboard.restype = [w.HWND], w.BOOL
+    u.EmptyClipboard.restype = w.BOOL
+    u.CloseClipboard.restype = w.BOOL
+    u.SetClipboardData.argtypes, u.SetClipboardData.restype = [w.UINT, w.HANDLE], w.HANDLE
+    u.RegisterClipboardFormatW.argtypes, u.RegisterClipboardFormatW.restype = [w.LPCWSTR], w.UINT
+    u.GetClipboardSequenceNumber.restype = w.DWORD
+
+    def fail(msg: str):
+        return CliError("clipboard", f"写剪贴板失败（{msg}）", "稍后重试；一直失败请反馈")
 
     def put(fmt: int, raw: bytes) -> None:
-        h = k.GlobalAlloc(0x0002, len(raw))
+        h = k.GlobalAlloc(0x0002, len(raw))  # GMEM_MOVEABLE
+        if not h:
+            raise fail("GlobalAlloc")
         p = k.GlobalLock(h)
+        if not p:
+            k.GlobalFree(h)
+            raise fail("GlobalLock")
         ctypes.memmove(p, raw, len(raw))
         k.GlobalUnlock(h)
-        u.SetClipboardData(fmt, h)
+        if not u.SetClipboardData(fmt, h):
+            k.GlobalFree(h)  # 没交给系统的内存要自己放
+            raise fail("SetClipboardData")
 
-    for _ in range(10):
-        if u.OpenClipboard(None):
-            break
+    hwnd = u.CreateWindowExW(0, "STATIC", None, 0, 0, 0, 0, 0, None, None, None, None)
+    if not hwnd:
+        raise fail("CreateWindowEx")
+    try:
         import time
 
-        time.sleep(0.05)
-    else:
-        raise CliError("clipboard", "剪贴板被别的程序占着", "稍后重试")
-    try:
-        u.EmptyClipboard()
-        put(13, (value + "\0").encode("utf-16-le"))  # CF_UNICODETEXT
-        put(u.RegisterClipboardFormatW("ExcludeClipboardContentFromMonitorProcessing"), b"\0\0\0\0")
-        put(u.RegisterClipboardFormatW("CanIncludeInClipboardHistory"), b"\0\0\0\0")
-        put(u.RegisterClipboardFormatW("CanUploadToCloudClipboard"), b"\0\0\0\0")
+        for _ in range(20):
+            if u.OpenClipboard(hwnd):
+                break
+            time.sleep(0.05)
+        else:
+            raise CliError("clipboard", "剪贴板被别的程序占着", "稍后重试")
+        try:
+            if not u.EmptyClipboard():
+                raise fail("EmptyClipboard")
+            put(13, (value + "\0").encode("utf-16-le"))  # CF_UNICODETEXT
+            for name in ("ExcludeClipboardContentFromMonitorProcessing", "CanIncludeInClipboardHistory", "CanUploadToCloudClipboard"):
+                fmt = u.RegisterClipboardFormatW(name)
+                if fmt:
+                    put(fmt, b"\0\0\0\0")
+        finally:
+            u.CloseClipboard()
+        seq = u.GetClipboardSequenceNumber()
     finally:
-        u.CloseClipboard()
-    _detach([sys.executable, "-c", _WIN_CLEAR, str(u.GetClipboardSequenceNumber()), str(clear_after)])
+        u.DestroyWindow(hwnd)
+    _detach([sys.executable, "-c", _WIN_CLEAR, str(seq), str(clear_after)])
 
 
 def write_clipboard(value: str, concealed: bool, clear_after: int) -> None:

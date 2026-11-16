@@ -72,3 +72,51 @@ def test_delete_removes_it(run_cli, stdin):
     run_cli("secret", "delete", "game-account")
     _, env = run_cli("secret", "list")
     assert env["data"]["secrets"] == []
+
+
+class _Fn:
+    def __init__(self, ret, log, name):
+        self.ret, self.log, self.name = ret, log, name
+        self.argtypes = self.restype = None
+
+    def __call__(self, *a):
+        self.log.append((self.name, a))
+        return self.ret(*a) if callable(self.ret) else self.ret
+
+
+class _Lib:
+    def __init__(self, log, **rets):
+        for name, ret in rets.items():
+            setattr(self, name, _Fn(ret, log, name))
+
+
+def _fake_win(log, *, lock=0x7FF000001000, set_data=1):
+    u = _Lib(log, CreateWindowExW=0x1234, DestroyWindow=1, OpenClipboard=1, EmptyClipboard=1, SetClipboardData=set_data,
+             CloseClipboard=1, RegisterClipboardFormatW=0xC100, GetClipboardSequenceNumber=7)
+    k = _Lib(log, GlobalAlloc=0x7FF000000F00, GlobalLock=lock, GlobalUnlock=1, GlobalFree=0)
+    return u, k
+
+
+def test_windows_clipboard_checks_every_step(monkeypatch):
+    import pytest
+
+    from hiro.cli import secrets as sec
+    from hiro.cli.registry import CliError
+
+    monkeypatch.setattr(sec, "_detach", lambda argv: None)
+    monkeypatch.setattr(sec.ctypes, "memmove", lambda *a: None)
+    log = []
+    u, k = _fake_win(log, lock=0)  # GlobalLock 失败
+    with pytest.raises(CliError):
+        sec._win_write("pw", 45, u=u, k=k)
+    assert ("CloseClipboard", ()) in log
+    log.clear()
+    u, k = _fake_win(log, set_data=0)  # SetClipboardData 失败
+    with pytest.raises(CliError):
+        sec._win_write("pw", 45, u=u, k=k)
+    log.clear()
+    u, k = _fake_win(log)
+    sec._win_write("pw", 45, u=u, k=k)
+    opened = [a for n, a in log if n == "OpenClipboard"]
+    assert opened and opened[0][0] == 0x1234  # 有所有者窗口，不是 None
+    assert k.GlobalLock.argtypes and k.GlobalLock.restype is not None  # 64 位句柄不被截断
