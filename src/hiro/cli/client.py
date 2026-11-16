@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import subprocess
@@ -38,7 +39,7 @@ def _alive(info: dict | None) -> bool:
         return False
     try:
         return _post(info, "ping", {}, timeout=5).get("ok") is True
-    except (urllib.error.URLError, OSError, ValueError):
+    except (urllib.error.URLError, OSError, ValueError, http.client.HTTPException):  # 服务正在退出时响应会被截断
         return False
 
 
@@ -85,7 +86,7 @@ def call(path: str, body: dict | None = None) -> dict:
         info = _spawn()
     try:
         return _post(info, path, body or {})
-    except (urllib.error.URLError, OSError) as e:
+    except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
         raise CliError("service_down", f"连不上 hiro 服务：{e}", "再试一次；一直这样运行 hiro doctor") from None
 
 
@@ -104,7 +105,7 @@ def shutdown() -> None:
     if _alive(info):
         try:
             _post(info, "shutdown", {}, timeout=5)
-        except (urllib.error.URLError, OSError):
+        except (urllib.error.URLError, OSError, http.client.HTTPException):
             pass
         t0 = time.time()
         while time.time() - t0 < 5 and _alive(info):

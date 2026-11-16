@@ -153,3 +153,17 @@ def test_hints_do_not_point_at_scans_that_do_not_exist(run_cli):
         for word in hint.split():
             assert not word.startswith("scan-") or word in KINDS, hint
     _, env = run_cli("info", "summary")
+
+
+def test_truncated_responses_do_not_escape_the_client(hiro_home, monkeypatch):
+    import http.client
+
+    from hiro.cli import client
+
+    def boom(*a, **kw):
+        raise http.client.IncompleteRead(b"")
+
+    monkeypatch.setattr(client, "_info", lambda: {"port": 1, "token": "x"})
+    monkeypatch.setattr(client, "_post", boom)
+    assert client._alive({"port": 1, "token": "x"}) is False
+    client.shutdown()  # 不抛
