@@ -80,3 +80,18 @@ func TestLiveCLIAgentAction(t *testing.T) {
 		t.Fatalf("want one confirm card, got %v", r.Cards)
 	}
 }
+
+// 实测：模拟 Finder 启动的最小 PATH，fixPath 之后能找到 claude / codex（HIRO_LIVE=path）。
+func TestLiveFixPath(t *testing.T) {
+	if os.Getenv("HIRO_LIVE") != "path" {
+		t.Skip("设 HIRO_LIVE=path 才跑")
+	}
+	fixPath()
+	for _, name := range []string{"claude", "codex", "git"} {
+		p, err := exec.LookPath(name)
+		t.Logf("%s → %s %v", name, p, err)
+		if err != nil {
+			t.Fail()
+		}
+	}
+}

@@ -10,6 +10,7 @@ import (
 )
 
 func main() {
+	fixPath()
 	hiro := &Hiro{}
 	mygo.Bind(hiro)
 	mygo.Bind(&Assistant{Home: HiroHome(), Keys: systemKeys{}, Hiro: hiro})
