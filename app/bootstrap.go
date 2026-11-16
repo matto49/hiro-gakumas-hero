@@ -42,6 +42,9 @@ type BootEnv struct {
 // needFree 是装环境要的磁盘空间（Python、依赖、游戏数据、下载缓存；2026-11-17 实测装到一半已占 2.5 GB）。
 const needFree = 6 << 30
 
+// installedMarker 是安装脚本整个跑完后写的标记：setup.sh 第 2 步就建好了 .venv，只看 .venv 会把装了一半当成装好了。
+const installedMarker = ".hiro-installed"
+
 const (
 	defaultRepoURL = "https://github.com/matto49/hiro-gakumas-hero"
 	defaultRepoRef = "main"
@@ -59,7 +62,7 @@ func venvPython(home, goos string) string {
 // PlanBootstrap 算出还差哪几步；已经装好时返回空。缺 git / uv 时返回带白话提示的错误。
 func PlanBootstrap(e BootEnv) ([]Step, *CliError) {
 	src := filepath.Join(e.Home, "src")
-	if e.Exists(filepath.Join(src, ".git")) && e.Exists(venvPython(e.Home, e.GOOS)) {
+	if e.Exists(filepath.Join(src, ".git")) && e.Exists(venvPython(e.Home, e.GOOS)) && e.Exists(filepath.Join(src, installedMarker)) {
 		return nil, nil
 	}
 	uvName := "uv"
@@ -204,6 +207,18 @@ func (b *Bootstrap) Run(ctx context.Context, ch *mygo.Channel[Progress]) error {
 			return errors.New(st.Title + "失败：" + err.Error() + "（看上面的输出；网络问题可以稍后重试）")
 		}
 	}
+	if err := os.WriteFile(filepath.Join(b.Home, "src", installedMarker), []byte(time.Now().Format(time.RFC3339)+"\n"), 0o644); err != nil {
+		return err
+	}
 	b.Hiro.reset() // 下次调用重新找 hiro（改用新装的 Python）
 	return nil
+}
+
+// Reset 去掉「装完」标记：下次「安装」会重跑安装脚本（已有的步骤脚本自己会跳过）。设置 → 环境 → 重新安装用。
+func (b *Bootstrap) Reset() error {
+	err := os.Remove(filepath.Join(b.Home, "src", installedMarker))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return err
 }

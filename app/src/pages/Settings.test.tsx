@@ -63,3 +63,29 @@ test("账号密码只显示有没有保存", async () => {
   expect(screen.getAllByText("已保存").length).toBeGreaterThan(0);
   expect(screen.getByText("游戏密码").parentElement!.textContent).toContain("没保存");
 });
+
+test("环境：重新安装会先去掉装完标记再跑安装", async () => {
+  const { BootCtx } = await import("../lib/bootstrap");
+  const order: string[] = [];
+  const boot = {
+    status: async () => ({ ready: true, steps: [] }),
+    reset: async () => void order.push("reset"),
+    run: async (onLine: (p: { step: string; line: string }) => void) => {
+      order.push("run");
+      onLine({ step: "setup", line: "==> 1/7 KAA 子模块" });
+    },
+  };
+  const fake = fakeAssistant({ provider: "", has_key: false });
+  render(
+    <BootCtx.Provider value={boot}>
+      <HiroCtx.Provider value={hiro.call}>
+        <AssistantCtx.Provider value={fake.api}>
+          <SettingsPage onChanged={() => {}} />
+        </AssistantCtx.Provider>
+      </HiroCtx.Provider>
+    </BootCtx.Provider>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "重新安装" }));
+  await waitFor(() => expect(screen.getByText("==> 1/7 KAA 子模块")).toBeTruthy());
+  expect(order).toEqual(["reset", "run"]);
+});

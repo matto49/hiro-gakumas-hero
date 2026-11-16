@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Button, Panel, cx } from "../components/ui";
 import { PROVIDER_LABEL, useAssistant, type Settings } from "../lib/assistant";
+import { useBoot } from "../lib/bootstrap";
 import { data, useHiro } from "../lib/hiro";
 
 const SECRETS: [string, string][] = [
@@ -158,6 +159,42 @@ export function SecretsSection() {
   );
 }
 
+function EnvSection() {
+  const boot = useBoot();
+  const [lines, setLines] = useState<string[]>([]);
+  const [running, setRunning] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const reinstall = async () => {
+    setRunning(true);
+    setMsg(null);
+    setLines([]);
+    try {
+      await boot.reset?.();
+      await boot.run((p) => setLines((ls) => [...ls.slice(-200), p.line]));
+      setMsg({ ok: true, text: "装好了" });
+    } catch (e) {
+      setMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setRunning(false);
+    }
+  };
+  return (
+    <Panel className="flex flex-col gap-3">
+      <h2 className="m-0 text-[15px] font-bold">环境</h2>
+      <div className="text-xs text-ink-2">小广的运行环境（Python、依赖、游戏数据）。出错卡让你重新安装时点这里；已经装好的部分会跳过，一般几分钟。</div>
+      <div className="flex items-center gap-2">
+        <Button disabled={running} onClick={reinstall}>
+          {running ? "安装中…" : "重新安装"}
+        </Button>
+        {msg && <span className={cx("text-xs", msg.ok ? "text-ok" : "text-err")}>{msg.text}</span>}
+      </div>
+      {lines.length > 0 && (
+        <pre className="m-0 max-h-56 overflow-auto rounded-lg bg-[#1d1915] p-2.5 text-[11px] leading-[1.45] whitespace-pre-wrap text-[#d9d0c5]">{lines.slice(-40).join("\n")}</pre>
+      )}
+    </Panel>
+  );
+}
+
 function RedoWizard({ onChanged }: { onChanged: () => void }) {
   const api = useAssistant();
   return (
@@ -184,6 +221,7 @@ export function SettingsPage({ onChanged }: { onChanged: () => void }) {
       <div className="flex max-w-[640px] flex-col gap-4">
         <ModelSection onChanged={onChanged} />
         <SecretsSection />
+        <EnvSection />
         <RedoWizard onChanged={onChanged} />
       </div>
     </div>

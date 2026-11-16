@@ -110,6 +110,8 @@ export const Threads = {
 
 /** Bootstrap 是安装入口（绑定给网页）。 */
 export const Bootstrap = {
+  /** Reset 去掉「装完」标记：下次「安装」会重跑安装脚本（已有的步骤脚本自己会跳过）。设置 → 环境 → 重新安装用。 */
+  reset: bind<[], void>("Bootstrap.Reset", () => []),
   /** Run 一步步装，每行输出经 ch 送给网页。装好后让 Hiro 改用新装的 Python。 */
   run: bind<[Channel<Progress>], void>("Bootstrap.Run", (ch: Channel<Progress>) => [ch]),
   /** Status 看还差哪几步。开发时设了 HIRO_CLI 就当已经装好。 */

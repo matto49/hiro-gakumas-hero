@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -51,8 +52,8 @@ func TestPlanFreshMacClonesThenRunsSetupWithBundledUV(t *testing.T) {
 	}
 }
 
-func TestPlanIsEmptyOnceTheVenvExists(t *testing.T) {
-	steps, err := PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "path:git", "/h/src/.git", "/h/src/.venv/bin/python"))
+func TestPlanIsEmptyOnceInstalled(t *testing.T) {
+	steps, err := PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "path:git", "/h/src/.git", "/h/src/.venv/bin/python", "/h/src/.hiro-installed"))
 	if err != nil || len(steps) != 0 {
 		t.Fatalf("steps %v err %v", ids(steps), err)
 	}
@@ -111,5 +112,31 @@ func TestFreeBytesReadsTheRealDisk(t *testing.T) {
 	n, err := freeBytes(filepath.Join(t.TempDir(), "not", "yet"))
 	if err != nil || n == 0 {
 		t.Fatalf("free %d err %v", n, err)
+	}
+}
+
+func TestHalfFinishedInstallIsNotReady(t *testing.T) {
+	// setup.sh 第 2 步就建好了 .venv：没有「装完」标记就还要再跑 setup
+	steps, _ := PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "path:git", "/h/src/.git", "/h/src/.venv/bin/python"))
+	if ids(steps) != "setup" {
+		t.Fatalf("steps %s", ids(steps))
+	}
+	steps, _ = PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "path:git", "/h/src/.git", "/h/src/.venv/bin/python", "/h/src/.hiro-installed"))
+	if len(steps) != 0 {
+		t.Fatalf("steps %s", ids(steps))
+	}
+}
+
+func TestResetRemovesTheMarker(t *testing.T) {
+	home := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(home, "src"), 0o755)
+	m := filepath.Join(home, "src", installedMarker)
+	_ = os.WriteFile(m, nil, 0o644)
+	b := &Bootstrap{Home: home, Hiro: &Hiro{}}
+	if err := b.Reset(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(m); err == nil {
+		t.Fatal("marker still there")
 	}
 }
