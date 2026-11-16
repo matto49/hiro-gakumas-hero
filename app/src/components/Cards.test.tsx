@@ -50,9 +50,22 @@ test("对话：点快捷指令 → 确认卡 → 点开始后出对局卡", asyn
     "confirm p9": { ok: true, exit: 0, data: { job: { id: "j9", state: "running", summary: "领日常奖励" } } },
     "run events": { ok: true, exit: 0, data: { job: "j9", state: "running", events: [] } },
   });
+  const { AssistantCtx } = await import("../lib/assistant");
+  const saved: unknown[] = [];
+  const api = {
+    settings: async () => ({ provider: "" as const, has_key: false }),
+    save: async () => {},
+    test: async () => ({ ok: true, message: "" }),
+    ask: async () => ({ cards: [] }),
+    listThreads: async () => [],
+    saveThread: async (t: unknown) => void saved.push(t),
+    deleteThread: async () => {},
+  };
   render(
     <HiroCtx.Provider value={fake.call}>
-      <App />
+      <AssistantCtx.Provider value={api}>
+        <App />
+      </AssistantCtx.Provider>
     </HiroCtx.Provider>,
   );
   fireEvent.click(screen.getByRole("button", { name: "帮我领日常奖励" }));
@@ -60,4 +73,5 @@ test("对话：点快捷指令 → 确认卡 → 点开始后出对局卡", asyn
   fireEvent.click(screen.getByRole("button", { name: "开始" }));
   await waitFor(() => expect(screen.getByRole("button", { name: "打开这局的驾驶舱" })).toBeTruthy());
   expect(fake.calls.some((c) => c.join(" ") === "confirm p9")).toBe(true);
+  await waitFor(() => expect(saved.length).toBeGreaterThan(0));
 });

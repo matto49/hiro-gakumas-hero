@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chat } from "./components/Chat";
 import { RightPanel } from "./components/RightPanel";
 import { Sidebar, type View } from "./components/Sidebar";
 import { quickAgent, type Agent } from "./lib/agent";
+import { modelAgent, useAssistant, type Settings } from "./lib/assistant";
+import type { Thread } from "./lib/chat";
 import { cardsFor } from "./lib/quick";
 import { data, useHiro, type Envelope, type Job, type Summary } from "./lib/hiro";
 import { STATE_LABEL } from "./lib/labels";
 import { useThreads } from "./lib/threads";
 import { Cockpit } from "./pages/Cockpit";
 import { InfoPage } from "./pages/InfoPage";
+import { SettingsPage } from "./pages/Settings";
 
 const STATUS_POLL_MS = 2000;
 
@@ -38,23 +41,69 @@ function useStatus() {
   return { current, summary };
 }
 
+/** 对话存到本机（Go 侧 Threads）：启动时读回来，改了半秒后写回去。 */
+function usePersistence(t: ReturnType<typeof useThreads>) {
+  const api = useAssistant();
+  const loaded = useRef(false);
+  const saved = useRef(new Map<string, number>());
+  useEffect(() => {
+    api
+      .listThreads()
+      .then((list) => {
+        const ok = list.filter((x): x is Thread => !!x && Array.isArray((x as Thread).messages));
+        if (ok.length) {
+          ok.forEach((x) => saved.current.set(x.id, x.updatedAt));
+          t.setThreads(ok);
+          t.setActive(ok[0]!.id);
+        }
+      })
+      .catch(() => {})
+      .finally(() => (loaded.current = true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [api]);
+  useEffect(() => {
+    if (!loaded.current) return;
+    const timer = setTimeout(() => {
+      for (const th of t.threads) {
+        if (th.messages.length && saved.current.get(th.id) !== th.updatedAt) {
+          saved.current.set(th.id, th.updatedAt);
+          api.saveThread(th).catch(() => {});
+        }
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [t.threads, api]);
+}
+
 export function App({ agent: agentProp }: { agent?: Agent }) {
   const call = useHiro();
-  const agent = useMemo(() => agentProp ?? quickAgent(call), [agentProp, call]);
+  const api = useAssistant();
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const reloadSettings = useCallback(() => {
+    api.settings().then(setSettings, () => setSettings({ provider: "", has_key: false }));
+  }, [api]);
+  useEffect(reloadSettings, [reloadSettings]);
+  const quick = useMemo(() => quickAgent(call), [call]);
+  const agent = useMemo(() => {
+    if (agentProp) return agentProp;
+    const ready = settings && (settings.provider === "codex" || settings.provider === "claude" || (settings.provider === "deepseek" && settings.has_key));
+    return ready ? modelAgent(api, settings!) : quick;
+  }, [agentProp, settings, api, quick]);
   const t = useThreads();
+  usePersistence(t);
   const [view, setView] = useState<View>({ name: "chat" });
   const [thinking, setThinking] = useState(false);
   const { current, summary } = useStatus();
   const thread = t.threads.find((x) => x.id === t.active) ?? t.threads[0]!;
 
-  const ask = useCallback(
-    async (text: string) => {
+  const askWith = useCallback(
+    async (who: Agent, text: string) => {
       setView({ name: "chat" });
       const tid = thread.id;
       t.add(tid, { role: "user", text, cards: [] });
       setThinking(true);
       try {
-        const r = await agent.ask(text, thread);
+        const r = await who.ask(text, thread);
         t.add(tid, { role: "agent", text: r.text, cards: r.cards });
       } catch (e) {
         t.add(tid, { role: "agent", cards: [{ type: "error", error: { code: "agent", message: `小广出错了：${String(e)}`, hint: "再试一次；一直这样到设置里检查模型" } }] });
@@ -62,8 +111,10 @@ export function App({ agent: agentProp }: { agent?: Agent }) {
         setThinking(false);
       }
     },
-    [agent, thread, t],
+    [thread, t],
   );
+  const ask = useCallback((text: string) => askWith(agent, text), [askWith, agent]);
+  const onQuick = useCallback((text: string) => askWith(quick, text), [askWith, quick]);
 
   const onConfirmResolved = useCallback(
     (msgId: string, i: number, r: Envelope, action: "confirm" | "cancel") => {
@@ -109,7 +160,7 @@ export function App({ agent: agentProp }: { agent?: Agent }) {
             quickOnly={agent.quickOnly}
             h={{
               onSend: ask,
-              onQuick: ask,
+              onQuick,
               onConfirmResolved,
               onOpenJob: (jobId) => setView({ name: "cockpit", jobId }),
               onOpenInfo: (kind) => setView({ name: "info", kind }),
@@ -122,7 +173,11 @@ export function App({ agent: agentProp }: { agent?: Agent }) {
             <InfoPage kind={view.kind} onAsk={ask} />
           </div>
         )}
-        {view.name === "settings" && <div className="p-6 text-ink-2">设置（模型、账号密码、环境）在后面的步骤里做。</div>}
+        {view.name === "settings" && (
+          <div className="min-w-0 flex-1">
+            <SettingsPage onChanged={reloadSettings} />
+          </div>
+        )}
       </main>
       {view.name !== "cockpit" && <RightPanel liveJob={current?.id ?? null} summary={summary} onOpenInfo={(kind) => setView({ name: "info", kind })} />}
     </div>

@@ -34,3 +34,20 @@ test("决策出处的叫法", () => {
   expect(sourceLabel("rescue")).toBe("兜底");
   expect(sourceLabel(null)).toBe("自动");
 });
+
+test("卡片写进对话历史时变成一句话", async () => {
+  const { historyOf } = await import("./assistant");
+  const h = historyOf({
+    id: "t",
+    title: "x",
+    updatedAt: 0,
+    messages: [
+      { id: "1", role: "user", text: "领日常", cards: [], at: 0 },
+      { id: "2", role: "agent", text: "好", cards: [{ type: "confirm", pending: { id: "p", command: "run start", summary: "领日常奖励", expires_at: 1 }, status: "confirmed" }], at: 0 },
+    ],
+  });
+  expect(h).toEqual([
+    { role: "user", content: "领日常" },
+    { role: "assistant", content: "好\n[确认卡：领日常奖励，玩家已确认、已开始]" },
+  ]);
+});

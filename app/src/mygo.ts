@@ -19,6 +19,12 @@ export interface Pending {
   expires_at: number;
 }
 
+/** Reply 是 agent 这一轮的回答：一段话 + 卡片（形状和前端 src/lib/chat.ts 的 Card 一致）。 */
+export interface Reply {
+  text: string;
+  cards: Record<string, unknown>[];
+}
+
 /** Result 是一次命令的结果：信封原样带回，再加上退出码和解析出的待确认。 */
 export interface Result {
   ok: boolean;
@@ -26,6 +32,27 @@ export interface Result {
   error?: CliError;
   pending?: Pending;
   exit: number;
+}
+
+/** Settings 是模型设置（不含 Key）。 */
+export interface Settings {
+  /** "" / deepseek / codex / claude */
+  provider: string;
+  model?: string;
+  base_url?: string;
+  has_key: boolean;
+}
+
+/** TestResult 是「测试」按钮的结果。 */
+export interface TestResult {
+  ok: boolean;
+  message: string;
+}
+
+/** Turn 是交给模型的一轮对话（界面把卡片写成一句话放进 content）。 */
+export interface Turn {
+  role: string;
+  content: string;
 }
 
 // ---- Services ----
@@ -36,4 +63,26 @@ export const Hiro = {
   call: bind<[string[]], Result>("Hiro.Call", (args: string[]) => [args]),
   /** SetSecret 保存一个账号或密码：值只经 stdin 交给 hiro secret set，不进命令行参数、不进日志。 */
   setSecret: bind<[string, string], Result>("Hiro.SetSecret", (name: string, value: string) => [name, value]),
+} as const;
+
+/** Assistant 是界面用的对话入口（绑定给网页）。 */
+export const Assistant = {
+  /** Ask 让小广回答一句话（history 是之前的对话）。 */
+  ask: bind<[Turn[], string], Reply>("Assistant.Ask", (history: Turn[], text: string) => [history, text]),
+  /** Save 保存模型设置；key 非空时存进钥匙串（空的不动已存的）。 */
+  save: bind<[Settings, string], void>("Assistant.Save", (s: Settings, key: string) => [s, key]),
+  /** Settings 读模型设置。 */
+  settings: bind<[], Settings>("Assistant.Settings", () => []),
+  /** Test 试一下当前的模型配置能不能用（不调工具）。 */
+  test: bind<[], TestResult>("Assistant.Test", () => []),
+} as const;
+
+/** Threads 把对话存在 HIRO_HOME/threads/<编号>.json（界面原样存取，Go 不解析内容）。 */
+export const Threads = {
+  /** Delete 删一个对话。 */
+  delete: bind<[string], void>("Threads.Delete", (id: string) => [id]),
+  /** List 返回全部对话（新的在前）。 */
+  list: bind<[], unknown[]>("Threads.List", () => []),
+  /** Save 存一个对话。 */
+  save: bind<[string, unknown], void>("Threads.Save", (id: string, thread: unknown) => [id, thread]),
 } as const;
