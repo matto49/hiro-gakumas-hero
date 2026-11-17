@@ -7,7 +7,9 @@ import sys
 import time
 
 from hiro.cli import client
-from hiro.cli.jobs import KINDS, LIVE
+import os
+
+from hiro.cli.jobs import KINDS, LIVE, LLM_VARS
 from hiro.cli.registry import Arg, Risk, command
 
 _TERMINAL_WAIT = 0.5
@@ -34,7 +36,9 @@ def _summary(a: dict) -> str:
                Arg("--no-llm", "决策只用规则和算法，不调用模型", type="bool")),
          confirm_summary=_summary)
 def _start(a: dict) -> dict:
-    return client.data("start", {"kind": a["kind"], "params": _params(a)})
+    # 对局用哪个模型：跟着发起开局的这个进程的环境（桌面程序按模型设置传；终端里就是自己 shell 的 HIRO_LLM）
+    llm_env = {k: os.environ[k] for k in LLM_VARS if os.environ.get(k)}
+    return client.data("start", {"kind": a["kind"], "params": _params(a), "llm_env": llm_env})
 
 
 @command("run status", Risk.READ, "现在在跑什么任务（状态：running / paused / takeover / stopping），以及最近 10 个任务。")

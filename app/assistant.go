@@ -29,7 +29,7 @@ import (
 
 // Settings 是模型设置（不含 Key）。
 type Settings struct {
-	Provider string `json:"provider"` // "" / deepseek / codex / claude
+	Provider string `json:"provider"` // deepseek（缺省）/ codex / claude / none（不用模型）
 	Model    string `json:"model,omitempty"`
 	BaseURL  string `json:"base_url,omitempty"`
 	HasKey   bool   `json:"has_key"`
@@ -81,6 +81,9 @@ func (a *Assistant) Settings() Settings {
 	if b, err := os.ReadFile(a.settingsPath()); err == nil {
 		_ = json.Unmarshal(b, &s)
 	}
+	if s.Provider == "" {
+		s.Provider = "deepseek" // 缺省用 DeepSeek
+	}
 	s.HasKey = false
 	if s.Provider == "deepseek" {
 		if k, err := a.Keys.Get(deepseekKeyName); err == nil && k != "" {
@@ -90,9 +93,35 @@ func (a *Assistant) Settings() Settings {
 	return s
 }
 
+// JobEnv 是开局时交给工具层的模型设置（对局里的 LLM 跟着这里走，hiro.brain.llm 读这些变量）：
+// DeepSeek 有 Key → OpenAI 兼容接口；Claude / Codex → 本机命令行；不用模型或 DeepSeek 没填 Key → off（只用规则和算法）。
+func (a *Assistant) JobEnv() []string {
+	s := a.Settings()
+	switch s.Provider {
+	case "claude":
+		return []string{"HIRO_LLM=claude:sonnet"}
+	case "codex":
+		return []string{"HIRO_LLM=codex"}
+	case "deepseek":
+		key, err := a.Keys.Get(deepseekKeyName)
+		if err != nil || key == "" {
+			break
+		}
+		url, model := s.BaseURL, s.Model
+		if url == "" {
+			url = DefaultDeepSeekURL
+		}
+		if model == "" {
+			model = DefaultDeepSeekModel
+		}
+		return []string{"HIRO_LLM=openai:" + model, "OPENAI_BASE_URL=" + url, "OPENAI_API_KEY=" + key}
+	}
+	return []string{"HIRO_LLM=off"}
+}
+
 // Save 保存模型设置；key 非空时存进钥匙串（空的不动已存的）。
 func (a *Assistant) Save(s Settings, key string) error {
-	if s.Provider != "" && s.Provider != "deepseek" && s.Provider != "codex" && s.Provider != "claude" {
+	if s.Provider != "" && s.Provider != "deepseek" && s.Provider != "codex" && s.Provider != "claude" && s.Provider != "none" {
 		return fmt.Errorf("不认识的服务商 %q", s.Provider)
 	}
 	if k := strings.TrimSpace(key); k != "" {
@@ -100,7 +129,9 @@ func (a *Assistant) Save(s Settings, key string) error {
 			return fmt.Errorf("Key 存不进系统钥匙串：%w", err)
 		}
 	}
-	s.HasKey = false
+	// has_key 只记「有没有」（给 hiro doctor 看），Key 本身只在钥匙串里
+	k, err := a.Keys.Get(deepseekKeyName)
+	s.HasKey = err == nil && k != ""
 	b, _ := json.MarshalIndent(s, "", "  ")
 	if err := os.MkdirAll(a.Home, 0o755); err != nil {
 		return err

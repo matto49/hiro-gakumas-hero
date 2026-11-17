@@ -96,7 +96,7 @@ class Manager:
         cur = self.current if self.current and self.current.state in LIVE + ("stopping",) else None
         return {"current": cur.describe() if cur else None, "recent": self._recent()}
 
-    def start(self, kind: str, params: dict) -> dict:
+    def start(self, kind: str, params: dict, llm_env: dict | None = None) -> dict:
         if kind not in KINDS:
             return _err("bad_args", f"没有这种任务：{kind}", "可选：" + "、".join(KINDS))
         with self.lock:
@@ -104,7 +104,7 @@ class Manager:
             if cur and cur.state in LIVE + ("stopping",):
                 return _err("busy", f"已经有任务在跑：{cur.kind.summary(cur.params)}",
                             "同一时间只能跑一个对局或扫描；等它结束，或 hiro run stop")
-            job = Job(self.home, KINDS[kind], params, on_exit=self._exited)
+            job = Job(self.home, KINDS[kind], params, on_exit=self._exited, llm_env=llm_env)
             self.jobs[job.id] = job
             self.current = job
             try:
@@ -186,7 +186,7 @@ def make_server(home: Path) -> tuple[ThreadingHTTPServer, str]:
             elif path == "status":
                 res = {"ok": True, "data": mgr.status()}
             elif path == "start":
-                res = mgr.start(body.get("kind", ""), body.get("params") or {})
+                res = mgr.start(body.get("kind", ""), body.get("params") or {}, body.get("llm_env") or {})
             elif path == "events":
                 res = mgr.events(body.get("job"), int(body.get("since") or 0))
             elif path in ("pause", "takeover", "resume", "stop"):

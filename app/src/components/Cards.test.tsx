@@ -53,7 +53,7 @@ test("对话：点快捷指令 → 确认卡 → 点开始后出对局卡", asyn
   const { AssistantCtx } = await import("../lib/assistant");
   const saved: unknown[] = [];
   const api = {
-    settings: async () => ({ provider: "" as const, has_key: false, wizard_done: true }),
+    settings: async () => ({ provider: "deepseek" as const, has_key: false, wizard_done: true }),
     save: async () => {},
     test: async () => ({ ok: true, message: "" }),
     ask: async () => ({ cards: [] }),
@@ -68,6 +68,7 @@ test("对话：点快捷指令 → 确认卡 → 点开始后出对局卡", asyn
       </AssistantCtx.Provider>
     </HiroCtx.Provider>,
   );
+  await waitFor(() => expect(screen.getByText(/DeepSeek（还没填 Key）/)).toBeTruthy());
   fireEvent.click(screen.getByRole("button", { name: "帮我领日常奖励" }));
   await waitFor(() => expect(screen.getByRole("button", { name: "开始" })).toBeTruthy());
   fireEvent.click(screen.getByRole("button", { name: "开始" }));

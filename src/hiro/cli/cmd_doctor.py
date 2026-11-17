@@ -78,10 +78,15 @@ def _settings() -> dict:
 
 
 def _model() -> dict:
-    p = _settings().get("provider") or ""
-    if p in PROVIDERS:
-        return _item("model", "AI 模型", True, f"已选 {PROVIDERS[p]}", optional=True)
-    return _item("model", "AI 模型", False, "还没配模型：只能用快捷指令，对局决策只用规则和算法", "到设置里选 DeepSeek 并填 API Key（可以跳过）", optional=True)
+    st = _settings()
+    p = st.get("provider") or "deepseek"  # 缺省 DeepSeek
+    if p == "none":
+        return _item("model", "AI 模型", False, "选了不用模型：只能用快捷指令，对局决策只用规则和算法",
+                     "到设置里选 DeepSeek 并填 API Key（可以跳过）", optional=True)
+    if p == "deepseek" and not st.get("has_key"):
+        return _item("model", "AI 模型", False, "默认用 DeepSeek，但还没填 API Key：现在只能用快捷指令，对局决策只用规则和算法",
+                     "到设置里填 DeepSeek 的 API Key（可以跳过）", optional=True)
+    return _item("model", "AI 模型", True, f"已选 {PROVIDERS.get(p, p)}", optional=True)
 
 
 def _secrets() -> dict:

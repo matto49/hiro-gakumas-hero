@@ -4,7 +4,8 @@ import type { Card, Thread } from "./chat";
 import type { Agent, Reply } from "./agent";
 
 export interface Settings {
-  provider: "" | "deepseek" | "codex" | "claude";
+  /** deepseek 是缺省；none = 不用模型 */
+  provider: "deepseek" | "codex" | "claude" | "none";
   model?: string;
   base_url?: string;
   has_key: boolean;
@@ -45,11 +46,19 @@ export function useAssistant(): AssistantApi {
 }
 
 export const PROVIDER_LABEL: Record<Settings["provider"], string> = {
-  "": "未配置（快捷指令）",
   deepseek: "DeepSeek",
-  codex: "Codex",
   claude: "Claude",
+  codex: "Codex",
+  none: "不用模型",
 };
+
+/** 侧栏上的模型名：没法用的时候写清楚为什么只能点快捷指令。 */
+export function modelLabel(s: Settings | null): string {
+  if (!s) return "…";
+  if (s.provider === "deepseek" && !s.has_key) return "DeepSeek（还没填 Key）";
+  if (s.provider === "none") return "不用模型（快捷指令）";
+  return PROVIDER_LABEL[s.provider] + (s.provider === "deepseek" && s.model ? ` · ${s.model}` : "");
+}
 
 /** 卡片写成一句话，放进交给模型的对话历史。 */
 export function cardText(c: Card): string {
@@ -77,7 +86,7 @@ export function historyOf(t: Thread, limit = 20): Turn[] {
 export function modelAgent(api: AssistantApi, s: Settings): Agent {
   return {
     quickOnly: false,
-    label: PROVIDER_LABEL[s.provider] + (s.provider === "deepseek" && s.model ? ` · ${s.model}` : ""),
+    label: modelLabel(s),
     ask: (text, thread) => api.ask(historyOf(thread), text),
   };
 }

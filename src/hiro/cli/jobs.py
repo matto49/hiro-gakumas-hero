@@ -22,6 +22,8 @@ import hiro
 
 REPO = Path(hiro.__file__).resolve().parents[2]  # 仓库根（tools/ 下的脚本从这里找）
 LIVE = ("running", "paused", "takeover")
+# 对局里用的 LLM（hiro.brain.llm.from_spec 读这些）：桌面程序按模型设置在确认开局时传过来；HIRO_LLM=off 表示只用规则和算法
+LLM_VARS = ("HIRO_LLM", "OPENAI_BASE_URL", "OPENAI_API_KEY", "HIRO_CODEX_BIN")
 STOP_GRACE = 10.0
 TRACE_POLL = 0.5
 
@@ -62,6 +64,8 @@ _PY = sys.executable
 _SELFTEST = r"""
 import json, os, sys, time
 flag = os.environ.get("HIRO_PAUSE_FLAG")
+print("llm=%s base=%s key=%s" % (os.environ.get("HIRO_LLM", ""), os.environ.get("OPENAI_BASE_URL", ""),
+                                 "set" if os.environ.get("OPENAI_API_KEY") else "unset"), flush=True)
 trace = os.path.join("traces", sys.argv[2])
 os.makedirs(os.path.join(trace, "frames"), exist_ok=True)
 import base64
@@ -125,8 +129,15 @@ def jobs_dir(home: Path) -> Path:
 
 
 class Job:
-    def __init__(self, home: Path, kind: Kind, params: dict, on_exit: Callable[["Job"], None] | None = None):
+    def __init__(self, home: Path, kind: Kind, params: dict, on_exit: Callable[["Job"], None] | None = None,
+                 llm_env: dict | None = None):
         self.id = time.strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2)
+        llm = {k: str(v) for k, v in (llm_env or {}).items() if k in LLM_VARS and v}
+        self._llm_off = llm.get("HIRO_LLM", "").lower() == "off"
+        if self._llm_off:
+            llm.pop("HIRO_LLM")
+            params = {**params, "no_llm": True}
+        self._llm_env = llm  # 只进子进程的环境，不写 job.json、不进事件（OPENAI_API_KEY）
         self.kind, self.params = kind, params
         self.dir = jobs_dir(home) / self.id
         self.dir.mkdir(parents=True)
@@ -171,12 +182,19 @@ class Job:
         (self.dir / "job.json").write_text(json.dumps(self.describe(), ensure_ascii=False), encoding="utf-8")
 
     # ----------------------------------------------------------------- 进程
-    def start(self) -> None:
+    def child_env(self) -> dict:
         env = os.environ.copy()
         env.update(self.kind.env)
+        env.update(self._llm_env)
+        if self._llm_off:
+            env.pop("HIRO_LLM", None)
         env.update({"HIRO_PAUSE_FLAG": str(self.flag), "PYTHONUNBUFFERED": "1", "PYTHONUTF8": "1"})
         src = str(REPO / "src")
         env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+        return env
+
+    def start(self) -> None:
+        env = self.child_env()
         argv = self.kind.argv(self.params, self.dir)
         kw = {}
         if sys.platform == "win32":  # 服务没有控制台；不加 CREATE_NO_WINDOW 会给每个任务弹一个黑窗口，用户一关这局就没了

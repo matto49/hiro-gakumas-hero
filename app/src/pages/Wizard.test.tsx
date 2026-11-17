@@ -33,7 +33,7 @@ test("向导：六步走完后记下 wizard_done", async () => {
     "catalog sync": { ok: true, exit: 0, data: { counts: { cards: 476 } } },
     "secret list": { ok: true, exit: 0, data: { secrets: [] } },
   });
-  let s: Settings = { provider: "", has_key: false };
+  let s: Settings = { provider: "deepseek", has_key: false };
   const saved: Settings[] = [];
   const api: AssistantApi = {
     settings: async () => s,
@@ -98,7 +98,7 @@ test("没装环境时先装：点「安装」，输出一行行显示，装完�
   };
   const hiro = fakeCaller({ doctor });
   const api: AssistantApi = {
-    settings: async () => ({ provider: "", has_key: false }),
+    settings: async () => ({ provider: "deepseek", has_key: false }),
     save: async () => {},
     test: async () => ({ ok: true, message: "" }),
     ask: async () => ({ cards: [] }),

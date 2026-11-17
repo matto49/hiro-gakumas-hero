@@ -28,7 +28,7 @@ function fakeAssistant(initial: Settings) {
 const hiro = fakeCaller({ "secret list": { ok: true, exit: 0, data: { secrets: [{ name: "game-account", saved: true }] } } });
 
 test("填 DeepSeek Key 保存后输入框清空、只显示已保存", async () => {
-  const fake = fakeAssistant({ provider: "", has_key: false });
+  const fake = fakeAssistant({ provider: "deepseek", has_key: false });
   render(
     <HiroCtx.Provider value={hiro.call}>
       <AssistantCtx.Provider value={fake.api}>
@@ -37,7 +37,10 @@ test("填 DeepSeek Key 保存后输入框清空、只显示已保存", async () 
     </HiroCtx.Provider>,
   );
   await waitFor(() => expect(screen.getByLabelText("服务商")).toBeTruthy());
-  fireEvent.change(screen.getByLabelText("服务商"), { target: { value: "deepseek" } });
+  const select = screen.getByLabelText("服务商") as HTMLSelectElement;
+  expect(select.value).toBe("deepseek");
+  expect(select.options[0]!.value).toBe("deepseek");
+  expect([...select.options].map((o) => o.value)).toContain("none");
   const key = screen.getByLabelText("API Key") as HTMLInputElement;
   expect(key.type).toBe("password");
   fireEvent.change(key, { target: { value: "sk-abc" } });
@@ -75,7 +78,7 @@ test("环境：重新安装会先去掉装完标记再跑安装", async () => {
       onLine({ step: "setup", line: "==> 1/7 KAA 子模块" });
     },
   };
-  const fake = fakeAssistant({ provider: "", has_key: false });
+  const fake = fakeAssistant({ provider: "deepseek", has_key: false });
   render(
     <BootCtx.Provider value={boot}>
       <HiroCtx.Provider value={hiro.call}>

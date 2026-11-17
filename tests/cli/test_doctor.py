@@ -35,6 +35,21 @@ def test_doctor_reports_model_from_settings(run_cli, hiro_home):
     import json
 
     hiro_home.mkdir(parents=True, exist_ok=True)
-    (hiro_home / "settings.json").write_text(json.dumps({"provider": "deepseek"}), encoding="utf-8")
+    (hiro_home / "settings.json").write_text(json.dumps({"provider": "deepseek", "has_key": True}), encoding="utf-8")
     _, env = run_cli("doctor")
     assert items(env)["model"]["ok"] is True and "DeepSeek" in items(env)["model"]["detail"]
+
+
+def test_doctor_defaults_to_deepseek_and_asks_for_the_key(run_cli, hiro_home):
+    _, env = run_cli("doctor")
+    m = items(env)["model"]
+    assert m["ok"] is False and "DeepSeek" in m["detail"] and "Key" in m["next"]
+
+
+def test_doctor_reports_no_model_when_chosen(run_cli, hiro_home):
+    import json
+
+    hiro_home.mkdir(parents=True, exist_ok=True)
+    (hiro_home / "settings.json").write_text(json.dumps({"provider": "none"}), encoding="utf-8")
+    _, env = run_cli("doctor")
+    assert "不用模型" in items(env)["model"]["detail"]

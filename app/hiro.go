@@ -17,7 +17,9 @@ import (
 type Hiro struct {
 	// Command 是 hiro 命令本身（不含子命令），例如 ["/…/venv/bin/python", "-m", "hiro.cli.main"]；空的时候按 ResolveHiroCommand 找。
 	Command []string `json:"-"`
-	mu      sync.Mutex
+	// Env 只在 hiro confirm（真正开局）时加进环境：对局用的模型设置，含 DeepSeek Key。别的调用不带，减少 Key 出现的地方。
+	Env func() []string `json:"-"`
+	mu  sync.Mutex
 }
 
 // CliError 是命令失败时信封里的 error：code 给程序判断，message / hint 是写给人看的白话。
@@ -114,6 +116,9 @@ func (h *Hiro) run(ctx context.Context, args []string, stdin []byte) Result {
 	base := h.command()
 	cmd := exec.CommandContext(ctx, base[0], append(append([]string{}, base[1:]...), args...)...)
 	cmd.Env = append(os.Environ(), "PYTHONUTF8=1")
+	if h.Env != nil && len(args) > 0 && args[0] == "confirm" {
+		cmd.Env = append(cmd.Env, h.Env()...)
+	}
 	hideWindow(cmd)
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)

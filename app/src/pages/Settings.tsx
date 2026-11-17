@@ -66,7 +66,7 @@ export function ModelSection({ onChanged, onTested }: { onChanged: () => void; o
         <select aria-label="服务商" className={input} value={s.provider} onChange={(e) => setS({ ...s, provider: e.target.value as Settings["provider"] })}>
           {(Object.keys(PROVIDER_LABEL) as Settings["provider"][]).map((p) => (
             <option key={p} value={p}>
-              {p === "" ? "不用模型" : PROVIDER_LABEL[p]}
+              {p === "deepseek" ? "DeepSeek（推荐）" : PROVIDER_LABEL[p]}
             </option>
           ))}
         </select>
@@ -98,7 +98,7 @@ export function ModelSection({ onChanged, onTested }: { onChanged: () => void; o
         <Button primary disabled={busy} onClick={save}>
           保存
         </Button>
-        {s.provider !== "" && (
+        {s.provider !== "none" && (
           <Button disabled={busy} onClick={test}>
             测试
           </Button>

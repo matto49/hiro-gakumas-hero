@@ -73,6 +73,8 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | `scan-memories` | — | 扫描回忆（只读，不改编成） |
 | `selftest` | `--seconds N` | 自检，只打印几行，不碰游戏 |
 
+对局里用哪个模型，跟着发起开局（`hiro confirm`）那个进程的环境变量走：`HIRO_LLM`（如 `openai:deepseek-chat`、`claude:sonnet`、`codex`）、`OPENAI_BASE_URL`、`OPENAI_API_KEY`；`HIRO_LLM=off` 只用规则和算法。桌面程序按设置里的模型自动传，缺省是 DeepSeek，没填 Key 时是 off。
+
 开局前先确认：游戏停在首页；没有别的设备上进行中的培育（那种情况开局确认页绝不按「開始する」，程序会停下来）。
 
 ## 看进度、暂停、接手（直接执行）

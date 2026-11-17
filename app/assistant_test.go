@@ -25,7 +25,7 @@ func TestSettingsRoundTripKeepsKeyOutOfTheFile(t *testing.T) {
 	home := t.TempDir()
 	keys := memKeys{}
 	a := &Assistant{Home: home, Keys: keys, Hiro: &Hiro{}}
-	if s := a.Settings(); s.Provider != "" || s.HasKey {
+	if s := a.Settings(); s.Provider != "deepseek" || s.HasKey {
 		t.Fatalf("fresh settings %+v", s)
 	}
 	if err := a.Save(Settings{Provider: "deepseek", Model: "deepseek-chat", WizardDone: true}, "sk-secret-123"); err != nil {

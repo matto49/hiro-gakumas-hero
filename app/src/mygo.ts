@@ -49,7 +49,7 @@ export interface Result {
 
 /** Settings 是模型设置（不含 Key）。 */
 export interface Settings {
-  /** "" / deepseek / codex / claude */
+  /** deepseek（缺省）/ codex / claude / none（不用模型） */
   provider: string;
   model?: string;
   base_url?: string;
@@ -90,6 +90,11 @@ export const Hiro = {
 export const Assistant = {
   /** Ask 让小广回答一句话（history 是之前的对话）。 */
   ask: bind<[Turn[], string], Reply>("Assistant.Ask", (history: Turn[], text: string) => [history, text]),
+  /**
+   * JobEnv 是开局时交给工具层的模型设置（对局里的 LLM 跟着这里走，hiro.brain.llm 读这些变量）：
+   * DeepSeek 有 Key → OpenAI 兼容接口；Claude / Codex → 本机命令行；不用模型或 DeepSeek 没填 Key → off（只用规则和算法）。
+   */
+  jobEnv: bind<[], string[]>("Assistant.JobEnv", () => []),
   /** Save 保存模型设置；key 非空时存进钥匙串（空的不动已存的）。 */
   save: bind<[Settings, string], void>("Assistant.Save", (s: Settings, key: string) => [s, key]),
   /** Settings 读模型设置。 */

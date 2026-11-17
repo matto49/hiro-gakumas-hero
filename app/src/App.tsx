@@ -3,7 +3,7 @@ import { Chat } from "./components/Chat";
 import { RightPanel } from "./components/RightPanel";
 import { Sidebar, type View } from "./components/Sidebar";
 import { quickAgent, type Agent } from "./lib/agent";
-import { modelAgent, useAssistant, type Settings } from "./lib/assistant";
+import { modelAgent, modelLabel, useAssistant, type Settings } from "./lib/assistant";
 import type { Thread } from "./lib/chat";
 import { cardsFor } from "./lib/quick";
 import { data, useHiro, type Envelope, type Job, type Summary } from "./lib/hiro";
@@ -81,14 +81,14 @@ export function App({ agent: agentProp }: { agent?: Agent }) {
   const api = useAssistant();
   const [settings, setSettings] = useState<Settings | null>(null);
   const reloadSettings = useCallback(() => {
-    api.settings().then(setSettings, () => setSettings({ provider: "", has_key: false }));
+    api.settings().then(setSettings, () => setSettings({ provider: "deepseek", has_key: false }));
   }, [api]);
   useEffect(reloadSettings, [reloadSettings]);
   const quick = useMemo(() => quickAgent(call), [call]);
   const agent = useMemo(() => {
     if (agentProp) return agentProp;
     const ready = settings && (settings.provider === "codex" || settings.provider === "claude" || (settings.provider === "deepseek" && settings.has_key));
-    return ready ? modelAgent(api, settings!) : quick;
+    return ready ? modelAgent(api, settings!) : { ...quick, label: modelLabel(settings) };
   }, [agentProp, settings, api, quick]);
   const t = useThreads();
   usePersistence(t);
