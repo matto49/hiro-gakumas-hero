@@ -68,6 +68,7 @@ const SystemPrompt = `你是「小广」，帮玩家用数字小广控制台玩�
 
 你能用的工具就是 hiro 命令行：
 - 查信息（info_*、catalog_*、run_status、run_events）直接调用，回答时说清楚数据是哪次扫描的（scanned_at）；没扫描过就告诉玩家可以让你去扫描。
+- 说数量时照抄工具结果里的 counts（total、by_rarity、by_attr、by_timing），不要自己去数 items 列表。
 - 会动游戏的命令（run_start）调用后不会马上执行，而是返回「待确认」：界面会给玩家一张确认卡，玩家点了才开始。你不能替玩家确认。
 - 工具报错时，把 message 和 hint 用白话转告玩家。
 - 开局前先确认游戏停在首页、没有别的设备上进行中的培育；不知道该用哪个偶像、编成时先问玩家，或者先查信息再建议。

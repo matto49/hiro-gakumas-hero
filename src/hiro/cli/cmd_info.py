@@ -80,8 +80,25 @@ def _listing(kind: str, keep=lambda r: True) -> dict:
     if meta is None:
         return {"kind": kind, "scanned_at": None, "complete": None, "items": [], "hint": SCAN_HINT[kind]}
     items = [r for r in rows if keep(r)]
+    # counts 放在 items 前面：模型按它报数量，不用自己数列表；结果太长被截断时统计也还在
     return {"kind": kind, "scanned_at": meta["scanned_at"], "complete": meta["complete"], "source": meta["source"],
-            "total": meta["count"], "items": items}
+            "total": meta["count"], "counts": counts(items), "items": items}
+
+
+COUNT_KEYS = {"rarity": "by_rarity", "attr": "by_attr", "timing": "by_timing", "idol": "by_idol"}
+
+
+def counts(items: list[dict]) -> dict:
+    """这次筛出来的条数，按稀有度 / 属性 / 获得时机 / 偶像分组（只统计有这个字段的类别）。"""
+    out: dict = {"total": len(items)}
+    for key, name in COUNT_KEYS.items():
+        if any(key in r for r in items):
+            c: dict = {}
+            for r in items:
+                v = r.get(key) if r.get(key) is not None else "未知"
+                c[v] = c.get(v, 0) + 1
+            out[name] = dict(sorted(c.items(), key=lambda kv: -kv[1]))
+    return out
 
 
 def _match(value, want) -> bool:

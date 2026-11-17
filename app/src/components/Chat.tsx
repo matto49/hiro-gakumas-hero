@@ -4,6 +4,7 @@ import type { Card, Message, Thread } from "../lib/chat";
 import type { Envelope } from "../lib/hiro";
 import { QUICK } from "../lib/quick";
 import { ConfirmCard, ErrorCard, FormationCard, InfoCard, RunCard } from "./Cards";
+import { RichText } from "./Rich";
 import { Dot } from "./ui";
 
 export interface ChatHandlers {
@@ -68,7 +69,7 @@ export function Chat({ thread, thinking, status, quickOnly, h }: { thread: Threa
             <div key={m.id} className="flex max-w-[92%] gap-2.5">
               <div className="size-7 flex-none rounded-full bg-acc-t" />
               <div className="flex min-w-0 flex-col gap-2">
-                {m.text && <div className="whitespace-pre-wrap">{m.text}</div>}
+                {m.text && <RichText text={m.text} />}
                 {m.cards.map((c, i) => (
                   <CardView key={i} card={c} msg={m} i={i} h={h} />
                 ))}

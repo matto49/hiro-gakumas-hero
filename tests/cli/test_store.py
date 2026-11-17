@@ -55,3 +55,27 @@ def test_import_keeps_the_scan_time_from_generated(run_cli):
     from datetime import datetime
 
     assert env["data"]["scanned_at"] == datetime.fromtimestamp(1763300000.0).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def test_listing_carries_counts_before_items(run_cli, capsys):
+    import json as _json
+
+    from hiro.cli.main import main
+
+    run_cli("info", "import", "--kind", "supports", str(DATA / "support-inventory.json"))
+    _, env = run_cli("info", "supports", "--rarity", "SSR")
+    c = env["data"]["counts"]
+    assert c["total"] == 3
+    attrs = {}
+    for it in env["data"]["items"]:
+        attrs[it["attr"]] = attrs.get(it["attr"], 0) + 1
+    assert c["by_attr"] == attrs and c["by_rarity"] == {"SSR": 3}
+    main(["info", "supports"])
+    raw = capsys.readouterr().out
+    assert raw.index('"counts"') < raw.index('"items"')  # 交给模型的结果太长被截断时，统计数还在
+
+
+def test_memory_counts_by_timing(run_cli):
+    run_cli("info", "import", "--kind", "memories", str(DATA / "memory-inventory.json"))
+    _, env = run_cli("info", "memories")
+    assert env["data"]["counts"]["by_timing"] == {"mid": 2, "start": 1}

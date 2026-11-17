@@ -184,3 +184,9 @@ func TestArgvFromToolArguments(t *testing.T) {
 		t.Fatal("missing required kind should fail")
 	}
 }
+
+func TestPromptTellsTheModelToUseCounts(t *testing.T) {
+	if !strings.Contains(SystemPrompt, "counts") {
+		t.Fatal("system prompt should tell the model to read counts instead of counting items")
+	}
+}
