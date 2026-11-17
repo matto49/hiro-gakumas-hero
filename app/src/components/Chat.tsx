@@ -56,7 +56,7 @@ export function Chat({ thread, thinking, status, quickOnly, h }: { thread: Threa
         {thread.messages.length === 0 && (
           <div className="m-auto max-w-[420px] text-center text-ink-2">
             <div className="text-[17px] font-bold text-ink">今天想让小广做什么？</div>
-            <div className="mt-1.5">{quickOnly ? "还没配模型：点下面的快捷指令就能用。配好模型后可以直接打字。" : "直接打字，或者点下面的建议。"}</div>
+            <div className="mt-1.5">{quickOnly ? "DeepSeek 还没填 Key：先点下面的快捷指令。到设置里填好 Key 就能直接打字。" : "直接打字，或者点下面的建议。"}</div>
           </div>
         )}
         {thread.messages.map((m) =>
@@ -82,7 +82,7 @@ export function Chat({ thread, thinking, status, quickOnly, h }: { thread: Threa
       <div className="mx-7 mb-[18px] rounded-[14px] border border-line bg-panel px-3 py-2.5">
         <textarea
           className="h-[22px] max-h-32 w-full resize-none bg-transparent outline-none placeholder:text-ink-3 disabled:cursor-not-allowed"
-          placeholder={quickOnly ? "还没配模型，先用下面的快捷指令（设置里可以配 DeepSeek）" : "让小广做点什么，例如：帮我领日常奖励"}
+          placeholder={quickOnly ? "DeepSeek 还没填 Key，先用下面的快捷指令（左下角「模型」进设置填）" : "让小广做点什么，例如：帮我领日常奖励"}
           value={text}
           disabled={quickOnly}
           onChange={(e) => setText(e.target.value)}

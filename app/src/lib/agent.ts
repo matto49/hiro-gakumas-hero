@@ -22,7 +22,7 @@ export function quickAgent(call: Caller): Agent {
     label: "未配置（快捷指令）",
     ask: async (text) => {
       const q = QUICK.find((x) => x.label === text);
-      if (!q) return { text: "还没配模型，小广只能做下面这几件事。到设置里填好 DeepSeek 的 Key，就可以直接打字了。", cards: [] };
+      if (!q) return { text: "DeepSeek 还没填 Key，小广只能做下面这几件事。到设置里填好 Key，就可以直接打字了。", cards: [] };
       return { cards: await runQuick(call, q) };
     },
   };
