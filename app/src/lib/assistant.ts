@@ -12,6 +12,8 @@ export interface Settings {
   wizard_done?: boolean;
 }
 
+export const DEFAULT_DEEPSEEK_MODEL = "deepseek-flash";
+
 export interface Turn {
   role: "user" | "assistant";
   content: string;
@@ -21,6 +23,8 @@ export interface AssistantApi {
   settings: () => Promise<Settings>;
   save: (s: Settings, key: string) => Promise<void>;
   test: () => Promise<{ ok: boolean; message: string }>;
+  /** 这个 Key 能用的 DeepSeek 模型（没 Key 或连不上时抛错） */
+  models?: () => Promise<string[]>;
   ask: (history: Turn[], text: string) => Promise<Reply>;
   listThreads: () => Promise<Thread[]>;
   saveThread: (t: Thread) => Promise<void>;
@@ -33,6 +37,7 @@ export const realAssistant: AssistantApi = {
   settings: async () => (await mygo()).Assistant.settings() as Promise<Settings>,
   save: async (s, key) => (await mygo()).Assistant.save(s, key),
   test: async () => (await mygo()).Assistant.test(),
+  models: async () => ((await (await mygo()).Assistant.models()) as string[]) ?? [],
   ask: async (h, t) => (await (await mygo()).Assistant.ask(h, t)) as unknown as Reply,
   listThreads: async () => ((await (await mygo()).Threads.list()) as unknown as Thread[]) ?? [],
   saveThread: async (t) => (await mygo()).Threads.save(t.id, t as never),

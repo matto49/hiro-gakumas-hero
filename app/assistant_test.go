@@ -28,11 +28,11 @@ func TestSettingsRoundTripKeepsKeyOutOfTheFile(t *testing.T) {
 	if s := a.Settings(); s.Provider != "deepseek" || s.HasKey {
 		t.Fatalf("fresh settings %+v", s)
 	}
-	if err := a.Save(Settings{Provider: "deepseek", Model: "deepseek-chat", WizardDone: true}, "sk-secret-123"); err != nil {
+	if err := a.Save(Settings{Provider: "deepseek", Model: "deepseek-v4-pro", WizardDone: true}, "sk-secret-123"); err != nil {
 		t.Fatal(err)
 	}
 	s := a.Settings()
-	if s.Provider != "deepseek" || !s.HasKey || s.Model != "deepseek-chat" || !s.WizardDone {
+	if s.Provider != "deepseek" || !s.HasKey || s.Model != "deepseek-v4-pro" || !s.WizardDone {
 		t.Fatalf("settings %+v", s)
 	}
 	raw, _ := os.ReadFile(filepath.Join(home, "settings.json"))
@@ -44,7 +44,7 @@ func TestSettingsRoundTripKeepsKeyOutOfTheFile(t *testing.T) {
 		t.Fatal("key leaked to the page")
 	}
 	// 空 key：不改已存的
-	_ = a.Save(Settings{Provider: "deepseek", Model: "deepseek-chat"}, "")
+	_ = a.Save(Settings{Provider: "deepseek", Model: "deepseek-v4-pro"}, "")
 	if keys["deepseek-api-key"] != "sk-secret-123" {
 		t.Fatal("empty key must not erase")
 	}

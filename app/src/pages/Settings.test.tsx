@@ -92,3 +92,36 @@ test("环境：重新安装会先去掉装完标记再跑安装", async () => {
   await waitFor(() => expect(screen.getByText("==> 1/7 KAA 子模块")).toBeTruthy());
   expect(order).toEqual(["reset", "run"]);
 });
+
+test("填了 Key 后模型是从 DeepSeek 拉回来的下拉框，默认 flash", async () => {
+  const fake = fakeAssistant({ provider: "deepseek", has_key: true, model: "deepseek-flash" });
+  fake.api.models = async () => ["deepseek-flash", "deepseek-v4-pro"];
+  render(
+    <HiroCtx.Provider value={hiro.call}>
+      <AssistantCtx.Provider value={fake.api}>
+        <SettingsPage onChanged={() => {}} />
+      </AssistantCtx.Provider>
+    </HiroCtx.Provider>,
+  );
+  await waitFor(() => expect((screen.getByLabelText("模型") as HTMLElement).tagName).toBe("SELECT"));
+  const sel = screen.getByLabelText("模型") as HTMLSelectElement;
+  expect([...sel.options].map((o) => o.value)).toEqual(["deepseek-flash", "deepseek-v4-pro"]);
+  expect(sel.value).toBe("deepseek-flash");
+  fireEvent.change(sel, { target: { value: "deepseek-v4-pro" } });
+  fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  await waitFor(() => expect(fake.saved.at(-1)![0].model).toBe("deepseek-v4-pro"));
+});
+
+test("没填 Key 时模型是手填框，默认 deepseek-flash", async () => {
+  const fake = fakeAssistant({ provider: "deepseek", has_key: false });
+  render(
+    <HiroCtx.Provider value={hiro.call}>
+      <AssistantCtx.Provider value={fake.api}>
+        <SettingsPage onChanged={() => {}} />
+      </AssistantCtx.Provider>
+    </HiroCtx.Provider>,
+  );
+  const inp = (await screen.findByLabelText("模型")) as HTMLInputElement;
+  expect(inp.tagName).toBe("INPUT");
+  expect(inp.value).toBe("deepseek-flash");
+});

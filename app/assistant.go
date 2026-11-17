@@ -40,11 +40,60 @@ type Settings struct {
 // DefaultDeepSeek 是 DeepSeek 的缺省地址和模型。
 const (
 	DefaultDeepSeekURL   = "https://api.deepseek.com"
-	DefaultDeepSeekModel = "deepseek-chat"
+	DefaultDeepSeekModel = "deepseek-flash" // 2026-11-17 /models 只列 deepseek-flash、deepseek-v4-pro
 	deepseekKeyName      = "deepseek-api-key"
 )
 
 var errNoKey = errors.New("没有保存 Key")
+
+// legacyDeepSeek：没填或旧名字。deepseek-chat / deepseek-reasoner 现在都由 deepseek-flash 应答，统一写成 flash。
+var legacyDeepSeek = map[string]bool{"": true, "deepseek-chat": true, "deepseek-reasoner": true}
+
+// Models 列出这个 Key 能用的 DeepSeek 模型（GET /models），设置页的下拉框用。
+func (a *Assistant) Models(ctx context.Context) ([]string, error) {
+	s := a.Settings()
+	key, err := a.Keys.Get(deepseekKeyName)
+	if err != nil || key == "" {
+		return nil, errors.New("还没填 DeepSeek 的 API Key")
+	}
+	url := s.BaseURL
+	if url == "" {
+		url = DefaultDeepSeekURL
+	}
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, "GET", strings.TrimRight(url, "/")+"/models", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+key)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("连不上 DeepSeek：%w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == 401 || resp.StatusCode == 403 {
+		return nil, ErrUnauthorized
+	}
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("DeepSeek 出错（%d）", resp.StatusCode)
+	}
+	var out struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, errors.New("模型列表看不懂")
+	}
+	ids := []string{}
+	for _, m := range out.Data {
+		if m.ID != "" {
+			ids = append(ids, m.ID)
+		}
+	}
+	return ids, nil
+}
 
 // KeyStore 存模型的 API Key。
 type KeyStore interface {
@@ -84,6 +133,9 @@ func (a *Assistant) Settings() Settings {
 	if s.Provider == "" {
 		s.Provider = "deepseek" // 缺省用 DeepSeek
 	}
+	if s.Provider == "deepseek" && legacyDeepSeek[s.Model] {
+		s.Model = DefaultDeepSeekModel
+	}
 	s.HasKey = false
 	if s.Provider == "deepseek" {
 		if k, err := a.Keys.Get(deepseekKeyName); err == nil && k != "" {
@@ -93,9 +145,9 @@ func (a *Assistant) Settings() Settings {
 	return s
 }
 
-// JobEnv 是开局时交给工具层的模型设置（对局里的 LLM 跟着这里走，hiro.brain.llm 读这些变量）：
+// jobEnv 是开局时交给工具层的模型设置（对局里的 LLM 跟着这里走，hiro.brain.llm 读这些变量）：
 // DeepSeek 有 Key → OpenAI 兼容接口；Claude / Codex → 本机命令行；不用模型或 DeepSeek 没填 Key → off（只用规则和算法）。
-func (a *Assistant) JobEnv() []string {
+func (a *Assistant) jobEnv() []string {
 	s := a.Settings()
 	switch s.Provider {
 	case "claude":

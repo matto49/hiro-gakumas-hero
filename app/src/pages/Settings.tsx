@@ -1,7 +1,7 @@
 // 设置（设计稿 §8、§10）：模型（服务商 + Key + 模型）、账号密码（只由人填写，界面只显示有没有保存）。
 import { useEffect, useState } from "react";
 import { Button, Panel, cx } from "../components/ui";
-import { PROVIDER_LABEL, useAssistant, type Settings } from "../lib/assistant";
+import { DEFAULT_DEEPSEEK_MODEL, PROVIDER_LABEL, useAssistant, type Settings } from "../lib/assistant";
 import { useBoot } from "../lib/bootstrap";
 import { data, useHiro } from "../lib/hiro";
 
@@ -28,9 +28,25 @@ export function ModelSection({ onChanged, onTested }: { onChanged: () => void; o
   const [key, setKey] = useState("");
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [models, setModels] = useState<string[]>([]);
   useEffect(() => {
     api.settings().then(setS);
   }, [api]);
+  const hasKey = s?.provider === "deepseek" && s.has_key;
+  useEffect(() => {
+    if (!hasKey || !api.models) {
+      setModels([]);
+      return;
+    }
+    let live = true;
+    api.models().then(
+      (m) => live && setModels(m),
+      () => live && setModels([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, [hasKey, api]);
   if (!s) return null;
   const save = async () => {
     setBusy(true);
@@ -84,8 +100,18 @@ export function ModelSection({ onChanged, onTested }: { onChanged: () => void; o
           >
             <input aria-label="API Key" type="password" autoComplete="off" className={input} placeholder={s.has_key ? "已保存" : "sk-…"} value={key} onChange={(e) => setKey(e.target.value)} />
           </Field>
-          <Field label="模型" hint="一般不用改">
-            <input className={input} value={s.model ?? "deepseek-chat"} onChange={(e) => setS({ ...s, model: e.target.value })} />
+          <Field label="模型" hint={models.length ? "列表是这个 Key 能用的模型，一般用默认的 deepseek-flash" : "一般不用改"}>
+            {models.length ? (
+              <select aria-label="模型" className={input} value={s.model ?? DEFAULT_DEEPSEEK_MODEL} onChange={(e) => setS({ ...s, model: e.target.value })}>
+                {(models.includes(s.model ?? DEFAULT_DEEPSEEK_MODEL) ? models : [s.model ?? DEFAULT_DEEPSEEK_MODEL, ...models]).map((m) => (
+                  <option key={m} value={m}>
+                    {m === DEFAULT_DEEPSEEK_MODEL ? `${m}（默认）` : m}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input aria-label="模型" className={input} value={s.model ?? DEFAULT_DEEPSEEK_MODEL} onChange={(e) => setS({ ...s, model: e.target.value })} />
+            )}
           </Field>
         </>
       )}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -46,24 +47,24 @@ func envMap(env []string) map[string]string {
 func TestJobEnvFollowsTheModelSetting(t *testing.T) {
 	keys := memKeys{}
 	a := &Assistant{Home: t.TempDir(), Keys: keys, Hiro: &Hiro{}}
-	if m := envMap(a.JobEnv()); m["HIRO_LLM"] != "off" || m["OPENAI_API_KEY"] != "" {
+	if m := envMap(a.jobEnv()); m["HIRO_LLM"] != "off" || m["OPENAI_API_KEY"] != "" {
 		t.Fatalf("deepseek without key: %v", m)
 	}
 	_ = a.Save(Settings{Provider: "deepseek"}, "sk-abc")
-	m := envMap(a.JobEnv())
-	if m["HIRO_LLM"] != "openai:deepseek-chat" || m["OPENAI_BASE_URL"] != "https://api.deepseek.com" || m["OPENAI_API_KEY"] != "sk-abc" {
+	m := envMap(a.jobEnv())
+	if m["HIRO_LLM"] != "openai:deepseek-flash" || m["OPENAI_BASE_URL"] != "https://api.deepseek.com" || m["OPENAI_API_KEY"] != "sk-abc" {
 		t.Fatalf("deepseek: %v", m)
 	}
 	_ = a.Save(Settings{Provider: "claude"}, "")
-	if m := envMap(a.JobEnv()); m["HIRO_LLM"] != "claude:sonnet" || m["OPENAI_API_KEY"] != "" {
+	if m := envMap(a.jobEnv()); m["HIRO_LLM"] != "claude:sonnet" || m["OPENAI_API_KEY"] != "" {
 		t.Fatalf("claude: %v", m)
 	}
 	_ = a.Save(Settings{Provider: "codex"}, "")
-	if m := envMap(a.JobEnv()); m["HIRO_LLM"] != "codex" {
+	if m := envMap(a.jobEnv()); m["HIRO_LLM"] != "codex" {
 		t.Fatalf("codex: %v", m)
 	}
 	_ = a.Save(Settings{Provider: "none"}, "")
-	if m := envMap(a.JobEnv()); m["HIRO_LLM"] != "off" {
+	if m := envMap(a.jobEnv()); m["HIRO_LLM"] != "off" {
 		t.Fatalf("none: %v", m)
 	}
 }
@@ -82,5 +83,15 @@ echo "{\"ok\":true,\"data\":{\"llm\":\"$HIRO_LLM\",\"key\":\"${OPENAI_API_KEY:+s
 	r = h.Call(context.Background(), []string{"info", "summary"})
 	if strings.Contains(string(r.Data), "deepseek") || strings.Contains(string(r.Data), `"key":"set"`) {
 		t.Fatalf("info: %s", r.Data)
+	}
+}
+
+func TestPageCannotReachTheKey(t *testing.T) {
+	// mygo 把导出方法绑定给网页：能返回 Key 的方法不能导出
+	typ := reflect.TypeOf(&Assistant{})
+	for i := 0; i < typ.NumMethod(); i++ {
+		if name := typ.Method(i).Name; name == "JobEnv" {
+			t.Fatalf("Assistant.%s is exported and would be callable from the page", name)
+		}
 	}
 }

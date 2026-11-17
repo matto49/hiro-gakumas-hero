@@ -14,7 +14,7 @@ func main() {
 	hiro := &Hiro{}
 	mygo.Bind(hiro)
 	assistant := &Assistant{Home: HiroHome(), Keys: systemKeys{}, Hiro: hiro}
-	hiro.Env = assistant.JobEnv
+	hiro.Env = assistant.jobEnv
 	mygo.Bind(assistant)
 	mygo.Bind(&Threads{Home: HiroHome()})
 	mygo.Bind(&Bootstrap{Home: HiroHome(), Hiro: hiro})
