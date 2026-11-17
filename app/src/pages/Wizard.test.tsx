@@ -79,6 +79,8 @@ test("向导：六步走完后记下 wizard_done", async () => {
   fireEvent.click(screen.getByRole("button", { name: "跳过" }));
   // 6 首次扫描 → 完成
   await waitFor(() => expect(screen.getByRole("button", { name: "完成" })).toBeTruthy());
+  expect(screen.getByRole("button", { name: "读首页数值" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "检查游戏设置" })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "完成" }));
   await waitFor(() => expect(finished).toBe(true));
   expect(saved[saved.length - 1]!.wizard_done).toBe(true);

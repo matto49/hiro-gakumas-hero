@@ -1,14 +1,17 @@
 // 对话和卡片的数据模型（设计稿 §5）。
 import type { CliError, Pending } from "./hiro";
+import type { PlanSummary } from "./plan";
 
 export type Card =
   | { type: "confirm"; pending: Pending; status: "waiting" | "confirmed" | "cancelled" | "failed" }
   | { type: "run"; jobId: string }
   | { type: "info"; title: string; kind: InfoKind; items: Record<string, unknown>[]; scannedAt?: string | null; hint?: string }
   | { type: "error"; error: CliError }
-  | { type: "formation"; idol: { id?: string; name: string; asset?: string }; plan?: string; supportSet?: number; memorySet?: number; cards?: string[]; items?: string[] };
+  | { type: "formation"; plan: PlanSummary };
 
-export type InfoKind = "supports" | "memories" | "idols" | "affection" | "catalog" | "summary";
+export type InfoKind = "supports" | "memories" | "idols" | "affection" | "catalog" | "summary" | "game_settings";
+/** 有自己一页的信息 */
+export type PageKind = Exclude<InfoKind, "summary">;
 
 export interface Message {
   id: string;

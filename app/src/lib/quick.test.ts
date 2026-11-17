@@ -51,3 +51,9 @@ test("卡片写进对话历史时变成一句话", async () => {
     { role: "assistant", content: "好\n[确认卡：领日常奖励，玩家已确认、已开始]" },
   ]);
 });
+
+test("快捷指令里有读首页和检查设置", () => {
+  const labels = QUICK.map((q) => q.label);
+  expect(labels).toContain("读首页数值");
+  expect(labels).toContain("检查游戏设置");
+});

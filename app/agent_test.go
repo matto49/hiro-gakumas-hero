@@ -190,3 +190,28 @@ func TestPromptTellsTheModelToUseCounts(t *testing.T) {
 		t.Fatal("system prompt should tell the model to read counts instead of counting items")
 	}
 }
+
+func TestPlanResultBecomesFormationCard(t *testing.T) {
+	dir := t.TempDir()
+	p := dir + "/hiro"
+	_ = os.WriteFile(p, []byte(`#!/bin/sh
+echo '{"ok":true,"data":{"idol":{"name":"Campus mode!!"},"main_attr":"Da","support":{"own":[]},"memory":{"chosen":[]},"notes":[],"report":"# 方案"}}'
+`), 0o755)
+	tools := []ToolSpec{{Name: "plan formation", ToolName: "plan_formation", Risk: "read", Agent: true,
+		Args: []ToolArg{{Name: "--idol", Type: "string", Required: true}}}}
+	srv, _ := fakeLLM(t,
+		`{"role":"assistant","content":"","tool_calls":[{"id":"c1","type":"function","function":{"name":"plan_formation","arguments":"{\"idol\":\"i_card-skin-shro-3-007\"}"}}]}`,
+		`{"role":"assistant","content":"方案出好了。"}`)
+	a := &Agent{Hiro: &Hiro{Command: []string{p}}, Tools: tools, Provider: OpenAICompat{BaseURL: srv.URL, Model: "m", Key: "sk-test", Client: http.DefaultClient}}
+	r, err := a.Ask(context.Background(), nil, "给篠澤広出编成方案")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Cards) != 1 || r.Cards[0]["type"] != "formation" {
+		t.Fatalf("cards %v", r.Cards)
+	}
+	plan := r.Cards[0]["plan"].(map[string]any)
+	if plan["main_attr"] != "Da" {
+		t.Fatalf("plan %v", plan)
+	}
+}

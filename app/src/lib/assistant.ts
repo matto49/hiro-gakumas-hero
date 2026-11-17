@@ -77,7 +77,7 @@ export function cardText(c: Card): string {
     case "error":
       return `[出错：${c.error.message}]`;
     case "formation":
-      return `[编成卡：${c.idol.name}]`;
+      return `[编成卡：${c.plan.idol.name ?? "?"}，主属性 ${c.plan.main_attr ?? "?"}]`;
   }
 }
 

@@ -1,13 +1,31 @@
 // 信息页（设计稿 §5，画板 q2-b 的样子）：卡片网格 + 筛选，顶部写上次扫描时间。
 import { useEffect, useMemo, useState } from "react";
+import { StartTask } from "../components/StartTask";
 import { Chip, Empty, cx } from "../components/ui";
 import { HiroError, data, spriteUrl, useHiro, type Listing } from "../lib/hiro";
 import { ATTR_STYLE, TIMING_LABEL } from "../lib/labels";
 
-type Kind = "supports" | "memories" | "idols" | "affection" | "catalog";
+type Kind = "supports" | "memories" | "idols" | "affection" | "catalog" | "game_settings";
 type Row = Record<string, unknown>;
 
-const TITLE: Record<Kind, string> = { supports: "支援卡", memories: "回忆", idols: "偶像卡", affection: "好感度", catalog: "资料库" };
+const TITLE: Record<Kind, string> = { supports: "支援卡", memories: "回忆", idols: "偶像卡", affection: "好感度", catalog: "资料库", game_settings: "游戏设置" };
+
+/** 有扫描任务的信息：[任务种类, 第一次的按钮字, 之后的按钮字] */
+const SCAN: Partial<Record<Kind, [string, string, string]>> = {
+  supports: ["scan-supports", "扫描", "重新扫描"],
+  memories: ["scan-memories", "扫描", "重新扫描"],
+  game_settings: ["check-settings", "检查", "重新检查"],
+};
+
+function SettingCell({ r }: { r: Row }) {
+  const on = r.state === "ON";
+  return (
+    <div className="flex items-center justify-between rounded-xl border border-line bg-panel px-3 py-2.5">
+      <span>{String(r.item)}</span>
+      <b className={cx("text-xs", on ? "text-ok" : r.state === "OFF" ? "text-err" : "text-ink-3")}>{r.state == null ? "读不到" : String(r.state)}</b>
+    </div>
+  );
+}
 
 interface Filter {
   label: string;
@@ -71,11 +89,11 @@ function GenericCell({ r }: { r: Row }) {
   );
 }
 
-const CELL: Partial<Record<Kind, (p: { r: Row }) => React.ReactElement>> = { supports: SupportCell, memories: MemoryCell };
+const CELL: Partial<Record<Kind, (p: { r: Row }) => React.ReactElement>> = { supports: SupportCell, memories: MemoryCell, game_settings: SettingCell };
 
-export function InfoPage({ kind, onAsk }: { kind: Kind; onAsk: (text: string) => void }) {
+export function InfoPage({ kind, onAsk, onOpenJob }: { kind: Kind; onAsk: (text: string) => void; onOpenJob?: (jobId: string) => void }) {
   const call = useHiro();
-  const [listing, setListing] = useState<Listing | null>(null);
+  const [listing, setListing] = useState<(Listing & { verdict?: string | null }) | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [on, setOn] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -85,7 +103,7 @@ export function InfoPage({ kind, onAsk }: { kind: Kind; onAsk: (text: string) =>
     setErr(null);
     setOn(null);
     if (kind === "catalog") return;
-    data<Listing>(call, ["info", kind])
+    data<Listing>(call, ["info", kind === "game_settings" ? "game-settings" : kind])
       .then(setListing)
       .catch((e) => setErr(e instanceof HiroError ? `${e.error.message}。${e.error.hint ?? ""}` : String(e)));
   }, [kind, call]);
@@ -121,6 +139,12 @@ export function InfoPage({ kind, onAsk }: { kind: Kind; onAsk: (text: string) =>
           </span>
         )}
       </div>
+      {listing && SCAN[kind] && (
+        <div className="mb-3">
+          <StartTask label={listing.scanned_at ? SCAN[kind]![2] : SCAN[kind]![1]} args={[SCAN[kind]![0]]} onOpenJob={onOpenJob} />
+        </div>
+      )}
+      {listing?.verdict && <div className="mb-3 text-ink-2">{listing.verdict}</div>}
       {kind === "catalog" && (
         <input
           className="mb-3 h-9 rounded-lg border border-line bg-white px-3 outline-none focus:border-acc"
@@ -146,10 +170,12 @@ export function InfoPage({ kind, onAsk }: { kind: Kind; onAsk: (text: string) =>
         {err && <Empty>{err}</Empty>}
         {!err && listing && listing.items.length === 0 && kind !== "catalog" && (
           <Empty>
-            <div>{listing.hint ?? "没有数据"}</div>
-            <button type="button" className="mt-2 text-xs font-bold text-acc" onClick={() => onAsk(`扫描${TITLE[kind]}`)}>
-              让小广去扫描 ›
-            </button>
+            <div>{SCAN[kind] ? `还没${SCAN[kind]![1]}过：游戏停在首页时点上面的「${SCAN[kind]![1]}」。` : (listing.hint ?? "没有数据")}</div>
+            {!SCAN[kind] && (
+              <button type="button" className="mt-2 text-xs font-bold text-acc" onClick={() => onAsk(`${TITLE[kind]}怎么看`)}>
+                问问小广 ›
+              </button>
+            )}
           </Empty>
         )}
         {!err && listing && listing.items.length === 0 && kind === "catalog" && q.trim() && <Empty>没搜到</Empty>}

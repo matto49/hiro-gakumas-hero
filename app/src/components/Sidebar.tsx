@@ -1,8 +1,8 @@
-import { threadJob, type Thread } from "../lib/chat";
+import { threadJob, type PageKind, type Thread } from "../lib/chat";
 import type { Summary } from "../lib/hiro";
 import { Dot, cx } from "./ui";
 
-export type View = { name: "chat" } | { name: "cockpit"; jobId: string } | { name: "info"; kind: "supports" | "memories" | "idols" | "affection" | "catalog" } | { name: "settings" };
+export type View = { name: "chat" } | { name: "cockpit"; jobId: string } | { name: "info"; kind: PageKind } | { name: "plan" } | { name: "settings" };
 
 export function Sidebar(p: {
   threads: Thread[];

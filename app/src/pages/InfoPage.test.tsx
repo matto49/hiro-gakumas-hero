@@ -42,5 +42,38 @@ test("没扫描过时提示去扫描", async () => {
       <InfoPage kind="memories" onAsk={() => {}} />
     </HiroCtx.Provider>,
   );
-  await waitFor(() => expect(screen.getByText(/还没扫描回忆/)).toBeTruthy());
+  await waitFor(() => expect(screen.getByText(/还没扫描过/)).toBeTruthy());
+});
+
+test("信息页上的「扫描」直接发起扫描任务并出确认卡", async () => {
+  const fake = fakeCaller({
+    "info supports": { ok: true, exit: 0, data: { kind: "supports", scanned_at: null, items: [], hint: "还没扫描" } },
+    "run start scan-supports": { ok: true, exit: 3, data: {}, pending: { id: "p2", command: "run start", summary: "扫描支援卡库存（只读，不改编成）", expires_at: 1 } },
+  });
+  render(
+    <HiroCtx.Provider value={fake.call}>
+      <InfoPage kind="supports" onAsk={() => {}} />
+    </HiroCtx.Provider>,
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "扫描" }));
+  await waitFor(() => expect(screen.getByText("扫描支援卡库存（只读，不改编成）")).toBeTruthy());
+});
+
+test("游戏设置页按项列出 ON / OFF，带结论和「重新检查」", async () => {
+  const fake = fakeCaller({
+    "info game-settings": {
+      ok: true,
+      exit: 0,
+      data: { kind: "game_settings", scanned_at: "2026-11-17 18:00:00", verdict: "设置被重置：1 项 OFF", items: [{ item: "未読早送り", state: "ON" }, { item: "支援事件剧情跳过", state: "OFF" }] },
+    },
+  });
+  render(
+    <HiroCtx.Provider value={fake.call}>
+      <InfoPage kind="game_settings" onAsk={() => {}} />
+    </HiroCtx.Provider>,
+  );
+  await waitFor(() => expect(screen.getByText("支援事件剧情跳过")).toBeTruthy());
+  expect(screen.getByText("OFF")).toBeTruthy();
+  expect(screen.getByText("设置被重置：1 项 OFF")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "重新检查" })).toBeTruthy();
 });

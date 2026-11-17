@@ -1,6 +1,6 @@
 // 中间的对话（设计稿 §5，画板 q2-a）：消息里嵌卡片，底部输入框 + 建议问题。
 import { useEffect, useRef, useState } from "react";
-import type { Card, Message, Thread } from "../lib/chat";
+import type { Card, Message, PageKind, Thread } from "../lib/chat";
 import type { Envelope } from "../lib/hiro";
 import { QUICK } from "../lib/quick";
 import { ConfirmCard, ErrorCard, FormationCard, InfoCard, RunCard } from "./Cards";
@@ -12,7 +12,8 @@ export interface ChatHandlers {
   onQuick: (label: string) => void;
   onConfirmResolved: (msgId: string, cardIndex: number, r: Envelope, action: "confirm" | "cancel") => void;
   onOpenJob: (jobId: string) => void;
-  onOpenInfo: (kind: "supports" | "memories" | "idols" | "affection" | "catalog") => void;
+  onOpenInfo: (kind: PageKind) => void;
+  onOpenPlan?: () => void;
 }
 
 function CardView({ card, msg, i, h }: { card: Card; msg: Message; i: number; h: ChatHandlers }) {
@@ -26,7 +27,7 @@ function CardView({ card, msg, i, h }: { card: Card; msg: Message; i: number; h:
     case "error":
       return <ErrorCard card={card} />;
     case "formation":
-      return <FormationCard card={card} />;
+      return <FormationCard card={card} onOpen={h.onOpenPlan} />;
   }
 }
 

@@ -69,6 +69,7 @@ const SystemPrompt = `你是「小广」，帮玩家用数字小广控制台玩�
 你能用的工具就是 hiro 命令行：
 - 查信息（info_*、catalog_*、run_status、run_events）直接调用，回答时说清楚数据是哪次扫描的（scanned_at）；没扫描过就告诉玩家可以让你去扫描。
 - 说数量时照抄工具结果里的 counts（total、by_rarity、by_attr、by_timing），不要自己去数 items 列表。
+- 玩家问编成、要开局时：先看库存有没有（info_supports / info_memories），再用 plan_formation 出方案并说明理由；要写进游戏时先用 write-formation 的 --dry-run 看差在哪，再正式写。
 - 会动游戏的命令（run_start）调用后不会马上执行，而是返回「待确认」：界面会给玩家一张确认卡，玩家点了才开始。你不能替玩家确认。
 - 工具报错时，把 message 和 hint 用白话转告玩家。
 - 开局前先确认游戏停在首页、没有别的设备上进行中的培育；不知道该用哪个偶像、编成时先问玩家，或者先查信息再建议。
@@ -207,6 +208,7 @@ type toolCall struct {
 
 var infoTitles = map[string]string{
 	"info supports": "支援卡", "info memories": "回忆", "info idols": "偶像卡", "info affection": "好感度",
+	"info game-settings": "游戏设置",
 }
 
 // Ask 跑一轮：history 是之前的对话，text 是玩家这次说的话。
@@ -281,6 +283,12 @@ func (a *Agent) runTool(ctx context.Context, byName map[string]ToolSpec, c toolC
 		return content, map[string]any{"type": "confirm", "pending": r.Pending, "status": "waiting"}, r.Pending
 	case !r.OK && r.Error != nil && (r.Error.Code == "hiro_missing" || r.Error.Code == "bad_output" || r.Error.Code == "service_down"):
 		return content, map[string]any{"type": "error", "error": r.Error}, nil
+	case r.OK && (t.Name == "plan formation" || t.Name == "plan show"):
+		var plan map[string]any
+		if json.Unmarshal(r.Data, &plan) == nil {
+			delete(plan, "report") // 编成卡只要结构；全文在交给模型的结果里
+			return content, map[string]any{"type": "formation", "plan": plan}, nil
+		}
 	case r.OK && infoTitles[t.Name] != "":
 		var d struct {
 			Items     []map[string]any `json:"items"`
@@ -288,7 +296,7 @@ func (a *Agent) runTool(ctx context.Context, byName map[string]ToolSpec, c toolC
 			Hint      string           `json:"hint"`
 		}
 		if json.Unmarshal(r.Data, &d) == nil && len(d.Items) > 0 {
-			return content, map[string]any{"type": "info", "title": infoTitles[t.Name], "kind": strings.TrimPrefix(t.Name, "info "),
+			return content, map[string]any{"type": "info", "title": infoTitles[t.Name], "kind": strings.ReplaceAll(strings.TrimPrefix(t.Name, "info "), "-", "_"),
 				"items": d.Items, "scannedAt": d.ScannedAt, "hint": d.Hint}, nil
 		}
 	}

@@ -102,3 +102,49 @@ test("扫描任务的对局卡写出信息库更新了几条", async () => {
   );
   await waitFor(() => expect(screen.getByText("已更新信息库：67 条")).toBeTruthy());
 });
+
+test("编成卡列出支援卡和回忆", async () => {
+  const { FormationCard } = await import("./Cards");
+  const { PLAN } = await import("../pages/PlanPage.test");
+  render(<FormationCard card={{ type: "formation", plan: PLAN }} />);
+  expect(screen.getByText("そろそろ焼けたかな？")).toBeTruthy();
+  expect(screen.getByText(/ワクワクが止まらない\+/)).toBeTruthy();
+  expect(screen.getByText(/主属性 Da/)).toBeTruthy();
+});
+
+test("任务结束后重新读账号概况", async () => {
+  const { App } = await import("../App");
+  const { AssistantCtx } = await import("../lib/assistant");
+  let n = 0;
+  const fake = fakeCaller({
+    "run status": () => {
+      n += 1;
+      return { ok: true, exit: 0, data: { current: n === 1 ? { id: "j1", state: "running", summary: "读首页" } : null, recent: [] } };
+    },
+    "info summary": { ok: true, exit: 0, data: { account: null, kinds: {} } },
+  });
+  const api = {
+    settings: async () => ({ provider: "deepseek" as const, has_key: false, wizard_done: true }),
+    save: async () => {},
+    test: async () => ({ ok: true, message: "" }),
+    ask: async () => ({ cards: [] }),
+    listThreads: async () => [],
+    saveThread: async () => {},
+    deleteThread: async () => {},
+  };
+  render(
+    <HiroCtx.Provider value={fake.call}>
+      <AssistantCtx.Provider value={api}>
+        <App />
+      </AssistantCtx.Provider>
+    </HiroCtx.Provider>,
+  );
+  await waitFor(() => expect(fake.calls.filter((c) => c.join(" ") === "info summary").length).toBeGreaterThan(1), { timeout: 6000 });
+});
+
+test("游戏设置的信息卡按项显示 ON / OFF", async () => {
+  const { InfoCard } = await import("./Cards");
+  render(<InfoCard card={{ type: "info", title: "游戏设置", kind: "game_settings", items: [{ item: "支援事件剧情跳过", state: "OFF" }] }} />);
+  expect(screen.getByText("支援事件剧情跳过")).toBeTruthy();
+  expect(screen.getByText("OFF")).toBeTruthy();
+});

@@ -124,7 +124,7 @@ export function Wizard({ onDone }: { onDone: () => void }) {
     await check();
   };
 
-  const scan = async (kind: "scan-supports" | "scan-memories") => {
+  const scan = async (kind: "scan-supports" | "scan-memories" | "scan-account" | "check-settings") => {
     const r = await call(["run", "start", kind]);
     setScanCards((c) => [...c, ...cardsFor(r)]);
   };
@@ -207,8 +207,10 @@ export function Wizard({ onDone }: { onDone: () => void }) {
         {step === 5 && (
           <Panel className="flex flex-col gap-3">
             <h2 className="m-0 text-[17px] font-bold">第一次扫描账号</h2>
-            <div className="text-ink-2">让小广在游戏里翻一遍支援卡和回忆（只读，不改编成）。游戏先停在首页。也可以以后再扫。</div>
-            <div className="flex gap-2">
+            <div className="text-ink-2">让小广读一下首页数值、检查快进设置、翻一遍支援卡和回忆（都只读，不改编成、不改设置）。游戏先停在首页。也可以以后再扫。</div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={() => scan("scan-account")}>读首页数值</Button>
+              <Button onClick={() => scan("check-settings")}>检查游戏设置</Button>
               <Button onClick={() => scan("scan-supports")}>扫描支援卡</Button>
               <Button onClick={() => scan("scan-memories")}>扫描回忆</Button>
             </div>

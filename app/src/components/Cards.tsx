@@ -1,9 +1,10 @@
 // 对话里的卡片（设计稿 §5）：编成、对局、确认、信息、出错。
 import { useState } from "react";
 import type { Card } from "../lib/chat";
-import { frameUrl, spriteUrl, useHiro, type Envelope } from "../lib/hiro";
+import { frameUrl, useHiro, type Envelope } from "../lib/hiro";
 import { ATTR_STYLE, KIND_LABEL, STATE_LABEL, TIMING_LABEL, pageLabel, sourceLabel } from "../lib/labels";
 import { useJob } from "../lib/useJob";
+import { PlanView } from "./PlanView";
 import { Button, Panel, SourceTag, cx } from "./ui";
 
 type Of<T extends Card["type"]> = Extract<Card, { type: T }>;
@@ -126,9 +127,18 @@ function MemoryTile({ it }: { it: Record<string, unknown> }) {
   );
 }
 
+function SettingTile({ it }: { it: Record<string, unknown> }) {
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-line bg-white px-2 py-1.5">
+      <span>{String(it.item)}</span>
+      <b className={cx("text-xs", it.state === "ON" ? "text-ok" : it.state === "OFF" ? "text-err" : "text-ink-3")}>{it.state == null ? "读不到" : String(it.state)}</b>
+    </div>
+  );
+}
+
 export function InfoCard({ card, onOpen }: { card: Of<"info">; onOpen?: (kind: Of<"info">["kind"]) => void }) {
   const shown = card.items.slice(0, 6);
-  const Tile = card.kind === "memories" ? MemoryTile : SupportTile;
+  const Tile = card.kind === "memories" ? MemoryTile : card.kind === "game_settings" ? SettingTile : SupportTile;
   return (
     <Panel>
       <div className="mb-2 flex items-baseline gap-2">
@@ -153,23 +163,18 @@ export function InfoCard({ card, onOpen }: { card: Of<"info">; onOpen?: (kind: O
   );
 }
 
-export function FormationCard({ card }: { card: Of<"formation"> }) {
+export function FormationCard({ card, onOpen }: { card: Of<"formation">; onOpen?: () => void }) {
   return (
     <Panel>
-      <div className="flex items-center gap-3">
-        {card.idol.asset ? <img className="size-14 rounded-[10px]" src={spriteUrl(card.idol.asset)} alt="" /> : <div className="size-14 rounded-[10px] bg-chip" />}
-        <div className="min-w-0">
-          <b className="jp">{card.idol.name}</b>
-          <div className="text-[11px] text-ink-3">
-            {[card.plan, card.supportSet != null && `支援卡编成 ${card.supportSet}`, card.memorySet != null && `回忆编成 ${card.memorySet}`].filter(Boolean).join(" · ")}
-          </div>
-          <div className="mt-2 flex gap-1.5">
-            {[...(card.cards ?? []), ...(card.items ?? [])].map((a) => (
-              <img key={a} src={spriteUrl(a)} alt="" className="size-11 rounded-md border border-line" />
-            ))}
-          </div>
-        </div>
+      <b>开局编成方案</b>
+      <div className="mt-2">
+        <PlanView plan={card.plan} compact />
       </div>
+      {onOpen && (
+        <button type="button" className="mt-2 text-xs font-bold text-acc" onClick={onOpen}>
+          打开编成页（看理由、写进游戏）›
+        </button>
+      )}
     </Panel>
   );
 }

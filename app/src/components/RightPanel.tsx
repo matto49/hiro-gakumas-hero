@@ -1,12 +1,14 @@
 // 右栏（设计稿 §5）：游戏画面 / 账号 / 资料库。
 import { useEffect, useState } from "react";
 import { data, frameUrl, spriteUrl, useHiro, type Summary } from "../lib/hiro";
+import type { PageKind } from "../lib/chat";
 import { STATE_LABEL, pageLabel } from "../lib/labels";
+import { StartTask } from "./StartTask";
 import { useJob } from "../lib/useJob";
 import { cx } from "./ui";
 
 type Tab = "screen" | "account" | "catalog";
-type InfoKind = "supports" | "memories" | "idols" | "affection" | "catalog";
+type InfoKind = PageKind;
 
 function Kv({ k, v }: { k: string; v: React.ReactNode }) {
   return (
@@ -36,24 +38,42 @@ function Screen({ jobId }: { jobId: string | null }) {
   );
 }
 
-function Account({ summary, onOpen }: { summary: Summary | null; onOpen: (k: InfoKind) => void }) {
+function Account({ summary, onOpen, onOpenPlan, onOpenJob }: { summary: Summary | null; onOpen: (k: InfoKind) => void; onOpenPlan: () => void; onOpenJob: (id: string) => void }) {
+  const acct = summary?.account;
+  const home = summary?.kinds.account;
   const rows: [InfoKind, string][] = [
-    ["idols", "偶像卡"],
     ["supports", "支援卡"],
     ["memories", "回忆"],
+    ["idols", "偶像卡"],
     ["affection", "好感度"],
+    ["game_settings", "游戏设置"],
   ];
   return (
     <div className="flex flex-col gap-1 p-3">
+      <div className="mb-1 rounded-lg border border-line bg-white p-2.5">
+        <div className="flex items-baseline justify-between">
+          <b>首页数值</b>
+          <span className="text-[11px] text-ink-3">{home?.scanned_at ? home.scanned_at.slice(5, 16) : "没读过"}</span>
+        </div>
+        <div className="my-1.5 text-ink-2">
+          PLv <b className="text-ink">{acct?.plv ?? "?"}</b> · AP <b className="text-ink">{acct?.ap ?? "?"}{acct?.ap_max ? `/${acct.ap_max}` : ""}</b> · ジュエル{" "}
+          <b className="text-ink">{acct?.jewel?.toLocaleString() ?? "?"}</b>
+        </div>
+        <StartTask label="读首页" args={["scan-account"]} onOpenJob={onOpenJob} />
+      </div>
       {rows.map(([k, label]) => {
         const s = summary?.kinds[k];
         return (
           <button type="button" key={k} className="flex items-center justify-between rounded-lg px-2.5 py-2 text-left hover:bg-chip" onClick={() => onOpen(k)}>
             <span>{label}</span>
-            <span className="text-xs text-ink-3">{s?.scanned_at ? `${s.count} · ${s.scanned_at.slice(5, 16)}` : "没扫描"} ›</span>
+            <span className="text-xs text-ink-3">{s?.scanned_at ? `${k === "game_settings" ? "" : `${s.count} · `}${s.scanned_at.slice(5, 16)}` : k === "idols" || k === "affection" ? "还不能扫" : "没扫描"} ›</span>
           </button>
         );
       })}
+      <button type="button" className="mt-1 flex items-center justify-between rounded-lg border border-line bg-white px-2.5 py-2 text-left hover:bg-chip" onClick={onOpenPlan}>
+        <b>开局编成方案</b>
+        <span className="text-xs text-acc">出方案 / 写进游戏 ›</span>
+      </button>
     </div>
   );
 }
@@ -95,7 +115,7 @@ function CatalogMini({ onOpen }: { onOpen: () => void }) {
   );
 }
 
-export function RightPanel({ liveJob, summary, onOpenInfo }: { liveJob: string | null; summary: Summary | null; onOpenInfo: (k: InfoKind) => void }) {
+export function RightPanel({ liveJob, summary, onOpenInfo, onOpenPlan, onOpenJob }: { liveJob: string | null; summary: Summary | null; onOpenInfo: (k: InfoKind) => void; onOpenPlan: () => void; onOpenJob: (id: string) => void }) {
   const [tab, setTab] = useState<Tab>("screen");
   const tabs: [Tab, string][] = [
     ["screen", "游戏画面"],
@@ -112,7 +132,7 @@ export function RightPanel({ liveJob, summary, onOpenInfo }: { liveJob: string |
         ))}
       </div>
       {tab === "screen" && <Screen jobId={liveJob} />}
-      {tab === "account" && <Account summary={summary} onOpen={onOpenInfo} />}
+      {tab === "account" && <Account summary={summary} onOpen={onOpenInfo} onOpenPlan={onOpenPlan} onOpenJob={onOpenJob} />}
       {tab === "catalog" && <CatalogMini onOpen={() => onOpenInfo("catalog")} />}
     </aside>
   );

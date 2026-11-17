@@ -11,6 +11,7 @@ import { STATE_LABEL } from "./lib/labels";
 import { useThreads } from "./lib/threads";
 import { Cockpit } from "./pages/Cockpit";
 import { InfoPage } from "./pages/InfoPage";
+import { PlanPage } from "./pages/PlanPage";
 import { SettingsPage } from "./pages/Settings";
 import { Wizard } from "./pages/Wizard";
 
@@ -20,13 +21,18 @@ function useStatus() {
   const call = useHiro();
   const [current, setCurrent] = useState<Job | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const lastJob = useRef<string | null>(null);
   useEffect(() => {
     let live = true;
     let timer: ReturnType<typeof setTimeout>;
     const pull = async () => {
       try {
         const st = await data<{ current: Job | null }>(call, ["run", "status"]);
-        if (live) setCurrent(st.current);
+        if (!live) return;
+        setCurrent(st.current);
+        // 有任务刚结束（扫描会更新信息库）：重新读账号概况
+        if (lastJob.current && !st.current) data<Summary>(call, ["info", "summary"]).then((s) => live && setSummary(s), () => {});
+        lastJob.current = st.current?.id ?? null;
       } catch {
         /* 服务起不来时，对局卡 / 出错卡会说明 */
       }
@@ -167,13 +173,19 @@ export function App({ agent: agentProp }: { agent?: Agent }) {
               onConfirmResolved,
               onOpenJob: (jobId) => setView({ name: "cockpit", jobId }),
               onOpenInfo: (kind) => setView({ name: "info", kind }),
+              onOpenPlan: () => setView({ name: "plan" }),
             }}
           />
         )}
         {view.name === "cockpit" && <Cockpit jobId={view.jobId} onBack={() => setView({ name: "chat" })} />}
         {view.name === "info" && (
           <div className="min-w-0 flex-1">
-            <InfoPage kind={view.kind} onAsk={ask} />
+            <InfoPage kind={view.kind} onAsk={ask} onOpenJob={(jobId) => setView({ name: "cockpit", jobId })} />
+          </div>
+        )}
+        {view.name === "plan" && (
+          <div className="min-w-0 flex-1">
+            <PlanPage onOpenJob={(jobId) => setView({ name: "cockpit", jobId })} />
           </div>
         )}
         {view.name === "settings" && (
@@ -182,7 +194,15 @@ export function App({ agent: agentProp }: { agent?: Agent }) {
           </div>
         )}
       </main>
-      {view.name !== "cockpit" && <RightPanel liveJob={current?.id ?? null} summary={summary} onOpenInfo={(kind) => setView({ name: "info", kind })} />}
+      {view.name !== "cockpit" && (
+        <RightPanel
+          liveJob={current?.id ?? null}
+          summary={summary}
+          onOpenInfo={(kind) => setView({ name: "info", kind })}
+          onOpenPlan={() => setView({ name: "plan" })}
+          onOpenJob={(jobId) => setView({ name: "cockpit", jobId })}
+        />
+      )}
     </div>
   );
 }

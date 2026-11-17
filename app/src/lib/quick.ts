@@ -13,6 +13,8 @@ export const QUICK: Quick[] = [
   { label: "接着打进行中的培育", args: ["run", "start", "hif", "--command", "resume"] },
   { label: "开一局 H.I.F 选拔", args: ["run", "start", "hif", "--command", "new", "--mode", "qualify"] },
   { label: "我的 SSR 支援卡", args: ["info", "supports", "--rarity", "SSR"], info: { title: "SSR 支援卡", kind: "supports" } },
+  { label: "读首页数值", args: ["run", "start", "scan-account"] },
+  { label: "检查游戏设置", args: ["run", "start", "check-settings"] },
   { label: "扫描支援卡", args: ["run", "start", "scan-supports"] },
   { label: "扫描回忆", args: ["run", "start", "scan-memories"] },
 ];
