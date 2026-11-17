@@ -60,6 +60,15 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | `hiro catalog get <编号> [--lang zh]` | 一条完整记录（强化后的效果在 `up` 里） |
 | `hiro catalog sprite <asset>` | 小图的本机路径（界面用） |
 
+## 开局编成方案（只计算，直接执行）
+
+| 命令 | 用途 |
+|---|---|
+| `hiro plan formation --idol <偶像卡编号> [--support-set N] [--memory-set N] [--main-attr Vo\|Da\|Vi] [--fixed-main]` | 按社区规则，用最新的支援卡 / 回忆库存出编成方案：支援卡 5 张 + 租借 1 张、回忆 4 份，每张带理由。返回 `report`（给人看的全文）。报 `no_inventory` 时先扫描 |
+| `hiro plan show` | 看现在的方案 |
+
+方案只存在本机；要写进游戏用下面的 `write-formation` 任务（先 `--dry-run` 看差在哪几格）。开局时程序按方案核对编成，对不上就停。
+
 ## 开局和扫描（会动游戏：待确认）
 
 `hiro run start <种类> [参数]`，同一时间只能跑一个任务，已经有任务在跑会返回 `busy`。

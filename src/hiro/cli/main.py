@@ -14,7 +14,7 @@ from hiro.cli import registry
 from hiro.cli.registry import Arg, CliError, Risk, command
 
 # 各命令模块：import 时注册
-_MODULES: tuple[str, ...] = ("hiro.cli.cmd_info", "hiro.cli.catalog", "hiro.cli.cmd_run", "hiro.cli.secrets", "hiro.cli.cmd_doctor")
+_MODULES: tuple[str, ...] = ("hiro.cli.cmd_info", "hiro.cli.catalog", "hiro.cli.cmd_run", "hiro.cli.secrets", "hiro.cli.cmd_doctor", "hiro.cli.cmd_plan")
 
 
 def _load_all() -> None:

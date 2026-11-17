@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS rows (
   PRIMARY KEY (snapshot_id, idx)
 );
 CREATE INDEX IF NOT EXISTS snapshots_kind ON snapshots(kind, id);
+CREATE TABLE IF NOT EXISTS raw (
+  snapshot_id INTEGER PRIMARY KEY REFERENCES snapshots(id),
+  data TEXT NOT NULL
+);
 """
 
 
@@ -43,7 +47,8 @@ class Store:
         self.db.executescript(_SCHEMA)
 
     def save_snapshot(self, kind: str, rows: list[dict], source: str, *, scanned_at: str | None = None,
-                      complete: bool | None = None) -> int:
+                      complete: bool | None = None, raw: dict | list | None = None) -> int:
+        """raw：扫描工具的原始输出（编成方案要用原格式的库存），原样另存一份。"""
         if kind not in KINDS:
             raise ValueError(f"未知类别 {kind}")
         with self.db:
@@ -53,6 +58,8 @@ class Store:
             sid = cur.lastrowid
             self.db.executemany("INSERT INTO rows(snapshot_id, idx, data) VALUES (?,?,?)",
                                 [(sid, i, json.dumps(r, ensure_ascii=False)) for i, r in enumerate(rows)])
+            if raw is not None:
+                self.db.execute("INSERT INTO raw(snapshot_id, data) VALUES (?,?)", (sid, json.dumps(raw, ensure_ascii=False)))
         return sid
 
     def _meta(self, row) -> dict:
@@ -69,6 +76,13 @@ class Store:
         rows = [json.loads(d) for (d,) in self.db.execute(
             "SELECT data FROM rows WHERE snapshot_id=? ORDER BY idx", (row[0],))]
         return self._meta(row), rows
+
+    def latest_raw(self, kind: str):
+        """最新一次带原始输出的快照的原始输出；没有返回 None。"""
+        row = self.db.execute(
+            "SELECT r.data FROM raw r JOIN snapshots s ON s.id = r.snapshot_id WHERE s.kind=? ORDER BY s.id DESC LIMIT 1",
+            (kind,)).fetchone()
+        return json.loads(row[0]) if row else None
 
     def history(self, kind: str) -> list[dict]:
         return [self._meta(r) for r in self.db.execute(

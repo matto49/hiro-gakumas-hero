@@ -184,6 +184,9 @@ class Job:
     # ----------------------------------------------------------------- 进程
     def child_env(self) -> dict:
         env = os.environ.copy()
+        from hiro.cli import paths
+
+        paths.apply_defaults(env, self.work.parent)  # self.work = HIRO_HOME/work
         env.update(self.kind.env)
         env.update(self._llm_env)
         if self._llm_off:

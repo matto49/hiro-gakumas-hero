@@ -6,6 +6,9 @@ def hiro_home(tmp_path, monkeypatch):
     home = tmp_path / "hiro-home"
     monkeypatch.setenv("HIRO_HOME", str(home))
     monkeypatch.setenv("HIRO_SECRET_BACKEND", "memory")
+    for k in ("HIRO_KAA_GAME_DATA", "HIRO_USER_ASSETS", "HIRO_FORMATION_PLAN"):  # 命令会往进程环境里补这些：测试后还原
+        monkeypatch.setenv(k, "")
+        monkeypatch.delenv(k)
     return home
 
 
