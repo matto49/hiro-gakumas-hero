@@ -9,7 +9,7 @@ from hiro.cli.registry import Arg, CliError, Risk, command
 from hiro.cli.store import KINDS, open_store
 
 SCAN_HINT = {
-    "account": "还没读过首页数值（这一项的扫描还没做）",
+    "account": "还没读过首页数值：游戏停在首页时运行 hiro run start scan-account",
     "idols": "还没扫描偶像卡（这一项的扫描还没做，先在游戏里看）",
     "supports": "还没扫描支援卡：运行 hiro run start scan-supports",
     "memories": "还没扫描回忆：运行 hiro run start scan-memories",
@@ -64,7 +64,12 @@ def normalize_game_settings(inv: dict) -> list[dict]:
     return [{"item": k, "state": v} for k, v in (inv.get("items") or {}).items()]
 
 
-NORMALIZE = {"supports": normalize_supports, "memories": normalize_memories, "game_settings": normalize_game_settings}
+def normalize_account(inv: dict) -> list[dict]:
+    """hiro.vision.home_values 的输出 → 一行。"""
+    return [{k: inv.get(k) for k in ("plv", "ap", "ap_max", "jewel")}]
+
+
+NORMALIZE = {"account": normalize_account, "supports": normalize_supports, "memories": normalize_memories, "game_settings": normalize_game_settings}
 
 
 def import_inventory(kind: str, inv: dict, source: str) -> dict:

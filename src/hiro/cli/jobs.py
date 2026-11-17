@@ -60,6 +60,7 @@ class Kind:
 
 
 _PY = sys.executable
+HOME_READER = "hiro.vision.home_values"  # 首页顶栏读数（scan-account）
 
 _SELFTEST = r"""
 import json, os, sys, time
@@ -137,6 +138,9 @@ KINDS: dict[str, Kind] = {
     "fit-window": Kind("fit-window", "Windows DMM：把游戏窗口调成适合识别的大小（9:16，按显示器自适应）",
                        lambda p, d: [_PY, "-m", "hiro.devices.win_window", "fit"],
                        lambda p: "调整 DMM 游戏窗口大小", pausable=False),
+    "scan-account": Kind("scan-account", "读首页顶栏的 PLv、AP、ジュエル（只截一张图，不点）",
+                         lambda p, d: [_PY, "-m", HOME_READER, "--live", "--out", str(d / "out.json")],
+                         lambda p: "读首页的 PLv / AP / ジュエル（只截图，不点）", output="account", pausable=False),
     "scan-supports": Kind("scan-supports", "扫描支援卡（只读：在「選択」列表里滚动，最后点キャンセル）",
                           lambda p, d: [_PY, str(REPO / "tools" / "support_inventory.py"), "--list", "--out", str(d / "out.json")],
                           lambda p: "扫描支援卡库存（只读，不改编成）", output="supports", pausable=False),

@@ -79,6 +79,7 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | `hif` | `--command new\|resume`、`--mode qualify\|main`、`--idol <偶像卡编号>`、`--no-llm` | H.I.F 培育。`--mode main` 会用掉一份选拔回忆；`resume` 接着打进行中的培育 |
 | `tower` | `--idol <路线的偶像名>`、`--layers N`、`--no-llm` | 偶像之路 |
 | `daily` | — | 日常：礼物、活動費、任务奖励、社团 |
+| `scan-account` | — | 读首页顶栏的 PLv / AP / ジュエル（只截一张图，不点；游戏要停在首页、没有弹窗） |
 | `scan-supports` | — | 扫描支援卡（只读，不改编成） |
 | `scan-memories` | — | 扫描回忆（只读，不改编成） |
 | `write-formation` | `--scenario hif\|hajime\|nia`、`--what support,memory`、`--dry-run` | 把编成方案写进游戏的编成位，写完回读核对。**先用 `--dry-run`** 看差在哪几格（不改），再正式写；没有方案时直接报 `no_plan` |
