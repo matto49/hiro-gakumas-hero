@@ -11,7 +11,7 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-KINDS = ("account", "idols", "supports", "memories", "affection")
+KINDS = ("account", "idols", "supports", "memories", "affection", "game_settings")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS snapshots (

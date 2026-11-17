@@ -158,9 +158,26 @@ def check(save_dir: Path | None = None) -> dict[str, str | None]:
     return found
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> int:
+    """打印每项状态；--json <文件> 另写一份给控制台入库（{items, verdict, ok}）。有 OFF / 读不到时退出码 1。"""
+    import argparse
+    import json
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--json", default=None)
+    a = ap.parse_args(argv)
     res = check(ROOT / "reports/live/settings")
     for k, v in res.items():
         print(f"{k}: {v}")
     print(verdict(res))
-    sys.exit(0 if all(v == "ON" for v in res.values()) else 1)
+    ok = all(v == "ON" for v in res.values())
+    if a.json:
+        out = Path(a.json)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        items = {k: v for k, v in res.items() if not k.startswith("_")}
+        out.write_text(json.dumps({"items": items, "verdict": verdict(res), "ok": ok}, ensure_ascii=False), encoding="utf-8")
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

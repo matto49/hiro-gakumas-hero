@@ -6,7 +6,7 @@ def test_doctor_on_fresh_home(run_cli):
     code, env = run_cli("doctor")
     assert code == 0
     it = items(env)
-    assert list(it) == ["python", "platform", "sound", "model", "secrets", "catalog", "scan"]
+    assert list(it) == ["python", "platform", "sound", "game_settings", "model", "secrets", "catalog", "scan"]
     assert it["python"]["ok"] is True
     assert it["catalog"]["ok"] is False and "hiro catalog sync" in it["catalog"]["next"]
     assert it["scan"]["ok"] is False and "扫描" in it["scan"]["detail"]

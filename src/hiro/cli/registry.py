@@ -65,6 +65,7 @@ class Command:
     args: tuple[Arg, ...] = ()
     handler: Callable[..., Any] | None = None
     confirm_summary: Callable[[dict], str] | None = None  # ACT 命令：待确认卡片上写的一句话
+    precheck: Callable[[dict], None] | None = None  # ACT 命令：出待确认之前先查（明显做不了就直接报错，不让用户白确认）
     stdin: bool = False  # 从 stdin 读值（密码）；agent 不能调用
     agent: bool = True  # 是否给内置 agent 当工具
     extra: dict = field(default_factory=dict)

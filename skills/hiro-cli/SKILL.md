@@ -47,7 +47,8 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | `hiro info supports [--rarity SSR] [--attr Vo\|Da\|Vi\|Assist] [--name 字]` | 支援卡（等级、突破） |
 | `hiro info memories [--timing start\|mid\|final] [--card 字]` | 回忆（技能卡、获得时机、参数、能力） |
 | `hiro info affection` | 每位偶像的好感度 |
-| `hiro info import --kind supports\|memories <json>` | 把扫描工具的输出导入信息库（扫描任务结束时会自动做，一般不用手动） |
+| `hiro info game-settings` | 游戏设置里快进 / 跳过演出那 5 项开没开（最近一次检查；`verdict` 是一句话结论） |
+| `hiro info import --kind supports\|memories\|game_settings <json>` | 把扫描工具的输出导入信息库（扫描任务结束时会自动做，一般不用手动） |
 
 返回里 `scanned_at` 是上次扫描时间；是 `null` 时说明还没扫描过，`hint` 写了怎么扫。回答使用者时说清楚是哪次扫描的数据。
 
@@ -80,6 +81,9 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | `daily` | — | 日常：礼物、活動費、任务奖励、社团 |
 | `scan-supports` | — | 扫描支援卡（只读，不改编成） |
 | `scan-memories` | — | 扫描回忆（只读，不改编成） |
+| `write-formation` | `--scenario hif\|hajime\|nia`、`--what support,memory`、`--dry-run` | 把编成方案写进游戏的编成位，写完回读核对。**先用 `--dry-run`** 看差在哪几格（不改），再正式写；没有方案时直接报 `no_plan` |
+| `check-settings` | — | 检查游戏设置的快进 / 跳过演出（只读：打开菜单看完回首页，不点开关），结果进 `hiro info game-settings` |
+| `fit-window` | — | 只在 Windows DMM 版：把游戏窗口调成适合识别的大小 |
 | `selftest` | `--seconds N` | 自检，只打印几行，不碰游戏 |
 
 对局里用哪个模型，跟着发起开局（`hiro confirm`）那个进程的环境变量走：`HIRO_LLM`（如 `openai:deepseek-flash`、`claude:sonnet`、`codex`）、`OPENAI_BASE_URL`、`OPENAI_API_KEY`；`HIRO_LLM=off` 只用规则和算法。桌面程序按设置里的模型自动传，缺省是 DeepSeek，没填 Key 时是 off。

@@ -16,7 +16,25 @@ _TERMINAL_WAIT = 0.5
 
 
 def _params(a: dict) -> dict:
-    return {k: a[k] for k in ("command", "mode", "idol", "layers", "seconds", "no_llm") if a.get(k) not in (None, False)}
+    return {k: a[k] for k in ("command", "mode", "idol", "layers", "seconds", "no_llm", "scenario", "what", "dry_run")
+            if a.get(k) not in (None, False)}
+
+
+def _precheck(a: dict) -> None:
+    import sys
+
+    from hiro.cli import jobs
+    from hiro.cli.registry import CliError
+
+    if a["kind"] == "fit-window" and jobs.sys.platform != "win32":
+        raise CliError("windows_only", "调窗口大小只用于 Windows DMM 版", "Mac 上 PlayCover 的窗口不用调")
+    if a["kind"] == "write-formation":
+        from hiro.cli import paths
+        from hiro.cli.home import hiro_home
+
+        if not paths.plan_path(hiro_home()).is_file():
+            raise CliError("no_plan", "还没有编成方案，没东西可写", "先出一份：hiro plan formation --idol <偶像卡编号>")
+    del sys
 
 
 def _summary(a: dict) -> str:
@@ -33,8 +51,11 @@ def _summary(a: dict) -> str:
                Arg("--idol", "hif：偶像卡编号；tower：路线的偶像名（如 篠澤広）"),
                Arg("--layers", "tower：打几层", type="int"),
                Arg("--seconds", "selftest：跑几秒", type="int"),
-               Arg("--no-llm", "决策只用规则和算法，不调用模型", type="bool")),
-         confirm_summary=_summary)
+               Arg("--no-llm", "决策只用规则和算法，不调用模型", type="bool"),
+               Arg("--scenario", "write-formation：写哪个模式的编成", choices=("hif", "hajime", "nia")),
+               Arg("--what", "write-formation：写哪些（support / memory，逗号分隔，缺省都写）"),
+               Arg("--dry-run", "write-formation：只看差在哪几格，不改", type="bool")),
+         confirm_summary=_summary, precheck=_precheck)
 def _start(a: dict) -> dict:
     # 对局用哪个模型：跟着发起开局的这个进程的环境（桌面程序按模型设置传；终端里就是自己 shell 的 HIRO_LLM）
     llm_env = {k: os.environ[k] for k in LLM_VARS if os.environ.get(k)}

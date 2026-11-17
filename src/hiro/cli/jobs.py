@@ -94,6 +94,22 @@ def _hif_argv(p: dict, d: Path) -> list[str]:
     return argv
 
 
+def _write_formation_argv(p: dict, d: Path) -> list[str]:
+    argv = [_PY, str(REPO / "tools" / "write_formation.py"), "--mode", p.get("scenario") or "hif"]
+    if p.get("what"):
+        argv += ["--what", p["what"]]
+    if p.get("dry_run"):
+        argv.append("--dry-run")
+    return argv
+
+
+def _write_formation_summary(p: dict) -> str:
+    mode = {"hif": "H.I.F", "hajime": "初", "nia": "N.I.A"}.get(p.get("scenario") or "hif", p.get("scenario"))
+    if p.get("dry_run"):
+        return f"对照编成方案看 {mode} 的编成差在哪几格（只看，不改）"
+    return f"把编成方案写进游戏（{mode} 的支援卡 / 回忆编成）"
+
+
 def _hif_summary(p: dict) -> str:
     if (p.get("command") or "new") == "resume":
         return "接着打进行中的 H.I.F 培育"
@@ -113,6 +129,14 @@ KINDS: dict[str, Kind] = {
                   lambda p: f"爬偶像之路（{p.get('idol') or '?'}，{p.get('layers') or 1} 层）", env={"HIRO_RUNTIME": "own"}),
     "daily": Kind("daily", "日常：礼物、活動費、任务奖励、社团", lambda p, d: [_PY, str(REPO / "tools" / "daily" / "run_daily.py")],
                   lambda p: "领日常奖励", pausable=False),
+    "write-formation": Kind("write-formation", "把开局编成方案写进游戏的编成位，写完回读核对（--dry-run 只报差在哪几格，不改）",
+                            _write_formation_argv, _write_formation_summary, pausable=False),
+    "check-settings": Kind("check-settings", "检查游戏设置里快进 / 跳过演出那几项开没开（只读：打开菜单看完回首页，不点开关）",
+                           lambda p, d: [_PY, str(REPO / "tools" / "check_settings.py"), "--json", str(d / "out.json")],
+                           lambda p: "检查游戏设置（只读，不改开关）", output="game_settings", pausable=False),
+    "fit-window": Kind("fit-window", "Windows DMM：把游戏窗口调成适合识别的大小（9:16，按显示器自适应）",
+                       lambda p, d: [_PY, "-m", "hiro.devices.win_window", "fit"],
+                       lambda p: "调整 DMM 游戏窗口大小", pausable=False),
     "scan-supports": Kind("scan-supports", "扫描支援卡（只读：在「選択」列表里滚动，最后点キャンセル）",
                           lambda p, d: [_PY, str(REPO / "tools" / "support_inventory.py"), "--list", "--out", str(d / "out.json")],
                           lambda p: "扫描支援卡库存（只读，不改编成）", output="supports", pausable=False),

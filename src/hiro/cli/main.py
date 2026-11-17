@@ -84,6 +84,11 @@ def run(argv: list[str]) -> tuple[int, dict]:
     if os.environ.get("HIRO_AGENT_SANDBOX") and (cmd.risk is Risk.ACT or cmd.name in AGENT_READONLY_DENY):
         return 1, fail("agent_readonly", f"程序内置的对话模式只能查信息，不能运行 hiro {cmd.name}",
                        "要开局或扫描时，在回答里单独写一行 HIRO_ACTION: run start <参数>，程序会给玩家出确认卡")
+    if cmd.risk is Risk.ACT and cmd.precheck:
+        try:
+            cmd.precheck(args)
+        except CliError as e:
+            return e.exit_code, fail(e.code, e.message, e.hint)
     if cmd.risk is Risk.ACT:
         from hiro.cli import pending
 

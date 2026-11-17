@@ -99,6 +99,21 @@ def _secrets() -> dict:
     return _item("secrets", "游戏账号密码", False, "没保存：掉登录时要你自己登", "可以跳过；要用就到设置 → 账号密码里填", optional=True)
 
 
+def _game_settings() -> dict:
+    meta, rows = open_store().latest("game_settings")
+    if meta is None:
+        return _item("game_settings", "游戏快进设置", None, "还没检查过快进 / 跳过演出那几项",
+                     "游戏停在首页时让小广检查（hiro run start check-settings，只读）")
+    off = [r["item"] for r in rows if r["state"] == "OFF"]
+    unknown = [r["item"] for r in rows if r["state"] is None]
+    if off:
+        return _item("game_settings", "游戏快进设置", False, f"这几项没开：{'、'.join(off)}（{meta['scanned_at'][5:16]} 检查）",
+                     "在游戏里打开 メニュー → 設定 → プロデュース，把它们打开；不开也能打，开局会多处理几个弹框")
+    if unknown:
+        return _item("game_settings", "游戏快进设置", None, f"有几项没读到：{'、'.join(unknown)}", "游戏停在首页时再检查一次")
+    return _item("game_settings", "游戏快进设置", True, f"5 项都开着（{meta['scanned_at'][5:16]} 检查）")
+
+
 def _catalog() -> dict:
     p = ensure_home() / "catalog" / "catalog.ja.json"
     if not p.is_file():
@@ -125,6 +140,7 @@ def _doctor(a: dict) -> dict:
         _python(),
         _platform(a["probe"]),
         _item("sound", "游戏声音", None, "程序看不到游戏里的声音设置", "在游戏里打开设置 → 声音，把 BGM、语音、效果音都关掉（不用动电脑的音量）"),
+        _game_settings(),
         _model(),
         _secrets(),
         _catalog(),

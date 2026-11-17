@@ -14,6 +14,7 @@ SCAN_HINT = {
     "supports": "还没扫描支援卡：运行 hiro run start scan-supports",
     "memories": "还没扫描回忆：运行 hiro run start scan-memories",
     "affection": "还没扫描好感度（这一项的扫描还没做，先在游戏里看）",
+    "game_settings": "还没检查游戏设置：运行 hiro run start check-settings",
 }
 
 
@@ -58,12 +59,19 @@ def normalize_memories(inv: dict) -> list[dict]:
     return out
 
 
-NORMALIZE = {"supports": normalize_supports, "memories": normalize_memories}
+def normalize_game_settings(inv: dict) -> list[dict]:
+    """tools/check_settings.py --json 的输出 → 每项一行（state：ON / OFF / null = 读不到）。"""
+    return [{"item": k, "state": v} for k, v in (inv.get("items") or {}).items()]
+
+
+NORMALIZE = {"supports": normalize_supports, "memories": normalize_memories, "game_settings": normalize_game_settings}
 
 
 def import_inventory(kind: str, inv: dict, source: str) -> dict:
     rows = NORMALIZE[kind](inv)
     complete = inv.get("complete")
+    if kind == "game_settings":
+        complete = all(r["state"] is not None for r in rows)
     if complete is None and kind == "supports":
         complete = inv.get("source") == "list"  # 编成页扫描只含编成里出现过的卡
     scanned_at = inv.get("scanned_at")
@@ -146,6 +154,14 @@ def _idols(a: dict) -> dict:
 @command("info affection", Risk.READ, "每位偶像的好感度（親愛度，最新一次扫描）。")
 def _affection(a: dict) -> dict:
     return _listing("affection")
+
+
+@command("info game-settings", Risk.READ, "游戏设置里快进 / 跳过演出那 5 项开没开（最近一次检查的结果，ON / OFF / null 读不到）。")
+def _game_settings(a: dict) -> dict:
+    out = _listing("game_settings")
+    raw = open_store().latest_raw("game_settings") or {}
+    out["verdict"] = raw.get("verdict")
+    return out
 
 
 @command("info import", Risk.READ, "把扫描工具的输出 JSON 导入信息库（扫描任务结束时自动调用）。",
