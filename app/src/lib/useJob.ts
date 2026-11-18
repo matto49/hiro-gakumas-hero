@@ -1,6 +1,7 @@
 // 盯一个任务：每秒拉一次新事件，直到任务结束。对局卡、驾驶舱、右栏共用。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LIVE_STATES, data, useHiro, type Job, type JobEvent } from "./hiro";
+import { pollWhileVisible } from "./poll";
 
 export interface JobView {
   job: Job | null;
@@ -31,28 +32,22 @@ export function useJob(jobId: string | null): JobView {
   useEffect(() => {
     if (!jobId) return;
     let live = true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const pull = async () => {
-      try {
-        const r = await data<{ state: string; events: JobEvent[] }>(call, ["run", "events", "--job", jobId, "--since", String(next.current)]);
-        if (!live) return;
-        if (r.events.length) {
-          next.current = r.events[r.events.length - 1]!.seq + 1;
-          setEvents((old) => [...old, ...r.events]);
-        }
-        setState(r.state);
-        const st = await data<{ current: Job | null; recent: Job[] }>(call, ["run", "status"]);
-        if (!live) return;
-        setJob((st.current?.id === jobId ? st.current : st.recent.find((j) => j.id === jobId)) ?? null);
-        if (LIVE_STATES.has(r.state)) timer = setTimeout(pull, POLL_MS);
-      } catch {
-        if (live) timer = setTimeout(pull, POLL_MS * 3);
+    const stop = pollWhileVisible(async () => {
+      const r = await data<{ state: string; events: JobEvent[] }>(call, ["run", "events", "--job", jobId, "--since", String(next.current)]);
+      if (!live) return false;
+      if (r.events.length) {
+        next.current = r.events[r.events.length - 1]!.seq + 1;
+        setEvents((old) => [...old, ...r.events]);
       }
-    };
-    pull();
+      setState(r.state);
+      const st = await data<{ current: Job | null; recent: Job[] }>(call, ["run", "status"]);
+      if (!live) return false;
+      setJob((st.current?.id === jobId ? st.current : st.recent.find((j) => j.id === jobId)) ?? null);
+      return LIVE_STATES.has(r.state); // 任务结束就不再查
+    }, POLL_MS);
     return () => {
       live = false;
-      if (timer) clearTimeout(timer);
+      stop();
     };
   }, [jobId, call, tick]);
 

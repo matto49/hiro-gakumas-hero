@@ -104,6 +104,9 @@ func (h *Hiro) reset() {
 
 // Call 运行一条 hiro 命令，例如 ["info", "summary"]，返回解析后的信封。不会返回 Go 错误：失败都在 Result.Error 里。
 func (h *Hiro) Call(ctx context.Context, args []string) Result {
+	if r, ok := h.tryService(ctx, args); ok {
+		return r
+	}
 	return h.run(ctx, args, nil)
 }
 

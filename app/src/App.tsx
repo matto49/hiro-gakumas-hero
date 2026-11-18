@@ -8,6 +8,7 @@ import type { Thread } from "./lib/chat";
 import { cardsFor } from "./lib/quick";
 import { data, useHiro, type Envelope, type Job, type Summary } from "./lib/hiro";
 import { STATE_LABEL } from "./lib/labels";
+import { pollWhileVisible } from "./lib/poll";
 import { useThreads } from "./lib/threads";
 import { Cockpit } from "./pages/Cockpit";
 import { InfoPage } from "./pages/InfoPage";
@@ -15,7 +16,7 @@ import { PlanPage } from "./pages/PlanPage";
 import { SettingsPage } from "./pages/Settings";
 import { Wizard } from "./pages/Wizard";
 
-const STATUS_POLL_MS = 2000;
+const STATUS_POLL_MS = 3000;
 
 function useStatus() {
   const call = useHiro();
@@ -24,11 +25,10 @@ function useStatus() {
   const lastJob = useRef<string | null>(null);
   useEffect(() => {
     let live = true;
-    let timer: ReturnType<typeof setTimeout>;
-    const pull = async () => {
+    const stop = pollWhileVisible(async () => {
       try {
         const st = await data<{ current: Job | null }>(call, ["run", "status"]);
-        if (!live) return;
+        if (!live) return false;
         setCurrent(st.current);
         // 有任务刚结束（扫描会更新信息库）：重新读账号概况
         if (lastJob.current && !st.current) data<Summary>(call, ["info", "summary"]).then((s) => live && setSummary(s), () => {});
@@ -36,13 +36,11 @@ function useStatus() {
       } catch {
         /* 服务起不来时，对局卡 / 出错卡会说明 */
       }
-      if (live) timer = setTimeout(pull, STATUS_POLL_MS);
-    };
-    pull();
+    }, STATUS_POLL_MS);
     data<Summary>(call, ["info", "summary"]).then((s) => live && setSummary(s), () => {});
     return () => {
       live = false;
-      clearTimeout(timer);
+      stop();
     };
   }, [call]);
   return { current, summary };
