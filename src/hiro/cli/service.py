@@ -22,6 +22,7 @@ from hiro.cli.home import ensure_home
 from hiro.cli.jobs import KINDS, LIVE, Job, jobs_dir
 
 RECENT = 10
+PRODUCE_KINDS = ("hif", "hajime", "nia", "tower")
 
 
 def _is_our_python(pid: int) -> bool:
@@ -117,6 +118,18 @@ class Manager:
         return {"ok": True, "data": {"job": job.describe()}}
 
     def _exited(self, job: Job) -> None:
+        if job.kind.name in PRODUCE_KINDS:  # 对局结束：成绩摘要（在结束事件之前）
+            try:
+                from hiro.cli import report
+
+                segs = report.segments(report.traces_dir(), job.id)
+                if segs:
+                    exams = report.exam_scores(job.id, report.traces_dir())
+                    line = report.score_line(exams)
+                    if line:
+                        job.emit("report", line, exams=exams)
+            except Exception as e:  # noqa: BLE001 成绩摘要出错不影响任务
+                job.emit("log", f"成绩摘要没算出来：{e}")
         if job.kind.output:
             try:
                 from hiro.cli.scan_ingest import ingest

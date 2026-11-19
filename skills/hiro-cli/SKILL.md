@@ -102,6 +102,8 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | `hiro run pause` | 暂停：主循环停在下一个检查点，不再点击 |
 | `hiro run takeover` | 使用者要自己点几下：自动操作停下 |
 | `hiro run resume` | 继续：从当前画面重新判断在哪一页，接着打 |
+| `hiro run report --job <编号>` | 一局的成绩摘要：每场考试分数、决策来源（规则 / 算法 / LLM）、LLM 次数、故障恢复次数。对局结束时事件流里也有一条 `report` |
+| `hiro run review --job <编号>` | 生成复盘页（逐回合出牌和理由，带截图），返回本机 html 路径 |
 | `hiro run stop` | 停止任务（不放弃培育，游戏停在原地，之后可以 `hif --command resume` 续跑） |
 
 任务结束的事件是 `done`、`failed`（看前面几条 `log` 判断原因，转告使用者）或 `stopped`。

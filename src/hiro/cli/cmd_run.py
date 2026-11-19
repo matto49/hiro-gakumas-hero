@@ -10,7 +10,7 @@ from hiro.cli import client
 import os
 
 from hiro.cli.jobs import KINDS, LIVE, LLM_VARS
-from hiro.cli.registry import Arg, Risk, command
+from hiro.cli.registry import Arg, CliError, Risk, command
 
 _TERMINAL_WAIT = 0.5
 
@@ -115,3 +115,28 @@ _control("pause", "暂停当前任务：主循环停在下一个检查点，不�
 _control("takeover", "用户接手：自动操作停下，用户在游戏里手动点；之后 hiro run resume 从当前画面接着打。")
 _control("resume", "继续：从当前画面重新判断在哪一页，接着自动打。")
 _control("stop", "停止当前任务（不会放弃培育：游戏停在原地，之后可以 resume 续跑）。")
+
+
+@command("run report", Risk.READ, "一局的成绩摘要：步数、决策来源（规则 / 算法 / LLM / 兜底）、LLM 次数、故障恢复次数、每场考试分数。",
+         args=(Arg("--job", "任务编号", required=True),))
+def _report(a: dict) -> dict:
+    from hiro.cli import report
+
+    return report.summarize(report.check_job(a["job"]))
+
+
+@command("run review", Risk.READ, "生成一局的复盘页（逐回合出牌、候选、状态曲线，带截图），返回本机文件路径。只给有考试的对局。",
+         args=(Arg("--job", "任务编号", required=True),))
+def _review(a: dict) -> dict:
+    from hiro.cli import report
+
+    jid = report.check_job(a["job"])
+    if not report.segments(report.traces_dir(), jid):
+        raise CliError("no_trace", f"任务 {jid} 没有对局记录", "只有对局才有复盘页")
+    html = report.build_review_html(jid, report.traces_dir())
+    from hiro.cli.home import ensure_home
+
+    out = ensure_home() / "jobs" / jid / "review.html"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(html, encoding="utf-8")
+    return {"job": jid, "path": str(out), "url": f"review/{jid}.html"}

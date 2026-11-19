@@ -55,3 +55,18 @@ func TestHomeFilesFetchesMissingSprite(t *testing.T) {
 		t.Fatalf("code %d asked %v", rec.Code, asked)
 	}
 }
+
+func TestHomeFilesServesReviewPages(t *testing.T) {
+	home := t.TempDir()
+	_ = os.MkdirAll(filepath.Join(home, "jobs", "J1"), 0o755)
+	_ = os.WriteFile(filepath.Join(home, "jobs", "J1", "review.html"), []byte("<html>r</html>"), 0o644)
+	_ = os.WriteFile(filepath.Join(home, "jobs", "J1", "job.json"), []byte("{}"), 0o644)
+	h := homeFiles(home, nil)
+	for path, want := range map[string]int{"/review/J1.html": 200, "/review/J2.html": 404, "/jobs/J1/job.json": 404, "/review/..%2Fx.html": 404} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("GET", "hiro://localhost"+path, nil))
+		if rec.Code != want {
+			t.Errorf("%s: %d want %d", path, rec.Code, want)
+		}
+	}
+}
