@@ -90,9 +90,60 @@ def _hif_argv(p: dict, d: Path) -> list[str]:
     argv = [_PY, "-m", "hiro.run_hif", p.get("command") or "new", "--mode", p.get("mode") or "qualify", "--trace", d.name]
     if p.get("idol"):
         argv += ["--idol", p["idol"]]
+    if p.get("main_attr"):
+        argv += ["--main-attr", p["main_attr"]]
     if p.get("no_llm"):
         argv.append("--no-llm")
     return argv
+
+
+DAILY_ITEMS = ("activity_funds", "presents", "assignment", "contest", "mission_reward", "club_reward")
+DAILY_OWN = ("activity_funds", "presents", "mission_reward", "club_reward")  # 已迁到 hiro.daily 的（不经 KAA）
+DAILY_LABEL = {"activity_funds": "活動費", "presents": "礼物", "assignment": "工作", "contest": "竞赛",
+               "mission_reward": "任务奖励", "club_reward": "社团"}
+HAJIME_LEVELS = ("regular", "pro", "master")
+NIA_LEVELS = ("pro", "master")
+
+
+def _daily_argv(p: dict, d: Path) -> list[str]:
+    argv = [_PY, str(REPO / "tools" / "daily" / "run_daily.py")]
+    items = [i for i in (p.get("items") or "").split(",") if i]
+    if items:
+        argv += ["--only", ",".join(items)]
+        if all(i in DAILY_OWN for i in items):
+            argv.append("--own")
+    return argv
+
+
+def _daily_summary(p: dict) -> str:
+    items = [i for i in (p.get("items") or "").split(",") if i]
+    return "领日常奖励" + (f"（{'、'.join(DAILY_LABEL.get(i, i) for i in items)}）" if items else "")
+
+
+def _produce_argv(module: str, default_level: str):
+    """初（hiro.runtime.hajime）/ N.I.A（hiro.runtime.nia_sample）：新主循环，编成号走参数，存帧放任务目录。"""
+
+    def build(p: dict, d: Path) -> list[str]:
+        argv = [_PY, "-m", module, p.get("command") or "new", "--idol", p.get("idol") or "",
+                "--difficulty", p.get("difficulty") or default_level, "--trace", d.name, "--out", str(d / "frames")]
+        for key, flag in (("main_attr", "--main-attr"), ("support_set", "--support-set"), ("memory_set", "--memory-set")):
+            if p.get(key):
+                argv += [flag, str(p[key])]
+        if p.get("no_llm"):
+            argv.append("--no-llm")
+        return argv
+
+    return build
+
+
+def _produce_summary(name: str, default_level: str):
+    def summary(p: dict) -> str:
+        level = (p.get("difficulty") or default_level).upper()
+        if (p.get("command") or "new") == "resume":
+            return f"接着打进行中的{name}培育"
+        return f"开一局{name} {level}" + (f"（{p['idol']}）" if p.get("idol") else "")
+
+    return summary
 
 
 def _write_formation_argv(p: dict, d: Path) -> list[str]:
@@ -128,8 +179,11 @@ KINDS: dict[str, Kind] = {
                                 "--layers", str(p.get("layers") or 1), "--trace", d.name]
                   + (["--no-llm"] if p.get("no_llm") else []),
                   lambda p: f"爬偶像之路（{p.get('idol') or '?'}，{p.get('layers') or 1} 层）", env={"HIRO_RUNTIME": "own"}),
-    "daily": Kind("daily", "日常：礼物、活動費、任务奖励、社团", lambda p, d: [_PY, str(REPO / "tools" / "daily" / "run_daily.py")],
-                  lambda p: "领日常奖励", pausable=False),
+    "hajime": Kind("hajime", "「初」培育（レギュラー / プロ / マスター）", _produce_argv("hiro.runtime.hajime", "regular"),
+                   _produce_summary("「初」", "regular"), env={"HIRO_RUNTIME": "own"}),
+    "nia": Kind("nia", "N.I.A 培育（プロ / マスター；认不出的页会停下交给你）", _produce_argv("hiro.runtime.nia_sample", "pro"),
+                _produce_summary(" N.I.A", "pro"), env={"HIRO_RUNTIME": "own"}),
+    "daily": Kind("daily", "日常：活動費、礼物、工作、竞赛、任务奖励、社团（可只选几项）", _daily_argv, _daily_summary, pausable=False),
     "write-formation": Kind("write-formation", "把开局编成方案写进游戏的编成位，写完回读核对（--dry-run 只报差在哪几格，不改）",
                             _write_formation_argv, _write_formation_summary, pausable=False),
     "check-settings": Kind("check-settings", "检查游戏设置里快进 / 跳过演出那几项开没开（只读：打开菜单看完回首页，不点开关）",
@@ -216,6 +270,10 @@ class Job:
 
         paths.apply_defaults(env, self.work.parent)  # self.work = HIRO_HOME/work
         env.update(self.kind.env)
+        if self.kind.name == "hif":  # run_hif 的编成号走环境变量
+            for key, var in (("support_set", "HIRO_SUPPORT_SET"), ("memory_set", "HIRO_MEMORY_SET")):
+                if self.params.get(key):
+                    env[var] = str(self.params[key])
         env.update(self._llm_env)
         if self._llm_off:
             env.pop("HIRO_LLM", None)

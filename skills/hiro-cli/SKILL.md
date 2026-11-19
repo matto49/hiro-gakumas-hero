@@ -76,9 +76,11 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 
 | 种类 | 参数 | 做什么 |
 |---|---|---|
-| `hif` | `--command new\|resume`、`--mode qualify\|main`、`--idol <偶像卡编号>`、`--no-llm` | H.I.F 培育。`--mode main` 会用掉一份选拔回忆；`resume` 接着打进行中的培育 |
+| `hif` | `--command new\|resume`、`--mode qualify\|main`、`--idol <偶像卡编号>`、`--main-attr Vo\|Da\|Vi`、`--support-set N`、`--memory-set N`、`--no-llm` | H.I.F 培育。`--mode main` 会用掉一份选拔回忆；`resume` 接着打进行中的培育。编成号不给时按编成方案 |
+| `hajime` | 同上（没有 `--mode`），另有 `--difficulty regular\|pro\|master` | 「初」培育。`new` 必须给 `--idol` |
+| `nia` | 同 `hajime`，`--difficulty pro\|master` | N.I.A 培育。认不出的页面会停下：请用户手动处理后 `--command resume` |
 | `tower` | `--idol <路线的偶像名>`、`--layers N`、`--no-llm` | 偶像之路 |
-| `daily` | — | 日常：礼物、活動費、任务奖励、社团 |
+| `daily` | `--items activity_funds,presents,assignment,contest,mission_reward,club_reward`（可选，缺省全部） | 日常：活動費、礼物、工作、竞赛、任务奖励、社团。只选前四项以外的（工作、竞赛）时走 KAA |
 | `scan-account` | — | 读首页顶栏的 PLv / AP / ジュエル（只截一张图，不点；游戏要停在首页、没有弹窗） |
 | `scan-supports` | — | 扫描支援卡（只读，不改编成） |
 | `scan-memories` | — | 扫描回忆（只读，不改编成） |
