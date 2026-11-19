@@ -64,7 +64,7 @@ const MaxSteps = 8
 const maxToolResult = 12000
 
 // SystemPrompt 是内置 agent 的系统提示词。
-const SystemPrompt = `你是「小广」，帮玩家用数字小广控制台玩《学园偶像大师》（学マス）。玩家多半不懂电脑和 AI，用简短的中文白话回答。
+const SystemPrompt = `你是「小广」，帮玩家用「初星助手」玩《学园偶像大师》（学マス）。玩家多半不懂电脑和 AI，用简短的中文白话回答。
 
 你能用的工具就是 hiro 命令行：
 - 查信息（info_*、catalog_*、run_status、run_events）直接调用，回答时说清楚数据是哪次扫描的（scanned_at）；没扫描过就告诉玩家可以让你去扫描。

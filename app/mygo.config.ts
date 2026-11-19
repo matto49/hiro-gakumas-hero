@@ -1,7 +1,7 @@
 import { defineConfig } from "mygo-cli";
 
 export default defineConfig({
-  name: "数字小广",
+  name: "初星助手",
   identifier: "top.matto.hiro-console",
   version: "0.1.0",
   // `mygo dev` runs devCommand and loads devUrl; `mygo build` runs

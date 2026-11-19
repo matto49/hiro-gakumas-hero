@@ -1,4 +1,4 @@
-// 数字小广控制台：桌面程序（设计稿 docs/ryugi/specs/2026-11-17-hiro-console-design.md）。
+// 初星助手（原名数字小广控制台）：桌面程序（设计稿 docs/ryugi/specs/2026-11-17-hiro-console-design.md）。
 // 界面是 React 网页（src/），所有能力都经 Hiro 服务调工具层的 hiro 命令行。
 package main
 
@@ -8,6 +8,10 @@ import (
 
 	"github.com/egoist/mygo"
 )
+
+// AppName 是程序的显示名（窗口标题；mygo.config.ts 的 name、index.html 的标题要和它一致）。
+// 内部标识 top.matto.hiro-console、数据目录 hiro-console、命令行 hiro 都不随改名变（设置和钥匙串里的 Key 不丢）。
+const AppName = "初星助手"
 
 func main() {
 	fixPath()
@@ -29,7 +33,7 @@ func main() {
 
 	mygo.App.WhenReady(func() {
 		mygo.NewWindow(mygo.WindowOptions{
-			Title:           "数字小广",
+			Title:           AppName,
 			Width:           1280,
 			Height:          800,
 			MinWidth:        960,

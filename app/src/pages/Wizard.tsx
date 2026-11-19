@@ -142,7 +142,7 @@ export function Wizard({ onDone }: { onDone: () => void }) {
       <div className="w-full max-w-[640px]">
         <div className="mb-1 flex items-center gap-2 text-[15px] font-bold">
           <i className="inline-block size-[22px] rounded-md bg-acc" />
-          数字小广 · 第一次使用
+          初星助手 · 第一次使用
         </div>
         <ol className="mb-5 flex flex-wrap gap-1.5 p-0 text-xs">
           {STEPS.map((s, i) => (

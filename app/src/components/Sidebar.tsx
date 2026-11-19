@@ -20,7 +20,7 @@ export function Sidebar(p: {
     <aside className="flex w-[236px] flex-none flex-col border-r border-line bg-panel p-3">
       <div className="flex items-center gap-2 px-1.5 pt-1 pb-3 text-[15px] font-bold">
         <i className="inline-block size-[22px] rounded-md bg-acc" />
-        数字小广
+        初星助手
       </div>
       <button type="button" className="flex h-[34px] items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 font-medium hover:bg-chip" onClick={p.onNew}>
         ＋ 新对话
