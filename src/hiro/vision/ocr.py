@@ -11,10 +11,12 @@
   Mac / Windows 结果一致。中日混合模型会把部分汉字认成简体（强化、交换済），按 _SIMPLIFIED 换回日文写法。
 
 HIRO_OCR=auto（缺省：macOS 且能导入 Vision → vision，否则 rapidocr）/ vision / rapidocr / winocr / ppocr5。
+rapidocr 的推理设备：HIRO_OCR_DEVICE=auto（缺省 CUDA → DirectML → CPU）/ cuda / dml / cpu；CPU 线程数 HIRO_OCR_THREADS（见 ocr_device_order）。
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import sys
@@ -25,6 +27,8 @@ from typing import NamedTuple
 
 import cv2
 from cv2.typing import MatLike
+
+logger = logging.getLogger(__name__)
 
 ENGINES = ("auto", "vision", "rapidocr", "winocr", "ppocr5")
 _engine: str | None = None
@@ -95,12 +99,61 @@ def _rapid_model(tag: str) -> Path:
     raise RuntimeError(f"HIRO_OCR=rapidocr 要的模型 {name} 不在 {own.parent}，也没装 kaa 包")
 
 
+OCR_DEVICES = ("cuda", "dml", "cpu")  # HIRO_OCR_DEVICE=auto 时按这个顺序试
+_EP = {"cuda": "CUDAExecutionProvider", "dml": "DmlExecutionProvider", "cpu": "CPUExecutionProvider"}
+
+
+def ocr_device_order(want: str | None = None, available: list[str] | None = None) -> list[str]:
+    """RapidOCR 推理设备的尝试顺序。HIRO_OCR_DEVICE：auto（缺省：CUDA → DirectML → CPU，装了哪种 onnxruntime 就有哪种）/ cuda / dml / cpu。
+    指定的设备这台机器的 onnxruntime 没有时退回 CPU（日志写明）。CUDA 要 onnxruntime-gpu 且 CUDA / cuDNN 版本对得上；
+    DirectML 要 onnxruntime-directml（Windows，任意显卡）。三者互斥，同一个环境只能装一种。"""
+    want = (want if want is not None else os.environ.get("HIRO_OCR_DEVICE", "auto")).strip().lower() or "auto"
+    if available is None:
+        import onnxruntime
+
+        available = onnxruntime.get_available_providers()
+    if want not in ("auto", *OCR_DEVICES):
+        raise ValueError(f"HIRO_OCR_DEVICE 只能是 auto / cuda / dml / cpu，不是 {want!r}")
+    order = [d for d in (OCR_DEVICES if want == "auto" else (want,)) if _EP[d] in available]
+    if want not in ("auto", "cpu") and not order:
+        logger.warning("HIRO_OCR_DEVICE=%s，但 onnxruntime 没有 %s（现有 %s），文字识别用 CPU", want, _EP[want], available)
+    return order if "cpu" in order else [*order, "cpu"]
+
+
+def _ocr_threads() -> int:
+    """HIRO_OCR_THREADS：CPU 推理用几个线程（缺省 -1 = onnxruntime 自己定，通常占满所有核）。CPU 模式下调小能降占用和风扇声，单帧会慢一些。"""
+    try:
+        return int(os.environ.get("HIRO_OCR_THREADS") or -1)
+    except ValueError:
+        return -1
+
+
+def _session_device(engine) -> str:
+    """引擎实际在用的设备（看检测模型 session 的第一个 provider；onnxruntime 加载 CUDA / DirectML 失败时会悄悄退回 CPU）。"""
+    try:
+        first = engine.text_det.infer.session.get_providers()[0]
+    except Exception:  # noqa: BLE001
+        return "cpu"
+    return next((d for d, ep in _EP.items() if ep == first), "cpu")
+
+
 def _rapid_engine(languages):
     from rapidocr_onnxruntime import RapidOCR
 
     tag = "en" if tuple(languages) == ("en-US",) else "ja"  # 只要英文时用英文模型（数字），否则日文模型
     if tag not in _rapid:
-        _rapid[tag] = RapidOCR(rec_model_path=str(_rapid_model(tag)), use_det=True, use_cls=False, use_rec=True)
+        threads = _ocr_threads()
+        engine = None
+        for dev in ocr_device_order():
+            flags = {f"{part}_{k}": dev == d for part in ("det", "rec") for k, d in (("use_cuda", "cuda"), ("use_dml", "dml"))}
+            engine = RapidOCR(rec_model_path=str(_rapid_model(tag)), use_det=True, use_cls=False, use_rec=True,
+                              det_intra_op_num_threads=threads, rec_intra_op_num_threads=threads, **flags)  # fmt: skip
+            got = _session_device(engine)
+            if got == dev:
+                break
+            logger.warning("文字识别：%s 没加载成功（实际 %s），试下一个", dev, got)
+        logger.info("文字识别（RapidOCR %s 模型）用 %s", tag, _session_device(engine))
+        _rapid[tag] = engine
     return _rapid[tag]
 
 
