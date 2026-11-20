@@ -5,6 +5,11 @@ import { cx } from "./ui";
 export const inputCls =
   "h-8 w-full rounded-md border border-line-strong bg-surface px-2.5 text-[13px] text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-brand focus:ring-3 focus:ring-brand/25";
 
+// 下拉框：去掉系统自带的渐变外观，右边画一个小箭头
+const CHEVRON = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237a736c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")";
+export const selectCls = `${inputCls} appearance-none bg-no-repeat bg-[position:right_8px_center] pr-7 cursor-pointer`;
+export const selectStyle = { backgroundImage: CHEVRON };
+
 export function Field({ label, hint, children, className }: { label: string; hint?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <label className={cx("flex min-w-0 flex-col gap-1", className)}>

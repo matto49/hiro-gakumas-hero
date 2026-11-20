@@ -1,7 +1,8 @@
 // 开局页（设计简报 §5）：五种模式一行一个，点开展开参数，下面内联确认（不弹窗）。参数缺省按编成方案。
 import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Check, Field, Segmented, inputCls } from "../components/Field";
+import { Check, Field, Segmented, inputCls, selectCls, selectStyle } from "../components/Field";
+import { IdolPicker } from "../components/IdolPicker";
 import { StartTask } from "../components/StartTask";
 import { PageTitle, cx } from "../components/ui";
 import { data, useHiro } from "../lib/hiro";
@@ -76,11 +77,11 @@ function ProduceForm({ mode, plan, onArgs }: { mode: "hif" | "hajime" | "nia"; p
       </div>
       {!resume && (
         <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3">
-          <Field label="偶像卡" hint="游戏里偶像卡的编号，例如 i_card-skin-shro-3-007">
-            <input aria-label="偶像卡" className={inputCls} value={idol} onChange={(e) => setIdol(e.target.value)} placeholder={plan?.idol.id ?? "i_card-skin-…"} />
+          <Field label="偶像卡" hint={plan?.idol.name ? `编成方案是按「${plan.idol.name}」出的` : "搜卡名，也可以直接填编号"}>
+            <IdolPicker value={idol} onChange={setIdol} />
           </Field>
           <Field label="主属性">
-            <select aria-label="主属性" className={inputCls} value={attr} onChange={(e) => setAttr(e.target.value)}>
+            <select aria-label="主属性" className={selectCls} style={selectStyle} value={attr} onChange={(e) => setAttr(e.target.value)}>
               {ATTR_OPTS}
             </select>
           </Field>

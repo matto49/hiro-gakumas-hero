@@ -57,7 +57,7 @@ export function StepRow({ e, now }: { e: JobEvent; now?: boolean }) {
         <div className="flex flex-wrap items-center text-[13px] font-semibold text-ink">
           {page}
           {action && action !== page ? <span className="ml-1.5 font-normal text-ink-3">· {action}</span> : null}
-          <SourceTag label={sourceLabel(e.source)} />
+          <SourceTag label={sourceLabel(e.source)} className="ml-1.5" />
         </div>
         <div className="mt-0.5 text-[12.5px] leading-relaxed text-ink-2">{e.text || "（没写理由）"}</div>
       </div>

@@ -1,6 +1,7 @@
 // 设置（设计稿 §8、§10）：模型（服务商 + Key + 模型）、账号密码（只由人填写，界面只显示有没有保存）。
 import { useEffect, useState } from "react";
-import { Button, Panel, cx } from "../components/ui";
+import { Field, inputCls, selectCls, selectStyle } from "../components/Field";
+import { Button, PageTitle, cx } from "../components/ui";
 import { DEFAULT_DEEPSEEK_MODEL, PROVIDER_LABEL, useAssistant, type Settings } from "../lib/assistant";
 import { useBoot } from "../lib/bootstrap";
 import { data, useHiro } from "../lib/hiro";
@@ -10,17 +11,7 @@ const SECRETS: [string, string][] = [
   ["game-password", "游戏密码"],
 ];
 
-function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: React.ReactNode }) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-xs text-ink-2">{label}</span>
-      {children}
-      {hint && <span className="text-[11.5px] text-ink-3">{hint}</span>}
-    </label>
-  );
-}
-
-const input = "h-9 rounded-lg border border-line bg-white px-3 outline-none focus:border-acc";
+const input = inputCls;
 
 export function ModelSection({ onChanged, onTested }: { onChanged: () => void; onTested?: (ok: boolean) => void }) {
   const api = useAssistant();
@@ -75,11 +66,11 @@ export function ModelSection({ onChanged, onTested }: { onChanged: () => void; o
     }
   };
   return (
-    <Panel className="flex flex-col gap-3">
+    <section className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4">
       <h2 className="m-0 text-[15px] font-bold">模型</h2>
-      <div className="text-xs text-ink-2">不配模型也能用：只能点快捷指令，对局里的决策只用规则和算法。</div>
+      <div className="text-[12.5px] leading-relaxed text-ink-2">不配模型也能用：只能点快捷指令，对局里的决策只用规则和算法。</div>
       <Field label="服务商">
-        <select aria-label="服务商" className={input} value={s.provider} onChange={(e) => setS({ ...s, provider: e.target.value as Settings["provider"] })}>
+        <select aria-label="服务商" className={selectCls} style={selectStyle} value={s.provider} onChange={(e) => setS({ ...s, provider: e.target.value as Settings["provider"] })}>
           {(Object.keys(PROVIDER_LABEL) as Settings["provider"][]).map((p) => (
             <option key={p} value={p}>
               {p === "deepseek" ? "DeepSeek（推荐）" : PROVIDER_LABEL[p]}
@@ -102,7 +93,7 @@ export function ModelSection({ onChanged, onTested }: { onChanged: () => void; o
           </Field>
           <Field label="模型" hint={models.length ? "列表是这个 Key 能用的模型，一般用默认的 deepseek-flash" : "一般不用改"}>
             {models.length ? (
-              <select aria-label="模型" className={input} value={s.model ?? DEFAULT_DEEPSEEK_MODEL} onChange={(e) => setS({ ...s, model: e.target.value })}>
+              <select aria-label="模型" className={selectCls} style={selectStyle} value={s.model ?? DEFAULT_DEEPSEEK_MODEL} onChange={(e) => setS({ ...s, model: e.target.value })}>
                 {(models.includes(s.model ?? DEFAULT_DEEPSEEK_MODEL) ? models : [s.model ?? DEFAULT_DEEPSEEK_MODEL, ...models]).map((m) => (
                   <option key={m} value={m}>
                     {m === DEFAULT_DEEPSEEK_MODEL ? `${m}（默认）` : m}
@@ -116,7 +107,7 @@ export function ModelSection({ onChanged, onTested }: { onChanged: () => void; o
         </>
       )}
       {(s.provider === "codex" || s.provider === "claude") && (
-        <div className="text-xs text-ink-2">
+        <div className="text-[12.5px] leading-relaxed text-ink-2">
           用这台电脑上已经登录的 {s.provider} 命令行。它会按说明自己调用小广的工具；开局一样要你点确认卡。
         </div>
       )}
@@ -129,9 +120,9 @@ export function ModelSection({ onChanged, onTested }: { onChanged: () => void; o
             测试
           </Button>
         )}
-        {msg && <span className={cx("text-xs", msg.ok ? "text-ok" : "text-err")}>{msg.text}</span>}
+        {msg && <span className={cx("text-[12px]", msg.ok ? "text-good" : "text-critical")}>{msg.text}</span>}
       </div>
-    </Panel>
+    </section>
   );
 }
 
@@ -152,12 +143,12 @@ function SecretRow({ name, label, saved, onSaved }: { name: string; label: strin
   return (
     <div className="flex items-center gap-2">
       <span className="w-20 text-ink-2">{label}</span>
-      <span className={cx("w-14 text-xs", saved ? "text-ok" : "text-ink-3")}>{saved ? "已保存" : "没保存"}</span>
+      <span className={cx("w-14 text-[12px]", saved ? "text-good" : "text-ink-3")}>{saved ? "已保存" : "没保存"}</span>
       <input type="password" autoComplete="off" className={cx(input, "flex-1")} placeholder={saved ? "要换就填新的" : `填${label}`} value={value} onChange={(e) => setValue(e.target.value)} />
       <Button disabled={!value} onClick={save} aria-label={`保存${label}`}>
         保存
       </Button>
-      {err && <span className="text-xs text-err">{err}</span>}
+      {err && <span className="text-[12px] text-critical">{err}</span>}
     </div>
   );
 }
@@ -173,15 +164,15 @@ export function SecretsSection() {
     load();
   }, [call]);
   return (
-    <Panel className="flex flex-col gap-3">
+    <section className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4">
       <h2 className="m-0 text-[15px] font-bold">游戏账号密码（可选）</h2>
-      <div className="text-xs text-ink-2">
+      <div className="text-[12.5px] leading-relaxed text-ink-2">
         游戏掉登录时，小广会把账号、密码依次复制到剪贴板，粘贴进登录框（45 秒后自动清空）。存在系统钥匙串里，界面和小广都看不到明文。
       </div>
       {SECRETS.map(([name, label]) => (
         <SecretRow key={name} name={name} label={label} saved={saved.has(name)} onSaved={load} />
       ))}
-    </Panel>
+    </section>
   );
 }
 
@@ -205,19 +196,19 @@ function EnvSection() {
     }
   };
   return (
-    <Panel className="flex flex-col gap-3">
+    <section className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4">
       <h2 className="m-0 text-[15px] font-bold">环境</h2>
-      <div className="text-xs text-ink-2">小广的运行环境（Python、依赖、游戏数据）。出错卡让你重新安装时点这里；已经装好的部分会跳过，一般几分钟。</div>
+      <div className="text-[12.5px] leading-relaxed text-ink-2">小广的运行环境（Python、依赖、游戏数据）。出错卡让你重新安装时点这里；已经装好的部分会跳过，一般几分钟。</div>
       <div className="flex items-center gap-2">
         <Button disabled={running} onClick={reinstall}>
           {running ? "安装中…" : "重新安装"}
         </Button>
-        {msg && <span className={cx("text-xs", msg.ok ? "text-ok" : "text-err")}>{msg.text}</span>}
+        {msg && <span className={cx("text-[12px]", msg.ok ? "text-good" : "text-critical")}>{msg.text}</span>}
       </div>
       {lines.length > 0 && (
-        <pre className="m-0 max-h-56 overflow-auto rounded-lg bg-[#1d1915] p-2.5 text-[11px] leading-[1.45] whitespace-pre-wrap text-[#d9d0c5]">{lines.slice(-40).join("\n")}</pre>
+        <pre className="m-0 max-h-56 overflow-auto rounded-lg border border-line bg-surface-2 p-2.5 font-mono text-[11px] leading-[1.45] whitespace-pre-wrap text-ink-2">{lines.slice(-40).join("\n")}</pre>
       )}
-    </Panel>
+    </section>
   );
 }
 
@@ -227,7 +218,7 @@ function RedoWizard({ onChanged }: { onChanged: () => void }) {
     <div>
       <button
         type="button"
-        className="text-xs font-bold text-acc"
+        className="text-[12.5px] font-semibold text-brand-deep hover:underline"
         onClick={async () => {
           const s = await api.settings();
           await api.save({ ...s, wizard_done: false, has_key: false }, "");
@@ -242,13 +233,15 @@ function RedoWizard({ onChanged }: { onChanged: () => void }) {
 
 export function SettingsPage({ onChanged }: { onChanged: () => void }) {
   return (
-    <div className="h-full overflow-auto px-6 py-5">
-      <h1 className="m-0 mb-4 text-xl font-bold">设置</h1>
-      <div className="flex max-w-[640px] flex-col gap-4">
+    <div className="h-full overflow-auto px-8 py-6">
+      <div className="max-w-[640px]">
+      <PageTitle sub="模型、游戏账号和运行环境。Key 和密码存在系统钥匙串里，界面上看不到明文。">设置</PageTitle>
+      <div className="flex flex-col gap-4">
         <ModelSection onChanged={onChanged} />
         <SecretsSection />
         <EnvSection />
         <RedoWizard onChanged={onChanged} />
+      </div>
       </div>
     </div>
   );

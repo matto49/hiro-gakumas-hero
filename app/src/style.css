@@ -34,6 +34,8 @@
   --color-vo-strong: oklch(0.56 0.2 0);
   --color-da-strong: oklch(0.52 0.165 254);
   --color-vi-strong: oklch(0.8 0.16 78);
+  /* Vi 的黄色在白底上当文字太浅（不到 AA）：文字用这个 */
+  --color-vi-ink: oklch(0.55 0.12 72);
 
   --color-series-a: oklch(0.55 0.16 252);
   --color-series-b: oklch(0.66 0.19 42);

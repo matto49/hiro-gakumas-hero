@@ -2,11 +2,12 @@
 import { useEffect, useState } from "react";
 import { PlanView } from "../components/PlanView";
 import { StartTask } from "../components/StartTask";
-import { Button, Empty, Panel } from "../components/ui";
+import { Field, Segmented, inputCls } from "../components/Field";
+import { IdolPicker, toSkinId } from "../components/IdolPicker";
+import { Button, PageTitle } from "../components/ui";
 import { HiroError, data, useHiro } from "../lib/hiro";
 import type { PlanSummary } from "../lib/plan";
 
-const input = "h-9 rounded-lg border border-line bg-white px-3 outline-none focus:border-acc";
 const SCENARIOS: [string, string][] = [
   ["hif", "H.I.F"],
   ["hajime", "初"],
@@ -28,7 +29,7 @@ export function PlanPage({ onOpenJob }: { onOpenJob: (jobId: string) => void }) 
     data<PlanSummary>(call, ["plan", "show"])
       .then((p) => {
         setPlan(p);
-        setIdol(p.idol.id ?? "");
+        setIdol(p.idol.id ? toSkinId(p.idol.id) : "");
         setSset(p.support.set ? String(p.support.set) : "");
         setMset(p.memory.set ? String(p.memory.set) : "");
       })
@@ -52,68 +53,55 @@ export function PlanPage({ onOpenJob }: { onOpenJob: (jobId: string) => void }) 
   };
 
   return (
-    <div className="h-full overflow-auto px-6 py-5">
-      <h1 className="m-0 mb-1 text-xl font-bold">开局编成方案</h1>
-      <div className="mb-4 text-xs text-ink-2">按社区攻略，用最近一次扫描的支援卡和回忆库存选：支援卡 5 张 + 租借 1 张、回忆 4 份。只计算，不碰游戏。</div>
-      <div className="flex max-w-[760px] flex-col gap-4">
-        <Panel className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-ink-2">偶像卡</span>
-            <input aria-label="偶像卡" className={`${input} w-64`} placeholder="i_card-skin-shro-3-007" value={idol} onChange={(e) => setIdol(e.target.value)} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-ink-2">支援卡编成号</span>
-            <input aria-label="支援卡编成号" className={`${input} w-24`} inputMode="numeric" placeholder="1–20" value={sset} onChange={(e) => setSset(e.target.value)} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-ink-2">回忆编成号</span>
-            <input aria-label="回忆编成号" className={`${input} w-24`} inputMode="numeric" placeholder="1–20" value={mset} onChange={(e) => setMset(e.target.value)} />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="text-xs text-ink-2">主属性</span>
-            <select aria-label="主属性" className={input} value={attr} onChange={(e) => setAttr(e.target.value)}>
-              <option value="">自动</option>
-              <option value="Vo">Vo</option>
-              <option value="Da">Da</option>
-              <option value="Vi">Vi</option>
-            </select>
-          </label>
-          <Button primary disabled={busy || !idol.trim()} onClick={build}>
-            {busy ? "计算中…" : "出方案"}
-          </Button>
-        </Panel>
-        {err && (
-          <Empty>
-            <div>{err.message}</div>
-            {err.hint && <div className="mt-1 text-xs">{err.hint}</div>}
-          </Empty>
-        )}
-        {plan && (
-          <>
-            <Panel>
-              <PlanView plan={plan} />
-              {plan.created && <div className="mt-2 text-[11px] text-ink-3">出方案时间 {plan.created}</div>}
-            </Panel>
-            <Panel className="flex flex-col gap-3">
-              <h2 className="m-0 text-[15px] font-bold">写进游戏</h2>
-              <div className="text-xs text-ink-2">游戏先停在首页。先「看差在哪」：只进编成菜单对照，不点格子；确认没问题再「写进游戏」，写完会回读核对。不要选自己常用的编成号。</div>
-              <label className="flex items-center gap-2 text-xs text-ink-2">
-                写哪个模式的编成
-                <select aria-label="模式" className="h-8 rounded-lg border border-line bg-white px-2" value={scenario} onChange={(e) => setScenario(e.target.value)}>
-                  {SCENARIOS.map(([v, l]) => (
-                    <option key={v} value={v}>
-                      {l}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <div className="flex flex-wrap gap-4">
-                <StartTask label="看差在哪（不改）" args={["write-formation", "--scenario", scenario, "--dry-run"]} onOpenJob={onOpenJob} />
-                <StartTask label="写进游戏" primary args={["write-formation", "--scenario", scenario]} onOpenJob={onOpenJob} />
-              </div>
-            </Panel>
-          </>
-        )}
+    <div className="h-full overflow-auto px-8 py-6">
+      <div className="max-w-[820px]">
+        <PageTitle sub="按社区攻略，用最近一次扫描的支援卡和回忆库存选：支援卡 5 张 + 租借 1 张、回忆 4 份。只计算，不碰游戏。">开局编成方案</PageTitle>
+        <div className="flex flex-col gap-4">
+          <section className="rounded-xl border border-line bg-surface p-4">
+            <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3">
+              <Field label="偶像卡" className="col-span-3 sm:col-span-1">
+                <IdolPicker value={idol} onChange={setIdol} initialName={plan?.idol.name} />
+              </Field>
+              <Field label="支援卡编成号" hint="写进游戏用的编成位">
+                <input aria-label="支援卡编成号" className={inputCls} inputMode="numeric" placeholder="1–20" value={sset} onChange={(e) => setSset(e.target.value.replace(/\D/g, ""))} />
+              </Field>
+              <Field label="回忆编成号" hint="不要选自己常用的">
+                <input aria-label="回忆编成号" className={inputCls} inputMode="numeric" placeholder="1–20" value={mset} onChange={(e) => setMset(e.target.value.replace(/\D/g, ""))} />
+              </Field>
+            </div>
+            <div className="mt-3 flex items-end justify-between gap-3">
+              <Segmented name="plan-attr" label="主属性" value={attr} onChange={setAttr} options={[["", "自动"], ["Vo", "Vo"], ["Da", "Da"], ["Vi", "Vi"]]} />
+              <Button primary disabled={busy || !idol.trim()} onClick={build}>
+                {busy ? "计算中…" : "出方案"}
+              </Button>
+            </div>
+          </section>
+          {err && (
+            <div role="alert" className="rounded-xl border border-line bg-surface-2 px-4 py-3">
+              <b className="block text-[13px]">{err.message}</b>
+              {err.hint && <div className="mt-0.5 text-[12.5px] text-ink-2">{err.hint}</div>}
+            </div>
+          )}
+          {plan && (
+            <>
+              <section className="rounded-xl border border-line bg-surface p-4">
+                <PlanView plan={plan} />
+                {plan.created && <div className="mt-3 text-[11.5px] text-ink-3">出方案时间 {plan.created}</div>}
+              </section>
+              <section className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4">
+                <h2 className="m-0 text-[15px] font-bold">写进游戏</h2>
+                <p className="m-0 text-[12.5px] leading-relaxed text-ink-2">
+                  游戏先停在首页。先「看差在哪」：只进编成菜单对照，不点格子；确认没问题再「写进游戏」，写完会回读核对。
+                </p>
+                <Segmented name="plan-scenario" label="写哪个模式的编成" value={scenario} onChange={setScenario} options={SCENARIOS} />
+                <div className="flex flex-wrap gap-4">
+                  <StartTask label="看差在哪（不改）" args={["write-formation", "--scenario", scenario, "--dry-run"]} onOpenJob={onOpenJob} />
+                  <StartTask label="写进游戏" primary args={["write-formation", "--scenario", scenario]} onOpenJob={onOpenJob} />
+                </div>
+              </section>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -41,10 +41,10 @@ export function Dot({ tone = "ok", pulse }: { tone?: "ok" | "acc" | "warn" | "of
 }
 
 /** 决策出处（规则 / 算法 / LLM / 兜底）：小号描边标签，颜色只是辅助。 */
-export function SourceTag({ label }: { label: string }) {
+export function SourceTag({ label, className }: { label: string; className?: string }) {
   const tone =
     label === "LLM" ? "border-da/40 text-da-strong" : label === "算法" ? "border-brand/50 text-brand-ink" : label === "兜底" ? "border-critical/40 text-critical" : "border-line-strong text-ink-3";
-  return <span className={cx("ml-1.5 inline-block rounded-[4px] border px-1.5 text-[10.5px] leading-[17px] font-medium", tone)}>{label}</span>;
+  return <span className={cx("inline-block flex-none whitespace-nowrap rounded-[4px] border px-1.5 text-[10.5px] leading-[17px] font-medium", tone, className)}>{label}</span>;
 }
 
 export function Panel({ children, className, accent }: { children: ReactNode; className?: string; accent?: boolean }) {

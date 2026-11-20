@@ -1,7 +1,8 @@
-// 信息页（设计稿 §5，画板 q2-b 的样子）：卡片网格 + 筛选，顶部写上次扫描时间。
-import { useEffect, useMemo, useState } from "react";
+// 信息页：标题旁写上次扫描时间和扫描按钮；筛选；紧凑列表（一行一条，像桌面工具，不做卡片墙）。
+import { useEffect, useMemo, useState, type ReactElement } from "react";
+import { inputCls } from "../components/Field";
 import { StartTask } from "../components/StartTask";
-import { Chip, Empty, cx } from "../components/ui";
+import { Chip, Empty, PageTitle, cx } from "../components/ui";
 import { HiroError, data, spriteUrl, useHiro, type Listing } from "../lib/hiro";
 import { ATTR_STYLE, TIMING_LABEL } from "../lib/labels";
 
@@ -20,10 +21,17 @@ const SCAN: Partial<Record<Kind, [string, string, string]>> = {
 function SettingCell({ r }: { r: Row }) {
   const on = r.state === "ON";
   return (
-    <div className="flex items-center justify-between rounded-xl border border-line bg-panel px-3 py-2.5">
-      <span>{String(r.item)}</span>
-      <b className={cx("text-xs", on ? "text-ok" : r.state === "OFF" ? "text-err" : "text-ink-3")}>{r.state == null ? "读不到" : String(r.state)}</b>
-    </div>
+    <>
+      <span className="min-w-0 flex-1">{String(r.item)}</span>
+      <span
+        className={cx(
+          "rounded-full px-2 text-[11.5px] leading-5 font-semibold",
+          on ? "bg-ok-t text-good" : r.state === "OFF" ? "bg-err-t text-critical" : "bg-surface-3 text-ink-3",
+        )}
+      >
+        {r.state == null ? "读不到" : String(r.state)}
+      </span>
+    </>
   );
 }
 
@@ -41,19 +49,38 @@ const FILTERS: Partial<Record<Kind, Filter[]>> = {
   idols: ["SSR", "SR", "R"].map((x) => ({ label: x, test: (r: Row) => r.rarity === x })),
 };
 
+const RARITY_TONE: Record<string, string> = { SSR: "text-brand-ink", SR: "text-da-strong", R: "text-ink-3" };
+
+function AttrBadge({ attr }: { attr: unknown }) {
+  return (
+    <span className={cx("grid h-6 w-8 flex-none place-items-center rounded-[5px] text-[11px] font-bold", ATTR_STYLE[String(attr)] ?? "bg-surface-3 text-ink-2")}>
+      {String(attr ?? "?")}
+    </span>
+  );
+}
+
+/** 突破：游戏里是 4 个小格，点亮几个就是突破几次。 */
+function Breaks({ n }: { n: unknown }) {
+  const k = typeof n === "number" ? n : null;
+  return (
+    <span className="flex w-[72px] flex-none items-center gap-[3px]" aria-label={`突破 ${k ?? "?"}`} title={`突破 ${k ?? "?"}`}>
+      {[0, 1, 2, 3].map((i) => (
+        <i key={i} className={cx("h-2.5 w-3 -skew-x-[16deg] rounded-[1.5px]", k != null && i < k ? "bg-brand" : "bg-surface-3")} />
+      ))}
+      <span className="ml-1 text-[11px] text-ink-3 tabular-nums">{k ?? "?"}</span>
+    </span>
+  );
+}
+
 function SupportCell({ r }: { r: Row }) {
   return (
-    <div className="flex gap-2.5 rounded-xl border border-line bg-panel p-2.5">
-      <div className={cx("grid size-[52px] flex-none place-items-center rounded-[10px] text-sm font-bold", ATTR_STYLE[String(r.attr)] ?? "bg-chip text-ink-2")}>{String(r.attr ?? "?")}</div>
-      <div className="min-w-0">
-        <b className="jp block truncate text-[12.5px]">{String(r.name ?? "（没认出）")}</b>
-        <div className="mt-1 flex flex-wrap gap-1 text-[10.5px]">
-          <span className="rounded bg-[#fff1c9] px-1.5 text-[#8a6200]">{String(r.rarity ?? "?")}</span>
-          <span className="rounded bg-chip px-1.5 text-ink-2">Lv {String(r.level ?? "?")}</span>
-          <span className="rounded bg-chip px-1.5 text-ink-2">突破 {String(r.breaks ?? "?")}</span>
-        </div>
-      </div>
-    </div>
+    <>
+      <AttrBadge attr={r.attr} />
+      <b className="jp min-w-0 flex-1 truncate text-[13px] font-medium">{String(r.name ?? "（没认出）")}</b>
+      <span className={cx("w-9 flex-none text-[11.5px] font-bold", RARITY_TONE[String(r.rarity)] ?? "text-ink-3")}>{String(r.rarity ?? "?")}</span>
+      <span className="w-14 flex-none text-[12px] text-ink-2 tabular-nums">Lv {String(r.level ?? "?")}</span>
+      <Breaks n={r.breaks} />
+    </>
   );
 }
 
@@ -61,35 +88,41 @@ function MemoryCell({ r }: { r: Row }) {
   const st = (r.stats ?? {}) as Record<string, number | null>;
   const ab = (r.abilities ?? []) as string[];
   return (
-    <div className="rounded-xl border border-line bg-panel p-2.5">
-      <div className="flex items-center gap-2">
-        <span className="rounded bg-chip px-1.5 text-[11px] text-ink-2">{TIMING_LABEL[String(r.timing)] ?? "?"}</span>
-        <b className="jp min-w-0 flex-1 truncate text-[12.5px]">{String(r.card ?? "（没认出）")}</b>
+    <>
+      <span className="w-10 flex-none rounded-[5px] bg-surface-3 text-center text-[11px] leading-6 text-ink-2">{TIMING_LABEL[String(r.timing)] ?? "?"}</span>
+      <div className="min-w-0 flex-1">
+        <b className="jp block truncate text-[13px] font-medium">{String(r.card ?? "（没认出）")}</b>
+        {ab.length > 0 && <div className="jp truncate text-[11.5px] text-ink-3">{ab.join(" / ")}</div>}
       </div>
-      <div className="mt-1 flex gap-1 text-[11px]">
-        <span className="rounded bg-vo-t px-1.5 text-vo">Vo {st.Vo ?? "?"}</span>
-        <span className="rounded bg-da-t px-1.5 text-da">Da {st.Da ?? "?"}</span>
-        <span className="rounded bg-vi-t px-1.5 text-vi">Vi {st.Vi ?? "?"}</span>
-      </div>
-      {ab.length > 0 && <div className="jp mt-1 line-clamp-2 text-[11px] text-ink-2">{ab.join(" / ")}</div>}
-    </div>
+      {(["Vo", "Da", "Vi"] as const).map((a) => (
+        <span key={a} className="w-[60px] flex-none text-right text-[12px] tabular-nums">
+          <span className={cx("mr-1 text-[10.5px] font-bold", a === "Vo" ? "text-vo-strong" : a === "Da" ? "text-da-strong" : "text-vi-ink")}>{a}</span>
+          {st[a] ?? "?"}
+        </span>
+      ))}
+    </>
   );
 }
 
 function GenericCell({ r }: { r: Row }) {
+  const meta = [r.rarity, r.plan, r.level != null && `Lv ${r.level}`].filter(Boolean).join(" · ");
   return (
-    <div className="flex gap-2.5 rounded-xl border border-line bg-panel p-2.5">
-      {typeof r.asset === "string" && <img src={spriteUrl(r.asset)} alt="" className="size-[52px] flex-none rounded-[10px]" />}
-      <div className="min-w-0">
-        <b className="jp block truncate text-[12.5px]">{String(r.name ?? r.idol ?? r.id ?? "?")}</b>
-        <div className="text-[11.5px] text-ink-2">{[r.rarity, r.plan, r.level != null && `Lv ${r.level}`].filter(Boolean).join(" · ")}</div>
-        {typeof r.text === "string" && <div className="jp mt-0.5 line-clamp-2 text-[11px] text-ink-3">{r.text}</div>}
+    <>
+      {typeof r.asset === "string" ? (
+        <img src={spriteUrl(r.asset)} alt="" className="size-9 flex-none rounded-md bg-surface-3" />
+      ) : (
+        <span className="size-9 flex-none rounded-md bg-surface-3" />
+      )}
+      <div className="min-w-0 flex-1">
+        <b className="jp block truncate text-[13px] font-medium">{String(r.name ?? r.idol ?? r.id ?? "?")}</b>
+        {typeof r.text === "string" && <div className="jp truncate text-[11.5px] text-ink-3">{r.text}</div>}
       </div>
-    </div>
+      {meta && <span className="flex-none text-[11.5px] text-ink-3">{meta}</span>}
+    </>
   );
 }
 
-const CELL: Partial<Record<Kind, (p: { r: Row }) => React.ReactElement>> = { supports: SupportCell, memories: MemoryCell, game_settings: SettingCell };
+const CELL: Partial<Record<Kind, (p: { r: Row }) => ReactElement>> = { supports: SupportCell, memories: MemoryCell, game_settings: SettingCell };
 
 export function InfoPage({ kind, onAsk, onOpenJob }: { kind: Kind; onAsk: (text: string) => void; onOpenJob?: (jobId: string) => void }) {
   const call = useHiro();
@@ -129,25 +162,28 @@ export function InfoPage({ kind, onAsk, onOpenJob }: { kind: Kind; onAsk: (text:
   }, [listing, on, filters]);
   const Cell = CELL[kind] ?? GenericCell;
 
+  const scanned = listing && kind !== "catalog" ? (listing.scanned_at ? `上次扫描：${listing.scanned_at.slice(0, 16)}${listing.complete === false ? " · 没扫全" : ""}` : "还没扫描") : null;
+  const scan = listing && SCAN[kind];
+  const groups = kind === "supports" ? [filters.slice(0, 3), filters.slice(3)] : [filters];
+
   return (
-    <div className="flex h-full flex-col overflow-hidden px-6 py-5">
-      <div className="mb-3 flex items-center gap-2.5">
-        <h1 className="m-0 text-xl font-bold">{TITLE[kind]}</h1>
-        {listing && kind !== "catalog" && (
-          <span className="ml-auto text-xs text-ink-3">
-            {listing.scanned_at ? `上次扫描：${listing.scanned_at.slice(0, 16)}${listing.complete === false ? " · 没扫全" : ""}` : "还没扫描"}
-          </span>
-        )}
-      </div>
-      {listing && SCAN[kind] && (
-        <div className="mb-3">
-          <StartTask label={listing.scanned_at ? SCAN[kind]![2] : SCAN[kind]![1]} args={[SCAN[kind]![0]]} onOpenJob={onOpenJob} />
-        </div>
-      )}
-      {listing?.verdict && <div className="mb-3 text-ink-2">{listing.verdict}</div>}
+    <div className="flex h-full flex-col overflow-hidden px-8 py-6">
+      <PageTitle
+        sub={
+          <>
+            {scanned}
+            {scanned && listing && listing.items.length > 0 && <span className="text-ink-3"> · 共 {listing.items.length} 条</span>}
+          </>
+        }
+        right={scan ? <StartTask label={listing!.scanned_at ? scan[2] : scan[1]} args={[scan[0]]} onOpenJob={onOpenJob} /> : undefined}
+      >
+        {TITLE[kind]}
+      </PageTitle>
+      {listing?.verdict && <div className="-mt-2 mb-4 text-ink-2">{listing.verdict}</div>}
       {kind === "catalog" && (
         <input
-          className="mb-3 h-9 rounded-lg border border-line bg-white px-3 outline-none focus:border-acc"
+          aria-label="搜资料库"
+          className={cx(inputCls, "jp mb-4 h-9 max-w-[520px]")}
           placeholder="搜卡名或效果，例如 エウレカ、好調"
           value={q}
           onChange={(e) => setQ(e.target.value)}
@@ -155,35 +191,44 @@ export function InfoPage({ kind, onAsk, onOpenJob }: { kind: Kind; onAsk: (text:
         />
       )}
       {filters.length > 0 && (
-        <div className="mb-3.5 flex flex-wrap gap-1.5">
+        <div className="mb-3 flex flex-wrap items-center gap-1.5">
           <Chip on={on === null} onClick={() => setOn(null)}>
             全部
           </Chip>
-          {filters.map((f) => (
-            <Chip key={f.label} on={on === f.label} onClick={() => setOn(on === f.label ? null : f.label)}>
-              {f.label}
-            </Chip>
+          {groups.map((g, gi) => (
+            <span key={gi} className={cx("flex gap-1.5", gi > 0 && "ml-2 border-l border-line pl-3.5")}>
+              {g.map((f) => (
+                <Chip key={f.label} on={on === f.label} onClick={() => setOn(on === f.label ? null : f.label)}>
+                  {f.label}
+                </Chip>
+              ))}
+            </span>
           ))}
+          {on && <span className="ml-2 text-[12px] text-ink-3">{items.length} 条</span>}
         </div>
       )}
       <div className="min-h-0 flex-1 overflow-auto pb-6">
         {err && <Empty>{err}</Empty>}
         {!err && listing && listing.items.length === 0 && kind !== "catalog" && (
           <Empty>
-            <div>{SCAN[kind] ? `还没${SCAN[kind]![1]}过：游戏停在首页时点上面的「${SCAN[kind]![1]}」。` : (listing.hint ?? "没有数据")}</div>
+            <div>{SCAN[kind] ? `还没${SCAN[kind]![1]}过：游戏停在首页时点右上角的「${SCAN[kind]![1]}」。` : (listing.hint ?? "没有数据")}</div>
             {!SCAN[kind] && (
-              <button type="button" className="mt-2 text-xs font-bold text-acc" onClick={() => onAsk(`${TITLE[kind]}怎么看`)}>
+              <button type="button" className="mt-2 text-[12px] font-semibold text-brand-deep hover:underline" onClick={() => onAsk(`${TITLE[kind]}怎么看`)}>
                 问问小广 ›
               </button>
             )}
           </Empty>
         )}
         {!err && listing && listing.items.length === 0 && kind === "catalog" && q.trim() && <Empty>没搜到</Empty>}
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(250px,1fr))] gap-3">
-          {items.map((r, i) => (
-            <Cell key={String(r.id ?? i)} r={r} />
-          ))}
-        </div>
+        {items.length > 0 && (
+          <ul className="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface p-0">
+            {items.map((r, i) => (
+              <li key={String(r.id ?? i)} className="flex min-h-11 items-center gap-3 px-3.5 py-2 hover:bg-surface-2">
+                <Cell r={r} />
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

@@ -38,9 +38,9 @@ export const KIND_LABEL: Record<string, string> = {
 };
 
 export const ATTR_STYLE: Record<string, string> = {
-  Vo: "bg-vo-t text-vo",
-  Da: "bg-da-t text-da",
-  Vi: "bg-vi-t text-vi",
+  Vo: "bg-vo-t text-vo-strong",
+  Da: "bg-da-t text-da-strong",
+  Vi: "bg-vi-t text-vi-ink",
 };
 
 export const TIMING_LABEL: Record<string, string> = { start: "开局", mid: "中间", final: "最终" };

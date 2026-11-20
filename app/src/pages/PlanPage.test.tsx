@@ -2,23 +2,11 @@ import { afterEach, expect, test } from "bun:test";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { HiroCtx } from "../lib/hiro";
 import { fakeCaller } from "../test/fake";
+import { PLAN } from "../test/plan";
 import { PlanPage } from "./PlanPage";
 
 afterEach(cleanup);
 
-export const PLAN = {
-  created: "2026-11-17 16:00:00",
-  idol: { id: "i_card-shro-3-007", name: "Campus mode!!", plan: "ProducePlanType_Plan2", profile: "yaruki" },
-  main_attr: "Da",
-  support: {
-    set: 4, value: 199, counts: { Vo: 0, Da: 4, Vi: 2 },
-    own: [{ id: "s1", name: "そろそろ焼けたかな？", attr: "Da", level: 60, value: 20, why: ["事件 Da+20"] }],
-    rental: { name: "あなたにも作ってあげる！", attr: "Vi", value: 20, estimated: true },
-  },
-  memory: { set: 5, cards: [], chosen: [{ id: "p13", card_id: "c1", name: "ワクワクが止まらない", upgrade: 1, timing: "start", slot: "A", role: "核心" }] },
-  notes: ["4 张集中在 Da"],
-  path: "/h/formation-plan.json",
-};
 
 test("显示现有方案，点「看差在哪」发起只看不改的写编成任务", async () => {
   const fake = fakeCaller({
@@ -55,4 +43,19 @@ test("出方案：填偶像卡编号和编成号后调用 plan formation", async
   fireEvent.click(screen.getByRole("button", { name: "出方案" }));
   await waitFor(() => expect(screen.getByText("そろそろ焼けたかな？")).toBeTruthy());
   expect(fake.calls.find((c) => c[0] === "plan" && c[1] === "formation")).toEqual(["plan", "formation", "--idol", "i_card-skin-shro-3-007", "--support-set", "4", "--memory-set", "5"]);
+});
+
+test("读进现有方案后，偶像卡框写卡名，「出方案」可以直接点（按 skin 编号重算）", async () => {
+  const fake = fakeCaller({ "plan show": { ok: true, exit: 0, data: PLAN }, "plan formation": { ok: true, exit: 0, data: PLAN } });
+  render(
+    <HiroCtx.Provider value={fake.call}>
+      <PlanPage onOpenJob={() => {}} />
+    </HiroCtx.Provider>,
+  );
+  await waitFor(() => expect((screen.getByLabelText("偶像卡") as HTMLInputElement).value).toBe("Campus mode!!"));
+  const btn = screen.getByRole("button", { name: "出方案" }) as HTMLButtonElement;
+  expect(btn.disabled).toBe(false);
+  fireEvent.click(btn);
+  await waitFor(() => expect(fake.calls.some((c) => c[1] === "formation")).toBe(true));
+  expect(fake.calls.find((c) => c[1] === "formation")!.slice(0, 4)).toEqual(["plan", "formation", "--idol", "i_card-skin-shro-3-007"]);
 });

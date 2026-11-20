@@ -18,5 +18,7 @@ if m:
 (ROOT / "shots").mkdir(exist_ok=True)
 for v in VIEWS:
     page = ROOT / "preview" / f"{v}.html"
-    page.write_text(html.replace("<head>", f'<head><script>location.hash="{v}"</script>', 1))
+    # 离屏 WebKit 不跑 CSS 过渡（停在第一帧，按钮像是禁用的）：截图时关掉过渡
+    head = f'<head><script>location.hash="{v}"</script><style>*,*::before,*::after{{transition:none!important;animation:none!important}}</style>'
+    page.write_text(html.replace("<head>", head, 1))
     subprocess.run([WKSNAP, str(page), str(ROOT / "shots" / f"{v}.png"), "1280", "800", "2"], check=True)

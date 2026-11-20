@@ -29,7 +29,7 @@ function CurrentJob({ jobId, onOpenJob }: { jobId: string; onOpenJob: (id: strin
         <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
           {recent.map((s) => (
             <li key={s.seq} className="flex items-start gap-1.5 text-[12px] leading-snug text-ink-2">
-              <SourceTag label={sourceLabel(s.source)} />
+              <SourceTag label={sourceLabel(s.source)} className="mt-px" />
               <span className="line-clamp-2 min-w-0">{s.text || actionLabel(s.action)}</span>
             </li>
           ))}

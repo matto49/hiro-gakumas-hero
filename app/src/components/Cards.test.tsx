@@ -105,7 +105,7 @@ test("扫描任务的对局卡写出信息库更新了几条", async () => {
 
 test("编成卡列出支援卡和回忆", async () => {
   const { FormationCard } = await import("./Cards");
-  const { PLAN } = await import("../pages/PlanPage.test");
+  const { PLAN } = await import("../test/plan");
   render(<FormationCard card={{ type: "formation", plan: PLAN }} />);
   expect(screen.getByText("そろそろ焼けたかな？")).toBeTruthy();
   expect(screen.getByText(/ワクワクが止まらない\+/)).toBeTruthy();
