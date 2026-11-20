@@ -178,3 +178,27 @@ def test_turning_translation_off_resumes(tmp_path):
     chinese_home = ["制作", "主页", "商店"]
     r = Rig(tmp_path, [COMMU, chinese_home, chinese_home] + [HOME] * us.LEFT_POLLS, timeout="60")
     assert r.run() == "left"
+
+
+def test_center_pos():
+    from hiro.devices.win_window import center_pos
+
+    assert center_pos(600, 1100, (0, 0, 1920, 1040)) == (660, 0)
+    assert center_pos(400, 800, (0, 0, 1920, 1040)) == (760, 120)
+    assert center_pos(2000, 1200, (100, 50, 1920, 1040)) == (100, 50)  # 放不下：贴左上角
+
+
+def test_dmm_pause_centers_game_window(tmp_path, monkeypatch):
+    from hiro.devices import win_window
+
+    moved = []
+    monkeypatch.setattr(win_window, "center", lambda title=win_window.WINDOW_TITLE: moved.append(1) or (1, 2))
+    monkeypatch.setattr(us.sys, "platform", "win32")
+    r = Rig(tmp_path, [COMMU], delete_at=3)
+    r.env["HIRO_DEVICE"] = "dmm"
+    r.run()
+    assert moved == [1]
+    r2 = Rig(tmp_path, [COMMU], delete_at=3)
+    r2.env["HIRO_DEVICE"] = "mumu"
+    r2.run()
+    assert moved == [1]  # 模拟器不挪

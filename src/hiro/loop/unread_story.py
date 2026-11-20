@@ -178,6 +178,19 @@ def _save_frame(snap) -> None:
         logger.warning("未读剧情：存帧失败：%r", e)
 
 
+def _show_game(env: dict) -> None:
+    """DMM 版：后台点击把游戏窗口挪到了点击点落在光标下的位置，常常半个窗口在屏幕外，人没法看剧情。挪到屏幕正中（用户 11-20）。"""
+    if (env.get("HIRO_DEVICE") or "").strip().lower() != "dmm" or sys.platform != "win32":
+        return
+    try:
+        from hiro.devices import win_window
+
+        pos = win_window.center()
+        logger.info("未读剧情：游戏窗口挪到屏幕正中 %s", pos)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("未读剧情：挪游戏窗口失败：%r", e)
+
+
 def handle(*, cancel: Callable[[], object], confirm: Callable[[], object], texts: Callable[[], list],
            snap: Callable[[], object] | None = None,
            sleep: Callable[[float], None] = time.sleep, clock: Callable[[], float] = time.monotonic,
@@ -190,6 +203,7 @@ def handle(*, cancel: Callable[[], object], confirm: Callable[[], object], texts
         confirm()
         return "skipped"
     cancel()
+    _show_game(env)
     path = wait_file(env)
     limit = timeout_s(env)
     msg = (f"{time.strftime('%Y-%m-%d %H:%M:%S')} 遇到未读剧情，已暂停。\n"
