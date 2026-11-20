@@ -99,8 +99,14 @@ def grid_cells(img: np.ndarray) -> list[dict]:
 
 def detail_page(boxes) -> int | None:
     for t, _, (x1, y1, x2, y2) in boxes:
-        # 斜杠 RapidOCR 常读成 1（「1/2」→「112」）；页码只有 1/2、2/2，三位且中间是 1 / l / I / | 也按斜杠算
-        if 480 <= (y1 + y2) // 2 <= 580 and (m := re.fullmatch(r"([12])[/1lI|]2", t.replace(" ", ""))):
+        # 斜杠 RapidOCR 常读成 1（「1/2」→「112」）或整个漏掉（11-19 Windows MuMu：「2/2」→「22」，翻不回第 1 页，195 格卡名全空）；
+        # 页码只有 1/2、2/2：三位且中间是 1 / l / I / |、或两位「12」「22」都按页码算（只认详情栏页码那一行、居中的框）
+        if not 480 <= (y1 + y2) // 2 <= 580:
+            continue
+        t = t.replace(" ", "")
+        if m := re.fullmatch(r"([12])[/1lI|]2", t):
+            return int(m.group(1))
+        if 280 <= (x1 + x2) // 2 <= 440 and (m := re.fullmatch(r"([12])2", t)):
             return int(m.group(1))
     return None
 
@@ -192,6 +198,9 @@ def read_ability_page(boxes) -> list[dict]:
     return out
 
 
+CLOSED_CONFIRM, CLOSED_RECHECK_S = 3, 0.5  # 判定选择页关了之前重截核对的次数 / 间隔
+
+
 class PickerClosed(RuntimeError):
     """回忆选择页不见了（多半点成了「決定」，编成可能被改了）：扫描 / 读取立即停下，不再点任何东西。"""
 
@@ -229,9 +238,16 @@ class Picker:
         """还在回忆选择页（キャンセル / 決定 / 編成詳細 都在）；不在了抛 PickerClosed。返回用过的 OCR 结果。"""
         if boxes is None:
             boxes = self.ocr(img if img is not None else self.shoot())
-        if not picker_open(boxes):
-            raise PickerClosed("回忆选择页不见了（可能点成了「決定」，编成可能被改了）")
-        return boxes
+        if picker_open(boxes):
+            return boxes
+        # 单帧不在不算数：DMM 截图偶尔是黑帧 / 详情栏动画中间的帧（11-19 DMM：两次扫描都在页还开着时误判关闭停下）。
+        # 隔一会儿重截核对，连续 CLOSED_CONFIRM 次都不在才算真关了
+        for _ in range(CLOSED_CONFIRM):
+            self.sleep(CLOSED_RECHECK_S)
+            boxes = self.ocr(self.shoot())
+            if picker_open(boxes):
+                return boxes
+        raise PickerClosed("回忆选择页不见了（可能点成了「決定」，编成可能被改了）")
 
     def select_checked(self, cell: dict) -> tuple[bool, np.ndarray]:
         """点一格（只点一次），返回 (详情栏变了没有, 画面)。点之前核对还在选择页。

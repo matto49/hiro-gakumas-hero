@@ -478,3 +478,31 @@ def test_iter_rows_counts_rows_exactly(kw):
     for g, r in mp.iter_rows(picker):
         seen.append((g, lst.row_at(r[0]["center"][1])))
     assert [g for g, _ in seen] == list(range(len(lst.rows))) and all(g == real for g, real in seen)
+
+
+def test_one_bad_frame_does_not_count_as_picker_closed():
+    """11-19 DMM：截到一帧黑帧 / 动画中间的帧，选择页其实还开着。单帧不在不算关，重截核对通过就继续。"""
+    open_boxes = [("キャンセル", 1, (0, 0, 1, 1)), ("決定", 1, (0, 0, 1, 1)), ("編成詳細", 1, (0, 0, 1, 1))]
+    reads = iter([[], open_boxes])  # 第一次读到黑帧，重截后正常
+    sleeps = []
+    p = mp.Picker(lambda: None, lambda x, y: None, lambda *a: None, ocr=lambda im: next(reads), sleep=sleeps.append)
+    assert p.ensure_open() == open_boxes
+    assert sleeps == [mp.CLOSED_RECHECK_S]
+
+
+def test_picker_really_closed_after_repeated_checks():
+    calls = []
+    p = mp.Picker(lambda: None, lambda x, y: None, lambda *a: None, ocr=lambda im: calls.append(1) or [], sleep=lambda s: None)
+    with pytest.raises(mp.PickerClosed):
+        p.ensure_open()
+    assert len(calls) == 1 + mp.CLOSED_CONFIRM
+
+
+
+def test_detail_page_when_slash_is_dropped():
+    """11-19 Windows MuMu：详情栏页码「2/2」被读成「22」，翻不回第 1 页，整次扫描卡名全空。"""
+    box = (326, 517, 394, 549)
+    assert mp.detail_page([("22", 1, box)]) == 2
+    assert mp.detail_page([("12", 1, box)]) == 1
+    assert mp.detail_page([("1/2", 1, box)]) == 1 and mp.detail_page([("212", 1, box)]) == 2
+    assert mp.detail_page([("22", 1, (40, 517, 90, 549))]) is None  # 不在居中位置（别处的数字）不算
