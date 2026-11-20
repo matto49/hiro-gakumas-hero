@@ -23,6 +23,9 @@ class IdolProfile:
     item_trigger_card: str | None = None  # 触发固有道具的卡 ID 前缀
     item_charges: int = 0
     item_needs_high_hp: bool = False  # 道具要求 HP≥50% 时才触发
+    # 已知的最大体力（模式家族 → 值），只在开考时培育页读不到上限时兜底（exec.exam.seed_max_hp，来源记 profile_known）。
+    # 和账号、卡等级相关：只填验证过的。读到画面就以画面为准
+    known_max_hp: dict = field(default_factory=dict)
 
     @staticmethod
     def is_half_hp(hp: int, max_hp: int | None) -> bool | None:
@@ -39,6 +42,7 @@ CAMPUS_HIRO = IdolProfile(
     item_trigger_card="p_card-02-men-1_031",
     item_charges=5,
     item_needs_high_hp=True,
+    known_max_hp={"hif": 33},  # Windows 账号 1 的 H.I.F（PR #5 合并前写死的值；Mac 账号 2 初是 30，所以初 / N.I.A 不填）
 )
 
 IDOLS = {p.idol_id: p for p in [CAMPUS_HIRO]}
@@ -77,6 +81,7 @@ class ExamMemory:
     # 不写死。考试画面只显示当前体力；看到当前体力比它大时说明读数过时，按看到的抬高（下限）。读不到就是 None。
     max_hp: int | None = None
     max_hp_source: str | None = None
+    hp_over: int | None = None  # 上一帧看到的、超过最大体力的当前体力（连续两帧一致才抬上限）
 
     def set_max_hp(self, value: int | None, source: str) -> bool:
         """记下最大体力（> 0 才算）。返回是否采用。"""
@@ -86,14 +91,20 @@ class ExamMemory:
         return True
 
     def observe_hp(self, hp: int | None) -> str | None:
-        """考试中看到的当前体力。比记下的最大体力还大：最大体力读数过时 / 读错，抬到当前体力，返回说明。"""
+        """考试中看到的当前体力。比记下的最大体力还大：最大体力读数过时 / 读错，连续两帧读到同一个数才抬到当前体力（协调 11-20：
+        单帧 OCR 读错会把半血线永久抬高），返回说明。"""
         if hp is None or self.max_hp is None or hp <= self.max_hp:
+            self.hp_over = None
             return None
         if hp > self.max_hp * 3 // 2:  # 远超上限：多半是 OCR 多读了一位（39 → 391），不采信，免得半血线永久跑偏
+            self.hp_over = None
             return f"考试中体力读数 {hp} 远超最大体力 {self.max_hp}，按读错处理，最大体力不变"
+        if self.hp_over != hp:
+            self.hp_over = int(hp)
+            return f"考试中体力读数 {hp} 超过最大体力 {self.max_hp}，等下一帧确认"
         old = self.max_hp
-        self.max_hp, self.max_hp_source = int(hp), "exam_hp_floor"
-        return f"考试中体力 {hp} 超过记下的最大体力 {old}（读数过时），最大体力按 {hp} 算"
+        self.max_hp, self.max_hp_source, self.hp_over = int(hp), "exam_hp_floor", None
+        return f"考试中体力连续两帧都是 {hp}，超过记下的最大体力 {old}（读数过时），最大体力按 {hp} 算"
 
     def genki_gain_per_turn(self, remaining: int | None) -> float | None:
         """最近两回合（回合开始时）元气的平均增量；读数不够时 None。清零后的下降不算增长（按 0）。"""
