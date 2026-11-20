@@ -293,8 +293,10 @@ func parse(cmd *Command, rest []string) (Args, error) {
 	}
 	var pos []string
 	onlyPositional := false
-	for i := 0; i < len(rest); i++ {
-		tok := rest[i]
+	queue := append([]string(nil), rest...)
+	for len(queue) > 0 {
+		tok := queue[0]
+		queue = queue[1:]
 		if onlyPositional || !strings.HasPrefix(tok, "--") {
 			pos = append(pos, tok)
 			continue
@@ -316,11 +318,11 @@ func parse(cmd *Command, rest []string) (Args, error) {
 			continue
 		}
 		if !hasValue {
-			if i+1 >= len(rest) {
+			if len(queue) == 0 {
 				return Args{}, fmt.Errorf("%s 后面要跟一个值", name)
 			}
-			i++
-			value = rest[i]
+			value = queue[0]
+			queue = queue[1:]
 		}
 		v, err := convert(a, value)
 		if err != nil {
@@ -441,4 +443,42 @@ func (r *Registry) builtins() {
 			},
 		},
 	)
+}
+
+// Argv 把解析好的参数还原成命令行（交给 Python 版跑时用）：位置参数按顺序，选项 --x v，开关只写名字；没给的不写。
+func (c *Command) Argv(a Args) []string {
+	argv := strings.Fields(c.Name)
+	var opts []string
+	for _, arg := range c.Args {
+		v, ok := a.Get(arg.Dest())
+		if !ok || v == nil {
+			continue
+		}
+		if arg.Positional() {
+			argv = append(argv, valueString(v))
+			continue
+		}
+		if arg.typ() == Bool {
+			if b, _ := v.(bool); b {
+				opts = append(opts, arg.Name)
+			}
+			continue
+		}
+		opts = append(opts, arg.Name, valueString(v))
+	}
+	return append(argv, opts...)
+}
+
+func valueString(v any) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	case int:
+		return strconv.Itoa(t)
+	}
+	if n, ok := jsonx.AsInt(v); ok {
+		return strconv.FormatInt(n, 10)
+	}
+	b, _ := jsonx.Marshal(v)
+	return string(b)
 }

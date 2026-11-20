@@ -6,10 +6,15 @@ allow:
   depOnAnyVendor: true # 第三方库先不限；阶段 3 引入 cgo 库（gocv、onnxruntime）时再收紧到识别层
   ignoreNotFoundComponents: true # 还没建的包先登记；建好就会被检查
 
+# 测试文件不查（测试可以把几个包接起来用）
+excludeFiles:
+  - "_test\\.go$"
+
 components:
   jsonx: { in: internal/jsonx }
   home: { in: internal/home }
   clierr: { in: internal/clierr }
+  proc: { in: internal/proc }
   pending: { in: internal/pending }
   store: { in: internal/store }
   pybridge: { in: internal/pybridge }
@@ -26,11 +31,12 @@ components:
   plugin: { in: pkg/plugin }
   main: { in: cmd/** }
 
-# 谁都能用的底层：JSON、HIRO_HOME、错误类型
+# 谁都能用的底层：JSON、HIRO_HOME、错误类型、子进程的平台差异
 commonComponents:
   - jsonx
   - home
   - clierr
+  - proc
 
 deps:
   cli:

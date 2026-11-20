@@ -265,3 +265,26 @@ func TestPrecheckStopsBeforePending(t *testing.T) {
 		t.Fatal("no pending should be created")
 	}
 }
+
+func TestArgvRoundTrip(t *testing.T) {
+	r, _ := newReg(t)
+	c := r.Get("info supports")
+	a, err := parse(c, []string{"--name", "美 鈴", "--all", "--rarity=SR"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := strings.Join(c.Argv(a), "|")
+	if got != "info|supports|--rarity|SR|--name|美 鈴|--all" {
+		t.Fatalf("argv %q", got)
+	}
+	s := r.Get("catalog search")
+	a, _ = parse(s, []string{"x"})
+	if got := strings.Join(s.Argv(a), "|"); got != "catalog|search|x|--lang|ja" {
+		t.Fatalf("argv %q", got)
+	}
+	p := r.Get("test poke")
+	a, _ = parse(p, []string{"--times", "4"})
+	if got := strings.Join(p.Argv(a), "|"); got != "test|poke|--times|4" {
+		t.Fatalf("argv %q", got)
+	}
+}

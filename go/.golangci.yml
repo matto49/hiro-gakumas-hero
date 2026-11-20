@@ -22,6 +22,7 @@ linters:
       excludes:
         - G204 # 子进程：argv 是列表、不走 shell，参数由我们拼（对局、扫描任务本来就要起子进程）
         - G304 # 按变量路径读文件：路径都在 HIRO_HOME / 仓库下，由我们拼
+        - G703 # 路径来自环境变量（HIRO_HOME、HIRO_REPO、HIRO_PYTHON）：本机命令行，用户自己配的位置
     nolintlint:
       require-explanation: true
       require-specific: true
