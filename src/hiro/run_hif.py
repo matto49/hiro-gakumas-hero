@@ -161,6 +161,38 @@ def _recover_date_change(session, note: str | None = "游戏日切换「日付�
     return recover_to_home(device.screenshot, lambda x, y: device.click(x, y), ocr_boxes, lambda img: at_home())
 
 
+def last_run_identity(mode: str, root: Path | None = None) -> dict | None:
+    """续跑没给 --idol 时：同一模式最近一次带偶像的 trace（run.json 的 meta）里的 idol / main_attr。
+    以前 resume 不带 --idol 时考试出牌拿不到偶像（idol=null、没有偶像档案和角色提示词），11-18 选拔第 2 场因此连败。"""
+    import json
+
+    from hiro.contracts.trace import TRACES
+
+    best = None
+    for f in (root or TRACES).glob("*/run.json"):
+        try:
+            meta = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if meta.get("mode") != mode or not meta.get("idol"):
+            continue
+        if best is None or (meta.get("started") or 0) > (best.get("started") or 0):
+            best = {**meta, "trace": f.parent.name}
+    return best
+
+
+def resume_trace_name(prev_trace: str, root: Path | None = None) -> str:
+    """续跑的 trace 名：接在同一局上一段后面，<基名>-rN（N 取下一个没用过的）。hiro.produce.hif 只认这个命名来找之前的段
+    （牌组记账、考完几场、体力 / P 点打底）；11-19 续跑起成别的名字，选拔第 3 场计数成 1、最大体力读不到。"""
+    import re
+
+    from hiro.contracts.trace import TRACES
+
+    base = re.sub(r"-r\d+$", "", prev_trace)
+    used = {int(m.group(1)) for d in (root or TRACES).glob(base + "-r*") if (m := re.fullmatch(re.escape(base) + r"-r(\d+)", d.name))}
+    return f"{base}-r{max(used, default=0) + 1}"
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["resume", "new"])
@@ -188,6 +220,19 @@ def main():
     from hiro.brain import guides
 
     guides.refresh_if_stale()  # 偶像卡攻略包：没有或超过 24 小时就下载，失败不阻塞（协调 11-20；H.I.F 这次不接攻略，下好给初 / N.I.A 用）
+    if args.command == "resume" and not args.trace:
+        prev = last_run_identity(args.mode)
+        if prev is not None:
+            args.trace = resume_trace_name(prev["trace"])
+            logger.warning("续跑没给 --trace：接在同一局 %s 后面，记为 %s", prev["trace"], args.trace)
+    if args.command == "resume" and not args.idol:
+        prev = last_run_identity(args.mode)
+        if prev is not None:
+            args.idol = prev["idol"]
+            args.main_attr = args.main_attr or prev.get("main_attr")
+            logger.warning("续跑没给 --idol：沿用最近一次 %s 的 trace %s：偶像 %s、主属性 %s", args.mode, prev["trace"], args.idol, args.main_attr)
+        else:
+            logger.warning("续跑没给 --idol，也找不到同模式带偶像的 trace：考试出牌没有偶像档案（建议加 --idol）")
 
     own = os.environ.get("HIRO_RUNTIME", "kaa").strip().lower() == "own"  # 新主循环（hiro.runtime，不用 KAA）；缺省仍是 KAA 主循环
     if not own:

@@ -201,7 +201,9 @@ class SimGame:
                      "draw": draw or (env.turns[env.turn]["draw"] if env.turn < len(env.turns) else 3)}  # fmt: skip
         perm = dict(now_turn_permil=env.turns[env.turn].get("bonus_permil") if env.turn < len(env.turns) else None,
                     final_turn_permil=env.turns[-1].get("bonus_permil") if env.turns else None)  # fmt: skip
-        return BattleState.build(self.memory, self.profile, hand=hand, drinks=drinks, public_info=info, piles=piles, **perm, **observed)
+        # 模拟器自己知道最大体力（这一局合成开局的值，来自开考时的画面读数），直接给出
+        return BattleState.build(self.memory, self.profile, hand=hand, drinks=drinks, public_info=info, piles=piles, max_hp=getattr(env, "max_hp", None),
+                                 **perm, **observed)  # fmt: skip
 
     def to_action(self, d: Decision) -> dict:
         if d.kind == "play":

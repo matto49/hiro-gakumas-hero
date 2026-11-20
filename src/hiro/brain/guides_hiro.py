@@ -5,7 +5,7 @@
 - card_pick：YARUKI_CARDS（必拿 / S / A / B → weight 100 / 90 / 75 / 60，role，keep）+ SMALL_DECK_CORE（可复用、要留张数的核心卡：keep）；
   avoid = CONFLICT_CARDS + OFF_PLAN_CARDS + CULL_AS_IMPRESSION。
 - card_upgrade：CUSTOMIZE_PRIORITY（顺序、定制键）+ CUSTOMIZE_LEVELS（目标级数、是否必须做满）。
-- formation.main_attr：formation_plan.DEFAULT_MAIN。
+- formation.main_attr：formation_plan.DEFAULT_MAIN / DEFAULT_MAIN_BY_MODE（H.I.F、N.I.A Da；初 Vo，用户 11-20）。
 没迁的：card_value（同档的先后，只是排序的细节）、H.I.F 专用的表（FINALS_DELETE、轮间、本战）——H.I.F 这次不接攻略。
 
 导出给 bench 收进人写条目：python -m hiro.brain.guides_hiro > guides/entries/any/idol/i_card-shro-3-007.json
@@ -90,15 +90,26 @@ def card_upgrade_entry() -> dict:
             "evidence": _merge_evidence(ev_text), "updated": UPDATED, "by": "3940a9"}  # fmt: skip
 
 
-def main_attr_entry() -> dict | None:
-    from hiro.brain.formation_plan import DEFAULT_MAIN
+MAIN_ATTR_WHY = {
+    "hif": ("开局编成的默认主属性：H.I.F 主 Da（成长率 Vo 最高，但项目定的是 Da）", [{"kind": "decision", "ref": "决策-07"}]),
+    "nia": ("开局编成的默认主属性：N.I.A 暂时沿用 H.I.F 的 Da，等用户定", [{"kind": "decision", "ref": "决策-07"}]),
+    "hajime": ("开局编成的默认主属性：初主 Vo（初 LEGEND 排行榜 89% 是 Vo 最高）",
+               [{"kind": "decision", "ref": "用户 2026-11-20"}, {"kind": "ranking", "mode": "hajime", "n": 100, "share": 0.89, "fetched": "2026-11-19"}]),
+}
 
-    attr = DEFAULT_MAIN.get(HIRO)
-    if not attr:
-        return None
-    return {"id": f"any.idol.{HIRO}.formation.main_attr.default", "kind": "written", "scope": {"idol_card": HIRO}, "decision": "formation.main_attr",
-            "content": {"prefer": [attr.lower()], "why": "开局编成的默认主属性（支援卡没定下来时）"},
-            "evidence": [{"kind": "decision", "ref": "formation_plan.DEFAULT_MAIN"}], "updated": UPDATED, "by": "3940a9"}  # fmt: skip
+
+def main_attr_entries() -> list[dict]:
+    """按模式各一条（用户 11-20：广在初里主 Vo，H.I.F 主 Da；N.I.A 先照旧 Da）。"""
+    from hiro.brain.formation_plan import default_main
+
+    out = []
+    for mode, (why, ev) in MAIN_ATTR_WHY.items():
+        attr = default_main(HIRO, mode)
+        if attr:
+            out.append({"id": f"{mode}.idol.{HIRO}.formation.main_attr.{attr.lower()}", "kind": "written", "scope": {"idol_card": HIRO, "mode": mode},
+                        "decision": "formation.main_attr", "content": {"prefer": [attr.lower()], "why": why}, "evidence": ev,
+                        "updated": "2026-11-20", "by": "3940a9"})  # fmt: skip
+    return out
 
 
 def _merge_evidence(texts) -> list[dict]:
@@ -113,7 +124,7 @@ def _merge_evidence(texts) -> list[dict]:
 
 
 def entries() -> list[dict]:
-    return [e for e in (card_pick_entry(), card_upgrade_entry(), main_attr_entry()) if e]
+    return [card_pick_entry(), card_upgrade_entry(), *main_attr_entries()]
 
 
 if __name__ == "__main__":

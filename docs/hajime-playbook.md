@@ -85,6 +85,9 @@
 - 2026-11-17 REGULAR 第一局：中間 900 分第 1，最終 14,314 分第 1，评价 B+ 9,973（属性 995 / 996 / 478）。开局纯台词二选一、低体力课程确认、休み確認、外出选项页、饮料满、True End 条件页和 True End LIVE 要人手接管，平台和 3940a9 在修。
 - 这局 Vo、Da 已经接近 REGULAR 上限 1000，Vi 只有 478。上限之下再提评价，主要靠补 Vi〔我们〕。
 - 审查基准 Vo 40% 最高，追い込み选 Vo〔我们〕。
+- 主属性：初里主 **Vo**（用户 2026-11-20；初 LEGEND 排行榜前 100 名里广 89% 是 Vo 最高）。H.I.F 主 Da 是 H.I.F 的决定（决策-07），不用在初。
+  开局编成方案要按初生成：`python -m hiro.brain.formation_plan --idol i_card-skin-shro-3-007 --mode produce-002 …`；
+  `hiro.runtime.hajime` 没给 `--main-attr` 时，只认为初生成的方案，否则按项目默认 Vo〔我们〕。
 
 ## 来源
 

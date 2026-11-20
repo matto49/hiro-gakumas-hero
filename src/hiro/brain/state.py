@@ -13,25 +13,28 @@ from hiro.brain.cards import CardView, DrinkView
 
 @dataclass
 class IdolProfile:
-    """角色构筑里决策要用、但画面上读不到的常量。"""
+    """角色构筑里决策要用、但画面上读不到的常量。
+
+    最大体力不在这里：它随偶像卡等级、开花、账号等级、支援卡等浮动，每局开考时从画面读（ExamMemory.max_hp）。"""
 
     idol_id: str
     name: str
-    max_hp: int | None  # 培育里的最大体力（广 33 带了支援卡 / 潜能，账号相关）；主数据推不出时 None
     playbook: str | None  # prompts/idols/<playbook>.md；None = 没有专门的打法文件（profile_from_master 生成的偶像）
     item_trigger_card: str | None = None  # 触发固有道具的卡 ID 前缀
     item_charges: int = 0
     item_needs_high_hp: bool = False  # 道具要求 HP≥50% 时才触发
 
-    def is_half_hp(self, hp: int) -> bool:
-        """HP≤50%（固有被动得分的条件）。最大体力不知道时 False。"""
-        return self.max_hp is not None and hp * 2 <= self.max_hp
+    @staticmethod
+    def is_half_hp(hp: int, max_hp: int | None) -> bool | None:
+        """HP≤50%（固有被动得分的条件）；最大体力未知时 None（不猜）。"""
+        if hp is None or not max_hp:
+            return None
+        return hp * 2 <= max_hp
 
 
 CAMPUS_HIRO = IdolProfile(
     idol_id="i_card-shro-3-007",
     name="Campus mode!! 広",
-    max_hp=33,
     playbook="campus_hiro",
     item_trigger_card="p_card-02-men-1_031",
     item_charges=5,
@@ -70,6 +73,27 @@ class ExamMemory:
     repeat_target: str | None = None  # 复制饮料要接的那张主动卡（喝之前的计划里的下一张主动卡）
     attr_permil: dict = field(default_factory=dict)  # 本场考试见过的各属性回合倍率（千分比）：{Vo: 34990, …}
     turn_genki: dict = field(default_factory=dict)  # 每回合第一次看到的元气：{剩余回合（字符串）: 元气}，用来估元气增速
+    # 最大体力：开考时取培育页头部 OCR 读到的「体力 x/上限」（hiro.vision.pages），随卡等级 / 开花 / 账号等级 / 支援卡浮动，
+    # 不写死。考试画面只显示当前体力；看到当前体力比它大时说明读数过时，按看到的抬高（下限）。读不到就是 None。
+    max_hp: int | None = None
+    max_hp_source: str | None = None
+
+    def set_max_hp(self, value: int | None, source: str) -> bool:
+        """记下最大体力（> 0 才算）。返回是否采用。"""
+        if not value or int(value) <= 0:
+            return False
+        self.max_hp, self.max_hp_source = int(value), source
+        return True
+
+    def observe_hp(self, hp: int | None) -> str | None:
+        """考试中看到的当前体力。比记下的最大体力还大：最大体力读数过时 / 读错，抬到当前体力，返回说明。"""
+        if hp is None or self.max_hp is None or hp <= self.max_hp:
+            return None
+        if hp > self.max_hp * 3 // 2:  # 远超上限：多半是 OCR 多读了一位（39 → 391），不采信，免得半血线永久跑偏
+            return f"考试中体力读数 {hp} 远超最大体力 {self.max_hp}，按读错处理，最大体力不变"
+        old = self.max_hp
+        self.max_hp, self.max_hp_source = int(hp), "exam_hp_floor"
+        return f"考试中体力 {hp} 超过记下的最大体力 {old}（读数过时），最大体力按 {hp} 算"
 
     def genki_gain_per_turn(self, remaining: int | None) -> float | None:
         """最近两回合（回合开始时）元气的平均增量；读数不够时 None。清零后的下降不算增长（按 0）。"""
@@ -146,7 +170,7 @@ class ExamMemory:
             and card.card_id
             and card.card_id.startswith(profile.item_trigger_card)
             and self.item_charges_left
-            and (not profile.item_needs_high_hp or (hp_before is not None and not profile.is_half_hp(hp_before)))
+            and (not profile.item_needs_high_hp or IdolProfile.is_half_hp(hp_before, self.max_hp) is False)
         ):
             self.item_charges_left -= 1
             self.actions_left += 1  # 固有道具的追加行动
@@ -217,6 +241,7 @@ class BattleState:
     repeat_pending: bool = False  # 复制效果待生效：下一张主动卡效果再发动一次
     repeat_target: str | None = None  # 复制效果应该接的牌（计划里的下一张主动卡）
     score_note: str | None = None  # 分数读数被判为不可信时的说明
+    max_hp_note: str | None = None  # 最大体力读数被考试中的体力推翻时的说明
     item_trigger_card: str | None = None  # 固有道具的触发牌 ID 前缀（打出时可能追加行动）
     item_needs_high_hp: bool = False
     final_turn_permil: int | None = None  # 最后一回合的属性倍率（千分比）：存档 / 模拟器给出，或按 流1 从本场见过的倍率推
@@ -506,6 +531,7 @@ class BattleState:
             "copy_pending": (f"复制效果待生效：下一张主动卡效果再发动一次，应接 {self.repeat_target}" if self.repeat_target
                              else "复制效果待生效：下一张主动卡效果再发动一次，接价值最高的那张") if self.copy_pending else None,
             "score_note": self.score_note,
+            "max_hp_note": self.max_hp_note,
             "installed_effects": [asdict(e) for e in self.installed] or None,
             "done_this_turn": self.this_turn or None,
             "recent_history": self.history[-12:] or None,
@@ -543,6 +569,11 @@ class BattleState:
         if observed.get("pitem_charges") is not None:
             # P 道具图标上的剩余次数（截图读数，重启后也可靠）为准，记忆里的计数只在读不到时兜底
             memory.item_charges_left = observed["pitem_charges"]
+        if observed.get("max_hp"):  # 观测直接给了最大体力（模拟器 / 将来的识别）：以它为准
+            memory.set_max_hp(observed.pop("max_hp"), "observed")
+        observed.pop("max_hp", None)
+        if (note := memory.observe_hp(observed.get("hp"))) is not None:
+            observed["max_hp_note"] = note
         if "score" in observed:
             observed["score"], note = memory.check_score(observed["score"])
             observed.setdefault("score_note", note)
@@ -581,7 +612,7 @@ class BattleState:
         return cls(
             exam=memory.exam,
             turn=memory.turn,
-            max_hp=profile.max_hp if profile else None,
+            max_hp=memory.max_hp,
             item_charges_left=memory.item_charges_left,
             actions_left=memory.actions_left,
             installed=list(memory.installed),
@@ -728,4 +759,4 @@ def profile_from_master(idol_card_id: str) -> IdolProfile | None:
         return None
     if not row:
         return None
-    return IdolProfile(idol_id=idol_card_id, name=f"{row.get('name') or idol_card_id}（{row.get('characterId') or '?'}）", max_hp=None, playbook=None)
+    return IdolProfile(idol_id=idol_card_id, name=f"{row.get('name') or idol_card_id}（{row.get('characterId') or '?'}）", playbook=None)

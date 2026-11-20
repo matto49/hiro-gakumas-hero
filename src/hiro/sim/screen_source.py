@@ -193,7 +193,10 @@ class SimScreenExamStateSource(ScreenExamStateSource):
             self._lose("牌组没记账")
             return False
         drinks = [d.drink_id for d in state.drinks if getattr(d, "drink_id", None)]
-        max_hp = state.max_hp or (self.profile.max_hp if self.profile is not None else None) or 33
+        max_hp = state.max_hp or getattr(memory, "max_hp", None)  # 开考时从培育页读到的（hiro.exec.exam.seed_max_hp）
+        if not max_hp:
+            self._lose("最大体力没读到（培育页体力上限），不拿猜的数值合成开局")
+            return False
         permil = {k: v for k, v in (getattr(memory, "attr_permil", None) or {}).items() if v} or dict(CONTEXT.get("permil") or {})
         setup, notes = rv.setup_for(self.template or self.label, deck=deck, drinks=drinks, hp=state.hp or max_hp, max_hp=max_hp, permil=permil)
         # 任务 ②：P 道具 / 支援卡 / 回忆附魔换成这一局的（原来是模板那一局的，任务 ① 查到搜出来的未来是错的）

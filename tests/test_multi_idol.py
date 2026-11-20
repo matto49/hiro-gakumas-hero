@@ -17,12 +17,12 @@ OMAMORI, RESTART, YURUFUWA = "p_card-02-act-1_070", "p_card-02-men-1_030", "p_ca
 @pytest.mark.master
 def test_profile_from_master_for_other_idols():
     """广照旧用手写构筑表；ことね 按主数据生成：只有 id 和名字，最大体力 / 固有道具 / 打法文件给 None，不猜。"""
-    from hiro.brain.state import CAMPUS_HIRO, profile_for
+    from hiro.brain.state import CAMPUS_HIRO, IdolProfile, profile_for
 
     assert profile_for("i_card-skin-shro-3-007") is CAMPUS_HIRO
     p = profile_for("i_card-skin-fktn-3-000")
     assert p is not None and p.idol_id == FKTN and "世界一可愛い私" in p.name
-    assert p.max_hp is None and p.playbook is None and p.item_trigger_card is None and not p.is_half_hp(5)
+    assert p.playbook is None and p.item_trigger_card is None and IdolProfile.is_half_hp(5, None) is None
     assert profile_for("i_card-xxxx-9-999") is None
 
 

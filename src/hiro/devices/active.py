@@ -64,7 +64,9 @@ class _Device:
 
     def double_click(self, x: int, y: int, interval: float = 0.4) -> None:
         if _RT is None:
-            _kb().device.double_click(int(x), int(y), interval)
+            # kotonebot 的 double_click(*args, **kwargs) 只从关键字取 interval；按位置传会被当成第三个坐标参数，
+            # click 报 Invalid arguments: (x, y, 0.4)（11-18 Windows MuMu 选拔授業事件选项）
+            _kb().device.double_click(int(x), int(y), interval=interval)
             return
         self.click(x, y)
         sleep(interval)

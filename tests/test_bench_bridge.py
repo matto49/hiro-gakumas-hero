@@ -1066,7 +1066,7 @@ def test_live_loadout_max_stamina_falls_back_for_other_idols(monkeypatch, produc
     monkeypatch.setattr(A, "load_algo", lambda *a, **k: algo)
     es = SimpleNamespace(lesson={"turns_total": 7, "clear_target": 40, "perfect_target": None, "level_ids": ["L"], "lesson_limit_up_score": 0})
     sess = SimpleNamespace(state=SimpleNamespace(produce=dict(produce), exam_session=es))
-    other = IdolProfile(idol_id="i_card-x", name="x", max_hp=None, playbook=None)
+    other = IdolProfile(idol_id="i_card-x", name="x", playbook=None)
     adv = A.BenchAdvisor(other)
     adv.on_round_start(1, {"exam": "hajime-lesson-da-sp", "idol": "i_card-x", "deck": [("p_card-a", 0)], "session": sess})
     st, mem = _state([_card(0, "p_card-a")], remaining=6, turn=1, profile=other)

@@ -162,12 +162,33 @@ def menu_items(boxes) -> list[dict]:
     return out
 
 
+# 支援事件效果的说明框：「サポートイベント効果 / 効果による影響がないため、イベント効果は発揮されませんでした。」只有「OK」。
+# 11-19 Windows MuMu 选拔第 2 场后的特別指導：点「カスタマイズ」后弹出来盖住页面，进不了菜单、也找不到「終了」，停机。
+INFO_POPUP_TEXT = ("発揮されま", "サポートイベント効果")
+INFO_POPUP_OK = ("OK", "0K", "ОK")
+INFO_POPUP_OK_REGION = (180, 1100, 540, 1220)
+
+
+def dismiss_info_popup(r: Run, boxes) -> bool:
+    """画面上是只有「OK」的支援事件效果说明框就点 OK（没有选项，不改变任何结果）。返回是否点了。"""
+    if find_text(boxes, INFO_POPUP_TEXT) is None:
+        return False
+    ok = find_text(boxes, INFO_POPUP_OK, region=INFO_POPUP_OK_REGION, exact=True)
+    if ok is None:
+        return False
+    logger.info("特別指導：关掉支援事件效果说明框（OK）")
+    r.tap(ok)
+    return True
+
+
 def _wait(r: Run, check, timeout=STEP_TIMEOUT):
-    """轮询 OCR 直到 check(boxes, img) 为真。返回 (结果, 最后一帧, boxes)。"""
+    """轮询 OCR 直到 check(boxes, img) 为真；途中弹出支援事件效果说明框就点 OK 继续等。返回 (结果, 最后一帧, boxes)。"""
     got = {}
 
     def ok(im):
         got["b"] = r.ocr(im)
+        if dismiss_info_popup(r, got["b"]):
+            return False
         return check(got["b"], im)
 
     res, img = r.until(ok, timeout)
@@ -279,6 +300,10 @@ def customize(
     img = r.shoot()
     boxes = r.ocr(img)
     r.snap(img, "grid")
+    if dismiss_info_popup(r, boxes):
+        r.sleep(1.0)
+        img = r.shoot()
+        boxes = r.ocr(img)
     if not on_grid(boxes) or has_toast(boxes):
         if not on_page(boxes):
             return r.result(False, "不在特別指導选卡页", page_after=None)

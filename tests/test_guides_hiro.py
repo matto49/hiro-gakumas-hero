@@ -86,6 +86,6 @@ def test_hiro_entries_evidence():
     es = guides_hiro.entries()
     assert {e["decision"] for e in es} == {"card_pick", "card_upgrade", "formation.main_attr"}
     for e in es:
-        assert e["scope"] == {"idol_card": HIRO} and e["evidence"] and guides.Entry(e).layer == 5
+        assert e["scope"].get("idol_card") == HIRO and e["evidence"] and guides.Entry(e).layer == 5
     kinds = {(x["kind"], x["ref"]) for x in es[0]["evidence"]}
     assert ("guide", "game8") in kinds and ("decision", "决策-07") in kinds

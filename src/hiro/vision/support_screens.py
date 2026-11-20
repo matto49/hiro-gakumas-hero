@@ -134,6 +134,25 @@ def _texts(img: MatLike, boxes):
     return [(t.replace(" ", "").replace("サボート", "サポート"), b) for t, b in boxes]
 
 
+_PAGER_SLASHES = "1lI|｜／!"  # RapidOCR 常把分页栏的「/」读成这些（11-18 Windows MuMu：「1/2」读成「112」，整页认不出、库存扫描停下）
+
+
+def _pager(texts) -> re.Match | None:
+    """分页栏「N/M」（y 500–560）。斜杠读对时照常认；读错时只认居中（x 中心 300–420）、1 ≤ N ≤ M ≤ 9 的读数：
+    斜杠读成 1 / l / | 等（「112」），或者整个漏掉（「12」，11-18 Windows MuMu 滚动后的同一页）。"""
+    for t, b in texts:
+        if not 500 <= b[1] <= 560:
+            continue
+        if m := re.fullmatch(r"(\d)/(\d)", t):
+            return m
+        if not 300 <= (b[0] + b[2]) // 2 <= 420:
+            continue
+        m = re.fullmatch(r"(\d)(\d)", t) or (re.fullmatch(r"(\d).(\d)", t) if len(t) == 3 and t[1] in _PAGER_SLASHES else None)
+        if m and 1 <= int(m.group(1)) <= int(m.group(2)):
+            return re.fullmatch(r"(\d)/(\d)", f"{m.group(1)}/{m.group(2)}")
+    return None
+
+
 def _center(b) -> list[int]:
     return [(b[0] + b[2]) // 2, (b[1] + b[3]) // 2]
 
@@ -206,7 +225,7 @@ def read_rental_list(img: MatLike, boxes=None) -> dict | None:
     box = cv2.cvtColor(img[y1:y2, x1:x2], cv2.COLOR_BGR2HSV)
     grey = float(((box[:, :, 2] >= 150) & (box[:, :, 2] <= 215) & (box[:, :, 1] < 40)).mean())
     checked = grey >= PLAN_FIT_GREY_MIN  # 没勾的样本还没有（预计是白底空框），阈值待核对
-    page = next((mm for t, bb in texts if 500 <= bb[1] <= 560 and (mm := re.fullmatch(r"(\d)/(\d)", t))), None)
+    page = _pager(texts)
     return {"rows": rows, "plan_fit": {"checked": checked, "center": CONTROLS["plan_fit"]}, "controls": dict(CONTROLS),
             "pager": {"page": int(page.group(1)) if page else None, "pages": int(page.group(2)) if page else None,
                       "prev": [233, 533], "next": [485, 533]}}  # fmt: skip
@@ -249,7 +268,7 @@ def read_support_list(img: MatLike, boxes=None) -> dict | None:
     texts = _texts(img, boxes)
     if not any("決定" in t for t, _ in texts) or any(re.match(r"P[LI]V", t, re.I) for t, _ in texts):
         return None
-    page = next((m for t, b in texts if 500 <= b[1] <= 560 and (m := re.fullmatch(r"(\d)/(\d)", t))), None)
+    page = _pager(texts)
     if page is None:
         return None
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)

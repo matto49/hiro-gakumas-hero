@@ -239,7 +239,7 @@ def _plan_number(idol: str | None) -> int | None:
 
         cat = Catalog()
         try:
-            row = cat.one("IdolCard", idol)
+            row = cat.one("IdolCard", idol.replace("i_card-skin-", "i_card-"))  # skin id（续跑 / 开局参数）也认
         finally:
             cat.db.close()
         plan = (row or {}).get("planType") or ""
@@ -297,9 +297,10 @@ def _overlay_screen(obs: dict, screen: dict, state) -> dict:
     return obs
 
 
-def _round_defaults(label: str | None, deck: list) -> tuple[dict, dict | None]:
+def _round_defaults(label: str | None, deck: list, max_hp: int | None = None) -> tuple[dict, dict | None]:
     """画面还没读到时的倍率（R1 记下的 / 参考值），和本战回合属性配额（模拟器合成模板那场的配额，本战每局相同：
-    dmmw1、dmmt2 的 R1 都是 Vo4 / Da3 / Vi2、末三回合 Vi → Da → Vo）。选拔考试没有模板，配额给 None。"""
+    dmmw1、dmmt2 的 R1 都是 Vo4 / Da3 / Vi2、末三回合 Vi → Da → Vo）。选拔考试没有模板，配额给 None。
+    max_hp：开考时从培育页读到的最大体力；未知时不合成模板（配额给 None，未知回合按流向填）。"""
     base = str(label or "").split("#", 1)[0].lower()
     permil, alloc = {}, None
     if base.startswith(("tower", "hajime", "nia")):  # 偶像之路 / 初 / N.I.A：倍率由编成定（编成给了就用编成的），没有 H.I.F 的参考值
@@ -316,12 +317,12 @@ def _round_defaults(label: str | None, deck: list) -> tuple[dict, dict | None]:
             permil = dict(REFERENCE_PERMIL)
     except Exception as e:  # noqa: BLE001
         logger.info("参考倍率不可用：%s: %s", type(e).__name__, e)
-    if base in ("r1", "r2") and deck:
+    if base in ("r1", "r2") and deck and max_hp:
         try:
             from hiro.sim import interval as iv
             from hiro.sim import resource as rv
 
-            setup, _ = rv.setup_for(base, deck=list(deck), drinks=[], hp=33, max_hp=33, permil=permil or None)
+            setup, _ = rv.setup_for(base, deck=list(deck), drinks=[], hp=max_hp, max_hp=max_hp, permil=permil or None)
             alloc = (getattr(iv.bare_exam(setup), "meta", None) or {}).get("allocation")
         except Exception as e:  # noqa: BLE001  没有模拟器 / 主数据：未知回合按流向填
             logger.info("本战回合配额不可用：%s: %s", type(e).__name__, e)
@@ -522,7 +523,10 @@ class BenchAdvisor:
             trend = None
         self._session = ctx.get("session")
         self.exam = exam_fields(self.label, idol=idol, plan=_plan_number(idol), produce=self._live_mode())
-        self.exam["permil_default"], self.exam["allocation"] = _round_defaults(self.label, self.deck)
+        self.max_hp = ctx.get("max_hp")
+        self.exam["permil_default"], self.exam["allocation"] = _round_defaults(self.label, self.deck, self.max_hp)
+        if self.max_hp and not self.exam.get("max_stamina"):
+            self.exam["max_stamina"] = int(self.max_hp)  # 画面帧没给最大体力时（screen.from_screen 的退路）用开考读数
         self._history: list = []  # 这一场执行过的 (UIObs, 动作)：编成晚拼时交给搜索补放（ExamGnrpa._replay）
         self.tower_loadout = None
         self.known_draws = None
