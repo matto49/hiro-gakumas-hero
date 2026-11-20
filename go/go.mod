@@ -1,6 +1,6 @@
 module github.com/matto49/hiro-gakumas-hero/go
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/danieljoos/wincred v1.2.3

@@ -106,7 +106,7 @@ go/
 
 ## 工程工具
 
-本机已装（2026-11-20，`GOTOOLCHAIN=go1.27.3 go install <包>@latest`，装在 `~/go/bin`）：
+本机已装（2026-11-20，`GOTOOLCHAIN=go1.27.4 go install <包>@latest`，装在 `~/go/bin`）。Go 版本跟着 `go.mod` 走（1.27.4：1.27.3 的 net/http 有 GO-2026-6859，govulncheck 查出来后升级）：
 
 | 工具 | 管什么 | 包 |
 |---|---|---|

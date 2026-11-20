@@ -3,7 +3,7 @@ version: "3"
 
 vars:
   LOCAL: github.com/matto49/hiro-gakumas-hero
-  GOTOOLCHAIN: go1.27.3
+  GOTOOLCHAIN: go1.27.4
 
 env:
   GOTOOLCHAIN: "{{.GOTOOLCHAIN}}"
@@ -61,13 +61,14 @@ tasks:
       - go test -count=1 -run Parity -v ./internal/parity/...
 
   vuln:
-    desc: 依赖漏洞
-    cmds: [govulncheck ./...]
+    desc: 依赖漏洞（含标准库：要用 go.mod 里那个版本的 go，系统自带的旧 go 排前面时会报「requires go1.26」）
+    cmds:
+      - PATH="$(go env GOROOT)/bin:$PATH" govulncheck ./...
 
   licenses:
-    desc: 依赖许可证（仓库是 AGPL：GPL / LGPL / AGPL / MIT / BSD / Apache 都可以）
+    desc: 第三方依赖的许可证（仓库是 AGPL：GPL / LGPL / AGPL / MIT / BSD / Apache 都可以；自己的包不查，许可证在仓库根）
     cmds:
-      - go-licenses check ./... --disallowed_types=forbidden,unknown
+      - go-licenses check ./... --disallowed_types=forbidden,unknown --ignore github.com/matto49/hiro-gakumas-hero
 
   nilaway:
     desc: 空指针分析（参考，不拦提交）

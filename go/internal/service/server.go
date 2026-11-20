@@ -40,7 +40,7 @@ func Handler(m *Manager, token string, shutdown func()) http.Handler {
 			w.Header().Set("Content-Type", "application/json; charset=utf-8")
 			w.Header().Set("X-Content-Type-Options", "nosniff")
 			w.WriteHeader(code)
-			_, _ = w.Write(data) //nolint:gosec // JSON 响应（nosniff），只回给带令牌的本机客户端
+			_, _ = w.Write(data)
 		}
 		if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Hiro-Token")), []byte(token)) != 1 {
 			send(http.StatusUnauthorized, errEnv(clierr.New("unauthorized", "令牌不对", "")))

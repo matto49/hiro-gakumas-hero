@@ -1,6 +1,6 @@
 module github.com/matto49/hiro-gakumas-hero/app
 
-go 1.27.3
+go 1.27.4
 
 require (
 	github.com/ebitengine/purego v0.11.1 // indirect
