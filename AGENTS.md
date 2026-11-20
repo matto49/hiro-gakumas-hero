@@ -193,6 +193,8 @@ PYTHONPATH=src python -m hiro.run_hif resume --mode qualify|main   # 续跑进�
 | `HIRO_DECK_REVIEW` | 培育中主动打开牌组一览读全量（约 10 秒一次）。缺省：本战开局牌组为空时读一次；牌组标成待复核时（跳过剧情后支援事件可能给了卡、删卡没对上等）到选行动页读一次，同一天只试一次。`1` = 另外每个考试段第一次到选行动页都读（调试）；`0` = 只保留开局那次，待复核不读 |
 | `HIRO_STRATEGY` | 换培育策略类（KAA `HifGrindStrategy` 子类），默认 `hiro.produce.hif:HiroHifStrategy` |
 | `HIRO_PAUSE_FLAG` | 外部暂停旗标文件路径：文件存在就暂停对局 |
+| `HIRO_CLOSE_GAME` | 跑完（不管成败）关游戏：`off`（缺省）/ `on`·`emulator`（MuMu 关模拟器、雷电设了 `HIRO_LDCONSOLE` 时关模拟器、DMM 关游戏 + DMM Game Player）/ `game`（只关游戏）。`play_game` 整局结束关一次（选拔和本战之间不关），直接跑 `run_hif` 时每段结束关。`play.ps1 -CloseGame`。见 `hiro/loop/close_game.py` |
+| `HIRO_UNREAD_STORY` / `HIRO_UNREAD_TIMEOUT_S` | 未读剧情：`skip`（缺省，照旧跳过）/ `stop`：未读确认框点キャンセル、暂停、发系统通知、写等人文件 `%LOCALAPPDATA%\hiro\waiting-for-user.txt`（`HIRO_WAIT_FILE`）；看完剧情自动继续，删掉文件 = 跳过这段继续，超时（缺省 600 秒）关游戏并退出（码 3，之后 `resume`）。stop 时开局设置不打开「未読コミュでも早送り」（打开着的会关掉）。`play.ps1 -UnreadStory stop`。见 `hiro/loop/unread_story.py` |
 | `HIRO_RETRY_GAP_MAX` | 本战 R2 没拿第 1 时重不重打：离第 1 的差距超过我方本轮分的这个比例就不重打（缺省 `0.3`，用户 11-18 定；读不到第 1 名或本轮分时按原规则重打） |
 | `HIRO_DEVICE` / `HIRO_ADB` / `HIRO_SCREENSHOT` / `HIRO_EMULATOR_INSTANCE` | 设备后端与连接，见「三、环境」的「设备」表 |
 | `HIRO_OCR` | 文字识别后端：`auto`（缺省）/ `vision`（Apple Vision，只有 macOS）/ `rapidocr` |

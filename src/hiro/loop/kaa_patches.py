@@ -342,6 +342,54 @@ def _prep_progress(fn, name: str):
     return wrapped
 
 
+UNREAD_COMMU_MODULES = ("kaa.tasks.actions.commu", "kaa.tasks.produce.new.strategies.base", "kaa.tasks.produce.new.strategies.hif_grind",
+                        "kaa.tasks.produce.shared.common", "kaa.tasks.produce.shared.produce_end", "kaa.tasks.start_game")  # fmt: skip
+
+
+def _unread_commu(orig):
+    """KAA 的 handle_unread_commu 看到未读确认框（スキップ確認 / 快进确认）就点「はい」跳过。HIRO_UNREAD_STORY=stop 时改成
+    点キャンセル、停下等人（hiro.loop.unread_story）；skip（缺省）照旧。SKIP / 快进按钮照常点：读过的剧情不弹框直接跳。"""
+
+    def wrapped(img=None):
+        from hiro.loop import unread_story
+
+        if not unread_story.stopping():
+            return orig(img)
+        from kaa.game_ui import dialog
+        from kaa.tasks import R
+        from kotonebot import device
+
+        from hiro.vision.ocr import screen_texts
+
+        device.screenshot()
+        if R.Common.TextSkipCommuComfirmation.exists() or R.Common.TextFastforwardCommuDialogTitle.exists():
+            unread_story.handle(cancel=lambda: dialog.no(), confirm=lambda: dialog.yes(),
+                                texts=lambda: [b.text for b in screen_texts(device.screenshot())])  # fmt: skip
+            return True
+        return orig(img)
+
+    wrapped._hiro_unread = True
+    return wrapped
+
+
+def _patch_unread_commu() -> None:
+    import importlib
+
+    base = importlib.import_module("kaa.tasks.actions.commu")
+    orig = base.handle_unread_commu
+    if getattr(orig, "_hiro_unread", False):
+        return
+    patched = _unread_commu(orig)
+    for name in UNREAD_COMMU_MODULES:
+        try:
+            mod = importlib.import_module(name)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("未读剧情补丁：导入 %s 失败：%r", name, e)
+            continue
+        if getattr(mod, "handle_unread_commu", None) is orig:
+            mod.handle_unread_commu = patched
+
+
 def apply() -> None:
     import importlib
 
@@ -380,6 +428,7 @@ def apply() -> None:
         fn = getattr(prep, name, None)
         if fn is not None and not getattr(fn, "_hiro_progress", False):
             setattr(prep, name, _prep_progress(fn, name))
+    _patch_unread_commu()  # HIRO_UNREAD_STORY=stop：未读剧情不跳，停下等人
     from hiro.loop import win_desktop
 
     win_desktop.apply()  # DMM 后台点击：桌面暂时不可用（UAC / 锁屏）时等它恢复，不让主循环连崩
