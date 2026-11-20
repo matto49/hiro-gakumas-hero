@@ -34,6 +34,8 @@
 | 通用的「任何语言接入」子进程插件协议先不做：现在没有外部用户 | 我的决定 |
 | 截图缩放用纯 Go 照 OpenCV 5 的通用 INTER_LINEAR 算法写（每个平台结果一样，不要 cgo）。cv2 自己在 Mac 上走 Carotene / KleidiCV、x86 上走 IPP，各平台本来就差 1–2 个灰度级；和 Mac 的 cv2 比：放大逐字节相同，缩小最多差 2。识别对照用的 traces 截图已经是 720x1280，不经过这一步 | 我的决定（11-20） |
 | DMM 用 maa-framework-go（purego 动态加载，不要 cgo），安装包要带 MaaFramework v5.14.3 的 Windows 动态库（和 Python 版的 maafw 5.14.3 一样）；截图 / 输入方式的数值按 maafw 5.14.3 自己的对照表（绑定库 v3.5.1 的常量名对应的是别的版本） | 我的决定（11-20） |
+| 识别层的图像处理用 gocv（cgo + OpenCV 4），不手写纯 Go：模板匹配、形态学、轮廓、连通块要和 cv2 一致，手写的对照成本太高。gocv 只在 `internal/cv` 里用，Mat 在函数里建、用完就关，往外只给 `img.BGR` / `img.Gray`；OpenCV 内部报错在 `cv` 里 panic，识别入口用 `cv.Recover` 转成 error。Mac 开发机 `brew install opencv@4`（keg-only，Taskfile 自己设 `PKG_CONFIG_PATH`）；Windows 和 CI 要装 OpenCV 并在各自平台上编，不能再从 Mac 交叉编译；安装包要带 OpenCV 动态库 | 用户 11-20 |
+| Mac 文字识别用 cgo 调 Apple Vision（同 Python 版的 pyobjc 调法：accurate、不做语言纠正、区域先放大 3 倍双三次）。非 Mac 用 RapidOCR（onnxruntime），阶段 3 后段迁 | 我的决定（11-20） |
 
 ## 目录
 
@@ -69,7 +71,7 @@ go/
 | 0 工程底座 | `go/` 模块、Taskfile、golangci-lint、go-arch-lint、lefthook、CI | `task check` 全过 | 完成 |
 | 1 工具层 | `hiro` 全部命令用 Go 实现；对局子进程仍是 Python；没迁的命令经 `pybridge` 转给 Python | 同一个 HIRO_HOME 下，每条命令 Go 和 Python 输出的 JSON 相同（对照测试）；桌面程序改用 Go 版 `hiro` | Mac 完成（11-20）；Windows 实机待验 |
 | 2 设备层 | MaaTools、adb、Win32 截图 / 点击 / 滑动 | 实机：截图尺寸、坐标换算和 Python 版一致 | 代码完成（11-20），实机验收放到最后 |
-| 3 识别层 | 判页、读数、OCR、卡面检索 | traces 里的截图逐张对照，页面和字段读数一致 | 未开始 |
+| 3 识别层 | 判页、读数、OCR、卡面检索 | traces 里的截图逐张对照，页面和字段读数一致 | 进行中 |
 | 4 状态 + 决策 | 状态账本、社区规则、编成方案、LLM、引擎子进程 | 黄金用例和 traces 局面上决策一致 | 未开始 |
 | 5 各模式主循环 | runtime：初、N.I.A、H.I.F、偶像之路、日常 | 每个模式实机一局，成绩不低于 Python 版 | 未开始 |
 | 6 去掉 Python | 安装包不再带 Python；删掉 `pybridge` | 新机器装上就能打完一局 | 未开始 |
@@ -86,7 +88,7 @@ go/
 
 1. **单元测试**：每个包自己的 `_test.go`。Python `tests/cli/` 的 86 个用例逐条搬过来。
 2. **对照测试**（`go/internal/parity`）：准备一个 HIRO_HOME 夹具，同一组命令分别用 Python 和 Go 跑，比较 JSON（比较语义，不比空格）。本机有 Python 环境时跑，没有就跳过；设 `HIRO_PARITY_PYTHON=<python 路径>` 指定。
-3. **黄金数据**（阶段 3 起）：从 traces 挑截图和识别结果存进 `go/testdata/golden/`，用 goldie 比对。
+3. **黄金数据**（阶段 3 起）：`tools/golden/export_vision.py` 用 Python 版把截图（`digital-hiro` 仓库的 tests/fixtures 742 张 + traces 848 张）逐张跑一遍判页、读数和整帧 OCR，结果写到 `~/.cache/hiro/golden/vision`（截图和读数都不进仓库）；Go 的识别测试读这个目录逐张比对，目录不存在就跳过。要用装了 pyobjc Vision 的 Python（`~/github/digital-hiro/.venv`）、`HIRO_OCR=vision`，否则 OCR 后端不一样，结果没法比。
 4. **实机**（阶段 2、5）：每个模式在 Mac（账号 2：初 / N.I.A / 偶像之路）或 Windows（账号 1：H.I.F）打一局。
 
 ## 第三方库
@@ -184,3 +186,9 @@ task nilaway    # 空指针分析（参考）
   - [x] `doctor --probe` 和 `fit-window` 任务改用 Go，不再要 Python
   - [ ] 实机：Mac PlayCover、Windows DMM（MaaFramework 动态库）、MuMu（放到全部迁完后统一验）
 - [ ] 阶段 3：识别层
+  - [x] `cv`：gocv 封装（颜色、缩放、读写、阈值、inRange、边框、模板匹配、形态学、Canny、轮廓、连通块、直方图）；和 cv2 4.11 对照，逐字节一样，模板匹配分数差 1e-4 以内
+  - [x] `ocr`：Apple Vision（cgo），文字和框跟 Python 版一样；NFKC 规整、整帧文字排序、读数字
+  - [x] 黄金数据导出（`tools/golden/export_vision.py`）
+  - [ ] 黄金数据比对框架（Go）
+  - [ ] `vision`：模板（ui_templates）→ 判页链（加载、主页、交流、模板页、选项、卡 / 饮料、对话框、像素兜底）→ quick → 各页读数（pages、hif、deck、P 物品、支援、签名、物品、饮料、塔、事件）→ extract / observe
+  - [ ] RapidOCR（onnxruntime，Windows）

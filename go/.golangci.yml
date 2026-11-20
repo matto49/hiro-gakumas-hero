@@ -39,6 +39,10 @@ linters:
     presets:
       - comments
       - std-error-handling
+    rules:
+      - path: internal/service/server\.go
+        linters: [gosec]
+        text: G705 # JSON 响应（nosniff），只回给带令牌的本机客户端；装没装 cgo 时 gosec 的判断不一样，不用行内 nolint
 
 formatters:
   enable:

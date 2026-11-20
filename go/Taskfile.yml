@@ -4,9 +4,13 @@ version: "3"
 vars:
   LOCAL: github.com/matto49/hiro-gakumas-hero
   GOTOOLCHAIN: go1.27.4
+  # 识别层用 gocv（cgo + OpenCV 4）：Mac 上 brew install opencv@4（keg-only，要告诉 pkg-config 在哪）
+  OPENCV_PKGCONFIG:
+    sh: 'if command -v brew >/dev/null 2>&1 && brew --prefix opencv@4 >/dev/null 2>&1; then echo "$(brew --prefix opencv@4)/lib/pkgconfig"; fi'
 
 env:
   GOTOOLCHAIN: "{{.GOTOOLCHAIN}}"
+  PKG_CONFIG_PATH: "{{.OPENCV_PKGCONFIG}}"
 
 tasks:
   default:

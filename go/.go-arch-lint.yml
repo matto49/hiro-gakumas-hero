@@ -17,6 +17,9 @@ components:
   proc: { in: internal/proc }
   img: { in: internal/img }
   device: { in: internal/device }
+  cv: { in: internal/cv }
+  ocr: { in: internal/ocr }
+  vision: { in: internal/vision/** }
   pending: { in: internal/pending }
   store: { in: internal/store }
   pybridge: { in: internal/pybridge }
@@ -60,6 +63,12 @@ deps:
     mayDependOn: [cli, service, report, pybridge]
   device:
     mayDependOn: [img]
+  cv:
+    mayDependOn: [img] # 只有这里碰 gocv（cgo + OpenCV）
+  ocr:
+    mayDependOn: [cv, img]
+  vision:
+    mayDependOn: [cv, ocr, img, vision] # 判页、读数：只吃图，不碰设备、存储
   doctor:
     mayDependOn: [cli, store, secret, pybridge, device, img]
   hiro:

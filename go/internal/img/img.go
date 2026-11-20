@@ -86,3 +86,62 @@ func (b *BGR) ToRGBA() *image.RGBA {
 	}
 	return out
 }
+
+// Gray 是单通道 8 位图（灰度、掩码）。Pix[y*W+x]。
+type Gray struct {
+	W, H int
+	Pix  []byte
+}
+
+// NewGray 建一张全 0 的单通道图。
+func NewGray(w, h int) *Gray { return &Gray{W: w, H: h, Pix: make([]byte, w*h)} }
+
+// Valid 尺寸和数据长度对得上、不是空图。
+func (g *Gray) Valid() bool { return g != nil && g.W > 0 && g.H > 0 && len(g.Pix) == g.W*g.H }
+
+// Crop 复制出 (x, y) 起 w×h 的一块；超出图的部分裁掉（同 numpy 切片）。
+func (g *Gray) Crop(x, y, w, h int) *Gray {
+	x0, y0 := max(0, x), max(0, y)
+	x1, y1 := min(g.W, x+w), min(g.H, y+h)
+	if x1 <= x0 || y1 <= y0 {
+		return NewGray(0, 0)
+	}
+	out := NewGray(x1-x0, y1-y0)
+	for r := range out.H {
+		copy(out.Pix[r*out.W:(r+1)*out.W], g.Pix[(y0+r)*g.W+x0:(y0+r)*g.W+x1])
+	}
+	return out
+}
+
+// CountNonZero 不是 0 的像素数（同 cv2.countNonZero / np.count_nonzero）。
+func (g *Gray) CountNonZero() int {
+	n := 0
+	for _, v := range g.Pix {
+		if v != 0 {
+			n++
+		}
+	}
+	return n
+}
+
+// Mean 平均值（同 numpy 的 mean）。
+func (g *Gray) Mean() float64 {
+	if len(g.Pix) == 0 {
+		return 0
+	}
+	s := 0
+	for _, v := range g.Pix {
+		s += int(v)
+	}
+	return float64(s) / float64(len(g.Pix))
+}
+
+// Slice 同 numpy 的 img[y1:y2, x1:x2]：越界的部分裁掉，可能得到空图（W 或 H 为 0）。
+func (b *BGR) Slice(x1, y1, x2, y2 int) *BGR {
+	x1, y1 = max(0, min(x1, b.W)), max(0, min(y1, b.H))
+	x2, y2 = max(x1, min(x2, b.W)), max(y1, min(y2, b.H))
+	return b.Crop(x1, y1, x2-x1, y2-y1)
+}
+
+// Empty 没有像素（numpy 的 size == 0）。
+func (b *BGR) Empty() bool { return b == nil || b.W <= 0 || b.H <= 0 }
