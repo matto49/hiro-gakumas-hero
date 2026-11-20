@@ -4,6 +4,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { AssistantCtx, type AssistantApi } from "./lib/assistant";
+import { BootCtx, type BootApi } from "./lib/bootstrap";
 import type { Thread } from "./lib/chat";
 import { HiroCtx, type Envelope } from "./lib/hiro";
 import type { View } from "./components/Sidebar";
@@ -44,6 +45,11 @@ const routes: [string, Envelope][] = [
   ["info supports", ok({ kind: "supports", scanned_at: "2026-11-17 02:23:05", complete: true, items: SUP })],
   ["info memories", ok({ kind: "memories", scanned_at: "2026-11-16 18:44:59", complete: true, items: MEM })],
   ["plan show", ok(PLAN)],
+  ["doctor", ok({ items: [
+    { id: "python", title: "运行环境", ok: true, detail: "Python 3.10.14，依赖齐全", next: "", optional: false },
+    { id: "catalog", title: "资料库", ok: null, detail: "还没下载", next: "点「下载资料库」", optional: false },
+    { id: "platform", title: "游戏", ok: false, detail: "连不上 maaTools（端口 18080）", next: "在 PlayCover 的游戏设置里打开 maaTools", optional: false },
+  ] })],
   ["secret list", ok({ secrets: [{ name: "game-account" }] })],
 ];
 const call = async (args: string[]): Promise<Envelope> => {
@@ -67,12 +73,13 @@ const THREAD: Thread = {
   ],
 };
 const api: AssistantApi = {
-  settings: async () => ({ provider: "deepseek", model: "deepseek-flash", has_key: true, wizard_done: true }),
+  settings: async () => ({ provider: "deepseek", model: "deepseek-flash", has_key: true, wizard_done: location.hash !== "#wizard" }),
   save: async () => {}, test: async () => ({ ok: true, message: "模型回答：可以" }), models: async () => ["deepseek-flash", "deepseek-v4-pro"],
   ask: async () => ({ cards: [] }), listThreads: async () => [THREAD], saveThread: async () => {}, deleteThread: async () => {},
 };
 
 const page = location.hash.slice(1) || "chat";
+const boot: BootApi = { status: async () => ({ ready: true, steps: [] }), reset: async () => {}, run: async () => {} };
 const VIEWS: Record<string, View> = {
   chat: { name: "chat" }, start: { name: "start" }, cockpit: { name: "cockpit", jobId: "J1" }, plan: { name: "plan" },
   supports: { name: "info", kind: "supports" }, memories: { name: "info", kind: "memories" }, settings: { name: "settings" },
@@ -81,7 +88,9 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <HiroCtx.Provider value={call}>
       <AssistantCtx.Provider value={api}>
-        <App initialView={VIEWS[page]} />
+        <BootCtx.Provider value={boot}>
+          <App initialView={VIEWS[page]} />
+        </BootCtx.Provider>
       </AssistantCtx.Provider>
     </HiroCtx.Provider>
   </StrictMode>,
