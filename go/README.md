@@ -32,6 +32,8 @@
 | `hiro` 的命令名、参数、JSON 信封、退出码不变；`HIRO_*` 环境变量名不变；`HIRO_HOME` 里的文件格式不变（Python 和 Go 能读写同一份） | 我的决定 |
 | Go 代码放 `go/` 子目录（模块 `github.com/matto49/hiro-gakumas-hero/go`）：仓库根有 Python 的 `vendor/`，Go 会把它当依赖目录 | 我的决定 |
 | 通用的「任何语言接入」子进程插件协议先不做：现在没有外部用户 | 我的决定 |
+| 截图缩放用纯 Go 照 OpenCV 5 的通用 INTER_LINEAR 算法写（每个平台结果一样，不要 cgo）。cv2 自己在 Mac 上走 Carotene / KleidiCV、x86 上走 IPP，各平台本来就差 1–2 个灰度级；和 Mac 的 cv2 比：放大逐字节相同，缩小最多差 2。识别对照用的 traces 截图已经是 720x1280，不经过这一步 | 我的决定（11-20） |
+| DMM 用 maa-framework-go（purego 动态加载，不要 cgo），安装包要带 MaaFramework v5.14.3 的 Windows 动态库（和 Python 版的 maafw 5.14.3 一样）；截图 / 输入方式的数值按 maafw 5.14.3 自己的对照表（绑定库 v3.5.1 的常量名对应的是别的版本） | 我的决定（11-20） |
 
 ## 目录
 
@@ -49,6 +51,8 @@ go/
     plan/              hiro plan …
     secret/            hiro secret …（钥匙串、剪贴板）
     service/           后台服务、任务（jobs）、客户端
+    img/               BGR 图像、缩放（OpenCV 通用算法）
+    device/            设备：maatools（Mac）、adb（MuMu / 雷电 / 真机）、dmm（Windows，MaaFramework）、DMM 窗口尺寸
     report/            成绩摘要
     doctor/            hiro doctor
     pybridge/          还没迁的部分转给 Python（迁完一块删一块）
@@ -64,7 +68,7 @@ go/
 |---|---|---|---|
 | 0 工程底座 | `go/` 模块、Taskfile、golangci-lint、go-arch-lint、lefthook、CI | `task check` 全过 | 完成 |
 | 1 工具层 | `hiro` 全部命令用 Go 实现；对局子进程仍是 Python；没迁的命令经 `pybridge` 转给 Python | 同一个 HIRO_HOME 下，每条命令 Go 和 Python 输出的 JSON 相同（对照测试）；桌面程序改用 Go 版 `hiro` | Mac 完成（11-20）；Windows 实机待验 |
-| 2 设备层 | MaaTools、adb、Win32 截图 / 点击 / 滑动 | 实机：截图尺寸、坐标换算和 Python 版一致 | 未开始 |
+| 2 设备层 | MaaTools、adb、Win32 截图 / 点击 / 滑动 | 实机：截图尺寸、坐标换算和 Python 版一致 | 代码完成（11-20），实机验收放到最后 |
 | 3 识别层 | 判页、读数、OCR、卡面检索 | traces 里的截图逐张对照，页面和字段读数一致 | 未开始 |
 | 4 状态 + 决策 | 状态账本、社区规则、编成方案、LLM、引擎子进程 | 黄金用例和 traces 局面上决策一致 | 未开始 |
 | 5 各模式主循环 | runtime：初、N.I.A、H.I.F、偶像之路、日常 | 每个模式实机一局，成绩不低于 Python 版 | 未开始 |
@@ -72,7 +76,7 @@ go/
 
 ## 迁移期间怎么共存
 
-- **命令**：Go 版 `hiro` 是入口。还交给 Python 的（经 `pybridge` 调 `python -m hiro.cli.main`，信封原样返回）：`plan formation`（社区规则，阶段 4）、`run review` 和成绩摘要里的考试分数（复盘工具 `tools/viewer`，阶段 3）、`doctor --probe` 的连游戏（设备层，阶段 2）。
+- **命令**：Go 版 `hiro` 是入口。还交给 Python 的（经 `pybridge` 调 `python -m hiro.cli.main`，信封原样返回）：`plan formation`（社区规则，阶段 4）、`run review` 和成绩摘要里的考试分数（复盘工具 `tools/viewer`，阶段 3）。`doctor --probe`、调 DMM 窗口（`fit-window` 任务）阶段 2 起用 Go。
 - **桌面程序**：安装包带 Go 版 `hiro`（`app/scripts/build-hiro.mjs` 编进 `resources/<平台>/bin/`，`bun run build` 会先编它）。程序找 `hiro` 的顺序：`HIRO_CLI` → 自带的 Go 版 → `HIRO_HOME/src/.venv` 的 Python 版 → PATH。阶段 1 的 Go 代码不用 cgo，Mac 上能直接编出 Windows 版。
 - **服务**：Go 服务和 Python 服务用同一把锁（`HIRO_HOME/service.lock`）、同一个 `service.json`（`{port, token, pid}`）、同一套接口（`/ping /status /start /events /pause /takeover /resume /stop /shutdown`），同一个 HIRO_HOME 只会有一个服务在跑，哪边的客户端都能连。
 - **对局**：阶段 1–4 对局还是 Python 子进程（`hiro.run_hif`、`hiro.runtime.hajime` …）。Go 服务按这个顺序找 Python：`HIRO_PYTHON` → 仓库 `.venv` → `HIRO_HOME/src/.venv`；仓库位置：`HIRO_REPO` → 从程序位置和当前目录往上找 `src/hiro/__init__.py` → `HIRO_HOME/src`。
@@ -171,4 +175,12 @@ task nilaway    # 空指针分析（参考）
         桌面程序用自带的 Go 版 `hiro`：信息页、编成方案页（出方案经 Python 2 秒）、开局页（搜偶像卡、准备开局、取消）都通
   - [ ] Windows 实机：安装包、凭据管理器、剪贴板、DMM 管理员权限
   - [ ] 实机对局：经 Go 服务起 Python 对局子进程打一局（要游戏）
-- [ ] 阶段 2：设备层
+- [x] 阶段 2：设备层（代码，11-20）
+  - [x] `img`：BGR 图像、裁剪、缩放（和本机 cv2 对照：放大逐字节相同，缩小最多差 2）
+  - [x] `device`：逻辑坐标换算（横屏 16:10 居中裁 16:9、Python 的五取偶舍入）、横竖屏切换时重截、按 HIRO_DEVICE 选设备
+  - [x] MaaTools（Mac）：协议客户端、Catalyst 0.77、断线重连补发抬起、发送前探测对端关闭、空帧重试 / 黑帧 / 30 秒报断开；假服务端走真协议测
+  - [x] adb：screencap 解析（12 / 16 字节头）、点击、滑动（hold 用 motionevent）、掉线 adb connect 重试一次、超时算断开
+  - [x] DMM（Windows）：MaaFramework Win32 控制器（截图 FramePool、输入 SendMessageWithWindowPos）、失败重连一次、全黑截图报错；调窗口尺寸（`hiro __win-window`）
+  - [x] `doctor --probe` 和 `fit-window` 任务改用 Go，不再要 Python
+  - [ ] 实机：Mac PlayCover、Windows DMM（MaaFramework 动态库）、MuMu（放到全部迁完后统一验）
+- [ ] 阶段 3：识别层

@@ -34,6 +34,9 @@ type Kind struct {
 // SelftestCommand 是 hiro 的隐藏子命令：自检任务（只打印几行，不碰游戏）。
 const SelftestCommand = "__selftest"
 
+// WinWindowCommand 是 hiro 的隐藏子命令：看 / 调 DMM 游戏窗口尺寸（同 Python hiro.devices.win_window）。
+const WinWindowCommand = "__win-window"
+
 // HomeReader 是首页顶栏读数的模块（scan-account）。
 const HomeReader = "hiro.vision.home_values"
 
@@ -265,7 +268,7 @@ var Kinds = map[string]*Kind{
 	"fit-window": {
 		Name: "fit-window", Help: "Windows DMM：把游戏窗口调成适合识别的大小（9:16，按显示器自适应）",
 		Argv: func(_ *jsonx.Object, _ string, rt Runtime) []string {
-			return []string{rt.Python, "-m", "hiro.devices.win_window", "fit"}
+			return []string{rt.Self, WinWindowCommand, "fit"}
 		},
 		Summary: fixed("调整 DMM 游戏窗口大小"),
 	},

@@ -106,7 +106,7 @@ func TestPrepJobsArgv(t *testing.T) {
 		Kinds["scan-supports"].Output != "supports" || Kinds["scan-memories"].Output != "memories" {
 		t.Fatal("outputs")
 	}
-	if a := argv("fit-window", params(), d); strings.Join(a[1:], " ") != "-m hiro.devices.win_window fit" {
+	if a := argv("fit-window", params(), d); strings.Join(a, " ") != "/hiro "+WinWindowCommand+" fit" {
 		t.Fatalf("%v", a)
 	}
 	if a := argv("scan-account", params(), d); strings.Join(a[1:], " ") != "-m hiro.vision.home_values --live --out "+filepath.Join(d, "out.json") {

@@ -47,7 +47,7 @@ func resolveRuntime(kind string) (Runtime, error) {
 	if repo, err := pybridge.Repo(); err == nil {
 		rt.Repo = repo
 	}
-	if kind == "selftest" { // 自检是 hiro 自己的子命令，不要 Python
+	if kind == "selftest" || kind == "fit-window" { // 自检、调窗口是 hiro 自己的子命令，不要 Python
 		return rt, nil
 	}
 	if rt.Repo == "" {

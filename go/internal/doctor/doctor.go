@@ -1,13 +1,14 @@
 // Package doctor 是 `hiro doctor`：新手向导和出问题时的自检。每项给 ok / 白话说明 / 下一步。同 Python 版 hiro.cli.cmd_doctor。
 //
 // ok：true 没问题；false 要处理；null 程序判断不了，要用户自己确认（例如游戏内声音）。
-// 默认不连游戏；加 --probe 才真的连一次设备、截一张图（只读，阶段 2 迁完设备层之前交给 Python 版）。
+// 默认不连游戏；加 --probe 才真的连一次设备、截一张图（只读）。
 package doctor
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,7 +17,9 @@ import (
 	"time"
 
 	"github.com/matto49/hiro-gakumas-hero/go/internal/cli"
+	"github.com/matto49/hiro-gakumas-hero/go/internal/device"
 	"github.com/matto49/hiro-gakumas-hero/go/internal/home"
+	"github.com/matto49/hiro-gakumas-hero/go/internal/img"
 	"github.com/matto49/hiro-gakumas-hero/go/internal/jsonx"
 	"github.com/matto49/hiro-gakumas-hero/go/internal/proc"
 	"github.com/matto49/hiro-gakumas-hero/go/internal/pybridge"
@@ -98,16 +101,29 @@ func platform(probe bool) *jsonx.Object {
 	if !probe {
 		return item("platform", "游戏平台", nil, label+suffix+"：还没试连游戏", "打开游戏停在首页，再点「试连」", false)
 	}
-	// 真连一次游戏：设备层还在 Python（阶段 2 迁）
-	data, err := pybridge.CLI("doctor", "--probe")
+	name := ""
+	if dev == "auto" && runtime.GOOS == "windows" {
+		name = "dmm"
+	}
+	d, err := device.Open(name)
 	if err == nil {
-		for _, v := range jsonx.List(data.(*jsonx.Object), "items") {
-			if o, ok := v.(*jsonx.Object); ok && jsonx.Str(o, "id") == "platform" {
-				return o
+		if err = d.Connect(); err == nil {
+			var shot *img.BGR
+			shot, err = d.Screenshot()
+			_ = d.Close()
+			if err == nil {
+				return item("platform", "游戏平台", true, fmt.Sprintf("%s%s：已连上，画面 %d×%d", label, suffix, shot.W, shot.H), "", false)
 			}
 		}
 	}
-	return item("platform", "游戏平台", false, label+suffix+"：连不上游戏（自检没能运行）", "运行 hiro doctor 看 Python 环境那一项", false)
+	hint := map[string]string{
+		"darwin":  "确认游戏开着、用的是 hguandl 分支 PlayCover、游戏设置里打开了 maaTools",
+		"windows": "确认 DMM 版游戏开着、窗口没最小化；程序要以管理员身份运行",
+	}[runtime.GOOS]
+	if hint == "" {
+		hint = "确认游戏开着"
+	}
+	return item("platform", "游戏平台", false, fmt.Sprintf("%s%s：连不上游戏（%v）", label, suffix, err), hint, false)
 }
 
 func settings() *jsonx.Object {
