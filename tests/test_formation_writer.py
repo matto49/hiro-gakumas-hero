@@ -321,3 +321,24 @@ def test_fix_memory_core_only_match_on_second_pass(monkeypatch):
     mem, card_of, plan, dev = _core_rig(monkeypatch, (9, 1), lambda r, c: "全然違う能力")
     done = fw.fix_memory(dev, plan, read_icons=mem.read_icons, make_picker=lambda: mem.picker(card_of))
     assert mem.decided == [(9, 1)] and done
+
+
+def test_fix_memory_reads_inventory_cell_first(monkeypatch):
+    """11-20 MuMu：每读一格详情约 20 秒，从窗口顶读起一个槽位要 4 分钟。库存记的那格就是目标时，只读这一格。"""
+    mem, card_of, plan, dev = _core_rig(monkeypatch, (7, 1), lambda r, c: "初期ダンス上昇+20" if (r, c) == (7, 1) else f"x{r}{c}")
+    reads = []
+    picker = mem.picker(card_of)
+    orig = type(picker).read_selected
+    monkeypatch.setattr(type(picker), "read_selected", lambda self: reads.append(mem.selected) or orig(self))
+    done = fw.fix_memory(dev, plan, read_icons=mem.read_icons, make_picker=lambda: picker)
+    assert mem.decided == [(7, 1)] and done and reads == [(7, 1)]
+
+
+def test_core_match_unread_timing_is_unknown():
+    """11-20 MuMu：重读时入手时机横幅没读出来（None），卡 / 强化一致、能力文字一样的那格要认。卡没读出来、卡或强化不同不认。"""
+    want = ["p_card-00-men-3_005", 1, "mid"]
+    assert fw._core_match(["p_card-00-men-3_005", 1, None], want)
+    assert fw._core_match(["p_card-00-men-3_005", 1, "mid"], want)
+    assert not fw._core_match(["p_card-00-men-3_005", 1, "start"], want)
+    assert not fw._core_match(["p_card-00-men-3_005", 0, None], want)
+    assert not fw._core_match([None, 1, "mid"], want) and not fw._core_match(None, want)
