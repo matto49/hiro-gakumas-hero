@@ -112,7 +112,7 @@ export function App({ agent: agentProp, initialView }: { agent?: Agent; initialV
         const r = await who.ask(text, thread);
         t.add(tid, { role: "agent", text: r.text, cards: r.cards });
       } catch (e) {
-        t.add(tid, { role: "agent", cards: [{ type: "error", error: { code: "agent", message: `小广出错了：${String(e)}`, hint: "再试一次；一直这样到设置里检查模型" } }] });
+        t.add(tid, { role: "agent", cards: [{ type: "error", error: { code: "agent", message: `初星助手出错了：${String(e)}`, hint: "再试一次；一直这样到设置里检查模型" } }] });
       } finally {
         setThinking(false);
       }

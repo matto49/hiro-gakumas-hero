@@ -83,7 +83,7 @@ func PlanBootstrap(e BootEnv) ([]Step, *CliError) {
 		if e.GOOS == "darwin" {
 			hint = "打开「终端」运行 xcode-select --install，装好后再点「安装」"
 		}
-		return nil, &CliError{Code: "git_missing", Message: "这台电脑没有 git（下载小广的程序要用）", Hint: hint}
+		return nil, &CliError{Code: "git_missing", Message: "这台电脑没有 git（下载初星助手的程序要用）", Hint: hint}
 	}
 	if e.FreeBytes != nil {
 		if free, err := e.FreeBytes(e.Home); err == nil && free < needFree {
@@ -100,7 +100,7 @@ func PlanBootstrap(e BootEnv) ([]Step, *CliError) {
 		if ref == "" {
 			ref = defaultRepoRef
 		}
-		steps = append(steps, Step{ID: "source", Title: "下载小广的程序", Argv: []string{git, "clone", "--depth", "1", "--branch", ref, repo, src}, Dir: e.Home})
+		steps = append(steps, Step{ID: "source", Title: "下载初星助手的程序", Argv: []string{git, "clone", "--depth", "1", "--branch", ref, repo, src}, Dir: e.Home})
 	}
 	env := []string{"PATH=" + uvDir + string(os.PathListSeparator) + os.Getenv("PATH"), "PYTHONUTF8=1"}
 	if e.MirrorCN {

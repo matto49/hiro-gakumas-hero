@@ -240,7 +240,7 @@ func (a *Assistant) Test(ctx context.Context) TestResult {
 	return TestResult{OK: true, Message: "模型回答：" + strings.TrimSpace(m.Content)}
 }
 
-// Ask 让小广回答一句话（history 是之前的对话）。
+// Ask 让初星助手回答一句话（history 是之前的对话）。
 func (a *Assistant) Ask(ctx context.Context, history []Turn, text string) (Reply, error) {
 	s := a.Settings()
 	switch s.Provider {
@@ -299,7 +299,7 @@ func (c CLIAgent) prompt(history []Turn, text string) string {
 		for _, h := range history {
 			who := "玩家"
 			if h.Role == "assistant" {
-				who = "小广"
+				who = "初星助手"
 			}
 			b.WriteString(who + "：" + h.Content + "\n")
 		}

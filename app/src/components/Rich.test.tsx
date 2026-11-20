@@ -20,7 +20,7 @@ test("不认识的写法原样显示，不当成 HTML", () => {
   expect(container.textContent).toBe("<b>x</b> 和 *单星*");
 });
 
-test("对话里小广的回答用格式显示", async () => {
+test("对话里初星助手的回答用格式显示", async () => {
   const { Chat } = await import("./Chat");
   const thread = { id: "t", title: "x", updatedAt: 0, messages: [{ id: "1", role: "agent" as const, text: "一共 **45 张**", cards: [], at: 0 }] };
   const h = { onSend: () => {}, onQuick: () => {}, onConfirmResolved: () => {}, onOpenJob: () => {}, onOpenInfo: () => {} };

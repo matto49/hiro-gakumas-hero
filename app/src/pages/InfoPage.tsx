@@ -214,7 +214,7 @@ export function InfoPage({ kind, onAsk, onOpenJob }: { kind: Kind; onAsk: (text:
             <div>{SCAN[kind] ? `还没${SCAN[kind]![1]}过：游戏停在首页时点右上角的「${SCAN[kind]![1]}」。` : (listing.hint ?? "没有数据")}</div>
             {!SCAN[kind] && (
               <button type="button" className="mt-2 text-[12px] font-semibold text-brand-deep hover:underline" onClick={() => onAsk(`${TITLE[kind]}怎么看`)}>
-                问问小广 ›
+                问问初星助手 ›
               </button>
             )}
           </Empty>

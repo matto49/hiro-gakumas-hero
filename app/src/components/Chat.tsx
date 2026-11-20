@@ -59,7 +59,7 @@ export function Chat({ thread, thinking, status, quickOnly, h }: { thread: Threa
           {thread.messages.length === 0 && (
             <div className="mt-[12vh] flex flex-col gap-2">
               <Logo size={26} />
-              <div className="mt-2 text-[20px] font-bold tracking-tight text-ink">今天想让小广做什么？</div>
+              <div className="mt-2 text-[20px] font-bold tracking-tight text-ink">今天想让初星助手做什么？</div>
               <div className="max-w-[460px] text-ink-2">
                 {quickOnly ? "DeepSeek 还没填 Key：先点下面的快捷指令。到设置里填好 Key 就能直接打字。" : "直接打字，或者点下面的建议。要开一局，左边「开局」更直接。"}
               </div>
@@ -90,7 +90,7 @@ export function Chat({ thread, thinking, status, quickOnly, h }: { thread: Threa
               <span className="w-9 flex-none" />
               <div className="flex items-center gap-2 border-l border-line pl-4 text-ink-3">
                 <Dot tone="acc" pulse />
-                小广在想…
+                初星助手在想…
               </div>
             </div>
           )}
@@ -102,7 +102,7 @@ export function Chat({ thread, thinking, status, quickOnly, h }: { thread: Threa
           <div className="rounded-xl border border-line-strong bg-surface px-3.5 py-2.5 transition-colors focus-within:border-brand focus-within:ring-3 focus-within:ring-brand/20">
             <textarea
               className="h-[22px] max-h-32 w-full resize-none bg-transparent text-[13.5px] outline-none placeholder:text-ink-3 disabled:cursor-not-allowed"
-              placeholder={quickOnly ? "DeepSeek 还没填 Key，先用下面的快捷指令（左下角「模型」进设置填）" : "让小广做点什么，例如：帮我领日常奖励"}
+              placeholder={quickOnly ? "DeepSeek 还没填 Key，先用下面的快捷指令（左下角「模型」进设置填）" : "让初星助手做点什么，例如：帮我领日常奖励"}
               value={text}
               disabled={quickOnly}
               onChange={(e) => setText(e.target.value)}

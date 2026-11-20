@@ -88,7 +88,7 @@ export const Hiro = {
 
 /** Assistant 是界面用的对话入口（绑定给网页）。 */
 export const Assistant = {
-  /** Ask 让小广回答一句话（history 是之前的对话）。 */
+  /** Ask 让初星助手回答一句话（history 是之前的对话）。 */
   ask: bind<[Turn[], string], Reply>("Assistant.Ask", (history: Turn[], text: string) => [history, text]),
   /** Models 列出这个 Key 能用的 DeepSeek 模型（GET /models），设置页的下拉框用。 */
   models: bind<[], string[]>("Assistant.Models", () => []),

@@ -108,7 +108,7 @@ export function ModelSection({ onChanged, onTested }: { onChanged: () => void; o
       )}
       {(s.provider === "codex" || s.provider === "claude") && (
         <div className="text-[12.5px] leading-relaxed text-ink-2">
-          用这台电脑上已经登录的 {s.provider} 命令行。它会按说明自己调用小广的工具；开局一样要你点确认卡。
+          用这台电脑上已经登录的 {s.provider} 命令行。它会按说明自己调用初星助手的工具；开局一样要你点确认卡。
         </div>
       )}
       <div className="flex items-center gap-2">
@@ -167,7 +167,7 @@ export function SecretsSection() {
     <section className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4">
       <h2 className="m-0 text-[15px] font-bold">游戏账号密码（可选）</h2>
       <div className="text-[12.5px] leading-relaxed text-ink-2">
-        游戏掉登录时，小广会把账号、密码依次复制到剪贴板，粘贴进登录框（45 秒后自动清空）。存在系统钥匙串里，界面和小广都看不到明文。
+        游戏掉登录时，初星助手会把账号、密码依次复制到剪贴板，粘贴进登录框（45 秒后自动清空）。存在系统钥匙串里，界面和初星助手都看不到明文。
       </div>
       {SECRETS.map(([name, label]) => (
         <SecretRow key={name} name={name} label={label} saved={saved.has(name)} onSaved={load} />
@@ -198,7 +198,7 @@ function EnvSection() {
   return (
     <section className="flex flex-col gap-3 rounded-xl border border-line bg-surface p-4">
       <h2 className="m-0 text-[15px] font-bold">环境</h2>
-      <div className="text-[12.5px] leading-relaxed text-ink-2">小广的运行环境（Python、依赖、游戏数据）。出错卡让你重新安装时点这里；已经装好的部分会跳过，一般几分钟。</div>
+      <div className="text-[12.5px] leading-relaxed text-ink-2">初星助手的运行环境（Python、依赖、游戏数据）。出错卡让你重新安装时点这里；已经装好的部分会跳过，一般几分钟。</div>
       <div className="flex items-center gap-2">
         <Button disabled={running} onClick={reinstall}>
           {running ? "安装中…" : "重新安装"}

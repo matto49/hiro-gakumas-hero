@@ -151,7 +151,7 @@ export function JobControls({ jobId, state, pausable, onDone }: { jobId: string;
           停止
         </Button>
       </div>
-      {state === "takeover" && <p className="m-0 text-[12px] text-ink-2">自动操作已停下。你在游戏里点完，按「继续自动打」，小广会从当前画面接着打。</p>}
+      {state === "takeover" && <p className="m-0 text-[12px] text-ink-2">自动操作已停下。你在游戏里点完，按「继续自动打」，初星助手会从当前画面接着打。</p>}
       {!pausable && <p className="m-0 text-[12px] text-ink-3">这个任务不能中途暂停；要自己操作就先停止（不会放弃培育）。</p>}
     </div>
   );

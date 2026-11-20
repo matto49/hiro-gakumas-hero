@@ -57,7 +57,7 @@ function Install({ status, onInstalled }: { status: BootStatus; onInstalled: () 
   };
   return (
     <div className="flex flex-col gap-2">
-      <div className="text-ink-2">第一次用要先装好小广的运行环境（不用你装 Python，全自动）：</div>
+      <div className="text-ink-2">第一次用要先装好初星助手的运行环境（不用你装 Python，全自动）：</div>
       <ul className="m-0 pl-5 text-ink-2">
         {status.steps.map((s) => (
           <li key={s.id}>{s.title}</li>
@@ -208,7 +208,7 @@ export function Wizard({ onDone }: { onDone: () => void }) {
         {step === 2 && (
           <section className="flex flex-col gap-3">
             <h2 className="m-0 text-[20px] font-bold tracking-tight">关掉游戏声音</h2>
-            <div className="text-ink-2">小广打游戏时不出声：在游戏里打开设置 → 声音，把 BGM、语音、效果音都调到 0。不用动电脑的音量。</div>
+            <div className="text-ink-2">初星助手打游戏时不出声：在游戏里打开设置 → 声音，把 BGM、语音、效果音都调到 0。不用动电脑的音量。</div>
             <Check label="我在游戏里关好了" checked={soundDone} onChange={setSoundDone} />
           </section>
         )}
@@ -225,7 +225,7 @@ export function Wizard({ onDone }: { onDone: () => void }) {
         {step === 5 && (
           <section className="flex flex-col gap-3">
             <h2 className="m-0 text-[20px] font-bold tracking-tight">第一次扫描账号</h2>
-            <div className="text-ink-2">让小广读一下首页数值、检查快进设置、翻一遍支援卡和回忆（都只读，不改编成、不改设置）。游戏先停在首页。也可以以后再扫。</div>
+            <div className="text-ink-2">让初星助手读一下首页数值、检查快进设置、翻一遍支援卡和回忆（都只读，不改编成、不改设置）。游戏先停在首页。也可以以后再扫。</div>
             <div className="flex flex-wrap gap-2">
               <Button onClick={() => scan("scan-account")}>读首页数值</Button>
               <Button onClick={() => scan("check-settings")}>检查游戏设置</Button>

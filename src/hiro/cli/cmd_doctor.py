@@ -103,7 +103,7 @@ def _game_settings() -> dict:
     meta, rows = open_store().latest("game_settings")
     if meta is None:
         return _item("game_settings", "游戏快进设置", None, "还没检查过快进 / 跳过演出那几项",
-                     "游戏停在首页时让小广检查（hiro run start check-settings，只读）")
+                     "游戏停在首页时让初星助手检查（hiro run start check-settings，只读）")
     off = [r["item"] for r in rows if r["state"] == "OFF"]
     unknown = [r["item"] for r in rows if r["state"] is None]
     if off:
@@ -129,7 +129,7 @@ def _scan() -> dict:
     st = open_store()
     done = [SCAN_NAMES[k] for k in SCAN_NAMES if st.latest(k)[0] is not None]
     if not done:
-        return _item("scan", "账号信息", False, "还没扫描过账号", "让小广扫描支援卡、回忆（向导最后一步）")
+        return _item("scan", "账号信息", False, "还没扫描过账号", "让初星助手扫描支援卡、回忆（向导最后一步）")
     return _item("scan", "账号信息", True, f"已扫描：{'、'.join(done)}")
 
 

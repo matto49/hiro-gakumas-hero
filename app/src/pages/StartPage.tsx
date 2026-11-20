@@ -160,7 +160,7 @@ export function StartPage({ onOpenJob }: { onOpenJob: (jobId: string) => void })
   return (
     <div className="min-h-0 flex-1 overflow-auto">
       <div className="mx-auto flex max-w-[780px] flex-col gap-1 px-8 py-7">
-        <PageTitle sub="选一个模式，填好就让小广去打。会动游戏的操作都要你点一下确认；花ジュエル、放弃培育的事它做不了。">开局</PageTitle>
+        <PageTitle sub="选一个模式，填好就让初星助手去打。会动游戏的操作都要你点一下确认；花ジュエル、放弃培育的事它做不了。">开局</PageTitle>
         <ul className="m-0 list-none divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface p-0">
           {MODES.map((m) => {
             const on = open === m.id;

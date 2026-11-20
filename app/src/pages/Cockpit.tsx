@@ -40,7 +40,7 @@ export function Cockpit({ jobId, onBack }: { jobId: string; onBack: () => void }
                 {steps.length > 0 && <ReviewButton jobId={jobId} />}
               </div>
             )}
-            <h2 className="m-0 mb-1 text-[12px] font-medium text-ink-3">小广每一步做了什么</h2>
+            <h2 className="m-0 mb-1 text-[12px] font-medium text-ink-3">初星助手每一步做了什么</h2>
             <ol className="m-0 min-h-0 flex-1 list-none divide-y divide-line overflow-auto p-0 pr-1">
               {feed.length === 0 && <li className="py-6 text-ink-3">{tail?.text ?? "还没有步骤"}</li>}
               {feed.map((e, i) => (
