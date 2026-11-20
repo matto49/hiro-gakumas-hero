@@ -52,7 +52,7 @@ deps:
   report:
     mayDependOn: [pybridge]
   service:
-    mayDependOn: [catalog, info, report, store]
+    mayDependOn: [catalog, info, report, store, pybridge]
   run:
     mayDependOn: [cli, service, report, pybridge]
   doctor:

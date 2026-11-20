@@ -3,7 +3,10 @@
 package proc
 
 import (
+	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -16,4 +19,16 @@ func Detach(cmd *exec.Cmd) {
 		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
 	cmd.SysProcAttr.Setsid = true
+}
+
+// Terminate 请子进程退出（SIGTERM，同 Python Popen.terminate）。
+func Terminate(p *os.Process) { _ = p.Signal(syscall.SIGTERM) }
+
+// CommandLine 返回一个进程的命令行；进程不在了返回 ""。
+func CommandLine(pid int) string {
+	out, err := exec.Command("ps", "-o", "command=", "-p", strconv.Itoa(pid)).Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }

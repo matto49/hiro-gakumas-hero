@@ -3,7 +3,10 @@
 package proc
 
 import (
+	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -29,4 +32,18 @@ func Detach(cmd *exec.Cmd) {
 	}
 	cmd.SysProcAttr.HideWindow = true
 	cmd.SysProcAttr.CreationFlags |= detachedProcess | createNewProcessGroup
+}
+
+// Terminate 结束子进程（Windows 上同 Python Popen.terminate：TerminateProcess）。
+func Terminate(p *os.Process) { _ = p.Kill() }
+
+// CommandLine 返回一个进程的映像名（tasklist）；进程不在了返回 ""。
+func CommandLine(pid int) string {
+	cmd := exec.Command("tasklist", "/FI", "PID eq "+strconv.Itoa(pid), "/FO", "CSV", "/NH")
+	Hide(cmd)
+	out, err := cmd.Output()
+	if err != nil || !strings.Contains(string(out), strconv.Itoa(pid)) {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
