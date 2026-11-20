@@ -8,6 +8,8 @@ import { cx } from "./ui";
 type Idol = { id: string; name: string | null; rarity?: string | null };
 
 const RARITY_TONE: Record<string, string> = { SSR: "text-brand-ink", SR: "text-da-strong", R: "text-ink-3" };
+const RARITY_RANK: Record<string, number> = { SSR: 0, SR: 1, R: 2 };
+const byRarity = (a: Idol, b: Idol) => (RARITY_RANK[a.rarity ?? ""] ?? 3) - (RARITY_RANK[b.rarity ?? ""] ?? 3);
 
 export function toSkinId(id: string): string {
   return id.startsWith("i_card-skin-") ? id : id.replace(/^i_card-/, "i_card-skin-");
@@ -45,7 +47,7 @@ export function IdolPicker({
     try {
       const r = await data<{ items: Idol[] }>(call, ["catalog", "search", q, "--kind", "idols"]);
       if (n !== seq.current) return;
-      setItems(r.items.slice(0, 8));
+      setItems([...r.items].sort(byRarity).slice(0, 12));
       setNote(r.items.length ? null : "没找到这张卡，换个词试试");
       setOpen(true);
       setActive(0);

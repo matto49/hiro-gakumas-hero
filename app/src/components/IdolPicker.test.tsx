@@ -48,3 +48,15 @@ test("直接填编号也行；资料库没下载时提示可以填编号", async
   await waitFor(() => expect(screen.getByText(/资料库还没下载/)).toBeTruthy());
   expect(seen.at(-1)).toBe("");
 });
+
+test("搜到的卡按稀有度排：SSR 在前", async () => {
+  const fake = fakeCaller({ "catalog search": { ok: true, exit: 0, data: { items: [IDOLS[1], { kind: "idols", id: "i_card-shro-2-000", name: "【SR】篠澤広", rarity: "SR" }, IDOLS[0]], truncated: false } } });
+  render(
+    <HiroCtx.Provider value={fake.call}>
+      <Host seen={[]} />
+    </HiroCtx.Provider>,
+  );
+  fireEvent.change(screen.getByLabelText("偶像卡"), { target: { value: "篠澤" } });
+  await waitFor(() => expect(screen.getAllByRole("option").length).toBe(3));
+  expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["SSR【Campus mode!!】篠澤広", "SR【SR】篠澤広", "R【学園生活】篠澤広"]);
+});
