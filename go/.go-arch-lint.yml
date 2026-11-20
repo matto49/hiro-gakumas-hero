@@ -28,6 +28,7 @@ components:
   run: { in: internal/run }
   doctor: { in: internal/doctor }
   parity: { in: internal/parity }
+  hiro: { in: internal/hiro }
   plugin: { in: pkg/plugin }
   main: { in: cmd/** }
 
@@ -56,7 +57,9 @@ deps:
   run:
     mayDependOn: [cli, service, report, pybridge]
   doctor:
-    mayDependOn: [cli, store, secret]
+    mayDependOn: [cli, store, secret, pybridge]
+  hiro:
+    mayDependOn: [cli, info, catalog, run, secret, doctor, plan]
   parity:
     anyProjectDeps: true # 对照测试：只在测试里用
   main:
