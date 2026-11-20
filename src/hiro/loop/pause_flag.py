@@ -55,10 +55,12 @@ def hold():
     mine = not paused()
     if mine:
         _mark(True)
+        _state["held"] = True
     try:
         yield
     finally:
         if mine:
+            _state["held"] = False
             _mark(False)
 
 
@@ -121,7 +123,7 @@ class Watcher:
             self._since = time.monotonic()
             self.flow.request_pause()
             self._event("rec_pause", why)
-        elif why is None and paused():
+        elif why is None and paused() and not _state.get("held"):  # 主线程自己在等人（hold）的暂停不归旗标管
             dur = time.monotonic() - getattr(self, "_since", time.monotonic())
             _mark(False)
             self.flow.request_resume()

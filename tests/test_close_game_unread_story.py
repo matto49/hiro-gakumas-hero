@@ -127,3 +127,14 @@ def test_skip_settings_stop_mode_turns_unread_fast_forward_off():
             ("OFF", 1, (580, 400, 640, 440)), ("決定", 1, (450, 1100, 560, 1150))]  # fmt: skip
     assert skip_settings.read(perf, stop_story=False)["off"] == [(610, 420)]
     assert skip_settings.read(perf, stop_story=True)["off"] == []  # stop：跳剧情类开关不动
+
+
+def test_flag_watcher_does_not_end_a_hold(tmp_path):
+    """11-20 DMM 实测：等未读剧情时录屏看守看到「在暂停、但没有旗标」就当录屏恢复了，把等人的时间又算回看门狗。"""
+    calls = []
+    flow = type("F", (), {"request_pause": lambda s: calls.append("pause"), "request_resume": lambda s: calls.append("resume")})()
+    w = pause_flag.Watcher(flow, flag=tmp_path / "none.flag")
+    with pause_flag.hold():
+        w.tick()
+        assert pause_flag.paused() and calls == []
+    assert not pause_flag.paused()
