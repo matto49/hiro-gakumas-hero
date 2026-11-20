@@ -175,7 +175,7 @@ PYTHONPATH=src .venv/bin/python -m pytest -q            # 没有截图样例时�
    - **DMM 版要用日文原版客户端。** 装了汉化补丁（比如 gakuen-imas-localify）的中文界面认不出来。
    - **内存**：hiro 的进程要 3 GB 多（图库、卡图索引、OCR 模型、主数据、模拟器），DMM 版游戏本身约 4 GB。
      内存吃紧时加 `-NoSim` 关掉模拟器；MuMu 被系统杀掉时加 `-Relaunch`，让程序自己拉起游戏。
-   - **文字识别**：Windows 缺省用 RapidOCR，macOS 缺省用系统自带的 Vision，用 `HIRO_OCR` 切换。
+   - **文字识别**：Windows 缺省用 RapidOCR，macOS 缺省用系统自带的 Vision；也可以选用[本机 SIMD OCR](docs/assets.md#可选simd-paddleocr)。
    - **Rust**：`setup.ps1` 找不到 cargo 时，会下载 CI 编好的考试引擎预编译包，不用自己装 Rust。
    - **DMM 版的截图 / 点击**（实验，缺省关）：`HIRO_DMM_DRIVER=maafw` 换成 MaaFramework 的 Win32 控制器，见 [AGENTS.md](AGENTS.md)「设备」。
 

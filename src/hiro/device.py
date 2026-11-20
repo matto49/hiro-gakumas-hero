@@ -142,6 +142,12 @@ def connect(backend: str | None = None) -> Device:
     dmm 另有 HIRO_DMM_DRIVER=maafw（实验，缺省关）：截图 / 点击换成 MaaFramework 的 Win32 控制器（hiro.device_maafw）。
     """
     global BACKEND, DEVICE
+    from hiro.vision.ocr import engine as ocr_engine
+
+    if ocr_engine() == "simd":
+        from hiro.vision.simd_ocr import install_kotonebot
+
+        install_kotonebot()
     name = resolve_backend(backend)
     conf().device.default_scaler_factory = lambda: PortraitGameScaler()
     conf().device.default_logic_resolution = Size(720, 1280)

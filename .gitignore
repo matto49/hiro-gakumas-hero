@@ -5,6 +5,9 @@ __pycache__/
 /reports/
 /datasets/
 .temp/
+/.deps/
+/tools/simd-ocr/bin/
+/tools/simd-ocr/obj/
 
 # 游戏数据 / 自建素材（KAA 公开数据下载目录、使用者自建素材包）：只在本机，绝不提交
 /resources/

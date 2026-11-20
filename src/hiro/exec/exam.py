@@ -197,7 +197,33 @@ def _roi_texts(img, y1: int, y2: int) -> list[Text]:
 
 def _selects(img) -> list[Text]:
     """手牌下方的「SELECT」标签（只识别条带）。"""
-    return [t for t in _roi_texts(img, *SELECT_BAND) if _is_select(t.text)]
+    return _select_markers(img, _roi_texts(img, *SELECT_BAND))
+
+
+def _select_markers(img, boxes: list[Text]) -> list[Text]:
+    """SIMD 偶尔把卡名和 SELECT 合框。只用复核过的按钮位置。"""
+    hits = [t for t in boxes if _is_select(t.text)]
+    if hits or not boxes or img is None:
+        return hits
+    from hiro.vision.ocr import engine, ocr_line
+
+    if engine() != "simd":
+        return hits
+    import cv2
+
+    for t in boxes:
+        if (not t.text.strip().upper().replace(" ", "").endswith("SELECT")
+                or t.rect.w < 105 or not 1080 < t.rect.center.y < 1140):
+            continue
+        right, y = int(t.rect.x2), int(t.rect.center.y)
+        x1, x2, y1, y2 = max(0, right - 94), min(img.shape[1], right + 5), y - 10, y + 25
+        crop = img[y1:y2, x1:x2]
+        if not crop.size:
+            continue
+        orange = cv2.inRange(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV), (14, 130, 178), (30, 255, 255))
+        if cv2.countNonZero(orange) > 200 and _is_select(ocr_line(crop)):
+            hits.append(Text("SELECT", Box(x1, y1, x2, y2)))
+    return hits
 
 
 def _dialog_top(img) -> int | None:
@@ -801,13 +827,15 @@ def _play_card(x: int, y: int, img=None) -> list[list[int]]:
             taps.append([x, y])
             t0 = time.monotonic()
             seen: list[Text] = []
+            markers: list[Text] = []
             now = None
             while time.monotonic() - t0 < PLAY_CONFIRM_TIMEOUT:
                 sleep(PLAY_POLL)
                 now = device.screenshot()
                 band = _roi_texts(now, *SELECT_BAND)
                 seen = band or seen
-                sel = next((t for t in band if _is_select(t.text) and abs(t.rect.center.x - x) <= SELECT_DX), None)
+                markers = _select_markers(now, band)
+                sel = next((t for t in markers if abs(t.rect.center.x - x) <= SELECT_DX), None)
                 if sel is not None:
                     # 点下去 → 看到 SELECT 的时间（第三十局：第一下丢点 21 次、每次等满 1.6s 才补点；按这个分布再定能不能早点判「没收到」）
                     PHASES["play_select_ms"] = PHASES.get("play_select_ms", 0.0) + (time.monotonic() - t0) * 1000
@@ -817,7 +845,7 @@ def _play_card(x: int, y: int, img=None) -> list[list[int]]:
                     return taps + [[x, y]]
             # 第二十六局：剪枝预演后决策快了，点击常落在上一张牌还在结算的 1.5–3.5s 里，游戏不收（34 次，以前空等 10s 再决策）。
             # 手牌没变（卡没打出去）、条带上也没有任何 SELECT（没选中别的）：马上再点一次
-            if attempt >= PLAY_RETAPS or before is None or now is None or any(_is_select(t.text) for t in seen):
+            if attempt >= PLAY_RETAPS or before is None or now is None or markers or any(_is_select(t.text) for t in seen):
                 break
             after = _lite_sig(now)
             if after is None or not _lite_same(before, after):

@@ -644,7 +644,7 @@ def read_hud_resources(img: MatLike) -> dict:
 
     from hiro.vision.action import POINTS_BOX, STAMINA_BOX, read_stamina
     from hiro.vision.digits import read_dddd, read_text
-    from hiro.vision.ocr import ocr
+    from hiro.vision.ocr import ocr_line
 
     def vote(*values) -> int | None:
         votes = [v for v in values if v is not None]
@@ -658,7 +658,7 @@ def read_hud_resources(img: MatLike) -> dict:
         return int(t) if t.isdigit() else None
 
     x1, y1, x2, y2 = POINTS_BOX
-    pt = re.search(r"\d+", "".join(t for t, _ in ocr(img[y1:y2, x1:x2], scale=4, languages=("en-US",))))
+    pt = re.search(r"\d+", ocr_line(img[y1:y2, x1:x2], scale=4, languages=("en-US",)))
     st = read_stamina(img)
     sx1, sy1, sx2, sy2 = STAMINA_BOX
     hp_box, max_box = (sx1, sy1, 380, sy2), (382, sy1, sx2, sy2)

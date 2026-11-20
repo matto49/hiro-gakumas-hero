@@ -19,7 +19,7 @@ from cv2.typing import MatLike
 
 from hiro.vision.digits import read_number
 from hiro.vision.ocr import engine as ocr_engine
-from hiro.vision.ocr import ocr, ocr_boxes
+from hiro.vision.ocr import ocr, ocr_boxes, ocr_line
 
 ATTRS = ("vo", "da", "vi")
 STAT_BOXES = {"vo": (200, 684, 275, 719), "da": (345, 682, 420, 720), "vi": (478, 684, 558, 718)}  # 避开左侧属性小图标
@@ -270,7 +270,7 @@ def read_stamina(img: MatLike) -> tuple[int, int] | None:
     crop = img[y1:y2, x1:x2]
     texts = []
     for scale in (4, 2):
-        text = "".join(t for t, _ in ocr(crop, scale=scale, languages=("en-US",)))
+        text = ocr_line(crop, scale=scale, languages=("en-US",))
         if m := re.search(r"(\d+)\s*/\s*(\d+)", text):
             cur, cap = int(m.group(1)), int(m.group(2))
             if cur <= cap:
@@ -317,7 +317,7 @@ def read_action_select(img: MatLike) -> ActionSelectState:
     # 选行动页剩余天数 ≥ 1：RapidOCR 会在左上装饰上读出幻影「0日」排在真数字前（DMM qualifydmm1-00390「0日 … ふ日」），跳过它交给 ddddocr
     days = next((int(d) for d in re.findall(r"(\d+)\s*日", header) if 1 <= int(d) <= 30), None)
     stamina = read_stamina(img)
-    points = re.search(r"\d+", "".join(t for t, _ in ocr(img[slice(*POINTS_BOX[1::2]), slice(*POINTS_BOX[::2])], scale=4, languages=("en-US",))))
+    points = re.search(r"\d+", ocr_line(img[slice(*POINTS_BOX[1::2]), slice(*POINTS_BOX[::2])], scale=4, languages=("en-US",)))
 
     def small_text(box) -> str:
         x1, y1, x2, y2 = box
