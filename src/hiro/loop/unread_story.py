@@ -5,7 +5,8 @@
   所以这个确认框就是「未读」的信号（KAA 的 handle_unread_commu、主循环 FIRST_RUN_SETTINGS 都在这里点「決定」，stop 时改走这里）。
 - 动作：点「キャンセル」（不跳），写等人文件（HIRO_WAIT_FILE，缺省 %LOCALAPPDATA%/hiro/waiting-for-user.txt）、发系统通知，然后等：
   - 删掉等人文件 → 继续；如果还停在剧情里，接下来 ALLOW_SKIP_S 秒内的未读确认框按「決定」（= 你同意跳过这段）；
-  - 剧情页连续 LEFT_POLLS 次都不在了（你自己看完 / 手动跳过了）→ 删掉等人文件，继续；
+  - 连续 LEFT_POLLS 次认出是日文原版的游戏页面、不在剧情里（你自己看完 / 手动跳过了）→ 删掉等人文件，继续；
+    汉化插件开着（界面是中文、认不出页面）时不算，接着等：关掉汉化后程序才继续；
   - 剧情框的文字 HIRO_UNREAD_TIMEOUT_S 秒（缺省 60）没变（没人在推进剧情）→ 关游戏 / 模拟器（hiro.loop.close_game，目标按 HIRO_CLOSE_GAME，没开时关模拟器），
     抛 UnreadStoryTimeout（ResumeBlocked 的子类：run_hif 退出码 3）。培育进度在服务器上，下次 `run_hif resume` 接着跑。
   「有没有人在看」只看剧情框文字（OCR）：剧情里人物待机、风吹等画面一直在动，按像素变化判不了（用户 11-20）。
@@ -102,22 +103,52 @@ def is_unread_dialog(texts) -> bool:
     return any("未読" in t for t in flat) and any(("スキップ" in t or "早送り" in t) for t in flat)
 
 
+FF_WORDS = ("早送", "快进", "快進", "快转", "快轉")  # 底栏「早送り」；后几个是汉化插件开着时可能的译名
+BAR_KEYS = ("ログ", "AUT", "SKI", "LOG", "跳过", "跳過", "自动", "自動", "日志", "日誌", "记录", "記録")
+# 认得出的游戏页面（日文原版界面）：看到这些字才算「剧情已经结束、回到了游戏」。汉化插件开着时界面是中文，
+# 程序认不出页面，宁可接着等（超时就关游戏），也不在看不懂的界面上继续操作（AGENTS.md：游戏界面必须是日文原版）
+# 只用带假名的词：体力 / 決定 / 相談 这类汉字词中文界面里也有（测试 test_chinese_ui_after_story_does_not_resume）
+GAME_PAGE_WORDS = ("レッスン", "ドリンク", "残りターン", "スキルカード", "次へ", "プロデュース", "アイテム", "おでかけ",
+                   "お休み", "ホーム", "キャンセル", "パラメータ")  # fmt: skip
+
+
 def is_commu(texts) -> bool:
-    """剧情页底栏：「早送り」+ ログ / AUTO / SKIP 任一（同 HiroController._skip_commu 的判据）。"""
+    """剧情页底栏：「早送り」+ ログ / AUTO / SKIP 任一（同 HiroController._skip_commu 的判据）；汉化插件的译名也认。"""
     texts = _texts_only(texts)
-    return any("早送" in t for t in texts) and any("ログ" in t or "AUT" in t.upper() or "SKI" in t.upper() for t in texts)
+    up = [t.upper() for t in texts]
+    return any(w in t for t in texts for w in FF_WORDS) and any(k in t for t in up for k in BAR_KEYS)
+
+
+def is_game_page(texts) -> bool:
+    """日文原版的游戏页面（不在剧情里）。"""
+    texts = _texts_only(texts)
+    return not is_commu(texts) and any(w in t for t in texts for w in GAME_PAGE_WORDS)
+
+
+# Windows 通知（Toast）：借 PowerShell 的 AppId 发，scenario=reminder 会一直留在屏幕上直到点掉，带提示音。
+# 托盘气泡（NotifyIcon.ShowBalloonTip）在 Windows 11 + 管理员进程（DMM 版）下 11-20 实测没弹出来，所以换成这个。
+# 标题 / 正文经环境变量传进去（不拼进命令行，免得引号和中文出问题）
+TOAST_PS = (
+    "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null;"
+    "[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null;"
+    "$t = [Security.SecurityElement]::Escape($env:HIRO_NOTIFY_TITLE); $b = [Security.SecurityElement]::Escape($env:HIRO_NOTIFY_BODY);"
+    "$x = New-Object Windows.Data.Xml.Dom.XmlDocument;"
+    "$x.LoadXml(\"<toast scenario='reminder'><visual><binding template='ToastGeneric'><text>$t</text><text>$b</text></binding></visual>"
+    "<actions><action content='OK' arguments='dismiss' activationType='system'/></actions>"
+    "<audio src='ms-winsoundevent:Notification.Reminder'/></toast>\");"
+    r"$app = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe';"
+    "[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($app).Show([Windows.UI.Notifications.ToastNotification]::new($x))"
+)
 
 
 def notify(title: str, body: str) -> None:
-    """系统通知，尽力而为（失败只记日志）：Windows 用 PowerShell 弹托盘气泡，macOS 用 osascript。"""
+    """系统通知，尽力而为（失败只记日志）：Windows 发 Toast（TOAST_PS），macOS 用 osascript（没实测）。HIRO_NOTIFY=0 关掉。"""
+    if os.environ.get("HIRO_NOTIFY") == "0":
+        return
     try:
         if sys.platform == "win32":
-            ps = ("Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing;"
-                  "$n = New-Object System.Windows.Forms.NotifyIcon; $n.Icon = [System.Drawing.SystemIcons]::Information;"
-                  "$n.Visible = $true; $n.ShowBalloonTip(15000, $env:HIRO_NOTIFY_TITLE, $env:HIRO_NOTIFY_BODY, 'Warning');"
-                  "Start-Sleep -Seconds 16; $n.Dispose()")  # fmt: skip
             env = dict(os.environ, HIRO_NOTIFY_TITLE=title, HIRO_NOTIFY_BODY=body)
-            subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps], env=env,
+            subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", TOAST_PS], env=env,
                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))  # fmt: skip
         elif sys.platform == "darwin":
             subprocess.Popen(["osascript", "-e", f"display notification {body!r} with title {title!r}"])
@@ -187,7 +218,7 @@ def handle(*, cancel: Callable[[], object], confirm: Callable[[], object], texts
                 logger.warning("未读剧情：等人时截图失败：%r", e)
                 cur = None
             if cur is not None:
-                away = 0 if (is_commu(cur) or is_unread_dialog(cur)) else away + 1
+                away = away + 1 if (is_game_page(cur) and not is_unread_dialog(cur)) else 0
                 if away >= LEFT_POLLS:
                     path.unlink(missing_ok=True)
                     logger.warning("未读剧情：剧情页已经不在了（看完 / 手动跳过），继续")

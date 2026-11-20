@@ -158,3 +158,23 @@ def test_idle_timer_resets_while_story_advances(tmp_path):
         r.run()
     assert r.t >= 40 * us.POLL_S - 12 + 60  # 最后一次换句之后又等满 60 秒
     assert r.calls[-1] == ("close", "emulator")
+
+
+def test_translated_story_bar_still_counts_as_story():
+    """汉化插件（用户 11-20：不重启就能开关）把底栏译成中文：照样认成剧情页。"""
+    assert us.is_commu(["日志", "自动", "跳过", "快进"])
+    assert not us.is_game_page(["日志", "自动", "跳过", "快进"])
+
+
+def test_chinese_ui_after_story_does_not_resume(tmp_path):
+    """剧情结束了但汉化还开着（中文界面，程序看不懂）：不继续操作，接着等；剧情框文字不动 60 秒就关游戏。"""
+    chinese_home = ["制作", "主页", "体力回复", "商店"]
+    r = Rig(tmp_path, [COMMU, chinese_home], timeout="60")
+    with pytest.raises(us.UnreadStoryTimeout):
+        r.run()
+
+
+def test_turning_translation_off_resumes(tmp_path):
+    chinese_home = ["制作", "主页", "商店"]
+    r = Rig(tmp_path, [COMMU, chinese_home, chinese_home] + [HOME] * us.LEFT_POLLS, timeout="60")
+    assert r.run() == "left"
