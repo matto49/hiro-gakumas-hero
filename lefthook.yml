@@ -1,0 +1,14 @@
+# 提交前检查（lefthook v2）。只在改了 go/ 下的文件时跑。装钩子：lefthook install
+pre-commit:
+  parallel: true
+  jobs:
+    - name: go-fmt
+      root: go/
+      glob: "*.go"
+      run: |
+        out="$(gofumpt -l {staged_files}; goimports -l -local github.com/matto49/hiro-gakumas-hero {staged_files})"
+        if [ -n "$out" ]; then echo "没格式化（cd go && task fmt）："; echo "$out"; exit 1; fi
+    - name: go-lint
+      root: go/
+      glob: "*.go"
+      run: golangci-lint run --new-from-rev=HEAD ./... && go-arch-lint check

@@ -1,0 +1,57 @@
+# 层与层的依赖规则（go/README.md「目录」）。go-arch-lint check 检查；新加包要在这里登记，否则报错。
+version: 3
+workdir: .
+
+allow:
+  depOnAnyVendor: true # 第三方库先不限；阶段 3 引入 cgo 库（gocv、onnxruntime）时再收紧到识别层
+  ignoreNotFoundComponents: true # 还没建的包先登记；建好就会被检查
+
+components:
+  jsonx: { in: internal/jsonx }
+  home: { in: internal/home }
+  clierr: { in: internal/clierr }
+  pending: { in: internal/pending }
+  store: { in: internal/store }
+  pybridge: { in: internal/pybridge }
+  cli: { in: internal/cli }
+  info: { in: internal/info }
+  catalog: { in: internal/catalog }
+  plan: { in: internal/plan }
+  secret: { in: internal/secret }
+  report: { in: internal/report }
+  service: { in: internal/service }
+  run: { in: internal/run }
+  doctor: { in: internal/doctor }
+  parity: { in: internal/parity }
+  plugin: { in: pkg/plugin }
+  main: { in: cmd/** }
+
+# 谁都能用的底层：JSON、HIRO_HOME、错误类型
+commonComponents:
+  - jsonx
+  - home
+  - clierr
+
+deps:
+  cli:
+    mayDependOn: [pending]
+  info:
+    mayDependOn: [cli, store]
+  catalog:
+    mayDependOn: [cli]
+  plan:
+    mayDependOn: [cli, store, pybridge]
+  secret:
+    mayDependOn: [cli]
+  report:
+    mayDependOn: [pybridge]
+  service:
+    mayDependOn: [catalog, info, report, store]
+  run:
+    mayDependOn: [cli, service, report, pybridge]
+  doctor:
+    mayDependOn: [cli, store, secret]
+  parity:
+    anyProjectDeps: true # 对照测试：只在测试里用
+  main:
+    anyProjectDeps: true # 程序入口：把各命令包接到一起

@@ -1,0 +1,88 @@
+# 迁移期间的任务入口（go/README.md「常用命令」）。task --list 看全部。
+version: "3"
+
+vars:
+  LOCAL: github.com/matto49/hiro-gakumas-hero
+  GOTOOLCHAIN: go1.27.3
+
+env:
+  GOTOOLCHAIN: "{{.GOTOOLCHAIN}}"
+
+tasks:
+  default:
+    cmds: [task --list]
+
+  tools:
+    desc: 装齐工程工具（~/go/bin；goreleaser 用 brew）
+    cmds:
+      - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+      - go install honnef.co/go/tools/cmd/staticcheck@latest
+      - go install golang.org/x/vuln/cmd/govulncheck@latest
+      - go install mvdan.cc/gofumpt@latest
+      - go install golang.org/x/tools/cmd/goimports@latest
+      - go install golang.org/x/tools/cmd/deadcode@latest
+      - go install golang.org/x/exp/cmd/apidiff@latest
+      - go install golang.org/x/perf/cmd/benchstat@latest
+      - go install go.uber.org/nilaway/cmd/nilaway@latest
+      - go install github.com/fe3dback/go-arch-lint@latest
+      - go install gotest.tools/gotestsum@latest
+      - go install github.com/google/go-licenses/v2@latest
+      - go install github.com/go-task/task/v3/cmd/task@latest
+      - go install github.com/evilmartians/lefthook/v2@latest
+      - go install github.com/vektra/mockery/v3@latest
+
+  fmt:
+    desc: 格式化（gofumpt + goimports）
+    cmds:
+      - gofumpt -w .
+      - goimports -w -local {{.LOCAL}} .
+
+  fmt-check:
+    desc: 检查格式（有没格式化的文件就失败）
+    cmds:
+      - |
+        out="$(gofumpt -l . ; goimports -l -local {{.LOCAL}} .)"
+        if [ -n "$out" ]; then echo "没格式化（task fmt）："; echo "$out"; exit 1; fi
+
+  lint:
+    desc: golangci-lint + 层规则
+    cmds:
+      - golangci-lint run ./...
+      - go-arch-lint check
+
+  test:
+    desc: 测试（-race）
+    cmds:
+      - gotestsum --format pkgname-and-test-fails -- -race -count=1 ./...
+
+  parity:
+    desc: Go / Python 对照测试（要本机 Python：HIRO_PARITY_PYTHON=<python>）
+    cmds:
+      - go test -count=1 -run Parity -v ./internal/parity/...
+
+  vuln:
+    desc: 依赖漏洞
+    cmds: [govulncheck ./...]
+
+  licenses:
+    desc: 依赖许可证（仓库是 AGPL：GPL / LGPL / AGPL / MIT / BSD / Apache 都可以）
+    cmds:
+      - go-licenses check ./... --disallowed_types=forbidden,unknown
+
+  nilaway:
+    desc: 空指针分析（参考，不拦提交）
+    cmds:
+      - nilaway -include-pkgs={{.LOCAL}} ./...
+    ignore_error: true
+
+  build:
+    desc: 编出 bin/hiro
+    cmds:
+      - go build -trimpath -o bin/hiro{{exeExt}} ./cmd/hiro
+
+  check:
+    desc: 提交前全套：格式、lint、层规则、测试
+    cmds:
+      - task: fmt-check
+      - task: lint
+      - task: test

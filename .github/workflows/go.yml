@@ -1,0 +1,53 @@
+name: go
+# Go 迁移（go/README.md）：Mac、Windows、Linux 都跑格式、lint、层规则、测试；对照测试要 Python，在 Linux 上跑。
+on:
+  push:
+    paths: ["go/**", ".github/workflows/go.yml", "src/hiro/cli/**"]
+  pull_request:
+    paths: ["go/**", ".github/workflows/go.yml", "src/hiro/cli/**"]
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: go
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: 工具
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@latest
+          go install mvdan.cc/gofumpt@latest
+          go install golang.org/x/tools/cmd/goimports@latest
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+          go install github.com/fe3dback/go-arch-lint@latest
+          go install gotest.tools/gotestsum@latest
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+      - run: task check
+      - run: task vuln
+      - run: task build
+
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+      - run: pip install -e ".[dev]"
+      - name: Go / Python 对照
+        working-directory: go
+        run: HIRO_PARITY_PYTHON="$(which python)" HIRO_PARITY_SRC="$GITHUB_WORKSPACE/src" go test -count=1 -run Parity -v ./internal/parity/...

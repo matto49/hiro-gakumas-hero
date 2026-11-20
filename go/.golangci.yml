@@ -1,0 +1,49 @@
+# golangci-lint v2（go/README.md「工程工具」）。golangci-lint config verify 校验本文件。
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard # errcheck、govet、ineffassign、staticcheck、unused
+  enable:
+    - bodyclose # HTTP 响应体要关
+    - errorlint # 错误比较用 errors.Is / As
+    - gosec # 安全：命令注入、文件权限、写死的密钥
+    - misspell
+    - nolintlint # //nolint 要写原因
+    - unconvert
+    - usestdlibvars
+    - gocritic
+    - revive
+  settings:
+    gosec:
+      excludes:
+        - G204 # 子进程：argv 是列表、不走 shell，参数由我们拼（对局、扫描任务本来就要起子进程）
+        - G304 # 按变量路径读文件：路径都在 HIRO_HOME / 仓库下，由我们拼
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    revive:
+      rules:
+        - name: exported
+          disabled: true # 内部包不强求每个导出名都写注释（公开的 pkg/ 例外，评审时看）
+        - name: package-comments
+          disabled: true
+    gocritic:
+      disabled-checks:
+        - ifElseChain
+  exclusions:
+    presets:
+      - comments
+      - std-error-handling
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/matto49/hiro-gakumas-hero
