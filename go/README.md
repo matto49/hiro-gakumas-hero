@@ -36,6 +36,9 @@
 | DMM 用 maa-framework-go（purego 动态加载，不要 cgo），安装包要带 MaaFramework v5.14.3 的 Windows 动态库（和 Python 版的 maafw 5.14.3 一样）；截图 / 输入方式的数值按 maafw 5.14.3 自己的对照表（绑定库 v3.5.1 的常量名对应的是别的版本） | 我的决定（11-20） |
 | 识别层的图像处理用 gocv（cgo + OpenCV 4），不手写纯 Go：模板匹配、形态学、轮廓、连通块要和 cv2 一致，手写的对照成本太高。gocv 只在 `internal/cv` 里用，Mat 在函数里建、用完就关，往外只给 `img.BGR` / `img.Gray`；OpenCV 内部报错在 `cv` 里 panic，识别入口用 `cv.Recover` 转成 error。Mac 开发机 `brew install opencv@4`（keg-only，Taskfile 自己设 `PKG_CONFIG_PATH`）；Windows 和 CI 要装 OpenCV 并在各自平台上编，不能再从 Mac 交叉编译；安装包要带 OpenCV 动态库 | 用户 11-20 |
 | Mac 文字识别用 cgo 调 Apple Vision（同 Python 版的 pyobjc 调法：accurate、不做语言纠正、区域先放大 3 倍双三次）。非 Mac 用 RapidOCR（onnxruntime），阶段 3 后段迁 | 我的决定（11-20） |
+| ddddocr 用 Go 重写（同一个 common_old.onnx + 旧字符集，预处理照 Pillow 的 C 实现逐位写：Lanczos 缩放、转灰度），推理走 onnxruntime_go + onnxruntime 1.32（Mac：brew install onnxruntime）。Python 版被 KAA 钉在 onnxruntime 1.14，同一输入 logits 最多差 0.016，边缘情况读出的字不同；换成 1.22 以上（和 Go 一样）就逐位相同。模型文件不进仓库：开发机放 cache/models/ddddocr/，安装包放 HIRO_HOME/models/ | 我的决定（11-20） |
+| 识别层自己的小模板和数据（signatures.json、layout_*.json、templates/）复制一份到 go/internal/vision/data 编进程序；迁移期间两份要一致，阶段 6 删 Python 时只留 Go 这份 | 我的决定（11-20） |
+| 卡面图库（card_db）：Python 用 SIFT + faiss IVF（训练抽样靠 numpy 随机数，Go 复刻不了），Go 用 gocv 的 SIFT + 自己写的 IVF 检索；对照比「认出哪张卡」，不比距离 | 我的决定（11-20） |
 
 ## 目录
 
@@ -89,6 +92,7 @@ go/
 1. **单元测试**：每个包自己的 `_test.go`。Python `tests/cli/` 的 86 个用例逐条搬过来。
 2. **对照测试**（`go/internal/parity`）：准备一个 HIRO_HOME 夹具，同一组命令分别用 Python 和 Go 跑，比较 JSON（比较语义，不比空格）。本机有 Python 环境时跑，没有就跳过；设 `HIRO_PARITY_PYTHON=<python 路径>` 指定。
 3. **黄金数据**（阶段 3 起）：`tools/golden/export_vision.py` 用 Python 版把截图（`digital-hiro` 仓库的 tests/fixtures 742 张 + traces 848 张）逐张跑一遍判页、读数和整帧 OCR，结果写到 `~/.cache/hiro/golden/vision`（截图和读数都不进仓库）；Go 的识别测试读这个目录逐张比对，目录不存在就跳过。要用装了 pyobjc Vision 的 Python（`~/github/digital-hiro/.venv`）、`HIRO_OCR=vision`，否则 OCR 后端不一样，结果没法比。
+   逐函数对照：`tools/golden/probe.py` 在每张截图上跑 Python 版的某个函数（组合探针在 `tools/golden/probes.py`），`internal/golden` 缓存结果并和 Go 逐张比；`task golden` 跑全部。对照用的 Python 是专用环境 `~/.cache/hiro/golden-venv`（包版本同上，只把 onnxruntime 换成 1.22，和 Go 用的版本逐位一致），没有就设 `HIRO_PARITY_PYTHON`。
 4. **实机**（阶段 2、5）：每个模式在 Mac（账号 2：初 / N.I.A / 偶像之路）或 Windows（账号 1：H.I.F）打一局。
 
 ## 第三方库
@@ -189,6 +193,12 @@ task nilaway    # 空指针分析（参考）
   - [x] `cv`：gocv 封装（颜色、缩放、读写、阈值、inRange、边框、模板匹配、形态学、Canny、轮廓、连通块、直方图）；和 cv2 4.11 对照，逐字节一样，模板匹配分数差 1e-4 以内
   - [x] `ocr`：Apple Vision（cgo），文字和框跟 Python 版一样；NFKC 规整、整帧文字排序、读数字
   - [x] 黄金数据导出（`tools/golden/export_vision.py`）
-  - [ ] 黄金数据比对框架（Go）
-  - [ ] `vision`：模板（ui_templates）→ 判页链（加载、主页、交流、模板页、选项、卡 / 饮料、对话框、像素兜底）→ quick → 各页读数（pages、hif、deck、P 物品、支援、签名、物品、饮料、塔、事件）→ extract / observe
+  - [x] 黄金数据比对框架（`internal/golden`、`tools/golden/probe.py`、`task golden`）
+  - [x] `assets`（素材位置）、`master`（主数据：卡 / 饮料 / P 道具）
+  - [x] `vision/ui` 界面模板：134 个模板 × 120 张，框和分数和 Python 一样；按钮亮灭、复选框 300 张一样
+  - [x] 判页的模板 / 像素部分：template_scene、option_regions、at_commu、页面签名（带遮罩 NCC）、quick_page、fallback_page，1590 张全一样
+  - [x] ddddocr（`ocr/dddd.go`、`pil`）：Pillow 缩放 / 转灰度逐字节一样；onnxruntime 同版本时输出逐位一样
+  - [ ] 判页链剩下的：整帧 OCR 页面地图（pages.classify_page、tower 页面、特別指導）、classify_scene / classify
+  - [ ] 卡面图库 card_db（SIFT + IVF）、卡图 card_art、手牌、状态栏、P 道具 / 饮料栏、数字字体（digits）
+  - [ ] 各页读数（hif 考试、deck、action、shop、event、support、nia、hajime、customize）→ extract / observe
   - [ ] RapidOCR（onnxruntime，Windows）

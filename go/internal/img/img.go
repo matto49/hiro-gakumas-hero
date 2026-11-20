@@ -136,12 +136,37 @@ func (g *Gray) Mean() float64 {
 	return float64(s) / float64(len(g.Pix))
 }
 
-// Slice 同 numpy 的 img[y1:y2, x1:x2]：越界的部分裁掉，可能得到空图（W 或 H 为 0）。
+// Slice 同 numpy 的 img[y1:y2, x1:x2]：负数从末尾数，越界的部分裁掉，可能得到空图（W 或 H 为 0）。
 func (b *BGR) Slice(x1, y1, x2, y2 int) *BGR {
-	x1, y1 = max(0, min(x1, b.W)), max(0, min(y1, b.H))
-	x2, y2 = max(x1, min(x2, b.W)), max(y1, min(y2, b.H))
+	x1, x2 = span(x1, x2, b.W)
+	y1, y2 = span(y1, y2, b.H)
 	return b.Crop(x1, y1, x2-x1, y2-y1)
 }
+
+// Slice 同 numpy 的 g[y1:y2, x1:x2]。
+func (g *Gray) Slice(x1, y1, x2, y2 int) *Gray {
+	x1, x2 = span(x1, x2, g.W)
+	y1, y2 = span(y1, y2, g.H)
+	if x2 <= x1 || y2 <= y1 {
+		return NewGray(0, 0)
+	}
+	return g.Crop(x1, y1, x2-x1, y2-y1)
+}
+
+// span 是 numpy 步长为 1 的切片下标规整：负数加 n，再夹到 [0, n]，stop 不小于 start。
+func span(start, stop, n int) (int, int) {
+	return npIndex(start, n), max(npIndex(start, n), npIndex(stop, n))
+}
+
+func npIndex(i, n int) int {
+	if i < 0 {
+		i += n
+	}
+	return max(0, min(i, n))
+}
+
+// Rows 同 numpy 的 img[y1:y2]（整行）。
+func (b *BGR) Rows(y1, y2 int) *BGR { return b.Slice(0, y1, b.W, y2) }
 
 // Empty 没有像素（numpy 的 size == 0）。
 func (b *BGR) Empty() bool { return b == nil || b.W <= 0 || b.H <= 0 }

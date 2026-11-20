@@ -1,0 +1,160 @@
+{
+ "OUTING": [
+  {
+   "sprite": "HomeAtlas/bg_gasha_button_divide_s.png",
+   "box": [
+    410,
+    886,
+    228,
+    105
+   ],
+   "threshold": 0.722,
+   "pos_min": 0.877,
+   "neg_max": 0.567
+  }
+ ],
+ "SELECT_DRINK": [
+  {
+   "sprite": "CommonAtlas/bg_button_normal_120px_short.png",
+   "box": [
+    468,
+    1004,
+    216,
+    112
+   ],
+   "threshold": 0.503,
+   "pos_min": 0.786,
+   "neg_max": 0.221
+  },
+  {
+   "sprite": "CommonAtlas/label_bg_recommend.png",
+   "box": [
+    168,
+    830,
+    89,
+    32
+   ],
+   "threshold": 0.606,
+   "pos_min": 0.752,
+   "neg_max": 0.46
+  },
+  {
+   "sprite": "CommonAtlas/bg_sub_button_ellipse_88px.png",
+   "box": [
+    48,
+    1036,
+    121,
+    69
+   ],
+   "threshold": 0.637,
+   "pos_min": 0.777,
+   "neg_max": 0.497
+  }
+ ],
+ "SELECT_CARD": [
+  {
+   "sprite": "CommonAtlas/bg_button_normal_80px.png",
+   "box": [
+    220,
+    982,
+    139,
+    85
+   ],
+   "threshold": 0.743,
+   "pos_min": 0.921,
+   "neg_max": 0.565
+  }
+ ],
+ "HIF_EXAM_RESULT": [
+  {
+   "sprite": "CommonAtlas/label_bg_recommend.png",
+   "box": [
+    26,
+    262,
+    89,
+    32
+   ],
+   "threshold": 0.605,
+   "pos_min": 0.824,
+   "neg_max": 0.387
+  },
+  {
+   "sprite": "MainTaskAtlas/bg_number_selected.png",
+   "box": [
+    126,
+    288,
+    85,
+    85
+   ],
+   "threshold": 0.68,
+   "pos_min": 0.887,
+   "neg_max": 0.474
+  },
+  {
+   "sprite": "CommonAtlas/bg_sub_button_ellipse_64px.png",
+   "box": [
+    22,
+    904,
+    88,
+    51
+   ],
+   "threshold": 0.611,
+   "pos_min": 0.757,
+   "neg_max": 0.465
+  }
+ ],
+ "SKILL_CARD_REMOVAL": [
+  {
+   "sprite": "GuildAtlas/guild_add_reaction_button_shadow.png",
+   "box": [
+    226,
+    30,
+    60,
+    57
+   ],
+   "threshold": 0.589,
+   "pos_min": 0.765,
+   "neg_max": 0.414
+  },
+  {
+   "sprite": "CommonAtlas/cursor_number_bg.png",
+   "box": [
+    248,
+    408,
+    65,
+    65
+   ],
+   "threshold": 0.712,
+   "pos_min": 0.884,
+   "neg_max": 0.539
+  },
+  {
+   "sprite": "CommonAtlas/label_bg_important_tr.png",
+   "box": [
+    492,
+    454,
+    21,
+    21
+   ],
+   "threshold": 0.68,
+   "pos_min": 0.791,
+   "neg_max": 0.57
+  }
+ ],
+ "ACTION_SELECT": [
+  {
+   "sprite": "ProduceAtlas/navi_teacher.png",
+   "box": [
+    624,
+    160,
+    69,
+    69
+   ],
+   "threshold": 0.695,
+   "pos_min": 0.933,
+   "neg_max": 0.458
+  }
+ ],
+ "CONSULT": [],
+ "STUDY": []
+}

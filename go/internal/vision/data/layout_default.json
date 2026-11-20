@@ -1,0 +1,41 @@
+{
+ "_note": "识别层用到的考试画面节点的矩形（720x1280 逻辑坐标，实测 / 校准用；不是客户端布局文件）。layout_calib.json 里的偏移在此之上再加。",
+ "ExamTypeAuditionView": {
+  "ExamTypeAuditionView/HeaderRoot/TurnViewRoot/ExamAuditionTurnView/txt/TurnValue": {
+   "active": true,
+   "rect": [
+    30.0,
+    61.3,
+    64.0,
+    57.3
+   ]
+  },
+  "ExamTypeAuditionView/HeaderRoot/StatusView/StaminaGaugeViewRoot/StaminaGaugeView/GaugeRoot/GenkiGauge/IconRoot/Icon/GenkiValue": {
+   "active": true,
+   "rect": [
+    668.9,
+    172.0,
+    51.6,
+    40.0
+   ]
+  },
+  "ExamTypeAuditionView/HeaderRoot/StatusView/StaminaGaugeViewRoot/StaminaGaugeView/GaugeRoot/Text/StaminaValue": {
+   "active": true,
+   "rect": [
+    577.3,
+    228.7,
+    0.0,
+    40.0
+   ]
+  },
+  "ExamTypeAuditionView/HeaderRoot/StatusView/BuffEnchantRoot/BuffListRoot/BuffList/ExamMainBuffView": {
+   "active": true,
+   "rect": [
+    20.0,
+    230.7,
+    69.3,
+    61.3
+   ]
+  }
+ }
+}

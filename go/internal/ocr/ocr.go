@@ -7,6 +7,7 @@
 package ocr
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -38,7 +39,23 @@ func (b Box) H() int { return b.Y2 - b.Y1 }
 func (b Box) Center() Point { return Point{b.X1 + b.W()/2, b.Y1 + b.H()/2} }
 
 // XYWH 转成 (x, y, w, h)。
-func (b Box) XYWH() (int, int, int, int) { return b.X1, b.Y1, b.W(), b.H() }
+func (b Box) XYWH() [4]int { return [4]int{b.X1, b.Y1, b.W(), b.H()} }
+
+// MarshalJSON 编成 [x1, y1, x2, y2]（Python 的 NamedTuple 转 JSON 是数组）。
+func (b Box) MarshalJSON() ([]byte, error) { return json.Marshal([4]int{b.X1, b.Y1, b.X2, b.Y2}) }
+
+// UnmarshalJSON 读 [x1, y1, x2, y2]。
+func (b *Box) UnmarshalJSON(data []byte) error {
+	var a [4]int
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*b = Box{a[0], a[1], a[2], a[3]}
+	return nil
+}
+
+// MarshalJSON 编成 [x, y]。
+func (p Point) MarshalJSON() ([]byte, error) { return json.Marshal([2]int{p.X, p.Y}) }
 
 // Item 是一段识别出的文字（区域内坐标）。
 type Item struct {
@@ -100,7 +117,7 @@ var ErrEngine = errors.New("OCR 后端不可用")
 // Boxes 每段文字、置信度和它在 b 里的外接框（同 Python ocr_boxes）。空图返回空，不报错。
 func Boxes(b *img.BGR, scale float64, languages []string) ([]Item, error) {
 	if b.Empty() {
-		return nil, nil
+		return []Item{}, nil
 	}
 	w, h := b.W, b.H
 	if scale != 1 {
@@ -212,7 +229,7 @@ func DigitsImage(b *img.BGR, whiteMin float32) *img.Gray {
 }
 
 var (
-	digitsRe   = regexp.MustCompile(`\d+`)
+	digitsRe   = regexp.MustCompile(`\p{Nd}+`) // Python re 的 \d 是 Unicode 数字（全角也算），int() 也认
 	digitFixes = strings.NewReplacer(",", "", "O", "0", "o", "0", "l", "1", "I", "1")
 	intFixes   = strings.NewReplacer(",", "", "O", "0", "o", "0")
 )
@@ -241,8 +258,17 @@ func firstInt(s string) (int, bool, error) {
 	if m == "" {
 		return 0, false, nil
 	}
-	n, err := strconv.Atoi(m)
-	return n, err == nil, nil
+	if n, err := strconv.Atoi(m); err == nil {
+		return n, true, nil
+	}
+	n := 0
+	for _, r := range norm.NFKC.String(m) { // 全角等：NFKC 后是 ASCII 数字（Python int() 认所有 Unicode 十进制数字）
+		if r < '0' || r > '9' {
+			return 0, false, nil
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n, true, nil
 }
 
 // Batch 多块区域各自 OCR，返回每块拼接的文字（同 Python ocr_batch）。

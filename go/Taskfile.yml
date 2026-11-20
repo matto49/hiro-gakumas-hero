@@ -64,6 +64,14 @@ tasks:
     cmds:
       - go test -count=1 -run Parity -v ./internal/parity/...
 
+  golden:
+    desc: 识别层黄金数据对照（截图在 ~/.cache/hiro/golden/vision，Python 用对照专用环境 ~/.cache/hiro/golden-venv；README「验收方法」）
+    env:
+      HIRO_PARITY_PYTHON:
+        sh: 'echo "${HIRO_PARITY_PYTHON:-$HOME/.cache/hiro/golden-venv/bin/python}"'
+    cmds:
+      - go test -count=1 -timeout 0 {{.CLI_ARGS | default "./internal/cv/ ./internal/pil/ ./internal/ocr/ ./internal/vision/..."}}
+
   vuln:
     desc: 依赖漏洞（含标准库：要用 go.mod 里那个版本的 go，系统自带的旧 go 排前面时会报「requires go1.26」）
     cmds:

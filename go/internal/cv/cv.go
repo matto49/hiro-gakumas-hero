@@ -86,10 +86,10 @@ func Recover(errp *error) {
 	}
 }
 
-// must 是 Mat 建不出来时的处理：只在尺寸 / 数据对不上时发生，是代码写错了。
+// must 是 Mat 建不出来时的处理：空图、尺寸 / 数据对不上（Python 版这时 cv2 抛 cv2.error，一样按 OpenCV 报错处理）。
 func must(m gocv.Mat, err error) gocv.Mat {
 	if err != nil {
-		panic(err)
+		panic(&Error{Err: err})
 	}
 	return m
 }
@@ -156,6 +156,16 @@ func ResizeGray(g *img.Gray, w, h int, interp Interp) *img.Gray {
 	out := gocv.NewMat()
 	defer out.Close()
 	check(gocv.Resize(m, &out, image.Pt(w, h), 0, 0, interp))
+	return toGray(out)
+}
+
+// ResizeGrayScale 灰度图按比例缩放。
+func ResizeGrayScale(g *img.Gray, s float64, interp Interp) *img.Gray {
+	m := must(grayMat(g))
+	defer m.Close()
+	out := gocv.NewMat()
+	defer out.Close()
+	check(gocv.Resize(m, &out, image.Point{}, s, s, interp))
 	return toGray(out)
 }
 

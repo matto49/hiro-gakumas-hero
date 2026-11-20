@@ -1,0 +1,48 @@
+{
+ "ExamTypeAuditionView": {
+  "ExamAuditionTurnView/txt/TurnValue": {
+   "delta": [
+    5.3,
+    9.4,
+    -4.3,
+    -8.9
+   ],
+   "method": "glyphs",
+   "frames": 10,
+   "calibrated": "2026-10-30"
+  },
+  "GaugeRoot/GenkiGauge/IconRoot/Icon/GenkiValue": {
+   "delta": [
+    -23.9,
+    7.0,
+    -28.5,
+    -6.7
+   ],
+   "method": "glyphs",
+   "frames": 10,
+   "calibrated": "2026-10-30"
+  },
+  "GaugeRoot/Text/StaminaValue": {
+   "delta": [
+    -1.6,
+    -14.4,
+    41.7,
+    -25.4
+   ],
+   "method": "glyphs",
+   "frames": 10,
+   "calibrated": "2026-10-30"
+  },
+  "BuffListRoot/BuffList/ExamMainBuffView": {
+   "delta": [
+    -6.0,
+    0.3,
+    -13.3,
+    2.0
+   ],
+   "method": "diamond",
+   "frames": 10,
+   "calibrated": "2026-10-30"
+  }
+ }
+}
