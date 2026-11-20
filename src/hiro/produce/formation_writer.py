@@ -233,6 +233,14 @@ def _abilities_text(key: str) -> str:
     return "".join(a.get("text", "") if isinstance(a, dict) else str(a) for a in ab)
 
 
+def _core_match(got, want) -> bool:
+    """卡、强化一致；入手时机两边都读到了才比（11-20 MuMu：重读时时机横幅没读出来是 None，仕切り直し 在库存那一格、能力文字 100% 一样，
+    却因为时机 None ≠ mid 两遍都没认，槽位写不进去）。卡没读出来不算。"""
+    if got is None or want is None or got[0] is None or got[0] != want[0] or got[1] != want[1]:
+        return False
+    return got[2] is None or want[2] is None or got[2] == want[2]
+
+
 def _similar(a: str, b: str) -> float:
     from difflib import SequenceMatcher
 
@@ -241,7 +249,7 @@ def _similar(a: str, b: str) -> float:
 
 def pick_memory(picker, target: dict, *, decide=PICKER_DECIDE) -> None:
     """在已打开的回忆选择页里按库存位置找到 target（cell = [行, 列]、key = entry_key），核对后「決定」。
-    从顶往下按精确行号走（滑动不按像素估算，扫描库存时也是这样数的），只读目标行上下 SEARCH_ROWS 行里同一列的格子：
+    从顶往下按精确行号走（滑动不按像素估算，扫描库存时也是这样数的）。先只读目标格，不中再读目标行上下 SEARCH_ROWS 行里同一列的格子：
     内容键完全一样、或卡 / 强化 / 时机一致且能力文字相似（≥ ABILITY_SIMILAR）就选；一个都没有时，再走一遍选第一份卡 / 强化 / 时机一致的。"""
     from hiro.produce.memory_picker import iter_rows
 
@@ -249,14 +257,15 @@ def pick_memory(picker, target: dict, *, decide=PICKER_DECIDE) -> None:
     want_core, want_ab = _core(target["key"]), _abilities_text(target["key"])
     tried = 0
 
-    def walk(accept) -> bool:
-        """从顶往下按精确行号走（memory_picker.iter_rows），只读目标行上下 SEARCH_ROWS 行里同一列的格子。"""
+    def walk(accept, rows) -> bool:
+        """从顶往下按精确行号走（memory_picker.iter_rows），只点开 rows 里这些行同一列的格子读详情（滑动只对齐、不读详情）。"""
         nonlocal tried
+        last = max(rows)
         for g, r in iter_rows(picker):
-            if g < row - SEARCH_ROWS:
-                continue
-            if g > row + SEARCH_ROWS:
+            if g > last:
                 return False
+            if g not in rows:
+                continue
             cell = next((c for c in r if c["col"] == col), None)
             if cell is None:
                 continue
@@ -270,11 +279,14 @@ def pick_memory(picker, target: dict, *, decide=PICKER_DECIDE) -> None:
         return False
 
     def strong(key: str) -> bool:
-        return key == target["key"] or (want_core is not None and _core(key) == want_core and _similar(_abilities_text(key), want_ab) >= ABILITY_SIMILAR)
+        return key == target["key"] or (_core_match(_core(key), want_core) and _similar(_abilities_text(key), want_ab) >= ABILITY_SIMILAR)
 
-    if walk(strong):
+    # 先只读库存记的那一格（刚扫过的库存基本一次就中；每读一格详情约 20 秒，11-20 MuMu 从窗口顶读起一个槽位要 4 分钟以上），
+    # 不中再读上下 SEARCH_ROWS 行；再不中，选第一份卡 / 强化 / 时机一致的
+    window = set(range(max(0, row - SEARCH_ROWS), row + SEARCH_ROWS + 1))
+    if walk(strong, {row}) or walk(strong, window - {row}):
         return
-    if want_core is not None and walk(lambda key: _core(key) == want_core):
+    if want_core is not None and walk(lambda key: _core(key) == want_core, window):
         logger.warning("回忆选择页：第 %d 行附近没有能力文字也对得上的，选了第一份卡 / 强化 / 时机一致的", row)
         return
     picker.cancel()
