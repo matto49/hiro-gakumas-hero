@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/egoist/mygo"
 )
 
 // Hiro 调工具层的 hiro 命令行：界面和内置 agent 都只通过它干活（设计稿 §4）。
@@ -49,7 +51,33 @@ type Result struct {
 // PendingExit 是待确认的退出码（hiro.cli.main.PENDING_EXIT）。
 const PendingExit = 3
 
-// ResolveHiroCommand 找 hiro 命令：HIRO_CLI（JSON 数组）> 程序自己装的环境（HIRO_HOME/src/.venv，见 bootstrap.go）> PATH 上的 hiro。
+// resourcesDir 是安装包的资源目录（测试里换）。
+var resourcesDir = func() string {
+	p, err := mygo.App.Path(mygo.PathResources)
+	if err != nil {
+		return ""
+	}
+	return p
+}
+
+// bundledHiro 是安装包自带的 Go 版 hiro（resources/bin/hiro，scripts/build-hiro.mjs 编出来；go/README.md 阶段 1）。
+func bundledHiro() string {
+	res := resourcesDir()
+	if res == "" {
+		return ""
+	}
+	name := "hiro"
+	if runtime.GOOS == "windows" {
+		name = "hiro.exe"
+	}
+	if p := filepath.Join(res, "bin", name); exists(p) {
+		return p
+	}
+	return ""
+}
+
+// ResolveHiroCommand 找 hiro 命令：HIRO_CLI（JSON 数组）> 安装包自带的 Go 版 hiro > 程序自己装的 Python 环境（HIRO_HOME/src/.venv，见 bootstrap.go）> PATH 上的 hiro。
+// Go 版对局还要 Python（阶段 5 之前），它按 HIRO_PYTHON → 仓库 .venv → HIRO_HOME/src/.venv 自己找。
 func ResolveHiroCommand() []string {
 	if v := os.Getenv("HIRO_CLI"); v != "" {
 		var argv []string
@@ -57,6 +85,9 @@ func ResolveHiroCommand() []string {
 			return argv
 		}
 		return strings.Fields(v)
+	}
+	if p := bundledHiro(); p != "" {
+		return []string{p}
 	}
 	if py := venvPython(HiroHome(), runtime.GOOS); exists(py) {
 		return []string{py, "-m", "hiro.cli.main"}

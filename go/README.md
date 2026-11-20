@@ -63,7 +63,7 @@ go/
 | 阶段 | 内容 | 验收 | 状态 |
 |---|---|---|---|
 | 0 工程底座 | `go/` 模块、Taskfile、golangci-lint、go-arch-lint、lefthook、CI | `task check` 全过 | 完成 |
-| 1 工具层 | `hiro` 全部命令用 Go 实现；对局子进程仍是 Python；没迁的命令经 `pybridge` 转给 Python | 同一个 HIRO_HOME 下，每条命令 Go 和 Python 输出的 JSON 相同（对照测试）；桌面程序改用 Go 版 `hiro` | 进行中 |
+| 1 工具层 | `hiro` 全部命令用 Go 实现；对局子进程仍是 Python；没迁的命令经 `pybridge` 转给 Python | 同一个 HIRO_HOME 下，每条命令 Go 和 Python 输出的 JSON 相同（对照测试）；桌面程序改用 Go 版 `hiro` | Mac 完成（11-20）；Windows 实机待验 |
 | 2 设备层 | MaaTools、adb、Win32 截图 / 点击 / 滑动 | 实机：截图尺寸、坐标换算和 Python 版一致 | 未开始 |
 | 3 识别层 | 判页、读数、OCR、卡面检索 | traces 里的截图逐张对照，页面和字段读数一致 | 未开始 |
 | 4 状态 + 决策 | 状态账本、社区规则、编成方案、LLM、引擎子进程 | 黄金用例和 traces 局面上决策一致 | 未开始 |
@@ -72,7 +72,8 @@ go/
 
 ## 迁移期间怎么共存
 
-- **命令**：Go 版 `hiro` 是入口。没迁的命令（目前：`plan formation`、`run review`、`run report` 里的考试分数）经 `pybridge` 调 `python -m hiro.cli.main`，信封原样返回。
+- **命令**：Go 版 `hiro` 是入口。还交给 Python 的（经 `pybridge` 调 `python -m hiro.cli.main`，信封原样返回）：`plan formation`（社区规则，阶段 4）、`run review` 和成绩摘要里的考试分数（复盘工具 `tools/viewer`，阶段 3）、`doctor --probe` 的连游戏（设备层，阶段 2）。
+- **桌面程序**：安装包带 Go 版 `hiro`（`app/scripts/build-hiro.mjs` 编进 `resources/<平台>/bin/`，`bun run build` 会先编它）。程序找 `hiro` 的顺序：`HIRO_CLI` → 自带的 Go 版 → `HIRO_HOME/src/.venv` 的 Python 版 → PATH。阶段 1 的 Go 代码不用 cgo，Mac 上能直接编出 Windows 版。
 - **服务**：Go 服务和 Python 服务用同一把锁（`HIRO_HOME/service.lock`）、同一个 `service.json`（`{port, token, pid}`）、同一套接口（`/ping /status /start /events /pause /takeover /resume /stop /shutdown`），同一个 HIRO_HOME 只会有一个服务在跑，哪边的客户端都能连。
 - **对局**：阶段 1–4 对局还是 Python 子进程（`hiro.run_hif`、`hiro.runtime.hajime` …）。Go 服务按这个顺序找 Python：`HIRO_PYTHON` → 仓库 `.venv` → `HIRO_HOME/src/.venv`；仓库位置：`HIRO_REPO` → 从程序位置和当前目录往上找 `src/hiro/__init__.py` → `HIRO_HOME/src`。
 - **数据**：`HIRO_HOME` 下的 `hiro.db`、`pending/`、`jobs/<编号>/events.jsonl`、`job.json`、`secrets.json`、`formation-plan.json`、`settings.json` 格式不变，两边都能读写。钥匙串条目（服务名 `hiro-console`、账户 = 名字）不变。
@@ -156,4 +157,18 @@ task nilaway    # 空指针分析（参考）
 
 - [x] 2026-11-20 定方向、装工具、写这份 README
 - [x] 阶段 0：工程底座（go.mod、Taskfile、golangci-lint、go-arch-lint、lefthook 配置、CI、jsonx）
-- [ ] 阶段 1：工具层（逐条命令勾选见 `go/internal/parity/README` 的清单）
+- [x] 阶段 1：工具层（Mac）
+  - [x] `tools` `confirm` `cancel` `pending list`
+  - [x] `info summary / supports / memories / idols / affection / game-settings / import`
+  - [x] `catalog sync / search / get / sprite`
+  - [x] `run start / status / events / pause / takeover / resume / stop / report / review`（`review` 和考试分数经 pybridge）
+  - [x] `secret set / list / copy / delete`（Mac 钥匙串、Windows 凭据管理器，和 Python 版条目互通）
+  - [x] `doctor`（`--probe` 经 pybridge）
+  - [x] `plan show`、`plan formation`（经 pybridge）
+  - [x] 后台服务：同一把锁、同一个 `service.json`、同一套接口，Go / Python 互连
+  - [x] 对照测试 5 组全过：`tools` 31 条命令逐字段相同；info / pending / plan / run / secret / doctor 输出一致
+  - [x] 实测（11-20，Mac）：Go 版读开发用 HIRO_HOME 的信息库 / 资料库 / 方案正常；连上正在跑的 Python 服务；钥匙串写入 / 复制 / 删除正常；
+        桌面程序用自带的 Go 版 `hiro`：信息页、编成方案页（出方案经 Python 2 秒）、开局页（搜偶像卡、准备开局、取消）都通
+  - [ ] Windows 实机：安装包、凭据管理器、剪贴板、DMM 管理员权限
+  - [ ] 实机对局：经 Go 服务起 Python 对局子进程打一局（要游戏）
+- [ ] 阶段 2：设备层

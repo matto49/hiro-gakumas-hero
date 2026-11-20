@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun scripts/mygo.mjs dev",
-    "build": "bun scripts/mygo.mjs build",
+    "build": "bun scripts/build-hiro.mjs && bun scripts/mygo.mjs build",
     "generate": "bun scripts/mygo.mjs generate",
     "dev:web": "vite",
     "build:web": "tsc --noEmit && vite build",
@@ -12,6 +12,7 @@
     "test": "bun test src",
     "package": "bun scripts/mygo.mjs package",
     "fetch-uv": "bun scripts/fetch-uv.mjs",
+    "build-hiro": "bun scripts/build-hiro.mjs",
     "preview:build": "vite build -c vite.preview.config.ts"
   },
   "dependencies": {

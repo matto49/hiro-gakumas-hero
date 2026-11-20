@@ -73,3 +73,37 @@ func TestCallWithoutHiroExplains(t *testing.T) {
 		t.Fatalf("got %+v", r)
 	}
 }
+
+func TestResolvePrefersBundledGoHiro(t *testing.T) {
+	res := t.TempDir()
+	name := "hiro"
+	if runtime.GOOS == "windows" {
+		name = "hiro.exe"
+	}
+	if err := os.MkdirAll(filepath.Join(res, "bin"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bundled := filepath.Join(res, "bin", name)
+	if err := os.WriteFile(bundled, []byte("x"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := resourcesDir
+	resourcesDir = func() string { return res }
+	defer func() { resourcesDir = old }()
+	t.Setenv("HIRO_HOME", t.TempDir())
+	t.Setenv("HIRO_CLI", "")
+	if got := ResolveHiroCommand(); len(got) != 1 || got[0] != bundled {
+		t.Fatalf("got %v want [%s]", got, bundled)
+	}
+	t.Setenv("HIRO_CLI", `["/dev/hiro"]`) // 开发时 HIRO_CLI 优先
+	if got := ResolveHiroCommand(); len(got) != 1 || got[0] != "/dev/hiro" {
+		t.Fatalf("HIRO_CLI should win: %v", got)
+	}
+	t.Setenv("HIRO_CLI", "")
+	if err := os.Remove(bundled); err != nil {
+		t.Fatal(err)
+	}
+	if got := ResolveHiroCommand(); len(got) != 1 || got[0] != "hiro" { // 没带 Go 版、没装 Python：PATH 上的 hiro
+		t.Fatalf("fallback %v", got)
+	}
+}
