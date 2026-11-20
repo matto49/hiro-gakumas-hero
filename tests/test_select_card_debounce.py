@@ -38,3 +38,45 @@ def test_select_card_waits_for_debounce(tmp_path, monkeypatch):
     with pytest.raises(Stop):
         core.on_select_card()
     assert seen and len(seen[-1]) == 3  # 决策时 state 里已经有三张候选
+
+
+def _residual_core(monkeypatch, ids):
+    import time
+
+    import hiro.produce.hif as hif
+    import hiro.vision.card_select as cs
+    import hiro.vision.extract as ex
+
+    clicks = []
+    monkeypatch.setattr(hif, "device", NS(screenshot=lambda: None, click=lambda *a: clicks.append(a)))
+    monkeypatch.setattr(hif, "sleep", lambda s: None)
+    monkeypatch.setattr(cs, "select_card_options", lambda img: [NS(card=None, rect=NS(center=NS(x=222, y=937)))] * 3)
+    monkeypatch.setattr(cs, "recommended_index", lambda img, options: None)
+    monkeypatch.setattr(ex, "extract", lambda page, img: ({"options": [{"card_id": c, "upgrade": 1} for c in ids]}, None))
+
+    class Stop(Exception):
+        pass
+
+    def decide(page, state, **kw):
+        raise Stop
+
+    notes = []
+    core = hif.HifCore.__new__(hif.HifCore)
+    core.deciders, core.rec = NS(decide=decide), NS(log=lambda *a, **k: None)
+    core.s = NS(recover=lambda k, d: notes.append((k, d)), observe=lambda **k: None, state=NS(page_fields={}))
+    core._last_pick = (("a", "b", "c"), time.monotonic())
+    return core, clicks, notes, Stop
+
+
+def test_select_card_residual_overlay_is_not_picked_again(monkeypatch):
+    """mainz3 r3（11-18 04:20）：拿了 イメトレ、获得页过后，「スター性獲得」动画叠在原选卡页上，判成又一次选卡，
+    同样三张候选（イメトレ 读成 イメトレ+）又「选」了一次，账本多记一张 イメトレ+。刚拿过、候选完全相同 → 当残留画面，不再选。"""
+    core, clicks, notes, Stop = _residual_core(monkeypatch, ["a", "b", "c"])
+    core.on_select_card()
+    assert clicks == [core.RESIDUAL_TAP] and notes and notes[0][0] == "page_misjudged"
+
+
+def test_select_card_different_candidates_still_decides(monkeypatch):
+    core, clicks, notes, Stop = _residual_core(monkeypatch, ["a", "b", "d"])
+    with pytest.raises(Stop):
+        core.on_select_card()  # 候选不同：正常决策

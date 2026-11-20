@@ -90,8 +90,9 @@ class Master:
     @lru_cache(maxsize=1)  # noqa: B019
     def _score_points(self) -> dict:
         out: dict = {}
+        # 全部收（以前只收 -tower_ 的：初 / N.I.A 的 p_exam_battle_score_config-voda-03-produce-001-1 等查不到，实机按三属性算倍率会失败）
         for r in self.rows("ProduceExamBattleScoreConfig"):
-            if "-tower_" in r.get("id", ""):
+            if r.get("id"):
                 out.setdefault(r["id"], []).append(r)
         for pts in out.values():
             pts.sort(key=lambda r: int(r.get("parameter") or 0))

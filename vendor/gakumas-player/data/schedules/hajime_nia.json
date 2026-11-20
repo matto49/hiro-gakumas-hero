@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "master_commit": "d31baf6608ee4553091f28446f628cd3ad66ff01",
+  "note": "初 / N.I.A 的周表。主数据没有日程表（服务器下发），这里只放有出处的部分；complete=false 的模式不能当完整日程用。kind 取值：study 授業、lesson 课程、oikomi 追い込みレッスン、activity 活動支給、consult 相談、outing お出かけ、mid 中間試験、final 最終試験；N.I.A 另有 self_lesson 自主レッスン、business 営業、guidance 特別指導、gift 差し入れ、shop 相談（N.I.A 叫法）、audition オーディション。斜线分隔表示这一周能选的几种。",
+  "modes": {
+    "produce-001": {
+      "label": "初 レギュラー",
+      "complete": true,
+      "source": "Mac 账号 2 实机一局（篠澤広 i_card-skin-shro-3-007，2026-11-17，trace 20261117-201519 / 202317 / 202931 / 204609，逐周还原脚本 tools/weeks_from_traces.py）。和社区零散提示吻合：g8-外出 推荐 4 / 7 / 11 周外出（这三周都有外出），g8-SP 1 / 3 / 9 / 10 周可能出 SP（这局 3 / 9 / 10 周出了），主数据通常课 4 次、SP 3 次、追い込み 2 次。只有一个偶像一局，别的偶像是否相同未核对",
+      "observed_runs": 1,
+      "patterns": [
+        [
+          "lesson",
+          "activity/study",
+          "lesson/study",
+          "outing/consult",
+          "oikomi",
+          "mid",
+          "activity/outing",
+          "study/outing",
+          "lesson",
+          "lesson/study",
+          "activity/outing/consult",
+          "oikomi",
+          "final"
+        ]
+      ],
+      "rules": {
+        "rest_note": "休む 在课程、授業、外出那几周都能选（体力满时不出现）；追い込み周（5、12）实机没有休む选项；第 1 周满体力，看不出能不能休息。lesson 周可能被 SP 替换（SP 替换按属性单独出现）"
+      }
+    },
+    "produce-002": {
+      "label": "初 プロ",
+      "complete": false,
+      "source": "g8-PRO：PRO 的日程按偶像各自设定，周表是图片没有文本；主数据课程次数 normal 5 / sp 4 / hard 2",
+      "weeks": {},
+      "known": {
+        "exams": {
+          "final": 16
+        },
+        "lesson_counts_from_master": {
+          "normal": 5,
+          "sp": 4,
+          "hard": 2
+        }
+      }
+    },
+    "produce-003": {
+      "label": "初 マスター",
+      "complete": true,
+      "source": "wikiwiki「初_マスター育成」（Last-modified 2025-01-26）三种周表随机一种；第 3、4、6、9、10、12 周三种不同",
+      "patterns": [
+        [
+          "study",
+          "study",
+          "activity",
+          "outing/consult",
+          "lesson",
+          "activity/consult",
+          "oikomi",
+          "mid",
+          "outing/consult",
+          "study",
+          "lesson",
+          "outing/study",
+          "activity/outing",
+          "lesson",
+          "lesson/study",
+          "activity/outing/consult",
+          "oikomi",
+          "final"
+        ],
+        [
+          "study",
+          "study",
+          "activity",
+          "outing/consult",
+          "lesson",
+          "activity/outing/consult",
+          "oikomi",
+          "mid",
+          "activity/consult",
+          "outing/study",
+          "lesson",
+          "study",
+          "activity/outing",
+          "lesson",
+          "lesson/study",
+          "activity/outing/consult",
+          "oikomi",
+          "final"
+        ],
+        [
+          "study",
+          "study",
+          "activity/outing",
+          "consult",
+          "lesson",
+          "activity/consult",
+          "oikomi",
+          "mid",
+          "activity/outing/consult",
+          "study",
+          "lesson",
+          "outing/study",
+          "activity/outing",
+          "lesson",
+          "lesson/study",
+          "activity/outing/consult",
+          "oikomi",
+          "final"
+        ]
+      ],
+      "rules": {
+        "rest_from_week": 6,
+        "rest_note": "休む从第一次课程结束（第 6 周）起才能选（ww-初M）；每周都可以休息之外另选一项"
+      }
+    },
+    "produce-004": {
+      "label": "N.I.A プロ",
+      "complete": false,
+      "source": "g8-NIA：9 / 18 / 27 周オーディション；ww-NIA支（2025-09-29）コンテ育成的踏み方：審査基準 1 位自主课 4、2 位 4、営業 7、お出かけ 5、特別指導 4（合计 24 + 试镜 3 = 27 周）",
+      "weeks": {
+        "9": "audition",
+        "18": "audition",
+        "27": "audition"
+      },
+      "known": {
+        "counts": {
+          "self_lesson": 8,
+          "business": 7,
+          "outing": 5,
+          "guidance": 4,
+          "audition": 3
+        },
+        "rest_limit": 4
+      }
+    },
+    "produce-005": {
+      "label": "N.I.A マスター",
+      "complete": false,
+      "source": "ww-NIAM：比 PRO 少一周（去掉 PRO 第 16 周的自主课），自主课 7 次；试镜在哪几周原文没写",
+      "weeks": {},
+      "known": {
+        "counts": {
+          "self_lesson": 7,
+          "audition": 3
+        },
+        "rest_limit": 4
+      }
+    }
+  }
+}

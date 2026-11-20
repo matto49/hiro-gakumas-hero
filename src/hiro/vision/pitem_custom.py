@@ -4,7 +4,7 @@
 - 第一段（选拔②后，ぬいぐるみ）：上面是空背包，候选是不同的毛绒，按毛绒主色认种类
   （ロボ 蓝、うさぎ 黄、インコ 绿、もじゃ 紫）；
 - 第二段（选拔③后，デコレーション）：上面是第一段选定的毛绒，三个候选是同一只毛绒加不同装饰，按装饰的颜色特征认
-  （花 = 红花、リボン = 浅蓝蝴蝶结和波浪边框、羽 = 顶部白色翅膀）。メダル 还没有实机样本，认不出时给 None（不猜）。
+  （花 = 红花、リボン = 浅蓝蝴蝶结和波浪边框、羽 = 顶部白色翅膀、メダル = 左上角金色奖牌）。都不像时给 None（不猜）。
 
 阈值来自 DMM 三局（dmmw1 / dmmt1 / dmmt2）的 6 张定制帧，720x1280 坐标；各特征在命中格和其他格之间差 4 倍以上。
 """
@@ -19,6 +19,7 @@ TOP_PLUSH_MIN = 5000  # 内部高饱和像素：空背包约 1300，装着毛绒
 PLUSH_MIN = 1500  # 候选格中心 80x80 主色像素下限
 FLOWER_MIN = 800  # 红花像素：花约 1640，其他 0（第一段インコ的红脸颊约 500，只在第二段用）
 WINGS_MIN = 3000  # 格子顶部白色像素：羽约 5440，其他 ≤ 1440
+MEDAL_MIN = 1500  # 左上角金色像素：メダル约 2780（z6 11-19 首个实机样本），其他装饰 ≤ 115
 RIBBON_MIN = 3500  # 浅蓝（低饱和）像素：リボン约 6540，其他 ≤ 1330
 
 CANDIDATE_WHITE_MIN = 2000  # 候选格里白色（低饱和高亮）像素：有候选背包 6600–11600，进场动画还没出候选 0–18（DMM 11-14 own2）
@@ -33,9 +34,13 @@ def _hsv(img: np.ndarray) -> np.ndarray:
 
 
 def is_decoration_stage(img: np.ndarray) -> bool:
-    """上面的背包里已经有毛绒 → 第二段（装饰）。"""
+    """上面的背包里已经有毛绒 → 第二段（装饰）。もじゃ 是淡紫、饱和度低，另数淡紫像素（z6 11-19：高饱和只有 1348、淡紫 10883，
+    没认出第二段，三格都读成「もじゃ（黄）」停机；空背包淡紫 0–160）。"""
     top = _hsv(img)[TOP_BAG]
-    return int(((top[..., 1] > 110) & (top[..., 2] > 110)).sum()) >= TOP_PLUSH_MIN
+    h, s, v = top[..., 0], top[..., 1], top[..., 2]
+    vivid = int(((s > 110) & (v > 110)).sum())
+    pastel = int(((h >= 125) & (h <= 165) & (s > 50) & (v > 110)).sum())
+    return vivid >= TOP_PLUSH_MIN or pastel >= TOP_PLUSH_MIN
 
 
 def _plush_hue(hsv: np.ndarray, x: int) -> str | None:
@@ -75,20 +80,23 @@ def decoration_features(img: np.ndarray) -> list[dict[str, int]]:
     for x in SLOTS_X:
         slot = (slice(770, 1000), slice(x - 105, x + 105))
         top = (slice(770, 850), slice(x - 105, x + 105))
+        medal = (slice(770, 880), slice(x - 105, x - 20))  # 左上角金色奖牌
         hh, ss, vv = h[slot], s[slot], v[slot]
         out.append({
             "red": int((((hh <= 8) | (hh >= 172)) & (ss >= 120) & (vv >= 150)).sum()),
             "white": int(((s[top] <= 35) & (v[top] >= 235)).sum()),
             "light_blue": int(((hh >= 95) & (hh <= 115) & (ss >= 40) & (ss <= 120) & (vv >= 200)).sum()),
+            "gold": int(((h[medal] >= 15) & (h[medal] <= 30) & (s[medal] >= 120) & (v[medal] >= 150)).sum()),
         })  # fmt: skip
     return out
 
 
 def decoration_kinds(img: np.ndarray) -> list[str | None]:
-    """三个候选格的装饰：花 / リボン / 羽；都不像或不止一种像时为 None。"""
+    """三个候选格的装饰：花 / リボン / 羽 / メダル；都不像或不止一种像时为 None。"""
     kinds = []
     for f in decoration_features(img):
-        hits = [k for k, ok in (("花", f["red"] >= FLOWER_MIN), ("羽", f["white"] >= WINGS_MIN), ("リボン", f["light_blue"] >= RIBBON_MIN)) if ok]
+        hits = [k for k, ok in (("花", f["red"] >= FLOWER_MIN), ("羽", f["white"] >= WINGS_MIN), ("リボン", f["light_blue"] >= RIBBON_MIN),
+                                ("メダル", f["gold"] >= MEDAL_MIN)) if ok]  # fmt: skip
         kinds.append(hits[0] if len(hits) == 1 else None)
     return kinds
 

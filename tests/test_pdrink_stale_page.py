@@ -2,9 +2,13 @@
 处理器就决策了：决策器没读到 held / incoming，兜底「不换」→ 点「残す」（放弃新饮料）。下一拍主循环又把过渡帧判成 PDRINK_MAX，
 处理器重入、观测写死 scene=PDRINK_MAX，「報酬スキップ」确认框已盖在上面，重新决策成「换」，点被挡住的勾选框，2 次没生效停机。"""
 
+import pytest
+
 from types import SimpleNamespace as NS
 
 from hiro.contracts import Action, ActionKind, Decision, GameState
+
+pytestmark = [pytest.mark.kaa]
 
 
 def test_overflow_decider_waits_when_fields_are_from_another_page():

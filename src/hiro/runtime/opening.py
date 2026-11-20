@@ -28,6 +28,7 @@ logger = logging.getLogger(__name__)
 ENTER_TIMEOUT = 40.0
 LOGO_TIMEOUT = 30.0
 MODE_TIMEOUT = 40.0
+START_RETAP_S = 2.5  # 点「プロデュース開始」后还在第 4 步：隔这么久再点
 START_SKIP_S = 5.0  # 点开始后这么久内一直找「跳过交流」单选框 / 确认按钮（同 KAA）
 
 LOGOS = ("Produce.LogoHajime", "Produce.LogoNia", "Produce.LogoHif")
@@ -166,17 +167,24 @@ def choose_mode(rt, mode: str, *, extra_ap: int | None = None, timeout: float = 
 def start(rt, timeout: float = 20.0) -> None:
     """第 4 步点「プロデュース開始」，之后 START_SKIP_S 秒内点「コミュをスキップ」单选框和确认按钮（同 KAA）。"""
 
+    # 点了要看到离开第 4 步（开始按钮不在了：弹出设置框 / 跳过交流 / 进培育）才算点上。z6（11-19 10:51 DMM）：第 3 步刚切到第 4 步就点，
+    # 被切换动画吞了，原来点了就当成功交给主循环，PRODUCE_START_CONFIRM 没处理器 180s 停机。还在第 4 步就隔 START_RETAP_S 再点
+    state = {"last": None}
+
     def press(f):
-        if (m := nav.find(f, "Produce.Step4.ButtonProduceStart")) is not None:
+        m = nav.find(f, "Produce.Step4.ButtonProduceStart")
+        if m is None:
+            return True if state["last"] is not None else None
+        if state["last"] is None or rt.clock() - state["last"] >= START_RETAP_S:
             nav.tap_match(rt, m)
-            return True
+            state["last"] = rt.clock()
         return None
 
     rt.drive(press, timeout, "点プロデュース開始")
     t0 = rt.clock()
     while rt.clock() - t0 < START_SKIP_S:
         f, done = rt.tick()
-        if done is None:
+        if done is None and nav.find(f, "Produce.Step4.ButtonProduceStart") is None:  # 第 4 步页还在时不点（「決定」会误命中开始按钮一带）
             for name in ("Produce.RadioTextSkipCommu", "Common.ButtonConfirmNoIcon"):
                 if (m := nav.find(f, name)) is not None:
                     nav.tap_match(rt, m)
@@ -229,23 +237,50 @@ def select_idol(rt, skin_id: str) -> None:
     if pos is None:
         raise ResumeBlocked(f"偶像一览里找不到 {skin_id}")
 
+    # 卡位只点一次：z6（11-19 10:37 DMM 3.6.0）点了「決定」后一览淡出几帧里「決定」还认得出，原来每帧都再点一次卡位中心 (104,898)，
+    # 那时已回到第 1 步，正好点在底部轮播的 月村手毬 上，选成了她。之后只在一览本体还在时隔一会儿补点「決定」
+    state = {"picked": False, "last": 0.0}
+
     def confirm(f):
         if nav.find(f, "Produce.TextStepIndicator1") is not None:
             return True
-        if (m := nav.find(f, "Common.ButtonConfirmNoIcon")) is not None:
+        if (m := nav.find(f, "Common.ButtonConfirmNoIcon")) is None:
+            return None
+        if not state["picked"]:
             rt.device.tap(*pos.center)
             rt.sleep(0.3)
             nav.tap_match(rt, m)
+            state["picked"], state["last"] = True, rt.clock()
+        elif nav.find(f, "Produce.IdolOverview.ButtonConfirm") is not None and rt.clock() - state["last"] >= CONFIRM_RETAP_S:
+            nav.tap_match(rt, m)  # 一览还在：「決定」没点上，只补点「決定」
+            state["last"] = rt.clock()
         return None
 
     rt.drive(confirm, STEP_TIMEOUT, "确认偶像")
+
+
+CONFIRM_RETAP_S = 2.0  # 偶像一览点过「決定」后一览还在时，隔这么久才补点「決定」
+SELECTED_RECHECKS = 2  # 第 1 步判「已选偶像」不是目标时再看几帧（轮播入场动画中读不准）
+SELECTED_RECHECK_WAIT = 0.6
+
+
+def _selected_settled(rt, f, skin_id: str) -> bool:
+    """第 1 步刚出现、底部轮播还在动时「已选偶像」框读不准（z4 / z5 / z6 都先判成「选中的不是」去开一览）：
+    不是目标时隔 SELECTED_RECHECK_WAIT 再看几帧，有一帧对上就算已选好。"""
+    if idol_selected(f, skin_id):
+        return True
+    for _ in range(SELECTED_RECHECKS):
+        rt.sleep(SELECTED_RECHECK_WAIT)
+        if idol_selected(rt.screen.shot(), skin_id):
+            return True
+    return False
 
 
 def step1(rt, skin_id: str) -> None:
     """第 1 步：目标偶像没选上就去一览里选（最多 IDOL_TRIES 次），然后点「次へ」到第 2 步。"""
     f = rt.drive(lambda f: f if nav.find(f, "Produce.TextStepIndicator1") is not None else None, STEP_TIMEOUT, "等第 1 步")
     for _ in range(IDOL_TRIES):
-        if idol_selected(f, skin_id):
+        if _selected_settled(rt, f, skin_id):
             break
         logger.info("第 1 步：选中的不是 %s，去偶像一览选", skin_id)
         select_idol(rt, skin_id)

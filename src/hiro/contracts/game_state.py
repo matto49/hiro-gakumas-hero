@@ -39,6 +39,9 @@ class ExamSession:
     last_remaining: int | None = None
     brief_permil: dict[str, int] | None = None  # 最近一次考前说明页的三属性倍率（千分比，{Vo, Da, Vi}），进考试时填 exam.attr_permil
     brief_exam_no: int | None = None  # 最近一次考前说明页读到的选拔场次（選抜試験N）；续跑后计数从头算时以它为准
+    # 初的练习课（hiro.runtime.hajime）：开课画面读数 + 主数据对照。{kind, attr, nth（同种同属性第几次）, turns_total, clear_target,
+    # perfect_target, param_start, level_ids, exam_extra_turn, lesson_limit_up_score}；读不到 / 对不上的项是 None
+    lesson: dict | None = None
 
 
 @dataclass
@@ -77,7 +80,11 @@ class GameState(Contract):
 
         if not self.produce:
             return None
+        from hiro.state.modes import HAJIME, NIA, family
+
         required = [f.name for f in fields(ProduceState) if f.default is MISSING and f.default_factory is MISSING]
+        if family(self.produce.get("mode")) not in (HAJIME, NIA):
+            required.append("star")  # H.I.F 必须有星星；初 / N.I.A 没有星星（用户 11-17），不要求
         if any(self.produce.get(k) is None for k in required):
             return None
         known = {f.name for f in fields(ProduceState)}

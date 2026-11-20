@@ -19,6 +19,36 @@ LIVE_INFO_TEXTS = ("作詞", "作曲", "編曲")
 FIRST_RUN_SETTINGS = (("サポートイベント設定", "強化済みで獲得する", "決定"), ("スキップ確認", None, "決定"))
 
 
+TAP_NEXT = "TAPで次へ"
+TAP_NEXT_MIN_Y = 1000  # 只认画面底部那行提示
+TAP_NEXT_GAP_S = 1.5  # 点过这么久之内不再点（翻页要时间，第二下会落到下一页上）
+
+
+def tap_next(rt, frame) -> bool:
+    """画面底部有「TAPで次へ」、别的字里没有按钮 / 购买 / 危险字样（hiro.loop.advance.BLOCK_WORDS，「次へ」本身除外）：点这行字推进
+    （协调 11-18 初 MASTER 最終后的「1位」证书页：白色证书框、没有弹窗标题条、后面压着暗掉的剧情底栏，判 unknown；
+    连点被 BLOCK_WORDS 里的「次へ」拦住，180 秒停机）。点之前重新截图核对这行字还在。"""
+    from hiro.loop.advance import BLOCK_WORDS
+
+    btn = next((t for t in frame.texts if TAP_NEXT in t.text.replace(" ", "") and t.rect.center.y > TAP_NEXT_MIN_Y), None)
+    if btn is None:
+        return False
+    others = [t.text.replace(" ", "") for t in frame.texts if t is not btn]
+    if (w := next((w for w in BLOCK_WORDS if w != "次へ" and any(w in o for o in others)), None)) is not None:
+        logger.info("「TAPで次へ」页上有「%s」：不点", w)
+        return False
+    now = rt.clock() if callable(getattr(rt, "clock", None)) else None
+    last = getattr(rt, "_tap_next_at", None)
+    if now is not None and last is not None and now - last < TAP_NEXT_GAP_S:
+        return True  # 刚点过，等翻页（算处理了，不交给后面的连点）
+    if not any(TAP_NEXT in b.text.replace(" ", "") and b.rect.center.y > TAP_NEXT_MIN_Y for b in screen_texts(rt.screen.shot().img)):
+        return False
+    rt.device.tap(*btn.rect.center)
+    rt._tap_next_at = now
+    logger.info("底部「TAPで次へ」：点 %s", tuple(btn.rect.center))
+    return True
+
+
 def live_start_tap(img, texts) -> tuple[int, int] | None:
     """横屏曲目页：认到「TAP TO START」点它；只认到曲目信息（作詞 / 作曲 / 編曲）点下方中间；其余 None。texts 是 ocr.Text 列表。"""
     for t in texts:

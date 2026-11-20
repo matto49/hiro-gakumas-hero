@@ -38,7 +38,7 @@ DIFFICULTY_BAND = (700, 1000)  # 剧本页难度按钮的 y 范围（N.I.A 剧�
 AP_COST = 20
 UNKNOWN_STOP_S = 15.0
 FRAME_DIFF = 4.0
-DEFAULT_OUT = Path.home() / "github" / "digital-hiro" / ".temp" / "nia-mac" / "frames"
+DEFAULT_OUT = Path(".temp") / "nia-mac" / "frames"  # 相对仓库根目录（已被 .gitignore 挡住）
 STAGES = ("nia-mid1", "nia-mid2", "nia-final")
 
 
@@ -99,6 +99,15 @@ class Sampler:
 
     def __call__(self, img):
         hit = self.classify(img)
+        if not self.nia and hit.name == "unknown" and img is not None and img.shape[0] > img.shape[1]:
+            # 初：认不出时只查考前说明页（審査基準 + 合格条件 + 倍率）。广那几局靠「タップして次へ」模板当过场点过去；
+            # ことね（初 PRO 11-19）亮色衣装压住了提示，模板 0.23，判 unknown 180 秒停机
+            from hiro.vision.classify import PageHit
+            from hiro.vision.nia import read_briefing
+            from hiro.vision.ocr import screen_texts
+
+            if (brief := read_briefing(screen_texts(img), img)) is not None:
+                hit = PageHit("HIF_EXAM_BRIEFING", "briefing_ocr", "produce", brief)
         if self.nia and hit.name in self.NIA_RECHECK and img is not None and img.shape[0] > img.shape[1]:
             from hiro.vision.classify import PageHit
             from hiro.vision.nia import read_nia_page
@@ -146,15 +155,17 @@ def make_advance(sampler: Sampler, stop_s: float = UNKNOWN_STOP_S):
     结算流程（回忆照片 / 突破证书）和其余已知页照旧交给 play.advance。"""
     from hiro.runtime import play
 
-    state = {"since": None, "page": None}
+    state = {"since": None, "page": None, "quiet": 0, "unknown_since": None}
 
     def advance(rt, frame, hit) -> bool:
         landscape = frame.img is not None and frame.img.shape[1] > frame.img.shape[0]
+        if hit.name != "unknown":
+            state["quiet"], state["unknown_since"] = 0, None
         if hit.name == "unknown" and not landscape and _connecting(frame.img):
             state["since"] = None  # 右下「CONNECTING」：通信中，当加载等（N.I.A 试镜后 11-17：认不出，119 秒才停）
             return False
         if hit.name == "unknown" and not play._produce_finished(frame) and not landscape:
-            did = _nia_bubble(rt, frame) or _event_art(rt, frame)
+            did = _nia_bubble(rt, frame) or _event_art(rt, frame) or _quiet_tap(rt, frame, state)
         else:
             did = play.advance(rt, frame, hit)
         if did or landscape:
@@ -170,6 +181,36 @@ def make_advance(sampler: Sampler, stop_s: float = UNKNOWN_STOP_S):
         return False
 
     return advance
+
+
+QUIET_WAIT_S = 3.0  # 同一段认不出持续这么久才点（转场自己会走完的不点）
+QUIET_TAP_MAX = 6  # 一段认不出最多点这么多下；还没变就照旧 stop_s 后停下交人
+QUIET_BUTTON_Y = (1050, 1180)  # 底部按钮区：这里有字就不点
+
+
+def _quiet_tap(rt, frame, state) -> bool:
+    """没有任何界面元素的过场 / 剧情（あさり先生白板讲解、休む后偶像站着、「最終オーディションまで」过场…，协调 11-18：N.I.A 第二局
+    这类判 unknown 停了 4 次，点空白就过去）：同一段认不出持续 QUIET_WAIT_S 秒、画面上没有按钮危险词（同主循环 advance.BLOCK_WORDS）、
+    没有弹窗标题条、底部按钮区没有字，点左上 (12,12)。一段最多 QUIET_TAP_MAX 下。初 / H.I.F 的主循环本来就这样点认不出的画面。"""
+    from hiro.loop import advance as adv
+    from hiro.vision.pages import dialog_header
+
+    now = rt.clock()
+    if state["unknown_since"] is None:
+        state["unknown_since"] = now
+        return False
+    if now - state["unknown_since"] < QUIET_WAIT_S or state["quiet"] >= QUIET_TAP_MAX or frame.img is None:
+        return False
+    texts = frame.texts
+    if adv.blocked([t.text for t in texts]) is not None or dialog_header(frame.img) is not None:
+        return False
+    if any(QUIET_BUTTON_Y[0] <= t.rect.center.y <= QUIET_BUTTON_Y[1] for t in texts):
+        return False
+    state["quiet"] += 1
+    state["unknown_since"] = now
+    logger.info("N.I.A 采样：认不出、没有按钮的过场（第 %d 下），点 %s", state["quiet"], BUBBLE_TAP)
+    rt.device.tap(*BUBBLE_TAP)
+    return True
 
 
 BUBBLE_TAP = (12, 12)
@@ -287,7 +328,9 @@ def run(args) -> int:
     from hiro.runtime import finish, play
     from hiro.runtime.loop import Runtime
     from hiro.vision.classify import classify
+    from hiro.brain import guides
 
+    guides.refresh_if_stale()  # 偶像卡攻略包：没有或超过 24 小时就下载，失败不阻塞（协调 11-20）
     kaa_env.apply_formation_plan(args.idol)
     support_set = args.support_set or kaa_env.SUPPORT_SET
     memory_set = args.memory_set or kaa_env.MEMORY_SET
@@ -295,7 +338,9 @@ def run(args) -> int:
         logger.error("new 开局要编成号：--support-set / --memory-set，或开局编成方案")
         return 2
     mode = MODES[args.difficulty]
-    session = Session(TraceWriter(name=args.trace))
+    from hiro.runtime.segments import trace_name
+
+    session = Session(TraceWriter(name=trace_name("nia", args.command, args.trace)))  # 续跑接上一段（体力 / P / 属性 / step 打底）
     Core = nia_core(mode)
     for k, v in {"session": session, "use_llm": not args.no_llm, "llm_spec": args.llm, "main_attr": args.main_attr, "exams_done": 0}.items():
         setattr(Core, k, v)

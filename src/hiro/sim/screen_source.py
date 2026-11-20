@@ -37,6 +37,36 @@ PREVIEW_BUDGET_S = float(os.environ.get("HIRO_EXAM_SIM_BUDGET_S", "7.5"))
 # 手牌里有、引擎各区都没有的卡（考试中生成的 眠気、账本漏记的支援事件卡）在当前局面上新建接住（Rust new_card），一场最多这么多张：
 # 再多多半是认卡认错，宁可退回画面读数（DMM mainverify2 11-17）
 NEW_CARD_LIMIT = 8
+# R2 応援棒补卡按偶像流派的真实卡池（interval.ouenbou_pool）补，画面上露出的基础卡在引擎里没有时换掉一张还没露面的占位卡（不另新建）。
+# 协调 11-18 mainz4 R2 复盘③：旧轮换表补的 アピール / 表現 / ファンサ の基本 広 的応援棒根本不会给，露出的 仕草 / アイコンタクト
+# 只能临时新建，引擎山札一直多 2–3 张永远不会来的卡。缺省开（离线自打 400 局 +29k、约 2.5 个标准误，协调批准）；0 / off 关。
+OUENBOU_POOL_ENV = "HIRO_SIM_OUENBOU_POOL"
+
+
+# P 道具账本为空时（mainz4 整局 produce 没有 items、考试画面 pitems 也是空的），run_loadout 给空道具，合成开局把模板的道具全清掉：
+# 引擎里连固有道具（広：えいえいおー HP≥50% 追加行动 / 失血 15%）都没有，搜索推演的主循环是错的。打开后只放偶像卡的固有道具。
+# 1 = 主数据 IdolCard.beforeProduceItemId（未凸；模板 campus-20261019 里也是它）；也可以直接写道具 id（凸后 …-1）。
+# 缺省开（建模错，协调 11-18 批准）；0 / off 关。
+UNIQUE_ITEM_ENV = "HIRO_SIM_UNIQUE_ITEM"
+
+
+def unique_item(idol_card_id: str | None) -> str | None:
+    v = (os.environ.get(UNIQUE_ITEM_ENV) or "1").strip()
+    if v.lower() in ("0", "off", "false", "no"):
+        return None
+    if v.startswith("pitem_"):
+        return v
+    try:
+        from hiro.bench_bridge.tower import master
+
+        idol = next((r for r in master().rows("IdolCard") if r.get("id") == str(idol_card_id or "").replace("i_card-skin-", "i_card-")), None)
+    except Exception:  # noqa: BLE001  没有主数据
+        return None
+    return (idol or {}).get("beforeProduceItemId") or None
+
+
+def ouenbou_pool_on() -> bool:
+    return (os.environ.get(OUENBOU_POOL_ENV) or "1").strip().lower() not in ("0", "off", "false", "no")
 
 
 def _round_label(exam: str | None) -> str | None:
@@ -170,6 +200,13 @@ class SimScreenExamStateSource(ScreenExamStateSource):
         run, run_notes = self._run_loadout()
         setup = iv._with(setup, **run)
         notes = list(notes) + run_notes
+        self._pool_ids = set()
+        if ouenbou_pool_on() and setup.fill and len(deck) < iv.OUENBOU_SIZE:
+            pool = iv.ouenbou_pool(getattr(self.profile, "idol_id", None))
+            if pool:
+                setup = iv._with(setup, ouenbou_pool=pool)
+                self._pool_ids = {cid for cid, _ in pool}
+                notes.append(f"応援棒按真实卡池补 {iv.OUENBOU_SIZE - len(deck)} 张")
         game = self._new_game(setup, copy.deepcopy(memory))
         self.setup = setup
         self.tracker = SimTracker(game, 0, self.meta)
@@ -192,7 +229,11 @@ class SimScreenExamStateSource(ScreenExamStateSource):
                 plan = load(os.environ.get("HIRO_FORMATION_PLAN") or None)
             except Exception as e:  # noqa: BLE001
                 logger.info("开局编成方案读不了：%s", e)
-        return run_loadout(produce, plan)
+        run, notes = run_loadout(produce, plan)
+        if not run.get("items") and (unique := unique_item(getattr(self.profile, "idol_id", None))):
+            run = {**run, "items": (unique,)}
+            notes = [n for n in notes if "P 道具没记账" not in n] + [f"P 道具没记账：只放固有道具 {unique}（{UNIQUE_ITEM_ENV}）"]
+        return run, notes
 
     def _new_game(self, setup, memory):
         from hiro.sim import interval as iv
@@ -300,6 +341,16 @@ class SimScreenExamStateSource(ScreenExamStateSource):
                         break
                 if pick is not None:
                     break
+            if pick is None and cid in (getattr(self, "_pool_ids", None) or ()):
+                # 応援棒卡池里的卡露面了、引擎里没有这张：换掉一张还没露面（还在山札）的别的占位卡，牌组总数不变
+                ph = next((i for i in pools["deck"] if def_card_id(env.cards[i]) in self._pool_ids and def_card_id(env.cards[i]) != cid), None)
+                if ph is not None:
+                    pools["deck"].remove(ph)
+                    pick = self._new_card(env, cid, up)
+                    if pick is None:
+                        pools["deck"].append(ph)
+                    else:
+                        notes.append(f"{cid} ← 换掉一张没露面的応援棒占位卡 {def_card_id(env.cards[ph])}")
             if pick is None and (pick := self._new_card(env, cid, up)) is not None:
                 notes.append(f"{cid} ← 新建（考试中生成 / 牌组账本没有）")
             if pick is None:

@@ -46,3 +46,22 @@ def test_dmm_frame_classified_acquire():
     from hiro.vision.classify import classify
 
     assert classify(cv2.imread(str(p))).name == "ACQUIRE"
+
+
+def test_acquire_bar_retries_smaller_scale_when_empty(monkeypatch):
+    """mainz7（11-19 15:27 DMM 1080x1920 RapidOCR）：P 道具效果「ランダムなPドリンクを2つ獲得」的获得演出，名称栏放大 3 倍
+    RapidOCR 一个字都没读出（1.5 / 2 倍都读得出「ホットコーヒー」），整页判 unknown，180 秒停机。默认倍数读空时再用 1.5 倍读一次。"""
+    from pathlib import Path
+
+    import cv2
+
+    import hiro.vision.ocr as ocr_mod
+    from hiro.vision import deck
+
+    p = Path(__file__).parent / "fixtures" / "pages" / "acquire-drink-pitem-banner-z7.png"
+    if not p.exists():
+        pytest.skip("没有 mainz7 获得演出帧")
+    real = ocr_mod.ocr_boxes
+    monkeypatch.setattr(ocr_mod, "ocr_boxes", lambda img, *, scale=3.0, **kw: [] if scale == 3.0 else real(img, scale=scale, **kw))
+    got = deck.read_acquire_popup(cv2.imread(str(p)), art=False)
+    assert got is not None and got["name"] == "ホットコーヒー" and got["kind"] == "drink"

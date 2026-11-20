@@ -14,7 +14,7 @@ import copy
 import dataclasses
 from typing import Any
 
-from hiro.contracts import Check, Event, Expect, GameState, Observation, Prediction
+from hiro.contracts import Check, Event, Expect, GameState, Observation, Prediction, Source
 
 LEDGER_KEEP = 200  # GameState.ledger 只留最近 N 条，完整的在 trace
 
@@ -34,6 +34,7 @@ def apply_event(state: GameState, event: Event, *, predictor=None) -> tuple[Game
     s.ledger.append(event)
     del s.ledger[:-LEDGER_KEEP]
     _apply_deck(s, event)
+    _apply_items(s, event)
     if predictor is None:
         try:  # 游戏专用的预测器（hiro.state.events）不在开源版里：没有就不做预测
             from hiro.state.events import predict as predictor
@@ -50,6 +51,28 @@ def apply_event(state: GameState, event: Event, *, predictor=None) -> tuple[Game
             if s.field_status.get(path) != "pending":
                 s.field_status[path] = "predicted"
     return s, preds
+
+
+def _apply_items(s: GameState, e: Event) -> None:
+    """P 道具账本 produce.items：PITEM_ACQUIRE 加一件、PITEM_CUSTOMIZE 换掉上一段（同牌组按事件增减）。原来只登记预测，画面上又读不到
+    produce.items 去核对，账本一直是空的（8a3a1e7 11-18：初 PRO 连固有道具都没有，H.I.F mainz4 整局 items 为空，搜索引擎里没有 P 道具）。
+    同名分不清（只有 pitem_ids 多个）时不记，不猜。"""
+    if e.kind not in ("PITEM_ACQUIRE", "PITEM_CUSTOMIZE"):
+        return
+    a = e.args or {}
+    ids = [x for x in a.get("pitem_ids") or [] if x]
+    item = a.get("item_id") or a.get("pitem_id") or (ids[0] if len(ids) == 1 else None)
+    if not item:
+        return
+    s.produce = s.produce if s.produce is not None else {}
+    items = list(s.produce.get("items") or [])
+    if e.kind == "PITEM_CUSTOMIZE" and a.get("replaces") in items:
+        items.remove(a["replaces"])
+    if e.kind == "PITEM_ACQUIRE" and item in items:
+        return  # 同一件已经记过（获得演出和选择动作各发一次、没配上对时）
+    items.append(item)
+    s.produce["items"] = items
+    s.sources["produce.items"] = Source("infer" if e.origin != "observed" else "screen", e.seq)
 
 
 def _prediction(p: Any) -> Prediction:
@@ -210,7 +233,11 @@ def events_from_step(page: str | None, action: dict, ok: bool, page_fields: dict
 
         items = page_fields.get("pitems") or []
         i = next(iter(args.get("pick_indexes") or []), None)
-        p = pitem.parse(items[int(i)]) if isinstance(i, int) and 0 <= i < len(items) else None
+        chosen = items[int(i)] if isinstance(i, int) and 0 <= i < len(items) else None
+        if isinstance(chosen, dict) and chosen.get("pitem_id"):
+            # 初 / N.I.A 的 P 道具三选一（有名字、认得出 ID 的道具，不是 H.I.F 的定制背包）：选中就记获得
+            E("PITEM_ACQUIRE", item_id=chosen["pitem_id"])
+        p = pitem.parse(chosen) if chosen is not None and not (isinstance(chosen, dict) and chosen.get("pitem_id")) else None
         new = pitem.custom_id(p) if p else None
         if new:
             old = next((x for x in (produce or {}).get("items") or [] if str(x).startswith("customize_pitem-")), None)

@@ -257,6 +257,29 @@ def test_pitem_customize_confirm_taps_decide():
         interrupts.customize_confirm(rt.screen.shot(), rt)
 
 
+def test_pitem_customize_confirm_lowercase_p():
+    """DMM qualifyz3（11-18 02:51，559x993 窗口）：RapidOCR 把正文读成「以下のpアイテムに…」（小写 p），没认成 P 道具定制框，
+    DIALOG 183 秒停机。「Pアイテム」不分大小写。"""
+    custom = {"kind": "customize_confirm", "title": "カスタマイズ確認", "danger": False, "y": 493}
+    texts = [T("以下のpアイテムにカスタマイズを実行します", 326, 576), T("キャンセル", 240, 1160), T("決定", 524, 1160)]
+    rt, _ = runtime([frame(texts, custom)])
+    assert "決定" in interrupts.check(rt.screen.shot(), rt) and rt.raw_device.taps == [(524, 1160)]
+
+
+def test_pitem_customize_confirm_waits_after_tap():
+    """qualifyz3 续跑（11-18 02:59）：点了「決定」3 秒后框还在、按钮读不到（DMM 响应慢，框在淡出），原来直接停机；
+    其实点上了，下一屏就是「カスタマイズ完了」。点过之后 CONFIRM_FADE_S 内读不到「決定」当成等框关，过了才停。"""
+    custom = {"kind": "customize_confirm", "title": "カスタマイズ確認", "danger": False, "y": 493}
+    texts = [T("以下のPアイテムにカスタマイズを実行します", 326, 576), T("キャンセル", 240, 1160), T("決定", 524, 1160)]
+    rt, clock = runtime([frame(texts, custom), frame(texts[:2], custom), frame(texts[:2], custom)])
+    assert "決定" in interrupts.check(rt.screen.shot(), rt)
+    clock.now += 3.0
+    assert "等框关" in interrupts.customize_confirm(rt.screen.shot(), rt)
+    clock.now += interrupts.CONFIRM_FADE_S
+    with pytest.raises(ResumeBlocked, match="没读到"):
+        interrupts.customize_confirm(rt.screen.shot(), rt)
+
+
 def test_no_dialog_skips_ocr():
     f = frame()
     f.__dict__.pop("texts")  # 碰 texts 就会真去 OCR：没弹窗时中断层不该碰
@@ -332,6 +355,27 @@ def test_unknown_stops_even_if_screen_keeps_changing():
     clock.now = 181.0
     with pytest.raises(ResumeBlocked, match="认不出"):
         rt.step()
+
+
+def test_download_page_with_moving_percent_is_progress():
+    """11-20 账号 2：网络不稳，资源下载页（データダウンロード中 xx%）认不出，E209 リトライ 后接着下，180 秒按认不出停机。
+    百分比在涨就不停；百分比不动照常按认不出停机。"""
+    def dl(p):
+        return frame([T("データダウンロード中", 123, 1208), T(f"{p}%", 371, 1208)])
+
+    rt, clock = runtime([dl("10.00"), dl("27.27"), dl("55.10"), dl("80.00")])
+    for now in (0.0, 120.0, 240.0, 360.0):
+        clock.now = now
+        rt._comm_retry = (0.0, now, 9)  # 中间一直有 E209 リトライ
+        rt.step()  # 每拍百分比都变了：不停，リトライ 计数清零
+        assert rt._comm_retry is None
+    rt2, clock2 = runtime([dl("27.27")])
+    for now in (0.0, 90.0, 179.0):
+        clock2.now = now
+        rt2.step()
+    clock2.now = 181.0
+    with pytest.raises(ResumeBlocked, match="认不出"):
+        rt2.step()
 
 
 def test_known_page_stuck_stops_but_progress_does_not():

@@ -14,6 +14,7 @@ def _reset():
     active.tick_hooks.clear()
 
 
+@pytest.mark.kaa
 def test_default_forwards_to_kotonebot(monkeypatch):
     import kotonebot
 

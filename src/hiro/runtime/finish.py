@@ -33,6 +33,7 @@ def resume_produce(rt, timeout: float = RESUME_TIMEOUT) -> str:
     认不出的画面（unknown）不当成「已在培育内」（Mac 账号 2 11-17：主页连弹 5 个「親愛度STEP3解放」+「使用期限確認」，判成 unknown
     → 直接开主循环，182 秒停机）：先交中断层处理，一直认不出 UNKNOWN_HOME_S 秒就点回首页的按钮；认出培育页 / 剧情才算 already，
     到超时还认不出就停机（ResumeBlocked），不盲进主循环。"""
+    from hiro.loop import comm_error
     from hiro.vision.classify import classify_scene
     from hiro.vision.quick import quick_page
 
@@ -47,18 +48,27 @@ def resume_produce(rt, timeout: float = RESUME_TIMEOUT) -> str:
         if state["tapped_resume"] and not home:
             return "resumed"
         if not home:
+            texts = [t.text for t in f.texts]
+            if any(h in t for t in texts for h in comm_error.TITLE_HINTS):
+                # 通信エラー（E209 资源下载失败等）：只点リトライ。11-19 账号 2：续跑入口没认这个框，判 unknown 9 秒后把
+                # 「X タイトルへ」上的 X 当成关闭图标点了，游戏回标题（违反「通信错误不点タイトルへ」）
+                if comm_error.handle(f.boxes, rt.device.tap, sleep=rt.sleep) is not None:
+                    state["unknown_since"] = None
+                    return None
             q = quick_page(f.img)
             if q and q.get("page") == "TRANSITION" and (q.get("fields") or {}).get("kind") == "login_bonus" and q.get("tap"):
                 rt.device.tap(*q["tap"])  # 活动登录奖励（培育外）：翻掉再说
                 return None
             hit = classify_scene(f.img)
-            if hit.area == "produce" or hit.name == "commu":
+            if hit.area == "produce" or hit.name in ("commu", "LIVE"):
+                # LIVE：培育里的横屏演出（初 True End 等，协调 11-17）。主循环有 LandscapeGuard 和「TAP TO START」，交给它
                 logger.info("已在培育内（%s），直接开始主循环", hit.name)
                 return "already"
             alt = getattr(rt, "classify", None)
-            if callable(alt) and (h2 := alt(f.img)).name.startswith("NIA_"):
+            if callable(alt) and ((h2 := alt(f.img)).name.startswith("NIA_") or h2.name == "HIF_EXAM_BRIEFING"):
                 # Runtime 自己的判页认出了 N.I.A 特有页（营業场所 / 话题 / 试镜选档 / 加分，hiro.runtime.nia_sample 的判页包装）：
-                # 也是在培育内（协调 11-17：在营業事件页 resume，40 秒「续跑进培育」没完成）
+                # 也是在培育内（协调 11-17：在营業事件页 resume，40 秒「续跑进培育」没完成）。
+                # 初的考前说明页（審査基準 / 合格条件 / タップして次へ）同样靠这层 OCR 兜底才认得出（协调 11-20：停在这一页 resume 40 秒超时）
                 logger.info("已在培育内（%s），直接开始主循环", h2.name)
                 return "already"
             now = rt.clock()
@@ -66,6 +76,10 @@ def resume_produce(rt, timeout: float = RESUME_TIMEOUT) -> str:
                 state["unknown_since"] = now
                 logger.info("续跑：画面认不出（%s），不当成培育内，等中断层 / 回首页", hit.name)
             elif now - state["unknown_since"] >= UNKNOWN_HOME_S:
+                if any(comm_error.TO_TITLE_BUTTON in t for t in texts):
+                    # 画面上有「タイトルへ」：关闭图标可能就是这个按钮上的 X，不点，等它变
+                    logger.warning("续跑：画面认不出，但有「タイトルへ」，不点关闭按钮")
+                    return None
                 for name in nav.HOME_BUTTONS:
                     if (m := nav.find(f, name)) is not None:
                         logger.info("续跑：画面认不出 %.0fs，点 %s 回首页", now - state["unknown_since"], name)

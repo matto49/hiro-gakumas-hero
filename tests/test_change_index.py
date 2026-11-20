@@ -141,3 +141,104 @@ def test_cancel_fallback_prefers_unsure_over_upgraded():
     assert min(same, key=rank)["index"] == 3
     same[1]["upgrade"] = 0
     assert min(same, key=rank)["index"] == 1
+
+
+# ---------------------------------------------------------------- 认不出的格子按目标卡核对（mainz3 11-18 03:47，DMM 559x993）
+HINATA = "p_card-02-men-2_052"  # ひなたぼっこ：左侧两个角标盖住卡面，票数 2:2 并列、卡图 0.494 只领先 0.086，通用识别认不出
+MZ3 = FIX / "mainz3-hinata-unread.jpg"
+
+
+def _mz3():
+    import pytest
+
+    if not MZ3.exists():
+        pytest.skip("没有 mainz3 换卡阶段 2 截图")
+    img = cv2.imread(str(MZ3))
+    return img, read_card_dialog(img, card_ops.CHANGE2_CARD_AREA)["cards"]
+
+
+def test_guess_unread_cell_by_target_card():
+    img, cards = _mz3()
+    assert cards[8]["card_id"] is None  # 通用识别仍不认（不放宽全局门槛）
+    g = card_ops.guess_unread_target(img, cards, HINATA)
+    assert g is not None and g["index"] == 8 and g["card_id"] == HINATA and g["guessed"] is True and g["upgrade"] == 0
+
+
+def test_guess_unread_cell_rejects_other_cards():
+    img, cards = _mz3()
+    assert card_ops.guess_unread_target(img, cards, "p_card-02-men-0_039") is None  # 距離感の基本：卡图不像，不猜
+    assert card_ops.guess_unread_target(img, cards, HINATA, remove_upgrade=1) is None  # 强化次数对不上
+
+
+def _stage2_stub(monkeypatch, img, detail):
+    from types import SimpleNamespace as NS
+
+    import hiro.vision.deck as vd
+    import hiro.vision.ui_templates as ui
+    from hiro.produce import ops
+
+    dev = NS(clicks=[], screenshot=lambda: img, swipe=lambda *a, **k: None)
+    dev.click = lambda *a: dev.clicks.append(a)
+    monkeypatch.setattr(card_ops, "device", dev)
+    monkeypatch.setattr(card_ops, "CHANGE_STAGE_TIMEOUT", 0.6)
+    monkeypatch.setattr(card_ops, "CHANGE_POLL", 0.05)
+    monkeypatch.setattr(card_ops._change_run, "run", None, raising=False)
+    monkeypatch.setattr(card_ops, "_STAGE2_CANCELS", {})
+    monkeypatch.setattr(ops, "CALIB_DIR", Path(__file__).parent / ".calib-test")
+    real_tpl = ui.tpl
+    title = NS(exists=lambda im: not dev.clicks)  # 点卡前在阶段 2，点后标题消失
+    monkeypatch.setattr(ui, "tpl", lambda name: title if name == "InProduce.DialogCardChange2.Title" else real_tpl(name))
+    monkeypatch.setattr(ui, "tap", lambda *a, **k: False)
+    monkeypatch.setattr(card_ops, "confirm_change_dialog", lambda im, run=None: False)
+    real = vd.read_card_dialog
+    monkeypatch.setattr(vd, "read_card_dialog", lambda im, region, **kw: {**real(im, region, **kw), **({"selected_card": detail} if dev.clicks else {})})
+    return dev
+
+
+def test_stage2_taps_guessed_cell_when_detail_confirms(monkeypatch):
+    img, _ = _mz3()
+    dev = _stage2_stub(monkeypatch, img, {"card_id": HINATA, "upgrade": 0})
+    assert card_ops.change_stage2(None, 0, card_id=HINATA) is True
+    assert dev.clicks[0] == (82 + 59, 933 + 59)
+
+
+def test_stage2_guessed_cell_needs_detail_confirmation(monkeypatch):
+    img, _ = _mz3()
+    dev = _stage2_stub(monkeypatch, img, None)  # 详情栏卡名没读到：猜出来的格子不点「チェンジ」
+    assert card_ops.change_stage2(None, 0, card_id=HINATA) is False
+    assert dev.clicks[-1] == card_ops.CHANGE_CANCEL_TAP
+
+
+def test_detail_reads_expected_card_on_unread_cell():
+    """mainz3 r2（04:02）：点了猜的第 9 格，详情栏写着 ひなたぼっこ，却读成 None 取消：换卡页详情栏在缩略图下面，旧框框的是顶部；
+    选中格认不出时又被当成和详情栏冲突。换卡用 CHANGE2_DETAIL_BOX，选中格认不出不算冲突；expect 把目标卡加进同名消歧候选。"""
+    import pytest
+
+    p = FIX / "mainz3-hinata-picked.jpg"
+    if not p.exists():
+        pytest.skip("没有 mainz3 点卡后截图")
+    img = cv2.imread(str(p))
+    from hiro.vision.deck import CHANGE2_DETAIL_BOX
+
+    d = read_card_dialog(img, card_ops.CHANGE2_CARD_AREA, expect=HINATA, detail_box=CHANGE2_DETAIL_BOX)
+    assert d["selected"] == 8 and d["selected_card"]["card_id"] == HINATA and d["agree"] is None
+    assert read_card_dialog(img, card_ops.CHANGE2_CARD_AREA)["detail"] is None  # 旧框（顶部 DETAIL_BOX）读不到换卡页的详情栏
+
+
+def test_stage2_guessed_cell_end_to_end_with_real_frames(monkeypatch):
+    """点卡前用 mainz3 卡格帧、点卡后用详情栏帧，读卡全走真实识别（不塞 selected_card）：应点第 9 格并完成换卡。"""
+    import pytest
+
+    import hiro.vision.deck as vd
+
+    img, _ = _mz3()
+    p = FIX / "mainz3-hinata-picked.jpg"
+    if not p.exists():
+        pytest.skip("没有 mainz3 点卡后截图")
+    picked = cv2.imread(str(p))
+    real = vd.read_card_dialog
+    dev = _stage2_stub(monkeypatch, img, None)
+    monkeypatch.setattr(vd, "read_card_dialog", real)
+    dev.screenshot = lambda: picked if dev.clicks else img
+    assert card_ops.change_stage2(None, 0, card_id=HINATA) is True
+    assert dev.clicks[0] == (82 + 59, 933 + 59) and card_ops.CHANGE_CANCEL_TAP not in dev.clicks

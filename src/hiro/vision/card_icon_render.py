@@ -2,7 +2,7 @@
 
 结构取自客户端 data.unity3d 里开局准备页回忆格的技能卡图标
 （ProduceStartScreen/…/Memory/List/MemoryThumbnail/ProduceCardImageButton，Il2CppDumper DummyDll + UnityPy 读出，
-2026-11-06，导出脚本在 digital-hiro-research/gkmas-assets/tools/ui/），设计尺寸 96×96：
+2026-11-06，导出脚本在作者本机，未随仓库发布），设计尺寸 96×96：
 
 - NameBaseColor：四边内缩 4，bg_round_r12_24px 九宫格，染成 0.94 灰。
 - BaseGradationMask：四边内缩 4 的圆角裁剪；里面是稀有度底色：SSR 用 card_gradation_ssr（外扩 2），

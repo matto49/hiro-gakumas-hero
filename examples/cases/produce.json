@@ -3374,5 +3374,857 @@
    "conflicts": [],
    "version": "1.0"
   }
+ },
+ {
+  "id": "nia2-card-kirameki",
+  "decider": "SELECT_CARD",
+  "source": "实机 trace nia-20261118-013217-r1 seq 133（协调 11-18 复盘：N.I.A 第二局拿了好印象卡）；规则 g8-試験 hajime.card_signature_buff",
+  "note": "N.I.A PRO 第二局：キラメキ（好印象の200%分パラメータ上昇）主打好印象，对やる気的广是冲突，一次性也不拿；刷新还剩 3 次",
+  "accept": [
+   "reroll",
+   "exclude:0",
+   "exclude:1",
+   "exclude:2"
+  ],
+  "forbid": [
+   "pick:0"
+  ],
+  "state": {
+   "mode": "produce",
+   "page": {
+    "name": "SELECT_CARD",
+    "area": "produce",
+    "since_seq": 129,
+    "stable": true,
+    "frames": 5
+   },
+   "produce": {
+    "mode": "produce-004",
+    "stamina": 9,
+    "max_stamina": 30,
+    "produce_point": 196,
+    "params": {
+     "Vo": 215,
+     "Da": 417,
+     "Vi": 334
+    },
+    "growth_permil": {
+     "Vo": 1272,
+     "Da": 1472,
+     "Vi": 1135
+    },
+    "param_cap": 2000,
+    "drinks": [
+     "pdrink_02-1-008",
+     "pdrink_02-3-010",
+     "pdrink_00-1-004"
+    ],
+    "step": 5,
+    "deck": [
+     {
+      "card_id": "p_card-02-ido-3_105",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-act-1_037",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-act-0_010",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-act-0_001",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-act-0_002",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-men-2_004",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-1_031",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-0_012",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-0_012",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-men-0_003",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-men-0_003",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-men-2_111",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-men-2_008",
+      "upgrade": 0
+     }
+    ],
+    "deck_size": 11
+   },
+   "page_fields": {
+    "candidates": [
+     {
+      "slot": 0,
+      "card_id": "p_card-02-act-2_048",
+      "upgrade": 0,
+      "name": "キラメキ",
+      "recommended": false
+     },
+     {
+      "slot": 1,
+      "card_id": "p_card-02-men-1_033",
+      "upgrade": 0,
+      "name": "パステル気分",
+      "recommended": false
+     },
+     {
+      "slot": 2,
+      "card_id": "p_card-02-men-1_035",
+      "upgrade": 0,
+      "name": "幸せのおまじない",
+      "recommended": false
+     }
+    ],
+    "rerolls_left": 3,
+    "excludes_left": 2
+   }
+  }
+ },
+ {
+  "id": "nia2-card-fancy",
+  "decider": "SELECT_CARD",
+  "source": "实机 trace nia-20261118-013217-r11 seq 2（协调 11-18 复盘：N.I.A 第二局拿了好印象卡）；规则 g8-試験 hajime.card_signature_buff",
+  "note": "N.I.A PRO 第二局：三张都是冲突 / 好印象系，刷新用完、禁用还剩 2 次：先禁用换卡，不拿ファンシーチャーム（以降…好印象+1）",
+  "accept": [
+   "exclude:0",
+   "exclude:1",
+   "exclude:2"
+  ],
+  "forbid": [
+   "pick:0"
+  ],
+  "state": {
+   "mode": "produce",
+   "page": {
+    "name": "SELECT_CARD",
+    "area": "produce",
+    "since_seq": 1,
+    "stable": true,
+    "frames": 2
+   },
+   "produce": {
+    "mode": "produce-004",
+    "stamina": 9,
+    "max_stamina": 30,
+    "produce_point": 580,
+    "params": {
+     "Vo": 845,
+     "Da": 1157,
+     "Vi": 868
+    },
+    "growth_permil": {
+     "Vo": 1272,
+     "Da": 1472,
+     "Vi": 1135
+    },
+    "param_cap": 2000,
+    "drinks": [
+     "pdrink_00-2-003",
+     "pdrink_00-3-001"
+    ],
+    "step": 22,
+    "deck": [
+     {
+      "card_id": "p_card-02-act-3_039",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-act-3_045",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-ido-3_105",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-act-2_048",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-act-2_062",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-act-1_037",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-act-0_010",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-sup-3_152",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-00-act-0_002",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-men-3_002",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-sup-3_094",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-2_004",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-2_008",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-2_056",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-2_057",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-men-2_111",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-men-1_031",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-1_031",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-0_012",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-0_012",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-men-0_003",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-00-men-0_003",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-sup-3_023",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-act-3_052",
+      "upgrade": 1
+     }
+    ],
+    "deck_size": 22
+   },
+   "page_fields": {
+    "candidates": [
+     {
+      "slot": 0,
+      "card_id": "p_card-02-men-2_058",
+      "upgrade": 0,
+      "name": "ファンシーチャーム",
+      "recommended": false
+     },
+     {
+      "slot": 1,
+      "card_id": "p_card-02-men-2_054",
+      "upgrade": 0,
+      "name": "本番前夜",
+      "recommended": false
+     },
+     {
+      "slot": 2,
+      "card_id": "p_card-02-men-1_032",
+      "upgrade": 0,
+      "name": "思い出し笑い",
+      "recommended": false
+     }
+    ],
+    "rerolls_left": 0,
+    "excludes_left": 2
+   }
+  }
+ },
+ {
+  "id": "nia2-card-kiseki",
+  "decider": "SELECT_CARD",
+  "source": "实机 trace nia-20261118-013217-r9 seq 6（协调 11-18 复盘：N.I.A 第二局拿了好印象卡）；规则 g8-試験 hajime.card_signature_buff",
+  "note": "N.I.A PRO 第二局：手拍子（好印象の150%分）、キセキの魔法（好印象10以上で使用可）主打好印象，オトメゴコロ 纯好印象；刷新用完、禁用还剩 2 次：禁用换卡",
+  "accept": [
+   "exclude:1",
+   "exclude:2"
+  ],
+  "forbid": [
+   "pick:1",
+   "pick:2"
+  ],
+  "state": {
+   "mode": "produce",
+   "page": {
+    "name": "SELECT_CARD",
+    "area": "produce",
+    "since_seq": 1,
+    "stable": true,
+    "frames": 6
+   },
+   "produce": {
+    "mode": "produce-004",
+    "stamina": 14,
+    "max_stamina": 30,
+    "produce_point": 580,
+    "params": {
+     "Vo": 745,
+     "Da": 1152,
+     "Vi": 868
+    },
+    "growth_permil": {
+     "Vo": 1272,
+     "Da": 1472,
+     "Vi": 1135
+    },
+    "param_cap": 2000,
+    "drinks": [
+     "pdrink_00-2-003",
+     "pdrink_00-3-001"
+    ],
+    "step": 21,
+    "deck": [
+     {
+      "card_id": "p_card-02-act-3_039",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-act-3_045",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-ido-3_105",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-act-2_048",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-act-2_062",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-act-1_037",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-act-0_010",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-sup-3_152",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-00-act-0_002",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-men-3_002",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-sup-3_094",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-2_004",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-2_008",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-2_056",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-2_057",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-men-2_111",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-men-1_031",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-1_031",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-0_012",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-0_012",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-men-0_003",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-00-men-0_003",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-sup-3_023",
+      "upgrade": 1
+     }
+    ],
+    "deck_size": 22
+   },
+   "page_fields": {
+    "candidates": [
+     {
+      "slot": 0,
+      "card_id": "p_card-02-men-2_060",
+      "upgrade": 1,
+      "name": "オトメゴコロ+",
+      "recommended": false
+     },
+     {
+      "slot": 1,
+      "card_id": "p_card-02-act-1_003",
+      "upgrade": 1,
+      "name": "手拍子+",
+      "recommended": false
+     },
+     {
+      "slot": 2,
+      "card_id": "p_card-02-act-3_052",
+      "upgrade": 1,
+      "name": "キセキの魔法+",
+      "recommended": false
+     }
+    ],
+    "rerolls_left": 0,
+    "excludes_left": 2
+   }
+  }
+ },
+ {
+  "id": "nia2-card-kiseki-noexclude",
+  "decider": "SELECT_CARD",
+  "source": "实机 trace 同上，把禁用剩余改成 0（手工）",
+  "note": "刷新、禁用都用完：三张里挑，排除主打好印象的（手拍子 / キセキの魔法），拿オトメゴコロ",
+  "accept": [
+   "pick:0"
+  ],
+  "forbid": [
+   "pick:1",
+   "pick:2"
+  ],
+  "state": {
+   "mode": "produce",
+   "page": {
+    "name": "SELECT_CARD",
+    "area": "produce",
+    "since_seq": 1,
+    "stable": true,
+    "frames": 6
+   },
+   "produce": {
+    "mode": "produce-004",
+    "stamina": 14,
+    "max_stamina": 30,
+    "produce_point": 580,
+    "params": {
+     "Vo": 745,
+     "Da": 1152,
+     "Vi": 868
+    },
+    "growth_permil": {
+     "Vo": 1272,
+     "Da": 1472,
+     "Vi": 1135
+    },
+    "param_cap": 2000,
+    "drinks": [
+     "pdrink_00-2-003",
+     "pdrink_00-3-001"
+    ],
+    "step": 21,
+    "deck": [
+     {
+      "card_id": "p_card-02-act-3_039",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-act-3_045",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-ido-3_105",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-act-2_048",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-act-2_062",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-act-1_037",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-act-0_010",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-sup-3_152",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-00-act-0_002",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-men-3_002",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-sup-3_094",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-2_004",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-2_008",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-2_056",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-2_057",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-men-2_111",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-men-1_031",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-1_031",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-0_012",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-0_012",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-men-0_003",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-00-men-0_003",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-sup-3_023",
+      "upgrade": 1
+     }
+    ],
+    "deck_size": 22
+   },
+   "page_fields": {
+    "candidates": [
+     {
+      "slot": 0,
+      "card_id": "p_card-02-men-2_060",
+      "upgrade": 1,
+      "name": "オトメゴコロ+",
+      "recommended": false
+     },
+     {
+      "slot": 1,
+      "card_id": "p_card-02-act-1_003",
+      "upgrade": 1,
+      "name": "手拍子+",
+      "recommended": false
+     },
+     {
+      "slot": 2,
+      "card_id": "p_card-02-act-3_052",
+      "upgrade": 1,
+      "name": "キセキの魔法+",
+      "recommended": false
+     }
+    ],
+    "rerolls_left": 0,
+    "excludes_left": 0
+   }
+  }
+ },
+ {
+  "id": "fktn-card-tebyoshi",
+  "decider": "SELECT_CARD",
+  "source": "实机 trace hajime-20261119-190113 seq 46（协调 11-19 多偶像：ことね 初 PRO）；流派优先表（いおん10）、g8-NIAM 循环件",
+  "note": "初 PRO ことね（好印象）：手拍子（好印象の150%分）合拍，拿它；原来按广的必拿表刷新",
+  "accept": [
+   "pick:0"
+  ],
+  "forbid": [
+   "reroll"
+  ],
+  "state": {
+   "mode": "produce",
+   "page": {
+    "name": "SELECT_CARD",
+    "area": "produce",
+    "since_seq": 45,
+    "stable": true,
+    "frames": 2
+   },
+   "produce": {
+    "mode": "produce-002",
+    "stamina": 36,
+    "max_stamina": 36,
+    "produce_point": 9,
+    "params": {
+     "Vo": 100,
+     "Da": 125,
+     "Vi": 338
+    },
+    "growth_permil": {
+     "Vo": 1122,
+     "Da": 1466,
+     "Vi": 1325
+    },
+    "param_cap": 1500,
+    "drinks": [],
+    "deck": [
+     {
+      "card_id": "p_card-02-act-0_009",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-act-0_001",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-act-0_001",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-act-0_002",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-ido-3_015",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-0_011",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-0_011",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-men-0_003",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-00-men-0_003",
+      "upgrade": 0
+     }
+    ],
+    "deck_size": 9,
+    "idol_card_id": "i_card-fktn-3-000"
+   },
+   "page_fields": {
+    "candidates": [
+     {
+      "slot": 0,
+      "card_id": "p_card-02-act-1_003",
+      "upgrade": 0,
+      "name": "手拍子",
+      "recommended": false
+     },
+     {
+      "slot": 1,
+      "card_id": "p_card-02-men-2_008",
+      "upgrade": 1,
+      "name": "イメトレ+",
+      "recommended": false
+     },
+     {
+      "slot": 2,
+      "card_id": "p_card-00-men-1_005",
+      "upgrade": 0,
+      "name": "気合十分！",
+      "recommended": false
+     }
+    ],
+    "rerolls_left": 4,
+    "excludes_left": 2
+   }
+  }
+ },
+ {
+  "id": "fktn-card-lovely",
+  "decider": "SELECT_CARD",
+  "source": "实机 trace hajime-20261119-190113 seq 50（协调 11-19 多偶像：ことね 初 PRO）；流派优先表（いおん10）、g8-NIAM 循环件",
+  "note": "初 PRO ことね（好印象）：ラブリーウインク+ 是好印象的循环件 [g8-NIAM]；原来按广的社区必拿拿了 デイドリーミング",
+  "accept": [
+   "pick:2",
+   "pick:0"
+  ],
+  "forbid": [
+   "pick:1"
+  ],
+  "state": {
+   "mode": "produce",
+   "page": {
+    "name": "SELECT_CARD",
+    "area": "produce",
+    "since_seq": 45,
+    "stable": true,
+    "frames": 6
+   },
+   "produce": {
+    "mode": "produce-002",
+    "stamina": 36,
+    "max_stamina": 36,
+    "produce_point": 9,
+    "params": {
+     "Vo": 100,
+     "Da": 125,
+     "Vi": 338
+    },
+    "growth_permil": {
+     "Vo": 1122,
+     "Da": 1466,
+     "Vi": 1325
+    },
+    "param_cap": 1500,
+    "drinks": [],
+    "deck": [
+     {
+      "card_id": "p_card-02-act-0_009",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-act-0_001",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-act-0_001",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-act-0_002",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-02-ido-3_015",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-0_011",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-02-men-0_011",
+      "upgrade": 0
+     },
+     {
+      "card_id": "p_card-00-men-0_003",
+      "upgrade": 1
+     },
+     {
+      "card_id": "p_card-00-men-0_003",
+      "upgrade": 0
+     }
+    ],
+    "deck_size": 9,
+    "idol_card_id": "i_card-fktn-3-000"
+   },
+   "page_fields": {
+    "candidates": [
+     {
+      "slot": 0,
+      "card_id": "p_card-02-act-1_003",
+      "upgrade": 0,
+      "name": "手拍子",
+      "recommended": false
+     },
+     {
+      "slot": 1,
+      "card_id": "p_card-02-act-1_037",
+      "upgrade": 0,
+      "name": "デイドリーミング",
+      "recommended": false
+     },
+     {
+      "slot": 2,
+      "card_id": "p_card-02-act-2_046",
+      "upgrade": 1,
+      "name": "ラブリーウインク+",
+      "recommended": false
+     }
+    ],
+    "rerolls_left": 2,
+    "excludes_left": 2
+   }
+  }
  }
 ]

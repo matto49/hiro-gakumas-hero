@@ -230,8 +230,65 @@ def schedule_ahead(state: ProduceState, days: int = 7) -> list[dict] | str:
 UNKNOWN = "未识别"
 
 
+def _is_hajime_nia(mode: str | None) -> bool:
+    from hiro.state.modes import HAJIME, NIA, family
+
+    return family(mode) in (HAJIME, NIA)
+
+
+def situation_hajime_nia(state: ProduceState, unknown: set[str] | frozenset = frozenset()) -> dict:
+    """初 / N.I.A 的局面文本：只有这两个模式真有的东西。没有星星（用户 11-17：完全不用处理）、ワッペン、选拔 / 本战、H.I.F 的考试倍率。"""
+    from hiro.state.modes import NIA, mode as _mode, steps as _steps
+
+    try:
+        m = _mode(state.mode)
+        name = f"{'N.I.A' if m.family == NIA else '初'} {m.difficulty.upper()}"
+    except KeyError:
+        m, name = None, state.mode
+    try:
+        total = _steps(state.mode)
+    except Exception:  # noqa: BLE001  主数据不可用
+        total = UNKNOWN
+
+    def val(key: str, value=None):
+        return UNKNOWN if key in unknown else (getattr(state, key) if value is None else value)
+
+    if not state.deck:
+        deck = "牌组未识别（不是 0 张）：不要按张数推理"
+    else:
+        from hiro.state.knowledge import is_once
+
+        counts: dict[str, int] = {}
+        for c in state.deck:
+            label = card_name(c.card_id, c.upgrade) + ("（定制）" if c.customized else "")
+            counts[label] = counts.get(label, 0) + 1
+        once = {card_name(c.card_id, c.upgrade) + ("（定制）" if c.customized else ""): is_once(c.card_id) for c in state.deck}
+        deck = {"张数": len(state.deck), "卡": [f"{k}{' ×' + str(n) if n > 1 else ''}（{'一次性' if once[k] else '可复用'}）" for k, n in counts.items()]}
+    res = {"体力": UNKNOWN if "stamina" in unknown else f"{state.stamina}/{state.max_stamina}", "P点": val("produce_point"),
+           "饮料": val("drinks", [_drink_entry(d) for d in state.drinks] + [f"空位 {state.drink_capacity - len(state.drinks)}"]),
+           "禁用剩余": val("excludes_left"), "刷新剩余": val("rerolls_left")}  # fmt: skip
+    if m is not None and m.family == NIA:
+        res["投票数"] = UNKNOWN if state.votes is None else state.votes
+        res["剩余休息次数"] = UNKNOWN if state.rest_left is None else state.rest_left
+    out = {
+        "进度": {"模式": name, "第几步": val("step"), "总步数": total},
+        "资源": res,
+        "属性": {a: (state.params[a] if isinstance(state.params.get(a), (int, float)) else "未读到") for a in ATTRS},
+        "主属性": state.main_attr or UNKNOWN,
+        "牌组": deck,
+    }  # fmt: skip
+    shown = {"drinks", "excludes_left", "rerolls_left", "deck", "step", "stamina", "produce_point"}
+    hidden = {"lessons", "items", "excluded", "upgrades_done", "deletes_done", "drink_capacity", "star", "star_permil", "wappen_left", "param_cap"}
+    if rest := sorted(set(unknown) - shown - hidden):
+        out["未识别字段"] = rest
+    return out
+
+
 def situation(state: ProduceState, unknown: set[str] | frozenset = frozenset()) -> dict:
-    """unknown：从未被观测到、ProduceState 用默认值补上的字段（GameState.unobserved_produce_fields()），显示为「未识别」，不当事实。"""
+    """unknown：从未被观测到、ProduceState 用默认值补上的字段（GameState.unobserved_produce_fields()），显示为「未识别」，不当事实。
+    初 / N.I.A 走 situation_hajime_nia（没有星星、选拔 / 本战）。"""
+    if _is_hajime_nia(state.mode):
+        return situation_hajime_nia(state, unknown)
     exams = upcoming_exams(state)
 
     def val(key: str, value=None):
@@ -560,7 +617,8 @@ def preview_card_pick(state: ProduceState, candidates: list[dict], *, change: bo
     from hiro.brain.cards import card_view
     from hiro import master
 
-    wappen = _scale(10, state.star_permil) if (("wappen_left" in unknown or state.wappen_left) and not change) else 0
+    other = _is_hajime_nia(state.mode)  # 初 / N.I.A：没有 H.I.F ワッペン、没有星星
+    wappen = _scale(10, state.star_permil) if (not other and ("wappen_left" in unknown or state.wappen_left) and not change) else 0
     owned = [c.card_id for c in state.deck]
     rows = []
     for i, c in enumerate(candidates):
@@ -581,9 +639,9 @@ def preview_card_pick(state: ProduceState, candidates: list[dict], *, change: bo
             entry["用后除外"] = True
         if c["card_id"] in owned:
             entry["已持有"] = owned.count(c["card_id"])
-        entry["delta"] = {"deck_size": 0 if change else 1, "star": wappen}
+        entry["delta"] = {"deck_size": 0 if change else 1} | ({} if other else {"star": wappen})
         rows.append(entry)
-    return {
+    out = {
         "方式": "セレクトチェンジ（换掉一张，不触发获得）" if change else "获得",
         "拿后牌组张数": (len(state.deck) + (0 if change else 1)) if state.deck else "未知（牌组未识别）",
         "ワッペン星星": (f"{UNKNOWN}（还有次数的话 +{wappen}）" if "wappen_left" in unknown else f"+{wappen}") if wappen else "无",
@@ -596,6 +654,9 @@ def preview_card_pick(state: ProduceState, candidates: list[dict], *, change: bo
                                      "rerolls_left" in unknown or state.rerolls_left),
                                     ("不拿", not change)) if ok],
     }  # fmt: skip
+    if other:
+        out.pop("ワッペン星星")
+    return out
 
 
 MACHINE_KEYS = ("option", "attr", "sp", "delta")

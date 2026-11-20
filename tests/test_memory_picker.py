@@ -398,6 +398,50 @@ def test_select_checked_never_taps_same_cell_twice():
     assert taps == [(360, 700)]  # 不在选择页就不点
 
 
+def _bracketed(rect):
+    """灰底画一个格子，四角外侧画橙色 L 形选中框（同实机：框在格子外沿外侧）。"""
+    img = np.full((1280, 720, 3), 90, np.uint8)
+    x, y, w, h = rect
+    cv2.rectangle(img, (x, y), (x + w, y + h), (200, 200, 200), -1)
+    orange = (40, 150, 255)  # BGR
+    for cx, cy, sx, sy in ((x, y, 1, 1), (x + w, y, -1, 1), (x, y + h, 1, -1), (x + w, y + h, -1, -1)):
+        cv2.rectangle(img, (cx - sx * 12, cy - sy * 12), (cx + sx * 40, cy - sy * 3), orange, -1)
+        cv2.rectangle(img, (cx - sx * 12, cy - sy * 12), (cx - sx * 3, cy + sy * 40), orange, -1)
+    return img
+
+
+def test_cell_selected_reads_outer_corner_brackets():
+    rect = [35, 585, 210, 120]
+    assert mp.cell_selected(_bracketed(rect), {"rect": rect})
+    assert not mp.cell_selected(_bracketed(rect), {"rect": [475, 585, 210, 120]})
+    plain = np.full((1280, 720, 3), 90, np.uint8)
+    cv2.rectangle(plain, (35, 585), (245, 705), (40, 150, 255), -1)  # 卡面本身是橙色：框外没有橙色就不算选中
+    assert not mp.cell_selected(plain, {"rect": rect})
+
+
+def test_select_checked_does_not_tap_preselected_cell():
+    """11-19 账号 2：从空格子打开选择页，第一格默认选中；扫描先点它，被当成「決定」关了选择页。已选中的格子只读不点。"""
+    rect = [35, 585, 210, 120]
+    img = _bracketed(rect)
+    taps = []
+    p = mp.Picker(lambda: img, lambda x, y: taps.append((x, y)), lambda *a: None, ocr=lambda im: [("キャンセル", 1, (0, 0, 1, 1)),
+                  ("決定", 1, (0, 0, 1, 1)), ("編成詳細", 1, (0, 0, 1, 1))], clock=iter(range(0, 10_000)).__next__, sleep=lambda s: None)  # fmt: skip
+    changed, got = p.select_checked({"rect": rect, "center": [140, 645], "row": 0})
+    assert changed and got is img and taps == []
+    p.select_checked({"rect": [255, 585, 210, 120], "center": [360, 645], "row": 0})
+    assert taps == [(360, 645)]
+
+
+@pytest.mark.master
+def test_fuzzy_card_recovers_dropped_or_wrong_kanji():
+    """11-19 账号 2：「アイドル言」（漏「宣」）写编成时认不出；「嬌しい誤算＋」（嬉→嬌）扫描时认不出。分不开的不猜。"""
+    assert mp.fuzzy_card("アイドル言")["card_id"].endswith("men-2_012")
+    got = mp.fuzzy_card("嬌しい誤算＋")
+    assert got["name"] == "嬉しい誤算" and got["upgrade"] == 1
+    assert mp.fuzzy_card("精神統")["name"] == "精神統一"
+    assert mp.fuzzy_card("ア") is None and mp.fuzzy_card("全然ちがうなまえです") is None
+
+
 def test_scroll_splits_big_distance_inside_list_area():
     """11-17 开局第 3 步：一次滑约 16 行，终点 y 成负数，kotonebot swipe 报 argument out of range。拆成每次 ≤ 3 行、起止点都在列表区。"""
     swipes = []

@@ -5,6 +5,8 @@
 - 执行后核对：KAA commit 已返回时一离开原页面就算生效（选行动后课程动画全是过渡帧，每步空等到 8s 超时）；
 - 差し入れ光效 1s 就点角落（以前等 15s）。"""
 
+import pytest
+
 from pathlib import Path
 
 import cv2
@@ -96,6 +98,7 @@ def test_action_commit_no_fixed_sleep(monkeypatch):
     assert orig == [ProduceAction.REST]
 
 
+@pytest.mark.kaa
 def test_select_drink_uses_fast_acquire(monkeypatch):
     from types import SimpleNamespace as NS
 

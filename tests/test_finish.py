@@ -152,6 +152,36 @@ def test_resume_already_on_nia_page(monkeypatch):
     assert finish.resume_produce(rt) == "already" and rt.raw_device.taps == []
 
 
+def test_resume_already_on_hajime_briefing(monkeypatch):
+    """初的考前说明页上 resume（协调 11-20：40 秒超时）：采样器的 OCR 兜底认出 HIF_EXAM_BRIEFING 就算已在培育内。"""
+    monkeypatch.setattr("hiro.vision.quick.quick_page", lambda img: None)
+    monkeypatch.setattr("hiro.vision.classify.classify_scene", lambda img: UNKNOWN)
+    rt, _ = rig(monkeypatch, [frame({})])
+    rt.classify = lambda img: PageHit("HIF_EXAM_BRIEFING", "briefing_ocr", "produce", {})
+    assert finish.resume_produce(rt) == "already" and rt.raw_device.taps == []
+
+
+def test_resume_hajime_briefing_on_real_frame(monkeypatch, tmp_path):
+    """实机帧（ことね 中間考试开场页，pages/hajime-briefing-fktn.png）：初的采样器（nia=False）认出考前说明页，resume 直接开始。"""
+    import os
+    from pathlib import Path
+
+    import cv2
+
+    from hiro.runtime.nia_sample import Sampler
+    from hiro.vision.classify import classify
+
+    path = Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures")) / "pages" / "hajime-briefing-fktn.png"
+    if not path.exists():
+        pytest.skip("需要实机截图 pages/hajime-briefing-fktn.png")
+    img = cv2.imread(str(path))
+    monkeypatch.setattr("hiro.vision.quick.quick_page", lambda img: None)
+    rt, _ = rig(monkeypatch, [frame({}, img=img) if "img" in frame.__code__.co_varnames else frame({})])
+    sampler = Sampler(classify, tmp_path, nia=False)
+    rt.classify = lambda _img: sampler(img)
+    assert finish.resume_produce(rt) == "already"
+
+
 def test_resume_nia_page_on_real_frame(monkeypatch, tmp_path):
     """实机帧（营業话题，左上「営業」+ 三个话题）：采样的判页包装认出 NIA_SALES_EVENT，resume 直接开始。"""
     import os
@@ -174,3 +204,30 @@ def test_resume_nia_page_on_real_frame(monkeypatch, tmp_path):
 
     rt.classify = ns.Sampler(classify, tmp_path / "frames")
     assert finish.resume_produce(rt) == "already"
+
+
+def test_resume_comm_error_taps_retry_never_to_title(monkeypatch):
+    """11-19 账号 2：续跑入口碰上 E209 通信エラー，判 unknown 9 秒后点了「X タイトルへ」上的 X，游戏回标题。
+    现在先按通信错误处理：只点リトライ；认不出的画面上有「タイトルへ」时也不点关闭按钮。"""
+    monkeypatch.setattr("hiro.vision.quick.quick_page", lambda img: None)
+    monkeypatch.setattr("hiro.vision.classify.classify_scene", lambda img: UNKNOWN)
+    err = frame({"Common.ButtonIconClose": (150, 1160)}, [T("通信エラー", 140, 902), T("通信環境の良い場所でリトライしてください", 299, 1019),
+                                                          T("X タイトルへ", 212, 1160), T("くリトライ", 478, 1160)])  # fmt: skip
+    rt, _ = rig(monkeypatch, [err], on_tap=lambda taps: [frame({})])
+    from hiro.loop.errors import ResumeBlocked
+
+    with pytest.raises(ResumeBlocked):
+        finish.resume_produce(rt, timeout=20)
+    assert rt.raw_device.taps and all(t == (478, 1160) for t in rt.raw_device.taps)
+
+
+def test_resume_unknown_with_to_title_text_does_not_tap_close(monkeypatch):
+    monkeypatch.setattr("hiro.vision.quick.quick_page", lambda img: None)
+    monkeypatch.setattr("hiro.vision.classify.classify_scene", lambda img: UNKNOWN)
+    odd = frame({"Common.ButtonIconClose": (150, 1160)}, [T("X タイトルへ", 212, 1160)])
+    rt, _ = rig(monkeypatch, [odd])
+    from hiro.loop.errors import ResumeBlocked
+
+    with pytest.raises(ResumeBlocked):
+        finish.resume_produce(rt, timeout=20)
+    assert rt.raw_device.taps == []

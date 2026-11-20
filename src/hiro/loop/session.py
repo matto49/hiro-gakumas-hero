@@ -53,6 +53,7 @@ class Session:
         self.recoveries: Counter = Counter()
         self.last: Observation | None = None
         self.img = None  # 最近一次 observe 的截图
+        self.last_decision = None  # (页面名, Decision)：最近一次记录的决策（中断层看「刚才是不是选了休息」）
         self.steps = 0
         self._last_exec_t: float | None = None  # 上一个有执行结果的步落盘时刻（time.time），算过场耗时
         from hiro.loop.repeat_guard import Guard
@@ -242,6 +243,7 @@ class Session:
             timings_ms.setdefault("advance_taps", self.advance_taps)
         if decision is not None:
             self.advance_taps = 0
+            self.last_decision = (obs.page.name, decision)
         repeated = None
         if decision is not None and execution is not None and decision.action.kind.name not in ("WAIT", "NOOP"):
             from hiro.loop.repeat_guard import REPEAT_MAX, action_key, state_sig

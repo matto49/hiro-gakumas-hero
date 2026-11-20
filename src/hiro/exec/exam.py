@@ -1087,6 +1087,18 @@ def _round_deck(session) -> list:
 SCHEDULE_PROBED: set[str] = set()  # 已经探测过审查日程的考试标签（再挑戦同一场不再点）
 
 
+def _not_executed(advisor, action, why: str) -> None:
+    """决策给出的动作没在游戏里生效（帧过时没点 / 牌没打出去 / 点了画面没变）：告诉出招插件（可选钩子 not_executed），
+    搜索类算法据此把引擎退回出牌前（N.I.A MASTER 第一局 11-18：帧过时没点的 センブリソーダ 在引擎里喝了两次，对账引擎高估 4.56 倍）。"""
+    hook = getattr(advisor, "not_executed", None)
+    if hook is None:
+        return
+    try:
+        hook(action, why)
+    except Exception as e:  # noqa: BLE001  钩子出错不影响执行
+        logger.info("出招插件 not_executed 出错：%s: %s", type(e).__name__, e)
+
+
 def run_exam(
     brain: BattleBrain,
     exam: str,
@@ -1184,15 +1196,18 @@ def run_exam(
             if stable_wait.waited >= STABLE_WAIT_S and session is not None:
                 session.note(f"画面 {stable_wait.waited:.0f}s 不稳定，用单帧出决策")
             stable_wait.reset()
-            if schedule_probe.enabled() and exam not in SCHEDULE_PROBED and memory.turn <= 1 and restored is None and frame.remaining is not None:
+            if (schedule_probe.enabled() and schedule_probe.should_probe(exam) and exam not in SCHEDULE_PROBED and memory.turn <= 1
+                    and restored is None and frame.remaining is not None):  # fmt: skip
                 # 审查日程探测（默认关）：每场考试第 1 回合出牌前点开一次，存帧、关掉、记耗时，回到考试画面后重新截图再决策
                 SCHEDULE_PROBED.add(exam)
-                from hiro.vision import hif as _hif
+                from hiro.vision.schedule import read_schedule_panel
 
                 with _phase("schedule_probe"):
-                    schedule_probe.probe(frame.img, exam=exam, shoot=device.screenshot, click=lambda x, y: device.click(x, y),
-                                         ocr_boxes=ops.ocr_boxes, is_exam=_hif.is_hif_exam, log=rec.log,
-                                         note=session.note if session is not None else None)  # fmt: skip
+                    got = schedule_probe.probe(frame.img, exam=exam, shoot=device.screenshot, click=lambda x, y: device.click(x, y),
+                                               ocr_boxes=ops.ocr_boxes, is_exam=schedule_probe.back_in_exam, log=rec.log,
+                                               note=session.note if session is not None else None, read_panel=read_schedule_panel,
+                                               swipe=lambda *a: device.swipe(*a), total_turns=frame.remaining)  # fmt: skip
+                schedule_probe.apply_panel(got.get("panel"), session, memory)
                 animating = True
                 continue
             # ---- 局面（插件）
@@ -1245,6 +1260,7 @@ def run_exam(
                 _count("stale_frame")  # 决策帧过时（报告 exam_settle.stale_frames）
                 rec.log("exam_stale_frame", exam=exam, action=d.action, reason=stale, remaining=frame.remaining)
                 logger.warning("[%s] 决策帧已过时（%s）：不点 %s，重新决策", exam, stale, d.action)
+                _not_executed(advisor, d.action, f"决策帧已过时（{stale}）")
                 if session is not None:
                     session.recover("page_misjudged", f"决策帧与点击前画面不一致（{stale}），{d.action} 不执行，重新决策")
                 animating = True
@@ -1273,6 +1289,7 @@ def run_exam(
                                      seconds=round(t_done - t_tap, 3))  # fmt: skip
             if missed is not None:
                 logger.warning("[%s] %s：%s，回到主循环重读", exam, d.action, missed)
+                _not_executed(advisor, d.action, missed)
                 rec.log("battle_play_missed_turn_end", exam=exam, action=d.action, remaining=frame.remaining)
                 memory.plan = []
                 if session is not None:
@@ -1288,6 +1305,7 @@ def run_exam(
             else:
                 failures += 1
                 memory.plan = []
+                _not_executed(advisor, d.action, "执行后画面未变化")
                 rec.log("battle_action_no_effect", exam=exam, action=d.action, failures=failures)
                 if session is not None:
                     session.recover("tap_no_effect", f"{d.action} 执行后画面 {CHANGE_TIMEOUT:.0f}s 未变（第 {failures} 次）")

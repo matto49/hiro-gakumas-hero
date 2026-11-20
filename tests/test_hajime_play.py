@@ -158,3 +158,69 @@ def test_retry_when_rank_below_three(monkeypatch):
     monkeypatch.setattr(hv, "exam_rank", lambda img: {"rank": 4, "score": 300, "retry": {"left": 1, "free": True}})
     assert core._retry_if_failed("hajime-mid1") is True and clicked == ["再挑戦"] and core.exam_restarted and core.exam_count == 0
     assert "マニー" in Core.RETRY_JEWEL and "ジュエル" in Core.RETRY_JEWEL
+
+
+# ---------------------------------------------------------------- 续跑后考试标签（协调 11-18：最終续跑被标成 hajime-mid1）
+def test_exam_label_from_trace_on_resume(tmp_path):
+    import json
+
+    from hiro.runtime import hajime
+
+    Core = hajime.hajime_core("produce-002")
+    core = Core.__new__(Core)
+    core.exam_count, core.last_exam_next = 0, None
+    core.s = NS(state=NS(exam_session=NS(lesson=None), produce={"mode": "produce-002"}))
+    prev = tmp_path / "hajime-20261118-190000"
+    prev.mkdir()
+    rows = [{"seq": 1, "state": {"page_fields": {"exam_next": "mid1"}}}, {"seq": 9, "state": {"page_fields": {"exam_next": "final"}}},
+            {"seq": 10, "state": {"page_fields": {}}}]  # fmt: skip
+    (prev / "steps.jsonl").write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+    core._prior_trace_dirs = lambda: [prev]
+    core._stage_by_turns = lambda: pytest.fail("trace 里有页头就不用再看回合数")
+    assert core._battle_label(None) == "hajime-final"
+
+
+def test_exam_label_by_turns_when_no_trace(monkeypatch):
+    from hiro.runtime import hajime
+
+    Core = hajime.hajime_core("produce-002")
+    core = Core.__new__(Core)
+    core.exam_count, core.last_exam_next = 0, None
+    core.s = NS(state=NS(exam_session=NS(lesson=None), produce={"mode": "produce-002"}))
+    core._prior_trace_dirs = lambda: []
+    core._stage_by_turns = lambda: "final"
+    assert core._battle_label(None) == "hajime-final"
+    core.exam_count = 0
+    core._stage_by_turns = lambda: None
+    assert core._battle_label(None) == "hajime-mid1"  # 都读不到：照旧按第几场
+
+
+@pytest.mark.sim_master
+def test_audition_turns_hajime():
+    from hiro.state import modes
+
+    assert modes.audition_turns("produce-002", "i_card-shro-3-007", "mid1") == 9
+    assert modes.audition_turns("produce-002", "i_card-shro-3-007", "final") == 11
+
+
+def test_idle_measured_from_handler_return():
+    """处理器（考试）跑了很久：返回后按当时的时刻记操作，出来第一帧不能马上判「N 秒没有任何操作」停机（初 PRO 最終 11-18 284s）。"""
+    from test_runtime import frame, runtime
+
+    from hiro.runtime.loop import DONE
+    from hiro.vision.classify import PageHit
+
+    hits = iter([PageHit("EXAM", "test"), PageHit("TRANSITION", "test"), PageHit("TRANSITION", "test")])
+    holder = {}
+
+    def long_exam(rt, f, hit):
+        holder["clock"].sleep(300.0)  # 考试打了 5 分钟
+        return DONE
+
+    rt, clock = runtime([frame(fill=10), frame(fill=20), frame(fill=30)], classify=lambda img: next(hits),
+                        handlers={"EXAM": long_exam}, advance=lambda rt, f, h: False, idle_stop_s=180.0)  # fmt: skip
+    holder["clock"] = clock
+    rt.interrupts = ()
+    rt.step()
+    clock.sleep(3.0)
+    assert rt.step().kind == "stay"  # 原来这里抛 ResumeBlocked「TRANSITION 页 300s 没有任何操作」

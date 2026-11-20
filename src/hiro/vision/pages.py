@@ -28,6 +28,7 @@ DIALOG_KINDS = (
     ("使用確認", "drink_use_confirm"),  # 考试：Pドリンク使用確認（效果对象不存在）
     ("ドリンク詳細", "drink_detail"),  # 考试：点饮料后的详情（使う / 捨てる）
     ("相談終了", "consult_end"),
+    ("インターバル終了", "interval_end"),  # 本战轮间还剩 P 时点「終了」：「インターバル終了確認」→「本戦へ」(500,1160)（mainz4 11-18）
     ("カスタマイズ確認", "customize_confirm"),
     ("カスタマイズを実行", "customize_confirm"),
     ("特別指導終了", "guidance_end"),  # 还有可定制次数时点「終了」：「特別指導終了確認」→「終了する」(500,1160)
@@ -78,6 +79,29 @@ def _header_bands(img: MatLike) -> list[tuple[int, int]]:
         # 再放宽一级：标题很长、白字占满整条（N.I.A「NEXT IDOL AUDITIONライブ設定」11-17：中间几行橙色只占 0.36–0.53，
         # 标题条被切成几段、每段都不够 HEADER_H，整个框认不出，中断层看不到）。同样要求下方是白色框体
         out = [(y1, y2) for y1, y2 in _bands(frac, HEADER_LONG_TITLE_FRAC) if _white_body(img, y2)]
+    if not any(_title_white(img, y1, y2) for y1, y2 in out):
+        out = _header_on_orange(img, frac)
+    return out
+
+
+ORANGE_BG_MIN = 0.8  # 标题条上方 60 行橙黄占比的平均：加载画面 1.0，获得演出名称栏上方是场景
+HEADER_ON_ORANGE_H = 65  # 整片橙黄背景上的弹窗：从白色框体上沿往上取这么高当标题条（实测标题条 870–936）
+
+
+def _header_on_orange(img: MatLike, frac: np.ndarray) -> list[tuple[int, int]]:
+    """资源下载的加载画面整片橙黄，弹窗标题条和背景连成一片、超高被丢（11-19 账号 2：E209 通信エラー 认不出，中断层没点リトライ，
+    180 s 停机）。改从白色框体的上沿找：上一行还是橙黄、这一行起连续 40 行近白，往上取 HEADER_ON_ORANGE_H 行，要有白色标题字。"""
+    hsv = cv2.cvtColor(img[:, HEADER_X[0] : HEADER_X[1]], cv2.COLOR_BGR2HSV)
+    wh = ((hsv[:, :, 1] < 40) & (hsv[:, :, 2] > 225)).mean(axis=1)
+    out = []
+    for y in range(HEADER_ON_ORANGE_H, len(frac) - 40):
+        # 白框上沿和标题条之间有 1–2 行过渡色（实测 938 行橙白都不是）：上面 4 行里有橙黄行就算紧挨着
+        if wh[y - 1] < 0.3 and float(frac[y - 4 : y].max()) >= HEADER_MIN_FRAC and bool((wh[y : y + 40] >= 0.6).all()):
+            above = frac[max(0, y - HEADER_ON_ORANGE_H - 60) : y - HEADER_ON_ORANGE_H]
+            if above.size == 0 or float(above.mean()) < ORANGE_BG_MIN:
+                continue  # 标题条上方不是整片橙黄（获得演出的金色名称栏上面是场景）：不是这种情况
+            if _title_white(img, y - HEADER_ON_ORANGE_H, y):
+                out.append((y - HEADER_ON_ORANGE_H, y))
     return out
 
 
@@ -260,7 +284,32 @@ def _classify_page(img: MatLike) -> tuple[str, dict] | None:
     kind = _transition_kind(boxes)
     if kind is not None:
         return "TRANSITION", {"kind": kind}
+    if (ev := event_dialogue(boxes)) is not None:
+        return "commu", ev
     return None
+
+
+EVENT_SPEAKER_Y = (880, 980)  # 台词框左上的名字条（N.I.A 星南独白：「星南」在 y 927）
+EVENT_LINE_Y = (960, 1130)  # 台词行
+EVENT_TAP = (360, 1030)  # 点台词框推进
+EVENT_BLOCK = ("SKIP", "早送", "AUTO", "ログ", "キャンセル", "決定", "次へ", "閉じる", "OK", "選択", "受け取")
+EVENT_BUTTON_Y = (1070, 1170)  # 台词框下面按钮的位置：这里有字（淡入中的「受け取る」等）就不是单纯台词，不点（点台词框会落在弹窗的勾选框附近）
+
+
+def event_dialogue(boxes) -> dict | None:
+    """事件台词（页头、体力 / P 点、底栏饮料都还在，台词框上方有名字条，没有 SKIP / 早送り 底栏）：协调 11-18，N.I.A 第二局选了相談后
+    星南独白判 unknown，24 秒停。初 / N.I.A / H.I.F 通用：判成 commu，带快速判页格式的点击（点台词框），主循环的 advance 照点。
+    有 SKIP 底栏的剧情由 commu_skip 处理，有按钮字样的不算（选项 / 弹窗另有处理）。"""
+    if any(w in t.upper() if w.isascii() else w in t for t, _ in boxes for w in EVENT_BLOCK):
+        return None
+    if any(EVENT_BUTTON_Y[0] <= (b[1] + b[3]) // 2 <= EVENT_BUTTON_Y[1] for _, b in boxes):
+        return None
+    speaker = next((t for t, b in boxes if 1 <= len(t.strip()) <= 8 and b[2] < 300 and EVENT_SPEAKER_Y[0] <= (b[1] + b[3]) // 2 <= EVENT_SPEAKER_Y[1]), None)
+    lines = [t for t, b in boxes if EVENT_LINE_Y[0] <= (b[1] + b[3]) // 2 <= EVENT_LINE_Y[1] and b[0] < 200 and len(t.strip()) >= 6]
+    if speaker is None or not lines:
+        return None
+    fields = {"kind": "event_dialogue", "speaker": speaker.strip(), "text": "".join(lines)}
+    return {**fields, "_quick": {"page": "commu", "tap": list(EVENT_TAP), "dispatch": None, "fields": fields}}
 
 
 def _transition_kind(boxes) -> str | None:

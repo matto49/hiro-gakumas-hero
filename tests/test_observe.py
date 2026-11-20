@@ -217,7 +217,7 @@ def test_consult_shelf():
         ("ブーストエキス", 52, True), ("センブリソーダ", 75, False), ("ルイボスティー", 50, False), ("リカバリドリンク", 75, False)]  # fmt: skip
     assert all(s["card_id"] for s in shelf[:4]) and all(s["drink_id"] for s in shelf[4:])
     assert not any(s["purchased"] for s in shelf)
-    assert obs.fields["services"] == {"upgrade": {"price": 100, "available": True}, "delete": {"price": 100, "available": True}}
+    assert obs.fields["services"] == {"upgrade": {"price": 100, "available": True, "used": False}, "delete": {"price": 100, "available": True, "used": False}}
     assert obs.fields["rerolls_left"] == 1 and obs.fields["complete"] is True
 
 

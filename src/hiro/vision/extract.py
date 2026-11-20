@@ -11,7 +11,7 @@ from hiro.vision.action import read_action_select
 from hiro.vision.cards import card_summary, dialog_card_upgraded
 from hiro.vision.deck import read_card_dialog, read_confirm_dialog, read_deck_list
 from hiro.vision.drinks import read_drink_dialog
-from hiro.vision.event import read_event_choices
+from hiro.vision.event import read_event_choice_page, read_event_choices
 from hiro.vision.items import read_pdrink_max
 from hiro.vision.pages import page_fields
 from hiro.vision.hif import read_hif_exam, read_hif_result
@@ -147,7 +147,7 @@ EXTRACTORS = {
     "CONSULT": _consult,
     "STUDY": read_event_choices,
     "OUTING": read_event_choices,
-    "EVENT_CHOICE": read_event_choices,  # 事件选项页（判页 INITIAL_CHOICE），和授業 / 外出同一种选项按钮
+    "EVENT_CHOICE": read_event_choice_page,  # 事件选项页（判页 INITIAL_CHOICE）：只留真有按钮的行（二选一不出幻影第 0 项），带 dialogue_only
     "ACTION_SELECT": _action_select,
     "DECK_LIST": read_deck_list,
     "SKILL_CARD_REMOVAL": _removal_dialog,

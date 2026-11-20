@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import time
 from typing import Any
 
@@ -73,6 +74,31 @@ def free_turns(rx) -> list[int]:
     return list(range(start, max(start, int(rx.limit_turn) - 3)))
 
 
+# 审查日程已知时按真实回合属性搜（协调 11-18 mainz4 R2 复盘②：第 3 次把两瓶ブースト喝在 T8 Vi 1916%，T9 其实是 Da 2851%）。
+# 平台读到审查日程就写进考试局面 exam.turn_types（按回合从 1 起的 ["Vo","Da",…]，长度 = 总回合数，读不全整表 None）。缺省关。
+KNOWN_TURNS_ENV = "HIRO_SEARCH_KNOWN_TURNS"
+ATTR_TYPE = {"Vo": 1, "Da": 2, "Vi": 3}
+
+
+def known_turns_on() -> bool:
+    return os.environ.get(KNOWN_TURNS_ENV, "").strip().lower() in ("1", "on", "true", "yes")
+
+
+def apply_schedule(rx, schedule) -> tuple[Any, list[int]]:
+    """已知审查日程 → (改了回合属性的 rx 副本, 还没知道的回合下标)。日程比引擎回合少（追加回合）时多出来的回合照旧按配额随机；
+    日程认不出的项（None / 别的写法）那一回合也照旧。"""
+    types = [ATTR_TYPE.get(str(a)) if a is not None else None for a in schedule]
+    c = rx.clone()
+    tt = [int(t) for t in c.turn_types]
+    known = set()
+    for i, t in enumerate(types[: len(tt)]):
+        if t:
+            tt[i] = t
+            known.add(i)
+    c.turn_types = tt
+    return c, [i for i in free_turns(rx) if i not in known]
+
+
 class SearchAdvisor(BenchAdvisor):
     """缺省出招插件：能搜就搜，不能搜照 bench 中转层（UINet → 规则）。"""
 
@@ -123,7 +149,9 @@ class SearchAdvisor(BenchAdvisor):
         t0 = time.monotonic()
         try:
             seed = hash((self.label, getattr(self, "round_no", 0), int(rx.current_turn), int(rx.turn_card_play_count))) & 0xFFFFFFFF
-            r = self.rs.search(rx.clone(), 0, free_turns(rx), worlds=b["worlds"], seconds=b["seconds"], threads=b["threads"], seed=seed)
+            sched = self._schedule()
+            start, free = apply_schedule(rx, sched) if sched else (rx.clone(), free_turns(rx))
+            r = self.rs.search(start, 0, free, worlds=b["worlds"], seconds=b["seconds"], threads=b["threads"], seed=seed)
         except Exception as e:  # noqa: BLE001
             return self._back(state, memory, previews, legal, f"搜索出错：{type(e).__name__}: {e}")
         best = r.get("best")
@@ -151,6 +179,14 @@ class SearchAdvisor(BenchAdvisor):
                   f"{r['votes'][0][1]}/{len(ws)} 票，平均终局 {r['votes'][0][2]:,.0f}")  # fmt: skip
         return Decision(action=action, reason=reason, source="search", confidence=r["votes"][0][1] / max(1, len(ws)), candidates=cands,
                         seconds=time.monotonic() - t0, decider="battle")  # fmt: skip
+
+    def _schedule(self) -> list | None:
+        """平台读到的审查日程（考试局面 exam.turn_types）；开关没开 / 没读到 None。"""
+        if not known_turns_on():
+            return None
+        ex = getattr(getattr(getattr(self, "_session", None), "state", None), "exam", None)
+        tt = ex.get("turn_types") if isinstance(ex, dict) else getattr(ex, "turn_types", None)
+        return list(tt) if tt else None
 
     @staticmethod
     def _to_hiro(a, rx, state) -> tuple[Action | None, str]:

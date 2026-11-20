@@ -140,3 +140,39 @@ def test_engine_stricter_than_screen_still_searches():
 def test_engine_looser_than_screen_is_a_mismatch():
     """引擎认为能打、画面灰着（mainverify2 R1：元気 0 读成 10，引擎以为「届いて！」（元気 ≥7）能打）：搜索可能选到打不出的牌，照旧退回。"""
     assert "能打出的牌对不上" in (_check({0, 1, 2}, {0, 1}) or "")
+
+
+def test_apply_schedule_known_turns():
+    """审查日程已知（平台 exam.turn_types）：回合属性按日程改在副本上，已知的回合不再随机；认不出的项、比日程多的回合照旧随机。"""
+    from hiro.search.advisor import apply_schedule, free_turns
+
+    rx = _game().env.rx
+    sched = ["Vo", "Da", "Vo", "Vo", "Vo", "Da", "Vi", "Vi", "Da", "Vi", "Da", "Vo"]
+    c, free = apply_schedule(rx, sched)
+    assert list(c.turn_types) == [{"Vo": 1, "Da": 2, "Vi": 3}[a] for a in sched] and free == []
+    _, free2 = apply_schedule(rx, sched[:6] + [None] * 6)
+    assert free2 == [i for i in free_turns(rx) if i >= 6]
+
+
+def test_known_schedule_switch_reads_session_exam(adv, monkeypatch):
+    """开关 HIRO_SEARCH_KNOWN_TURNS 缺省关；打开后从 session.state.exam.turn_types 读，交给搜索的回合属性按日程、free 为空。"""
+    from hiro.search import advisor as sa
+
+    sched = ["Da"] * 12
+    adv._session = SimpleNamespace(state=SimpleNamespace(exam={"turn_types": sched}))
+    seen = {}
+    real = adv.rs.search
+
+    def spy(rx, prefix, free, **kw):
+        seen.update(types=list(rx.turn_types), free=list(free))
+        return real(rx, prefix, free, **kw)
+
+    monkeypatch.setattr(adv, "rs", SimpleNamespace(search=spy))
+    game = _game()
+    state, legal = _screen(game)
+    monkeypatch.delenv("HIRO_SEARCH_KNOWN_TURNS", raising=False)
+    adv.decide(state, SimpleNamespace(turn=1), None, legal)
+    assert seen["free"] == sa.free_turns(game.env.rx)  # 缺省关：照旧
+    monkeypatch.setenv("HIRO_SEARCH_KNOWN_TURNS", "1")
+    adv.decide(state, SimpleNamespace(turn=1), None, legal)
+    assert seen["types"] == [2] * 12 and seen["free"] == []

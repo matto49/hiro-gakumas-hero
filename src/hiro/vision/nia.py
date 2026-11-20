@@ -93,6 +93,24 @@ def _has_heart(hsv, y1: int, y2: int) -> bool:
     return int(((reg[..., 2] >= 200) & (reg[..., 1] >= 150)).sum()) >= HEART_MIN
 
 
+def _cost_icon(hsv, y1: int, y2: int) -> str | None:
+    """「消費」药丸左边的图标 → stamina（爱心，黄绿渐变，色相 40–90 占多数；实机 540+ 像素）/ produce_point（P 点：黄色圆底，
+    几乎没有绿色）/ None（「消費なし」没有图标，或认不出是哪种）。客户端 ScheduleBusinessFolderView.CostType 只有这两种（逆向 10.2）。
+    P 点消耗的场所还没有实机帧，黄色判据按 P 图标的颜色定，没核过。"""
+    reg = hsv[y1 + 4 : y2 - 3, HEART_X[0] : HEART_X[1]]
+    m = (reg[..., 2] >= 200) & (reg[..., 1] >= 150)
+    n = int(m.sum())
+    if n < HEART_MIN:
+        return None
+    h = reg[..., 0][m]
+    green, yellow = int(((h >= 40) & (h <= 90)).sum()), int(((h >= 15) & (h < 40)).sum())
+    if green >= 0.4 * n:
+        return "stamina"
+    if yellow >= 0.6 * n and green < 0.2 * n:
+        return "produce_point"
+    return None
+
+
 def _start_button(hsv, a: int, b: int) -> tuple[int, int] | None:
     reg = hsv[a:b, START_X[0] : START_X[1]]
     m = (reg[..., 0] >= 5) & (reg[..., 0] <= 18) & (reg[..., 1] >= 180) & (reg[..., 2] >= 200)
@@ -128,7 +146,9 @@ def read_rewards(img, start: tuple[int, int]) -> list[str]:
             for dx in range(-8, 9, 2):
                 g = _glyph(img, cx + dx, cy + dy)
                 for name, t in _reward_templates().items():
-                    best = max(best, (float((g & t).sum() / max(1, (g | t).sum())), name))
+                    sc = float((g & t).sum() / max(1, (g | t).sum()))
+                    if sc > best[0]:  # 只比分数：打平（例如都是 0）时元组会去比名字和 None 抛 TypeError（同 _icon_attr，N.I.A 第二局 11-18 停机）
+                        best = (sc, name)
         out.append(best[1] if best[0] >= 0.5 else "unknown")
     return out
 
@@ -151,19 +171,45 @@ def read_sales_place(texts, img=None) -> dict | None:
     places = []
     for i, (kind, a, b) in enumerate(segs):
         pill = _pill_rows(hsv, a, b)
-        cost = None
+        cost = cost_type = cost_num = p_cost = None
         if pill is not None:
             heart = _has_heart(hsv, *pill)
-            num = next((_num(s) for s, x, y in tx if x > 480 and pill[0] - 10 <= y <= pill[1] + 10 and re.fullmatch(r"-?\d{1,2}", s)), None)
-            cost = (num or 5) if heart else 0  # 有爱心但数字没读到：N.I.A 营業实测都是 -5
+            num = next((_num(s) for s, x, y in tx if x > 480 and pill[0] - 10 <= y <= pill[1] + 10 and re.fullmatch(r"-?\d{1,3}", s)), None)
+            cost_type = _cost_icon(hsv, *pill) if heart else None
+            if not heart:  # 「消費なし」
+                cost = p_cost = cost_num = 0
+            elif cost_type == "stamina":
+                cost, p_cost, cost_num = (num or 5), 0, (num or 5)  # 有爱心但数字没读到：N.I.A 営業实测都是 -5
+            elif cost_type == "produce_point":
+                cost, p_cost, cost_num = 0, num, num
+            else:
+                cost_num = num  # 有图标但认不出是体力还是 P 点：只给数值，hp_cost / p_cost 留空
         name = next((s for s, x, y in tx if x < 360 and a <= y <= a + 60 and ("会場" in s or "施" in s or "ゾート" in s)), None)
         gain = next((_num(s) for s, x, y in tx if s.startswith("+") and x < 360 and a + 30 <= y <= a + 110), None)
-        places.append({"index": i, "kind": kind, "name": name, "gain": gain, "hp_cost": cost, "center": [360, a + 70]})
+        places.append({"index": i, "kind": kind, "name": name, "gain": gain, "hp_cost": cost, "p_cost": p_cost, "cost_type": cost_type,
+                       "cost": cost_num, "center": [360, a + 70]})  # fmt: skip
     out = {"places": places, "expanded": bool(starts)}
     if starts:
         i, st = starts[0]
         out.update(selected=i, start=list(st), rewards=read_rewards(img, st))
         places[i]["rewards"] = out["rewards"]
+        places[i].update(_great_success(tx, segs[i][1], segs[i][2]))
+    return out
+
+
+def _great_success(tx, a: int, b: int) -> dict:
+    """展开的那张卡上的「大成功ボーナス ☆+840　確率 90%」→ {great_success_pct, great_success_votes}（客户端 BusinessGreatSuccessInfoSheet 的
+    GreatSuccessPermil / VoteValue，逆向 10.2）。只有展开的卡看得到；读不到的不给。"""
+    label = next(((x, y) for s, x, y in tx if "大成功" in s and a <= y <= b), None)
+    if label is None:
+        return {}
+    out = {}
+    pct = next((int(m.group(1)) for s, x, y in tx if 200 <= x <= 380 and label[1] - 10 <= y <= label[1] + 80 and (m := re.search(r"(\d{1,3})\s*[%％]", s))), None)
+    if pct is not None and 0 <= pct <= 100:
+        out["great_success_pct"] = pct
+    votes = next((_num(s) for s, x, y in tx if x < 250 and label[1] + 20 <= y <= label[1] + 80 and re.fullmatch(r"\+[\d,]+", s.replace(" ", ""))), None)
+    if votes is not None:
+        out["great_success_votes"] = votes
     return out
 
 
@@ -222,7 +268,9 @@ def _icon_attr(img, y: int) -> str | None:
             m = _icon_mask(img, y, dx, dy)
             for a, t in _topic_templates().items():
                 if m.shape == t.shape:
-                    best = max(best, (float((m & t).sum() / max(1, (m | t).sum())), a))
+                    s = float((m & t).sum() / max(1, (m | t).sum()))
+                    if s > best[0]:  # 只比分数：分数打平（例如都是 0）时元组会去比属性名和 None，抛 TypeError（N.I.A 第二局 11-18 停机）
+                        best = (s, a)
     if best[0] >= 0.45:
         return best[1]
     x1, x2, r = TOPIC_ICON
@@ -332,7 +380,8 @@ def read_briefing(texts, img=None) -> dict | None:
     tx = _t(texts)
     if not (any("審査基準" in s for s, _, _ in tx) and any("合格条件" in s for s, _, _ in tx)):
         return None
-    tap = next(((x, y) for s, x, y in tx if "タップして次へ" in s and y > 1100), None)
+    # 「タップして次へ」压在亮色衣装上时 OCR 只读出半截（初 PRO ことね 11-19：「プして次へ」），读到「次へ」就算
+    tap = next(((x, y) for s, x, y in tx if ("タップして次へ" in s or "して次へ" in s or s.endswith("次へ")) and y > 1100), None)
     if tap is None or img is None:
         return None  # 倍率还在跳（ボーナス演出）：没有「タップして次へ」先不认
     from hiro.vision.pages import read_exam_briefing

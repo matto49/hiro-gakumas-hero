@@ -1,6 +1,6 @@
 {
  "captured_at": "2026-11-17",
- "purpose": "初 / N.I.A 培育决策的社区规则（设计稿 初与NIA-决策-设计.md）。每条只存出处和一两句原文摘录；整页原文不入库（game8 页尾禁止转载），存在私有 .temp/plans-20261112/hajime-nia-sources/。",
+ "purpose": "初 / N.I.A 培育决策的社区规则（规则依据见 docs/hajime-playbook.md、docs/nia-playbook.md）。每条只存出处和一两句原文摘录；整页原文不入库（game8 页尾禁止转载），存在私有 .temp/plans-20261112/hajime-nia-sources/。",
  "sources": {
   "g8-NIA": {
    "url": "https://game8.jp/gakuen-idolmaster/661665",
@@ -212,7 +212,7 @@
     "nia"
    ],
    "difficulties": null,
-   "rule": "体力不够消耗时不能上课（SP 耗 8），要留体力",
+   "rule": "体力低于消耗时不能上课（SP 耗 8），要留体力；体力正好等于消耗可以上（客户端判断，原文「以下」不准）",
    "source": "g8-NIA",
    "quote": "従来のシナリオとは異なり、体力が消費体力以下だとレッスンが行えません。"
   },
@@ -497,6 +497,67 @@
    "rule": "コンテスト厳選：最终试镜选 Quartet 不选 finale",
    "source": "ww-NIA",
    "quote": "最終オーディションではfinaleではなくQuartetを選ぶことでSSに到達しやすくなる。"
+  },
+  {
+   "id": "nia.card_once_first",
+   "families": [
+    "nia"
+   ],
+   "difficulties": null,
+   "rule": "选卡优先拿带「レッスン中1回」（打出后除外）的卡",
+   "source": "g8-NIAM",
+   "quote": "「レッスン中1回」が付いたカードを優先的に取る"
+  },
+  {
+   "id": "nia.card_loop_three",
+   "families": [
+    "nia"
+   ],
+   "difficulties": null,
+   "rule": "可复用的卡只留最终循环要的几种",
+   "source": "g8-NIAM",
+   "quote": "NIAマスターでハイスコアを出すコツは、「レッスン中1回」の制限がないカードが3種類のみになるようデッキを組むことです。"
+  },
+  {
+   "id": "nia.card_dup_once",
+   "families": [
+    "nia"
+   ],
+   "difficulties": null,
+   "rule": "一次性的卡优先拿牌组里已有的（抽到的概率高）",
+   "source": "ww-NIA",
+   "quote": "取得するカードは消えるカードかつすでに持っているものを集めて抽選確率をできる限り上げる"
+  },
+  {
+   "id": "hajime.card_signature_buff",
+   "families": [
+    "hajime",
+    "nia"
+   ],
+   "difficulties": null,
+   "rule": "优先拿能上偶像拿手 buff 的卡（やる気 / 好印象 / 好調 / 集中，看偶像卡）",
+   "source": "g8-試験",
+   "quote": "そのため、得意なバフをかけるスキルカードを優先して取得して、試験で使いましょう。"
+  },
+  {
+   "id": "hajime.card_slim",
+   "families": [
+    "hajime"
+   ],
+   "difficulties": null,
+   "rule": "牌组精简，用不上的卡不拿",
+   "source": "g8-PRO",
+   "quote": "不要なスキルを削除することで強いカードが手札に来やすくなるので安定して強い立ち回りができます。"
+  },
+  {
+   "id": "nia.card_loop_parts",
+   "families": [
+    "nia"
+   ],
+   "difficulties": null,
+   "rule": "循环件按偶像的流派选（「使用回数+1」两张 + 火力一张）",
+   "source": "g8-NIAM",
+   "quote": "各プランごとのおすすめループパーツになります。"
   }
  ]
 }

@@ -479,3 +479,50 @@ def test_new_produce_main_from_start_confirm_page_skips_entry(monkeypatch):
     rt, _ = rig(monkeypatch, [confirm])
     opening.new_produce(rt, "main", idol="i", expect_memory=("1",))
     assert called == ["memory", "step4", "start"] and rt.raw_device.taps == []
+
+
+def test_step1_confirm_taps_card_only_once_while_list_fades(monkeypatch):
+    """z6（11-19 10:37 DMM 3.6.0）：一览里点了 篠澤広、点「決定」，淡出几帧里「決定」还认得出，确认循环又点了一次卡位中心 (104,898)，
+    那时已回到第 1 步，正好点在底部轮播的 月村手毬 上，选成了她。卡位只点一次；之后只在一览还在时补点「決定」。"""
+    _step1(monkeypatch, None)
+    s1 = frame({"Produce.TextStepIndicator1": (1, 1), "Produce.ButtonPIdolOverview": (600, 400)})
+    overview = frame({"Produce.IdolOverview.ButtonConfirm": (500, 1160), "Common.ButtonConfirmNoIcon": (500, 1160)})
+    fading = frame({"Common.ButtonConfirmNoIcon": (500, 1160)})  # 一览淡出：「決定」还认得出，一览本体已不在
+    back = frame({"Produce.TextStepIndicator1": (1, 1), "Produce.Step1.ButtonNext": (500, 1160)})
+    back.selected = True
+    s2 = frame({"Produce.TextStepIndicator2": (1, 1)})
+    script = {1: [overview], 3: [fading, fading, fading, back], 4: [s2]}
+    rt, _ = rig(monkeypatch, [s1], on_tap=lambda taps: script.get(len(taps)))
+    opening.step1(rt, "i_card-skin-shro-3-007")
+    assert rt.raw_device.taps.count((274, 698)) == 1
+    assert rt.raw_device.taps == [(600, 400), (274, 698), (500, 1160), (500, 1160)]  # 一览、点卡、确认、次へ
+
+
+def test_idol_selected_rechecks_frames(monkeypatch):
+    """第 1 步刚出现、轮播还在动时读不准（z4 / z5 / z6 都先判成「选中的不是」去开一览）：多看几帧，有一帧对上就算选好了。"""
+    seq = iter([False, False, True])
+    monkeypatch.setattr(opening, "idol_selected", lambda f, skin: next(seq, True))
+    s1 = frame({"Produce.TextStepIndicator1": (1, 1), "Produce.Step1.ButtonNext": (500, 1160)})
+    rt, _ = rig(monkeypatch, [s1], on_tap=lambda taps: [frame({"Produce.TextStepIndicator2": (1, 1)})])
+    monkeypatch.setattr("hiro.produce.idol_select.locate", lambda skin, **kw: pytest.fail("不该去开偶像一览"))
+    opening.step1(rt, "i_card-skin-shro-3-007")
+    assert rt.raw_device.taps == [(500, 1160)]
+
+
+def test_start_retaps_when_still_on_step4(monkeypatch):
+    """z6（11-19 10:51 DMM）：第 3 步刚切到第 4 步就点了「プロデュース開始」，被动画吞了；原来点了就当成功，
+    交给主循环，PRODUCE_START_CONFIRM 没处理器 180s 停机。点了还在第 4 步就隔一会儿再点，直到离开第 4 步。"""
+    step4 = frame({"Produce.Step4.ButtonProduceStart": (500, 1150)})
+    seq = {2: [frame({"Produce.RadioTextSkipCommu": (200, 700)})], 3: [frame({})]}  # 第 1 下没反应，第 2 下才弹出
+    rt, _ = rig(monkeypatch, [step4], on_tap=lambda taps: seq.get(len(taps)))
+    opening.start(rt)
+    assert rt.raw_device.taps[:3] == [(500, 1150), (500, 1150), (200, 700)]
+
+
+def test_start_skip_loop_does_not_tap_confirm_on_step4(monkeypatch):
+    """开始按钮还在（第 4 步页）时，跳过交流那段不去点「Common.ButtonConfirmNoIcon」（第 4 步页上会误命中）。"""
+    step4 = frame({"Produce.Step4.ButtonProduceStart": (500, 1150), "Common.ButtonConfirmNoIcon": (520, 1150)})
+    rt, _ = rig(monkeypatch, [step4])
+    with pytest.raises(ResumeBlocked):
+        opening.start(rt)
+    assert (520, 1150) not in rt.raw_device.taps and rt.raw_device.taps.count((500, 1150)) >= 2

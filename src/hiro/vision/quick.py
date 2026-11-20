@@ -186,6 +186,11 @@ def _white_hit(img: MatLike, name: str) -> bool:
     return float(cv2.matchTemplate(region, _white_tpl(name), cv2.TM_CCOEFF_NORMED).max()) >= thr
 
 
+def commu_bar(img: MatLike) -> bool:
+    """剧情底栏「SKIP」「AUTO」都在（快速判页认 commu 的同一条件）；点 SKIP 之前对新截的帧再核一次用。"""
+    return img is not None and _white_hit(img, "quick_commu_skip") and _white_hit(img, "quick_commu_auto")
+
+
 def _pale(hsv: np.ndarray) -> float:
     hsv = hsv[::4, ::4]  # 隔 4 取 1（阈值 0.5，正例 0.65–1.0、反例 ≤ 0.24）
     h, s, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]

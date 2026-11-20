@@ -48,6 +48,7 @@ ROW_TOL = 20  # 同一行字母的 y 容差
 DIM_V_MAX = 160  # 格内平均亮度：正常 200–241，压暗 103–117
 DIM_TARGET_V, DIM_GAIN_MAX = 225, 2.5
 PLUS_BOX = (0.33, 0.66, 0.74, 1.0)  # 「+」在卡格内的相对位置 (y1, y2, x1, x2)
+PLUS_SPECKLE_FRAC = 0.5  # 「看不清」区间里最大红色连通块不到阈值的这个比例：插画零星红点，判没有「+」
 PLUS_MIN_PX_125 = 40  # 125 像素卡格时的最少红色像素（与相談货架同一阈值），按面积缩放；低于 1/4 记为没有
 CUSTOM_BOX = (0.62, 0.86, 0.36, 0.64)  # 定制徽章 (y1, y2, x1, x2)
 CUSTOM_MIN_PX_125 = 120
@@ -157,7 +158,14 @@ def _plus(cell: MatLike) -> int | None:
     need = PLUS_MIN_PX_125 * area
     if red >= need:
         return 1 if plus_shape_ok(mask, cell.shape[0]) else None
-    return 0 if red < need / 4 else None
+    if red < need / 4:
+        return 0
+    # 介于两者之间：零星红点（最大连通块不到阈值一半）是插画里的红色，判 0；成块的才可能是没显示全的「+」，仍然不确定。
+    # 真「+」的红色几乎全连成一块（实测最大块 ≥90，阈值 35–51）；z5（11-19 DMM 1080x1920）がむしゃら 的橙色爆炸插画
+    # 6–12 个零星红点（最大块 ≤8）落在这一段，牌组一览十来次拼接失败、相談删卡没做
+    k, _, st, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), 8)
+    biggest = int(st[1:, cv2.CC_STAT_AREA].max()) if k > 1 else 0
+    return 0 if biggest < need * PLUS_SPECKLE_FRAC else None
 
 
 def _customized(cell: MatLike) -> bool:
@@ -221,6 +229,19 @@ def read_card_grid(img: MatLike, region: tuple[int, int, int, int], geometry: st
     return out
 
 
+def _left_filled_rows(cards: list[dict]) -> list[dict]:
+    """一览每行从左往右排满（末行只缺右边）：一行认出的列不是从第 1 列连续排起（如只有第 4 列），是被标签栏挡住、露了一半的行，
+    整行丢掉，滑屏后再读。z5（11-19 01:45 DMM 1080x1920）：首屏最下一行只认出最右的 眠気，当成不满 4 张的末行，第 2 屏判「没有重叠」、拼出 25 张。"""
+    rows: dict[int, list[int]] = {}
+    for c in cards:
+        rows.setdefault(c["row"], []).append(c["col"])
+    bad = {r for r, cols in rows.items() if sorted(cols) != list(range(len(cols)))}
+    if not bad:
+        return cards
+    keep = [c for c in cards if c["row"] not in bad]
+    return [{**c, "index": i} for i, c in enumerate(keep)]
+
+
 def read_deck_list(img: MatLike) -> dict:
     """所持スキルカード一览页（一屏）。
 
@@ -232,7 +253,7 @@ def read_deck_list(img: MatLike) -> dict:
     - problems：deck 为 None 的原因。
     """
     size = read_deck_size(img)
-    cards = read_card_grid(img, LIST_VIEW, "list")  # 一览页固定 list 几何：标签栏 / 卡面图案上的误检字母会把自动推断带偏成 dialog（第二十局实机一屏只认出 4 张）
+    cards = _left_filled_rows(read_card_grid(img, LIST_VIEW, "list"))  # 一览页固定 list 几何：标签栏 / 卡面图案上的误检字母会把自动推断带偏成 dialog（第二十局实机一屏只认出 4 张）
     out = {"deck_size": size, "cards": cards, "rows_visible": (cards[-1]["row"] + 1) if cards else 0}
     out.update(_finish(cards, size, []))
     return out
@@ -343,6 +364,7 @@ def deck_diff(expected: list[dict], observed: list[dict]) -> dict:
 CURSOR_EXPAND, CURSOR_CORNER = 16, 30  # 选中格的橙色角框在卡格外侧约 16 像素、每角约 30 像素
 CURSOR_MIN_PX_118 = 600  # 118 像素卡格：选中 1103–1251，未选 ≤190（含橙色插图）
 DETAIL_BOX = (170, 95, 720, 160)  # 顶部详情栏第一行（卡名）
+CHANGE2_DETAIL_BOX = (190, 262, 690, 310)  # 换卡阶段 2 详情栏卡名行（mainz3 11-18 点卡后帧：「ひなたぼっこ」在 y≈285）
 
 
 @cache
@@ -536,14 +558,17 @@ def merge_deck_list(screens: list) -> dict:
     return out
 
 
-def read_card_dialog(img: MatLike, region: tuple[int, int, int, int] = REMOVAL_GRID) -> dict:
+def read_card_dialog(img: MatLike, region: tuple[int, int, int, int] = REMOVAL_GRID, expect: str | None = None,
+                     detail_box: tuple[int, int, int, int] = DETAIL_BOX) -> dict:  # fmt: skip
     """相談削除 / 强化、换卡第 2 步等「从牌组里选一张」的弹窗。
 
     返回 {cards, selected, selected_card, detail, agree}：
     - cards：卡格（read_card_grid）；selected：带橙色角框的格子 index（没有选中 None）；
     - detail：顶部详情栏卡名命中主数据的结果 {card_id, name, upgrade}（没选中时栏里是「スキルカードが選択されていません」→ None）；
     - selected_card：选中的卡。卡格和详情栏都读到时要一致（agree=True），以详情栏为准（带强化次数）；
-      只有一边读到时用那一边；两边不一致时 agree=False、selected_card=None（不猜）。
+      只有一边读到时用那一边（选中格认不出不算冲突）；两边不一致时 agree=False、selected_card=None（不猜）。
+    detail_box：详情栏卡名那一行（相談删除 / 强化在顶部 DETAIL_BOX；换卡阶段 2 详情栏在换入 / 换出缩略图下面，用 CHANGE2_DETAIL_BOX）。
+    expect：调用方知道要选哪张卡（换卡阶段 2 点了按目标卡核对出的、认不出的格子）时给 card_id，详情栏卡名也在它里面找。
     """
     from hiro.vision.ocr import ocr_boxes
 
@@ -553,12 +578,12 @@ def read_card_dialog(img: MatLike, region: tuple[int, int, int, int] = REMOVAL_G
     need = CURSOR_MIN_PX_118 * ((cards[0]["rect"][2] / 118) ** 2 if cards else 1)
     hot = [i for i, v in enumerate(px) if v >= need]
     selected = hot[0] if len(hot) == 1 else None
-    x1, y1, x2, y2 = DETAIL_BOX
-    ids = {c["card_id"] for c in cards if c["card_id"]}
+    x1, y1, x2, y2 = detail_box
+    ids = {c["card_id"] for c in cards if c["card_id"]} | ({expect} if expect else set())
     detail = next((hit for t, _, _ in ocr_boxes(img[y1:y2, x1:x2]) if (hit := card_from_name(t, ids))), None)
     cell = cards[selected] if selected is not None else None
     agree = None
-    if cell is not None and detail is not None:
+    if cell is not None and cell["card_id"] and detail is not None:
         agree = cell["card_id"] == detail["card_id"] and cell["upgrade"] in (detail["upgrade"], None)
     if agree is False:
         chosen = None
@@ -716,6 +741,13 @@ def _stray_fragment(text: str) -> bool:
     return len(t) <= 3 and not _JA.search(t)
 
 
+ACQUIRE_RETRY_SCALE = 1.5
+
+
+def _acquire_bar_boxes(ocr_boxes, crop, x1: int, **kw) -> list[tuple[str, float]]:
+    return [(t, (b[0] + b[2]) / 2 + x1) for t, _, b in ocr_boxes(crop, **kw) if len(t.strip()) >= 2 and not _stray_fragment(t)]
+
+
 def read_acquire_popup(img: MatLike, art: bool = True) -> dict | None:
     """获得演出的名称栏：{kind: card|drink|pitem, card_id/drink_id/pitem_id, name, upgrade?, art_card_id?, agree?, text}。
 
@@ -731,7 +763,11 @@ def read_acquire_popup(img: MatLike, art: bool = True) -> dict | None:
     # 名称前的图标有时被单独切成一个单字框（「と」），不参与判断
     # 很短、不含假名 / 汉字的碎片也不算（DMM qualifyz1 17:35：支援能力横幅盖住获得演出，名称栏右端露出后面横幅的「H.I.F」一角，
     # 读成「ıF」，整页没认成获得页，180 秒停机）。选饮料页、Pドリンク詳細 旁边的字都是日文，照旧排除
-    boxes = [(t, (b[0] + b[2]) / 2 + x1) for t, _, b in ocr_boxes(img[y1:y2, x1:x2]) if len(t.strip()) >= 2 and not _stray_fragment(t)]
+    boxes = _acquire_bar_boxes(ocr_boxes, img[y1:y2, x1:x2], x1)
+    if not boxes:
+        # 放大 3 倍读空时再用 1.5 倍读一次（mainz7 11-19 DMM RapidOCR：P 道具效果拿饮料的演出，名称栏 3 倍一个字都没读出，
+        # 1.5 / 2 倍都读得出「ホットコーヒー」，整页判 unknown、180 秒停机）
+        boxes = _acquire_bar_boxes(ocr_boxes, img[y1:y2, x1:x2], x1, scale=ACQUIRE_RETRY_SCALE)
     if not boxes or any(abs(cx - ACQUIRE_CENTER_X) > ACQUIRE_CENTER_TOL for _, cx in boxes):
         return None
     text = "".join(t for t, _ in boxes)

@@ -33,6 +33,7 @@ def test_unknown_kept_over_known_bad():
     assert d.action.args["discard"] == [2], d.reason
 
 
+@pytest.mark.kaa
 def test_hif_pdrink_max_rereads_on_wait(monkeypatch):
     """决策给不出（Wait）时 on_pdrink_max 重读再决策，不直接走 KAA 默认的跳过新饮料。"""
     from types import SimpleNamespace as NS

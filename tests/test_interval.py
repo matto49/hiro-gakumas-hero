@@ -399,3 +399,16 @@ def test_screen_status_falls_back_to_observed_state():
     st = interval.screen_status(shoot=lambda: blank, ocr=lambda im: [], fallback=lambda: (21, 33, 250), tries=2)
     assert st == (21, 33, 250)
     assert interval.screen_status(shoot=lambda: blank, ocr=lambda im: [], tries=1) == (None, None, None)
+
+
+def test_ouenbou_fill_by_pool():
+    """応援棒按真实卡池补：缺几张按权重最大余数法分（広 やる気流派：距離感 75、其余 25 → 缺 5 张 = 距離感 ×2 + 另三种各 1）；
+    不给卡池照旧轮换；够 22 张不补。"""
+    from hiro.sim import interval as iv
+
+    pool = (("p_card-02-act-0_037", 25), ("p_card-02-act-0_038", 25), ("p_card-02-men-0_039", 75), ("p_card-02-men-0_041", 25))
+    got = iv.ouenbou_fill([("x", 0)] * 17, pool)[17:]
+    assert sorted(c for c, _ in got) == sorted(["p_card-02-men-0_039"] * 2 + ["p_card-02-act-0_037", "p_card-02-act-0_038", "p_card-02-men-0_041"])
+    assert iv.ouenbou_fill([("x", 0)] * 21)[21:] == [(iv.OUENBOU_BASICS[0], 0)]
+    assert iv.ouenbou_fill([("x", 0)] * 22, pool) == [("x", 0)] * 22
+    assert iv.R2Setup(deck=[], drinks=[], hp=1, max_hp=1, permil={}, ouenbou_pool=pool).key() != iv.R2Setup(deck=[], drinks=[], hp=1, max_hp=1, permil={}).key()

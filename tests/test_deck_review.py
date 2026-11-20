@@ -268,3 +268,41 @@ def test_count_mismatch_rereads_top_and_bottom(monkeypatch):
 def test_count_mismatch_reread_still_wrong_writes_nothing(monkeypatch):
     r, _, _ = _rows_list(monkeypatch, retry_ok=False)
     assert r["deck"] is None and any("不写牌组" in p for p in r["problems"]) and r["closed"]
+
+
+def test_empty_deck_failed_read_retried_next_visit(monkeypatch):
+    """协调 11-18 初 MASTER：续跑后牌组按钮点了两次没反应、一览 20 秒后才弹出，读牌放弃。原来失败也算「这一考试段读过」，
+    之后几次选行动都没再读，牌组 0 张进课程（GNRPA「拼不了编成」）。牌组为空时失败了下次选行动再读，同一考试段最多 EMPTY_REVIEW_TRIES 次。"""
+    import hiro.produce.hif as hif
+
+    monkeypatch.delenv("HIRO_DECK_REVIEW", raising=False)
+    calls = []
+    st = _strategy(monkeypatch, [], False, calls, ok=False)
+    st._reviewed_at_exam = None  # 开局 / 续跑：这一考试段还没读过
+    for _ in range(hif.HiroHifStrategy.EMPTY_REVIEW_TRIES + 2):
+        st._maybe_review_deck()
+    assert len(calls) == hif.HiroHifStrategy.EMPTY_REVIEW_TRIES  # 每次选行动都再试，到上限停
+    st.exam_count = 1  # 下一考试段重新计数
+    st._maybe_review_deck()
+    assert len(calls) == hif.HiroHifStrategy.EMPTY_REVIEW_TRIES + 1
+
+
+def test_empty_deck_retry_succeeds_then_stops(monkeypatch):
+    """第二次读到了：写回牌组，之后不再读。"""
+    monkeypatch.delenv("HIRO_DECK_REVIEW", raising=False)
+    calls, results = [], [None, [{"card_id": "c0", "upgrade": 0}]]
+    st = _strategy(monkeypatch, [], False, calls, ok=False)
+    st._reviewed_at_exam = None
+
+    def review(**kw):
+        calls.append(1)
+        deck = results[min(len(calls), len(results)) - 1]
+        if deck:
+            st.s.state.produce["deck"] = deck  # 观测 DECK_LIST 写回（reduce）在替身里直接写
+        return {"deck": deck, "deck_size": 1 if deck else None, "opened": bool(deck), "closed": True, "problems": [] if deck else ["没打开"],
+                "page": {"deck": deck, "deck_size": 1, "complete": True}}  # fmt: skip
+
+    monkeypatch.setattr(dr, "review_deck", review)
+    for _ in range(4):
+        st._maybe_review_deck()
+    assert len(calls) == 2

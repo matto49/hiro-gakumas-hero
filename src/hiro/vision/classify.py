@@ -96,9 +96,29 @@ def option_regions(img) -> list:
     return [r[3] for r in regions if r[1]]
 
 
+def _outing_options(img) -> int:
+    """外出页的选项数：亮按钮（option_regions）+ 灰色选不了的（P 不够；初 Mac 11-17 外出三档两档是灰的，原来只数到 1 个判 IDLE，180 秒停）。"""
+    from hiro.vision.event import grey_rows
+
+    return option_buttons(img) + len(grey_rows(img))
+
+
 # ---------------------------------------------------------------- KAA check_scene 的同一套模板判据（只判不点）
 def _any(img, *names) -> bool:
     return any(tpl(n).exists(img) for n in names)
+
+
+SELECT_TITLE_BOX = (230, 590, 370, 670)  # 三选一弹窗标题「スキルカード / Pアイテム / Pドリンク」的位置（KAA 模板原位 (247,613) 107x32）
+
+
+def _title(img, name: str) -> bool:
+    """三选一弹窗标题模板只认原位：支援能力横幅「Pアイテム獲得時、…」（y≈460）也会命中同一行字（初 PRO 11-18：中間后判成
+    SELECT_PITEM，读不到候选重读 3 次停机）。"""
+    m = tpl(name).find(img)
+    if m is None:
+        return False
+    x1, y1, x2, y2 = SELECT_TITLE_BOX
+    return x1 <= m.rect.center.x <= x2 and y1 <= m.rect.center.y <= y2
 
 
 def template_scene(img) -> str | None:
@@ -115,11 +135,11 @@ def template_scene(img) -> str | None:
         return "IDLE"  # 引导框：KAA 判页时点 ✓，这里只判（中断层 / 处理器去点）
     if _any(img, "InProduce.ProduceScore.TitleText", "InProduce.End.ButtonGenerate"):
         return "PRODUCE_END"
-    if _any(img, "InProduce.TextSkillCard"):
+    if _title(img, "InProduce.TextSkillCard"):
         return "SELECT_CARD"
-    if _any(img, "InProduce.TextPItem"):
+    if _title(img, "InProduce.TextPItem"):
         return "SELECT_PITEM"
-    if _any(img, "InProduce.TextPDrink"):
+    if _title(img, "InProduce.TextPDrink"):
         return "SELECT_DRINK"
     if _any(img, "InProduce.IconTitleSkillCardEnhance"):
         return "SKILL_CARD_ENHANCE"
@@ -135,7 +155,7 @@ def template_scene(img) -> str | None:
         if _any(img, "InProduce.IconTitleStudy"):
             return "STUDY" if option_buttons(img) > 1 else "IDLE"
         if _any(img, "InProduce.TitleIconOuting"):
-            return "OUTING" if option_buttons(img) > 1 else "IDLE"
+            return "OUTING" if _outing_options(img) > 1 else "IDLE"
         if _any(img, "InProduce.IconTitleConsult"):
             return "CONSULT"
         if _any(img, "InProduce.IconTitleAllowance"):
@@ -149,7 +169,7 @@ def template_scene(img) -> str | None:
         # 支援能力横幅盖住时签名也认不出。相談标题图标只在培育的相談页出现，单独认
         return "CONSULT"
     elif _any(img, "InProduce.TitleIconOuting"):
-        return "OUTING" if option_buttons(img) > 1 else "IDLE"
+        return "OUTING" if _outing_options(img) > 1 else "IDLE"
     if _any(img, "InProduce.TextClearUntil", "InProduce.TextPerfectUntil"):
         return "PRACTICE"
     if _any(img, "InProduce.TextExamRankSmallFirst", "InProduce.TextExamRankLargeFirst"):

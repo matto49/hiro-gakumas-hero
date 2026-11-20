@@ -309,3 +309,55 @@ def test_merge_deck_list_real_main20r1():
     assert names[:4] == ["届いて！", "あのときの約束", "せのびの魔法", "エウレカ！"]
     assert names[-8:] == ["ゆめみごこち", "成長痛", "えいえいおー", "えいえいおー", "えいえいおー", "思い出し笑い", "距離感の基本", "紅葉ランニング"]
     assert [(d["upgrade"]) for d in r["deck"][12:16]] == [1, 1, 1, 0]
+
+
+def _cell_with_red(blobs, size=141):
+    """合成卡格：白底，在「+」区域里按 blobs 画红色块 [(x, y, w, h)]（相对「+」区域左上角）。"""
+    import numpy as np
+
+    img = np.full((size, size, 3), 255, np.uint8)
+    y1, x1 = int(round(deck.PLUS_BOX[0] * size)), int(round(deck.PLUS_BOX[2] * size))
+    for x, y, w, h in blobs:
+        img[y1 + y : y1 + y + h, x1 + x : x1 + x + w] = (0, 0, 230)  # BGR 纯红
+    return img
+
+
+@pytest.mark.synthetic
+def test_plus_scattered_art_red_is_zero():
+    """z5（11-19 DMM 1080x1920）：がむしゃら 的橙色爆炸插画在「+」区域里有 6–12 个零星红点（最大连通块 ≤ 8），落在「看不清」区间，
+    牌组一览因此十来次拼接失败、相談删卡没做。零星红点（最大连通块不到阈值一半）判 0。"""
+    dots = [(2 + 6 * i, 4 + (i % 3) * 5, 2, 2) for i in range(5)]  # 5 个 2x2 红点 = 20 px，最大块 4
+    assert deck._plus(_cell_with_red(dots)) == 0
+
+
+@pytest.mark.synthetic
+def test_plus_compact_partial_red_stays_unsure():
+    assert deck._plus(_cell_with_red([(4, 4, 6, 5)])) is None  # 30 px 成块：可能是没显示全的「+」，仍然不确定
+
+
+def _z5(name):
+    import cv2
+
+    p = Path(__file__).parent / "fixtures" / "deck_list" / name
+    if not p.exists():
+        pytest.skip(f"没有 z5 牌组一览帧 {name}")
+    return cv2.imread(str(p))
+
+
+def test_deck_list_drops_half_visible_row():
+    """z5（11-19 01:45 DMM 1080x1920）：第 1 屏最下一行被标签栏挡住，只认出最右的 眠気，当成「不满 4 张的末行」，
+    第 2 屏就判「没有重叠的行」、拼出 25 张。一览每行从左往右排满：不是从第 1 列连续排起的行是露了一半，丢掉。"""
+    r = deck.read_deck_list(_z5("dl-20261119-014525-00.jpg"))
+    rows = {}
+    for c in r["cards"]:
+        rows.setdefault(c["row"], []).append(c["col"])
+    assert all(cols == list(range(len(cols))) for cols in rows.values())
+    assert [c["name"] for c in r["cards"]][-1] != "眠気" and len(r["cards"]) == 12
+
+
+def test_deck_list_merge_z5_first_review():
+    from hiro.produce.deck_review import merge_screens
+
+    imgs = [_z5(f"dl-20261119-014525-0{i}.jpg") for i in range(2)]
+    out = merge_screens(imgs)
+    assert not any("没有重叠" in p for p in out.get("problems") or []), out.get("problems")

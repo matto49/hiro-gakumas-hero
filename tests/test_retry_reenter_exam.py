@@ -205,3 +205,52 @@ def test_fourth_finals_retry_refused_without_screen_count(tmp_path, monkeypatch)
 
     btn = Text("再挑戦", Box(290, 1090, 310, 1110))
     assert st._click_retry("lesson-3", btn, [btn]) is None and clicks == []
+
+
+def _final_page(me_total, me_round, first_total):
+    return {"kind": "final", "rank": 2, "outcome": "敗退", "score": me_total, "round_score": me_round,
+            "entries": [{"rank": 1, "name": "十王星南", "score": first_total, "me": False},
+                        {"rank": 2, "name": "篠澤広", "score": me_total, "round_score": me_round, "me": True}]}  # fmt: skip
+
+
+def _gap_strategy(monkeypatch, page):
+    from types import SimpleNamespace as NS
+
+    import hiro.produce.hif as hif
+    import hiro.vision.pages as pages
+    from hiro.vision.ocr import Box, Text
+
+    st = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    notes, calls = [], []
+    st.s = NS(note=notes.append)
+    st.rec = NS(log=lambda *a, **k: None)
+    monkeypatch.setattr(pages, "classify_page", lambda img: ("HIF_FINALS_RANKING", page))
+    monkeypatch.setattr(hif, "screen_texts", lambda *a, **k: [Text("再挑戦", Box(290, 1090, 310, 1110))])
+    st._click_retry = lambda label, b, texts: calls.append(label) or "ticket"
+    return st, notes, calls
+
+
+def test_finals_retry_skipped_when_far_behind_first(monkeypatch):
+    """mainz4（11-18）R2：第 2 名 846,075（本轮 362,089），第 1 名 十王星南 1,080,506，差 23.4 万 = 本轮分的 65%；
+    四次 R2 本轮分只在 33–38 万之间，重打追不上，还把更好的一次（866,880）覆盖掉、多花 3 张券。用户 11-18：差距很大就不要重打。"""
+    st, notes, calls = _gap_strategy(monkeypatch, _final_page(846075, 362089, 1080506))
+    assert st._finals_retry(None, "r2") is False and calls == []
+    assert any("差距" in n and "不再挑戦" in n for n in notes)
+
+
+def test_finals_retry_kept_when_close_to_first(monkeypatch):
+    """mainverify4（11-17）：离第 1 约 9 千，照常重打。"""
+    st, notes, calls = _gap_strategy(monkeypatch, _final_page(1071491, 400000, 1080506))
+    assert st._finals_retry(None, "r2") is True and calls == ["r2"]
+
+
+def test_finals_retry_gap_unreadable_keeps_old_rule(monkeypatch):
+    page = _final_page(846075, None, 1080506)  # 本轮分没读到：算不了差距，按原规则重打
+    st, notes, calls = _gap_strategy(monkeypatch, page)
+    assert st._finals_retry(None, "r2") is True
+
+
+def test_finals_retry_gap_threshold_env(monkeypatch):
+    monkeypatch.setenv("HIRO_RETRY_GAP_MAX", "1.0")  # 放宽到 100%：65% 的差距也重打
+    st, notes, calls = _gap_strategy(monkeypatch, _final_page(846075, 362089, 1080506))
+    assert st._finals_retry(None, "r2") is True

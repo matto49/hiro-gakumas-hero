@@ -55,11 +55,21 @@ end tell"""
     return r.stdout.strip() == "ok"
 
 
+def frozen_exit_enabled() -> bool:
+    """开关 HIRO_LIVE_FROZEN_EXIT=1（默认关，协调 11-17 初 True End LIVE）：全屏里 LIVE 画面冻住（游戏其实暂停了，全屏里看不到暂停提示）
+    FROZEN_S 秒就退出全屏；退出后竖屏显示「画面タップで再開」，由中断层 live_resume 点掉。"""
+    import os
+
+    return os.environ.get("HIRO_LIVE_FROZEN_EXIT") == "1"
+
+
 class LandscapeGuard:
     """controller 每轮喂一帧：黑屏持续 BLACK_S 秒 → 进全屏；全屏中 LIVE 计时消失或又黑屏持续 → 退全屏并还原前台应用。"""
 
     BLACK_S = 20.0
     EXIT_BLACK_S = 8.0
+    FROZEN_S = 8.0  # 全屏横屏画面连续这么久几乎不变 = LIVE 暂停（演出镜头一直在动）
+    FROZEN_DIFF = 1.0  # 相邻两帧 64x36 灰度缩略图平均差小于这个算没变（实机冻住的两帧完全相同）
 
     def __init__(self, *, active: bool = True):
         self.active = active  # 只有 PlayCover 有横屏黑屏问题；其他平台（模拟器 / DMM）只用 in_live 判断，不切全屏
@@ -67,6 +77,8 @@ class LandscapeGuard:
         self.fullscreen = False
         self.prev_front: NSRunningApplication | None = None
         self.entered_at = 0.0
+        self.frozen_since: float | None = None
+        self._thumb = None
 
     def in_live(self, img) -> bool:
         """LIVE 演出中（横向画面、全屏中或黑屏）：画面本来就认不出，调用方不要按「持续未识别」停下。"""
@@ -96,7 +108,27 @@ class LandscapeGuard:
         # 全屏中：LIVE 结束后游戏回竖屏 → 横向全屏窗口又是黑的
         if black and now - self.black_since >= self.EXIT_BLACK_S and now - self.entered_at > 30:
             return self._exit()
+        if self._frozen(img, black, now):
+            logger.warning("全屏 LIVE 画面 %.0fs 没变（游戏暂停了，全屏里看不到「画面タップで再開」）：退出全屏", now - self.frozen_since)
+            self.frozen_since = None
+            return self._exit()
         return False
+
+    def _frozen(self, img, black: bool, now: float) -> bool:
+        if not frozen_exit_enabled() or img is None or black or img.shape[1] <= img.shape[0]:
+            self.frozen_since, self._thumb = None, None
+            return False
+        import cv2
+
+        thumb = cv2.resize(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), (64, 36)).astype("float32")
+        same = self._thumb is not None and float(abs(thumb - self._thumb).mean()) < self.FROZEN_DIFF
+        self._thumb = thumb
+        if not same:
+            self.frozen_since = None
+            return False
+        if self.frozen_since is None:
+            self.frozen_since = now
+        return now - self.frozen_since >= self.FROZEN_S and now - self.entered_at >= self.FROZEN_S
 
     def _enter(self) -> bool:
         pid = _game_pid()

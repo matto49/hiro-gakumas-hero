@@ -13,11 +13,14 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import logging
+import math
 import os
 import random
+import re
 import time
 import urllib.request
 from pathlib import Path
@@ -174,9 +177,35 @@ def tower_algo_spec() -> str:
     return (os.environ.get("HIRO_TOWER_ALGO") or TOWER_DEFAULT_ALGO).strip()
 
 
-def exam_search_algo_spec() -> str:
-    """初 / N.I.A 场次的出牌算法（HIRO_EXAM_SEARCH_ALGO）；缺省空 = 用 H.I.F 那个（uinet）。"""
-    return (os.environ.get("HIRO_EXAM_SEARCH_ALGO") or "").strip()
+EXAM_DEFAULT_ALGO = "hiro.search.exam_algo:ExamGnrpa"
+
+
+def exam_search_algo_spec(label: str = "") -> str:
+    """初 / N.I.A 场次的出牌算法。HIRO_EXAM_SEARCH_ALGO 设了就用它（两个家族都管）；没设时：
+    - 初的中間 / 最終考试（hajime-mid1 / hajime-final）和课程（hajime-lesson-*）缺省走 Rust GNRPA（EXAM_DEFAULT_ALGO，目标用按场次的
+      stage_objective）——协调 11-17 / 11-18 定，依据 bench：初考试 30 题 × 2 种子（中期 uinet 63% → 94%）、课程 33 题 × 2 种子
+      （69% → 93%，满分 34 → 51 局）；HIRO_EXAM_SEARCH_HAJIME=0 两样都退回 uinet；
+    - N.I.A 试镜（nia-mid1 / mid2 / final）：HIRO_EXAM_SEARCH_NIA 打开才走 GNRPA（按场次目标 + 对手分缩放，护栏和倍率画面实读同初）；
+      缺省关（协调 11-18：bench MASTER 过线 78% → 90–97%，但初的 GNRPA 第一次上实机就因倍率 0 打成 227，N.I.A 要等实机验过再开）。"""
+    spec = (os.environ.get("HIRO_EXAM_SEARCH_ALGO") or "").strip()
+    if spec:
+        return spec
+    base = str(label or "").split("#", 1)[0].lower()
+    if (base in ("hajime-mid1", "hajime-final") or base.startswith("hajime-lesson")) and hajime_search_on():
+        return EXAM_DEFAULT_ALGO
+    if base.startswith("nia-") and nia_search_on():
+        return EXAM_DEFAULT_ALGO
+    return ""
+
+
+def nia_search_on() -> bool:
+    """HIRO_EXAM_SEARCH_NIA：N.I.A 试镜走搜索，缺省关（协调定）；1 / on / true / yes 开。"""
+    return (os.environ.get("HIRO_EXAM_SEARCH_NIA") or "").strip().lower() in ("1", "on", "true", "yes")
+
+
+def hajime_search_on() -> bool:
+    """HIRO_EXAM_SEARCH_HAJIME：初的考试和课程走搜索，缺省开（协调定）；0 / off / false 关。"""
+    return (os.environ.get("HIRO_EXAM_SEARCH_HAJIME") or "1").strip().lower() not in ("0", "off", "false", "no")
 
 
 def load_algo(spec: str | None = None, *, download: bool = True):
@@ -299,13 +328,53 @@ def _round_defaults(label: str | None, deck: list) -> tuple[dict, dict | None]:
     return permil, alloc
 
 
-def _audition_number(label: str | None) -> int | None:
-    """标签 tag 里的试镜档位：nia-mid1#audition-2 → 2（平台 11-17 约定）。"""
+def items_from_enchants(ench) -> list[str]:
+    """UIObs 的附魔列表 → 持有的 P 道具 id：P 道具的考试附魔是 enchant-p_item_effect_<道具号>-encNN（道具 pitem_<道具号>）。
+    这份列表是 ScreenTracker 记的：偶像固有道具开场按主数据放进去（Enchants.idol_items = IdolCard.beforeProduceItemId），
+    其余道具画面认出来才有。初 PRO 第一局 / H.I.F mainz4（11-18）：P 道具账本是空的，拼的编成里连固有道具 選びとった熱 都没有，
+    T7 打えいえいおー 画面上道具发动（追加行动、やる気+N），引擎里没有，后面整段对不上。"""
+    out: list[str] = []
+    for e in ench or ():
+        eid = str(e[0] if isinstance(e, (list, tuple)) else e)
+        m = re.match(r"^enchant-p_item_effect_(\d{2}-\d-\d{3}-\d)-enc\d+$", eid)
+        if m and (iid := f"pitem_{m.group(1)}") not in out:
+            out.append(iid)
+    return out
+
+
+def stage_round(family: str, stage: str | None) -> str | None:
+    """面板过线条件原文（exam.pass_line.stage）→ 场次：初「…中間試験突破」mid1 /「…最終試験突破」final；N.I.A「1次 / 2次 / 最終
+    オーディション」mid1 / mid2 / final（N.I.A 面板还没有实拍帧，按关键词认，全角数字 / 汉数字都认）。认不出 None。"""
+    t = str(stage or "")
+    if not t:
+        return None
+    if family == "hajime":
+        return "mid1" if "中間" in t else "final" if "最終" in t else None
+    if family == "nia":
+        if "最終" in t:
+            return "final"
+        if any(k in t for k in ("2次", "２次", "二次")):
+            return "mid2"
+        if any(k in t for k in ("1次", "１次", "一次")):
+            return "mid1"
+    return None
+
+
+class _Waiting(Exception):
+    """实机拼编成还在等（倍率没读到）：这一步用 H.I.F 的算法，不算搜索开局失败。"""
+
+
+def _tag_number(label: str | None, key: str) -> int | None:
+    """标签 tag 里的编号：nia-mid1#audition-2 → 2（试镜档位，平台 11-17 约定）；hajime-lesson-vo-sp#lesson-3 → 3（同种同属性第几节课）。"""
     for tag in str(label or "").split("#")[1:]:
         k, _, v = tag.partition("-")
-        if k == "audition" and v.isdigit():
+        if k == key and v.isdigit():
             return int(v)
     return None
+
+
+def _audition_number(label: str | None) -> int | None:
+    return _tag_number(label, "audition")
 
 
 def _exam_loadout(ctx: dict) -> dict | None:
@@ -404,12 +473,17 @@ class BenchAdvisor:
         self._session = None
         self._number: int | None = None
         self._live_built = False
+        self._history: list = []
+        self._calc_pm: dict = {}  # 按三属性粗算的倍率（只当比例用）
+        self._seen_pm: dict = {}  # 这一场画面实读到的倍率（每属性最后一次非 0 的读数）
+        self._live_wait: str | None = None  # 实机拼编成在等什么（倍率没读到）：这一步用 uinet、下一步再拼
         self.known_draws: list | None = None
         self.load_error: str | None = None
         self.exam: dict = {}
         self.label: str | None = None
         self.tracker = None
         self.began = False
+        self._hif_began = False
         self.rng = random.Random(0)
         self.stats = {"bench": 0, "rules": 0}
         self.deck: list = []
@@ -446,8 +520,10 @@ class BenchAdvisor:
             trend = tuple(idol_trend(idol)[1]) if idol else None
         except Exception:  # noqa: BLE001
             trend = None
-        self.exam = exam_fields(self.label, idol=idol, plan=_plan_number(idol))
+        self._session = ctx.get("session")
+        self.exam = exam_fields(self.label, idol=idol, plan=_plan_number(idol), produce=self._live_mode())
         self.exam["permil_default"], self.exam["allocation"] = _round_defaults(self.label, self.deck)
+        self._history: list = []  # 这一场执行过的 (UIObs, 动作)：编成晚拼时交给搜索补放（ExamGnrpa._replay）
         self.tower_loadout = None
         self.known_draws = None
         if str(self.label or "").lower().startswith("tower") and (lo := _tower_loadout(ctx)) is not None:
@@ -482,6 +558,12 @@ class BenchAdvisor:
                 self.exam["crit"], self.exam["permil_default"], self.exam["allocation"] = ac["crit"], {}, None
                 if ac["turns"]:
                     self.exam["turns"] = ac["turns"]
+        self._calc_pm, self._seen_pm, self._live_wait = {}, {}, None
+        self._label_note = None
+        self._round_checked = str(self.label or "").split("#", 1)[0].lower() not in ("hajime-mid1", "hajime-final", "nia-mid1", "nia-mid2", "nia-final")
+        base = str(self.label or "").split("#", 1)[0].lower()
+        if lo is None and base.startswith(("hajime-", "nia-")) and "-lesson" not in base:
+            self._audition_defaults(idol, number)
         if lo is not None:
             from hiro.bench_bridge.screen import exam_context, exam_fields
 
@@ -510,6 +592,7 @@ class BenchAdvisor:
         self.tracker = ScreenTracker(self.deck, trend, enchants=ench, items=items)
         self._pick_algo()
         self.began = False
+        self._hif_began = False  # 搜索算法某步搜不了时临时用 H.I.F 的算法：它这一场 begin 过没有
         self.rng = random.Random(hash((self.label, round_no)) & 0xFFFFFFFF)
         self.stats = {"bench": 0, "rules": 0}
         if self.algo is None:
@@ -522,9 +605,9 @@ class BenchAdvisor:
         if not enabled():
             return
         if label.startswith(("hajime", "nia")):
-            # 初 / N.I.A：HIRO_EXAM_SEARCH_ALGO 设了才走搜索（如 hiro.search.exam_algo:ExamGnrpa，自己按 UIObs 对齐引擎局面，
-            # 不要 screen_source 跟踪）；缺省不设 = uinet（行为变化开关默认关：bench 上 GNRPA 还只比 uinet 略好，目标没按场次填）
-            spec = exam_search_algo_spec()
+            # 初 / N.I.A：搜索（ExamGnrpa 自己按 UIObs 对齐引擎局面，不要 screen_source 跟踪）。初的考试和课程缺省开，
+            # N.I.A 缺省关、HIRO_EXAM_SEARCH_NIA 打开（exam_search_algo_spec）
+            spec = exam_search_algo_spec(label)
             if not spec:
                 return
             what = "初 / N.I.A"
@@ -561,27 +644,38 @@ class BenchAdvisor:
 
         base = str(self.label or "").split("#", 1)[0].lower()
         rnd = base.partition("-")[2]
-        if rnd.startswith("lesson"):
-            return None  # 课程：引擎还不支持
         idol, produce = self.exam.get("idol"), self.exam.get("produce")
         if not idol or not self.deck:
             logger.info("[%s] 拼不了编成（偶像 %s、牌组 %d 张）", self.label, idol, len(self.deck))
             return None
-        try:
-            row = audition_row(idol, produce, rnd, self._number)
-        except ExamUnsupported as e:
-            logger.warning("[%s] 拼编成时查不到试镜行：%s", self.label, e)
-            return None
         num = obs.get("num") or {}
-        pm = self.exam.get("permil_fixed") or dict(zip(("Vo", "Da", "Vi"), (obs.get("exam") or {}).get("permil") or (0, 0, 0)))
         lo = {"produce_id": produce, "round": rnd, "idol_card_id": idol,
               "produce_cards": [f"{c}+{u}" if u else c for c, u in self.deck],
               "starting_stamina": int(num.get("stamina") or 0) or None, "max_stamina": int(num.get("max_stamina") or 0) or None,
-              "score_bonus_permils": [int(pm.get(a) or 0) for a in ("Vo", "Da", "Vi")], "drink_ids": list(obs.get("drinks") or []),
-              "exam": {"produce_exam_battle_config_id": row["produceExamBattleConfigId"],
-                       "produce_exam_gimmick_effect_group_id": row.get("produceExamGimmickEffectGroupId") or None,
-                       "produce_exam_battle_npc_group_id": row["produceExamBattleNpcGroupId"]},
-              "audition": {k: row.get(k) for k in ("rankThreshold", "baseScore", "forceEndScore", "voteCount", "isStaticNpcScore", "number")}}  # fmt: skip
+              "drink_ids": list(obs.get("drinks") or [])}  # fmt: skip
+        if rnd.startswith("lesson"):
+            got = self._live_lesson(base, obs)
+            if got is None:
+                return None
+            lo.update(round="lesson", lesson=got)
+            row = {"number": None}
+        else:
+            try:
+                row = audition_row(idol, produce, rnd, self._number)
+            except ExamUnsupported as e:
+                logger.warning("[%s] 拼编成时查不到试镜行：%s", self.label, e)
+                return None
+            pm, why = self._exam_permils()
+            if pm is None:
+                # 倍率不全不能交给搜索（引擎会以为出牌不加分，初第二局中間 227 分）：这一步用 uinet，下一步画面读到了再拼
+                self._live_wait = why
+                logger.info("[%s] 倍率还不够拼编成（%s），这一步用 uinet", self.label, why)
+                return None
+            lo.update(score_bonus_permils=[int(pm.get(a) or 0) for a in ("Vo", "Da", "Vi")],
+                      exam={"produce_exam_battle_config_id": row["produceExamBattleConfigId"],
+                            "produce_exam_gimmick_effect_group_id": row.get("produceExamGimmickEffectGroupId") or None,
+                            "produce_exam_battle_npc_group_id": row["produceExamBattleNpcGroupId"]},
+                      audition={k: row.get(k) for k in ("rankThreshold", "baseScore", "forceEndScore", "voteCount", "isStaticNpcScore", "number")})  # fmt: skip
         try:
             from hiro.search.loadout import run_loadout
 
@@ -597,16 +691,245 @@ class BenchAdvisor:
             run, notes = run_loadout(produce_state, plan)
             # 回忆附魔（run["skills"]）只认 H.I.F 回忆技能（触发 p_trigger-start_audition-for_hif_memory，只在 H.I.F 考试生效），
             # 初 / N.I.A 不给；N.I.A 回忆能力（「1次オーディション開始時、30%の確率で…」）还没解析，先按没有（3940a9 11-17）
-            lo.update(produce_item_ids=list(run["items"]), supports=list(run["supports"]), skills=[])
+            items = list(run["items"])
+            seen = [i for i in items_from_enchants(obs.get("ench")) if i not in items]
+            if seen:  # 账本没记的 P 道具：UIObs 附魔列表里有它的附魔（p_item_effect_<id>-encNN）就补上
+                logger.info("[%s] 拼编成：P 道具按 UIObs 附魔补 %s（账本没有）", self.label, seen)
+                items += seen
+            lo.update(produce_item_ids=items, supports=list(run["supports"]), skills=[])
             if notes:
                 logger.info("[%s] 拼编成：%s", self.label, "；".join(notes))
         except Exception as e:  # noqa: BLE001  道具 / 支援卡拼不出：按没有搜
             logger.info("[%s] 拼编成时 run_loadout 失败（按没有道具 / 支援卡）：%s: %s", self.label, type(e).__name__, e)
-        if not lo["max_stamina"] or not all(lo["score_bonus_permils"]):
-            logger.info("[%s] 拼编成：最大体力 / 倍率读数不全（%s / %s），照样交给算法", self.label, lo["max_stamina"], lo["score_bonus_permils"])
+        if lo.get("audition"):
+            self._npc_permil(lo)
+        if not lo["max_stamina"]:
+            # 考试画面只显示当前体力。广以外的偶像构筑表没有 max_hp（11-19 ことね：max_stamina=None，ExamGnrpa 开局 int(None) 整场退回 uinet）：
+            # 用培育局面里选行动页读到的「体力 35/36」的上限；再没有就用开考时的体力（不会比上限大）
+            ps = (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
+            got = int(ps.get("max_stamina") or 0) or None
+            src = "培育局面"
+            if got is None and lo.get("starting_stamina"):
+                got, src = int(lo["starting_stamina"]), "开考时的体力"
+            if got:
+                lo["max_stamina"] = got
+                logger.info("[%s] 拼编成：考试画面没有最大体力，用%s的 %d", self.label, src, got)
+            else:
+                logger.info("[%s] 拼编成：最大体力没读到，照样交给算法", self.label)
         logger.info("[%s] 现拼编成：牌组 %d 张、P 道具 %d、支援卡 %d、档位 %s", self.label, len(lo["produce_cards"]),
                     len(lo.get("produce_item_ids") or ()), len(lo.get("supports") or ()), row.get("number"))  # fmt: skip
         return lo
+
+    def _live_mode(self) -> str | None:
+        """实机这一局的培育 id（state.produce.mode）：和标签同一家族（初 / N.I.A）才用。初 PRO 第一局（协调 11-18）：exam_fields 按标签
+        缺省 hajime → produce-001，局面其实是 produce-002，battle config / 封顶（REGULAR 900、PRO 1700）全按 REGULAR 取。"""
+        ps = (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
+        ps = ps if isinstance(ps, dict) else getattr(ps, "__dict__", {})
+        mode = ps.get("mode")
+        fam = str(self.label or "").split("#", 1)[0].split("-", 1)[0].lower()
+        if not mode or fam not in ("hajime", "nia"):
+            return None
+        try:
+            from hiro.state.modes import family
+
+            return mode if family(mode) == fam else None
+        except Exception:  # noqa: BLE001
+            return None
+
+    def _check_round(self, obs: dict, state: Any = None, memory: Any = None) -> None:
+        """初的中間 / 最終、N.I.A 的 1 次 / 2 次 / 最終：标签和画面对不上时以画面为准（协调 11-18：初 PRO 最終续跑后被标成 hajime-mid1，目标按中間取了 1700 封顶、
+        只拿第 2）。依据（先面板、后回合数）：审查日程面板过线条件的原文（exam.pass_line.stage：「…中間試験突破」/「…最終試験突破」，
+        平台写）；不按有没有分数线判——初 MASTER 中間也只看名次「3位以上で中間試験突破」，485eb03 因此把中間误判成最終（协调 11-18）。
+        没有原文就比回合总数（画面剩余回合推）和这个培育两场 battle config 的回合数（按 produce 查主数据，初 中間 9 / 最終 11）。
+        改了就换标签、重查这场的审查基准 / 回合数 / 粗算倍率，日志和每步理由写明。"""
+        from hiro.bench_bridge import tower as tw
+        from hiro.bench_bridge.screen import exam_fields
+        from hiro.search.exam_env import audition_row
+
+        tag = str(self.label or "")
+        base, _, rest = tag.partition("#")
+        fam, _, rnd = base.lower().partition("-")
+        ex = getattr(getattr(self._session, "state", None), "exam", None) if self._session is not None else None
+        pl = (ex.get("pass_line") if isinstance(ex, dict) else getattr(ex, "pass_line", None)) or None
+        stage = str((pl or {}).get("stage") or (pl or {}).get("text") or "") if isinstance(pl, dict) else ""
+        got, why = stage_round(fam, stage), f"面板过线条件「{stage}」"
+        if got is None and fam == "nia":
+            return  # N.I.A：只认面板原文（三场回合数不一定分得开，不按回合数猜）
+        if got is None:
+            # 总回合数按画面的剩余回合推（UIObs 的 limit 可能已经按标签那场的 battle config 固定了）
+            remaining = getattr(state, "remaining_turns", None)
+            limit = int(getattr(memory, "turn", 1) or 1) + int(remaining) - 1 if remaining else 0
+            turns = {}
+            for r in ("mid1", "final"):
+                try:
+                    row = audition_row(self.exam.get("idol"), self.exam.get("produce"), r, 1)
+                    turns[r] = int((tw.master().battle_config(row["produceExamBattleConfigId"]) or {}).get("turn") or 0)
+                except Exception as e:  # noqa: BLE001  查不到：这一场不按回合数判
+                    logger.info("[%s] 核场次时查不到 %s 的回合数：%s: %s", self.label, r, type(e).__name__, e)
+            hit = [r for r, t in turns.items() if t and t == limit]
+            if len(hit) == 1 and limit > 1:
+                got, why = hit[0], f"回合数 {limit}（{turns}）"
+        if got is None or got == rnd:
+            return
+        old = self.label
+        self.label = f"{fam}-{got}" + (f"#{rest}" if rest else "")
+        keep = {k: self.exam.get(k) for k in ("idol", "produce", "plan")}
+        self.exam = {**self.exam, **exam_fields(self.label, idol=keep["idol"], plan=keep["plan"], produce=keep["produce"])}
+        self.exam.pop("turns", None)
+        self.exam["crit"] = [0, 0, 0]
+        self._calc_pm = {}
+        self._audition_defaults(keep["idol"], self._number)
+        self._label_note = f"场次按画面改成 {got}（标签 {old}；{why}）"
+        logger.warning("[%s] 标签 %s 和画面对不上，%s", self.label, old, self._label_note)
+
+    def _turn_types(self) -> list | None:
+        """平台读到的审查日程（考试局面 exam.turn_types：["Vo","Da",…]，下标 0 = 第 1 回合）→ [1 / 2 / 3 / None]；没有 None。"""
+        ex = getattr(getattr(self._session, "state", None), "exam", None) if self._session is not None else None
+        tt = ex.get("turn_types") if isinstance(ex, dict) else getattr(ex, "turn_types", None)
+        if not tt:
+            return None
+        m = {"Vo": 1, "Da": 2, "Vi": 3, 1: 1, 2: 2, 3: 3}
+        return [m.get(t) for t in tt]
+
+    def _fix_obs(self, obs: dict) -> None:
+        """初 / N.I.A 的 UIObs：回合属性按审查日程（读到的回合）；倍率按 _exam_permils（画面真值那几项 + 按比例推，不再把当前回合那一项
+        填给其余两项，初 PRO 第一局 T2 起读成 [6440, 6440, 6440]、真值 Vo 644% / Da 680% / Vi 428%）。uinet 和搜索看到的都是它。"""
+        ex = obs.get("exam") or {}
+        known = self._turn_types()
+        if known and ex.get("types"):
+            ex["types"] = [known[i] if i < len(known) and known[i] else t for i, t in enumerate(ex["types"])]
+        if ex.get("types") and not self.exam.get("lesson"):
+            pm, _ = self._exam_permils(quiet=True)
+            if pm:
+                ex["permil"] = [int(pm[a]) for a in ("Vo", "Da", "Vi")]
+
+    def _npc_permil(self, lo: dict) -> None:
+        """对手分增减（AuditionNpcEnhancePermil）：P 道具账本 + チャレンジP道具（produce.challenge_items，MASTER / LEGEND 带进来的）
+        + N.I.Aキー（平台看到它就记 produce.nia_easy_key，账本里不一定有）→ lo["npc_enhance_permil"]（ExamGnrpa 按它缩放对手分）。
+        チャレンジP道具的发动次数账本里没有，按 1 次估（偏低，exam_env.npc_enhance_permil 会列出来）。"""
+        from hiro.search.exam_env import NIA_EASY_KEY, npc_enhance_permil
+
+        ps = (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
+        ps = ps if isinstance(ps, dict) else getattr(ps, "__dict__", {})
+        items = list(lo.get("produce_item_ids") or []) + [i for i in ps.get("challenge_items") or () if i not in (lo.get("produce_item_ids") or ())]
+        if ps.get("nia_easy_key") and NIA_EASY_KEY not in items:
+            items.append(NIA_EASY_KEY)
+        try:
+            permil, unsure = npc_enhance_permil(items)
+        except Exception as e:  # noqa: BLE001  没有主数据：不缩放
+            logger.info("[%s] 对手分增减算不了（按 0）：%s: %s", self.label, type(e).__name__, e)
+            return
+        if permil:
+            lo["npc_enhance_permil"] = permil
+            logger.info("[%s] 对手分增减 %+d‰%s", self.label, permil, f"（{len(unsure)} 件チャレンジP道具发动次数按 1 次估）" if unsure else "")
+
+    def _exam_permils(self, *, quiet: bool = False) -> tuple[dict | None, str]:
+        """拼编成用的三属性倍率 → ({Vo, Da, Vi} 或 None, 说明)。编成给了 permil_fixed 就用；否则画面实读的那几项（0 = 画面没给，初的考试
+        常见）为准，没读到的按 实读 / 粗算 的比例（几项取中位数）从粗算推；没有粗算时要三项都读到。一项都没读到 → None（等下一步）。"""
+        if self.exam.get("permil_fixed"):
+            return dict(self.exam["permil_fixed"]), "编成给的"
+        seen = {a: int(v) for a, v in (self._seen_pm or {}).items() if v and int(v) > 0}
+        calc = self._calc_pm or {}
+        if not seen:
+            return None, "画面还没读到倍率"
+        if len(seen) == 3:
+            return seen, "画面三项都读到了"
+        if not all(calc.get(a) for a in ("Vo", "Da", "Vi")):
+            return None, f"画面只读到 {sorted(seen)}、三属性没记账推不出其余"
+        rs = sorted(seen[a] / calc[a] for a in seen)
+        f = rs[len(rs) // 2]
+        pm = {a: seen.get(a) or int(math.ceil(calc[a] * f / 10.0) * 10) for a in ("Vo", "Da", "Vi")}
+        if not quiet:
+            logger.info("[%s] 倍率：画面读到 %s，其余按比例 %.3f 从粗算 %s 推 → %s", self.label, seen, f, calc, pm)
+        return pm, f"画面 {sorted(seen)} + 按比例 {f:.3f} 推"
+
+    def _audition_defaults(self, idol: str | None, number: int | None) -> None:
+        """实机初 / N.I.A 试镜、没有编成时：按主数据的试镜行补审查基准 / 回合数；按培育三属性（选行动页读的 produce.params）和 battle config
+        粗算三属性倍率（同客户端 CalcParameterBonusPermils 的曲线部分，hiro.bench_bridge.tower.score_bonus_permils）。
+        粗算只当比例用：服务器倍率还乘了亲爱度加成（p_dearness_skill-…-audition_parameter_bonus_multiple，+5%–+50%，账号相关），记账的三属性
+        也可能滞后（初第二局中間：粗算 [3060, 2710, 1990]、画面实读 [5910, 4740, 3470]）。拼编成时画面读到的那几项为准，没读到的按
+        实读 / 粗算 的比例推（_exam_permils）。UIObs 不用它（uinet 看到的和以前一样）。"""
+        from hiro.bench_bridge import tower as tw
+        from hiro.search.exam_env import audition_row
+
+        base = str(self.label or "").split("#", 1)[0].lower()
+        rnd = base.partition("-")[2]
+        ps = (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
+        ps = ps if isinstance(ps, dict) else getattr(ps, "__dict__", {})
+        produce = ps.get("mode") or self.exam.get("produce")
+        try:
+            row = audition_row(idol, produce, rnd, number)
+        except Exception as e:  # noqa: BLE001  查不到：只靠画面
+            logger.warning("[%s] 查不到试镜行（%s %s 档位 %s），审查基准 / 倍率只靠画面：%s: %s", self.label, produce, rnd, number,
+                           type(e).__name__, e)  # fmt: skip
+            return
+        cfg = tw.master().battle_config(row["produceExamBattleConfigId"]) or {}
+        if cfg and not any(self.exam.get("crit") or ()):
+            self.exam["crit"] = [int(cfg[k]) for k in ("vocal", "dance", "visual")]
+        if cfg.get("turn") and not self.exam.get("turns"):
+            self.exam["turns"] = int(cfg["turn"])
+        params = ps.get("params") or {}
+        if all(params.get(a) for a in ("Vo", "Da", "Vi")):
+            try:
+                pm = tw.score_bonus_permils(row["produceExamBattleConfigId"], [int(params[a]) for a in ("Vo", "Da", "Vi")])
+            except Exception as e:  # noqa: BLE001
+                logger.warning("[%s] 按三属性算倍率失败：%s: %s", self.label, type(e).__name__, e)
+            else:
+                self._calc_pm = dict(zip(("Vo", "Da", "Vi"), pm))
+                logger.info("[%s] 倍率按三属性 %s 粗算：%s（只当比例用：画面读到的那项为准，其余按比例推）", self.label, params, pm)
+                return
+        logger.warning("[%s] 培育三属性没记账（%s），倍率要等画面三项都读到", self.label, params)
+
+    def _lesson_screen(self) -> dict | None:
+        """平台的课程画面读数（state.exam_session.lesson：turns_total / clear_target / perfect_target / level_ids / …，平台 11-18）。"""
+        es = getattr(getattr(self._session, "state", None), "exam_session", None) if self._session is not None else None
+        got = getattr(es, "lesson", None) if es is not None else None
+        if got is not None and not isinstance(got, dict):
+            got = getattr(got, "__dict__", None) or (got.model_dump() if hasattr(got, "model_dump") else None)
+        return dict(got) if got else None
+
+    def _live_lesson(self, base: str, obs: dict) -> dict | None:
+        """实机课程（hajime-lesson-<vo|da|vi>[-sp|-hard]）→ exam_env 的 lesson 写法（协调 11-18）：回合数、合格线用平台的课程画面读数，
+        满分线读到就用、没读到按合格线反查的档位（exam_env.lesson_from_screen）。档位按日程位置定、不是同种同属性第几次（平台核两局实机），
+        所以不按次数查主数据。画面读数不全：不拼编成，这一场退回 uinet。"""
+        from hiro.search.exam_env import ExamUnsupported, lesson_from_screen
+
+        parts = base.split("-")  # hajime / lesson / vo / sp
+        attr = parts[2] if len(parts) > 2 else None
+        kind = parts[3] if len(parts) > 3 else "normal"
+        screen = self._lesson_screen()
+        if attr not in ("vo", "da", "vi") or not screen:
+            logger.warning("[%s] 课程标签没有属性或没有课程画面读数（%s），这一场退回 uinet", self.label, screen)
+            return None
+        try:
+            got, notes = lesson_from_screen(self.exam.get("produce"), self.exam.get("idol"), kind, attr, screen)
+        except ExamUnsupported as e:
+            logger.warning("[%s] 拼课程编成失败，这一场退回 uinet：%s", self.label, e)
+            return None
+        logger.info("[%s] 课程：%d 回合、合格 %s、满分 %s%s", self.label, got["limit_turn"], got["clear_score"], got["perfect_score"],
+                    ("；" + "；".join(notes)) if notes else "")  # fmt: skip
+        return got
+
+    def _refresh_lesson(self) -> None:
+        """课程中途画面读到了满分线（过了合格线才出现 PERFECTまで）：更新编成里的满分线（ExamGnrpa 每步按它更新目标）。"""
+        lo = self.exam_loadout
+        if not lo or not lo.get("lesson") or lo["lesson"].get("source") != "screen" or lo["lesson"].get("perfect_score") is not None:
+            return
+        perfect = (self._lesson_screen() or {}).get("perfect_target")
+        if perfect:
+            lo["lesson"] = {**lo["lesson"], "perfect_score": int(perfect)}
+            logger.info("[%s] 课程满分线画面读到：%s", self.label, perfect)
+
+    def not_executed(self, action, why: str) -> None:
+        """执行层说上一个决策没生效（hiro.exec.exam._not_executed）：这一步的历史记录作废，搜索类算法把引擎退回出牌前（undo_last）。"""
+        if getattr(self, "_appended", False) and getattr(self, "_history", None):
+            self._history.pop()
+            self._appended = False
+        algo = self.round_algo if self.round_algo is not None else self.algo
+        undo = getattr(algo, "undo_last", None)
+        if undo is not None:
+            undo()
+        logger.info("[%s] 上一个决策 %s 没生效（%s）：搜索局面退回", self.label, action, why)
 
     def on_round_end(self, result: dict[str, Any] | None) -> None:
         logger.info("[%s] 考试出牌统计：bench %d 步，规则 %d 步", self.label, self.stats["bench"], self.stats["rules"])
@@ -643,8 +966,11 @@ class BenchAdvisor:
                 "idol_card_id": self.exam.get("idol")}
         full = self.tower_loadout or self.exam_loadout  # 搜索类算法要整份编成（偶像之路 / 初 / N.I.A）
         loadout = dict(full) if full else {"idol_card_id": self.exam.get("idol")}
+        if self.exam_loadout is not None and (known := self._turn_types()):
+            loadout["turn_types"] = known  # 审查日程（ExamGnrpa 按它排回合属性）
         return SimpleNamespace(obs=obs, budget=DECIDE_BUDGET_S, loadout=loadout, meta=meta, known_draws=self.known_draws,
-                               rng=self.rng, worlds=worlds, true_session=None, seed=None)  # fmt: skip
+                               rng=self.rng, worlds=worlds, true_session=None, seed=None,
+                               history=list(getattr(self, "_history", ())))  # fmt: skip
 
     def _fallback(self, state, memory, previews, legal, why: str) -> Decision:
         self.stats["rules"] += 1
@@ -653,6 +979,7 @@ class BenchAdvisor:
         return out
 
     def decide(self, state: Any, memory: Any, previews: list[Preview] | None, legal: list[Action]) -> Decision:
+        self._appended = False  # 这一步的 (UIObs, 动作) 记进了 _history 没有（not_executed 撤销用）
         algo = self.round_algo if self.round_algo is not None else self.algo
         if algo is None:
             self.stats["rules"] += 1
@@ -660,17 +987,50 @@ class BenchAdvisor:
         t0 = time.monotonic()
         try:
             obs, slot_of, origin = self._obs(state, memory, legal)
+            self._seen_pm.update({k: v for k, v in (getattr(state, "attr_permils", None) or {}).items() if v})
+            if not getattr(self, "_round_checked", True):
+                self._round_checked = True
+                self._check_round(obs, state, memory)
+            if str(self.label or "").lower().startswith(("hajime", "nia")):
+                self._fix_obs(obs)
             # 每步给算法的 UIObs 记进运行日志（复盘用：实机局能直接看出 UINet 看到的局面和画面差在哪）
             uiobs_log.info("[%s T%s %s] %s", self.label, getattr(memory, "turn", None), origin,
                            json.dumps(obs, ensure_ascii=False, separators=(",", ":")))
             if self.exam_loadout is None and not self._live_built and str(self.label or "").lower().startswith(("hajime", "nia")):
-                self._live_built = True
+                self._live_wait = None
                 self.exam_loadout = self._live_exam_loadout(obs)
+                self._live_built = self._live_wait is None  # 在等倍率：下一步再拼
+            self._refresh_lesson()
             ctx = self._ctx(obs)
-            if not self.began:
-                algo.begin(ctx)
-                self.began = True
-            d = algo.decide(ctx)
+            step_note = ""
+            wait = self._live_wait if (self.exam_loadout is None and algo is not self.algo and self.algo is not None) else None
+            try:
+                if wait:
+                    raise _Waiting(wait)
+                if not self.began:
+                    algo.begin(ctx)
+                    self.began = True
+                d = algo.decide(ctx)
+            except Exception as e:
+                if algo is self.algo or self.algo is None:
+                    raise
+                # 指定的搜索算法（偶像之路 / 初 / N.I.A）这一步搜不了：这一步用 H.I.F 的算法（uinet），理由里写明原因。
+                # 开局就失败（拼不出编成等）的，这一场剩下的步都用 uinet，不每步重试。
+                why = f"{type(e).__name__}: {e}"
+                if not isinstance(e, _Waiting):
+                    logger.warning("[%s] %s 这一步搜不了，用 %s：%s", self.label, self.round_name, algo_spec().split(":")[0], why)
+                if isinstance(e, _Waiting):
+                    step_note = f"{self.round_name} 等画面读到倍率（{e}）"
+                elif not self.began or getattr(e, "whole_round", False):  # 开局失败 / 搜索自己判定这一场的模型不可信：整场 uinet
+                    what = "开局失败" if not self.began else "不可信"
+                    self.round_algo, self.round_note = self.algo, f"{self.round_name} {what}（{why}）"
+                    self.round_name = algo_spec().split(":")[0]
+                else:
+                    step_note = f"{self.round_name} 这一步搜不了（{why}）"
+                if not self._hif_began:
+                    self.algo.begin(ctx)
+                    self._hif_began = True
+                d = self.algo.decide(ctx)
             act = tuple(d.action)
         except Exception as e:  # noqa: BLE001
             logger.warning("bench 算法出错，这一步用规则：%s: %s", type(e).__name__, e)
@@ -697,6 +1057,9 @@ class BenchAdvisor:
         if action.legal_key() not in keys:
             return self._fallback(state, memory, previews, legal, f"{action.legal_key()} 不在 hiro 的合法动作里")
         self.stats["bench"] += 1
+        if str(self.label or "").lower().startswith(("hajime", "nia")):
+            self._history.append((copy.deepcopy(obs), list(act)))
+            self._appended = True
         meta = dict(getattr(d, "meta", None) or {})
         cands = []
         for a, p in (meta.get("top") or [])[:3]:
@@ -709,9 +1072,14 @@ class BenchAdvisor:
         q = meta.get("score_quantiles")
         name = self.round_name or algo_spec().split(":")[0]
         reason = f"{name}（{'引擎局面' if origin == 'engine' else '画面读数'}）：{what}"
-        if self.round_note:
-            reason = f"{name}（兜底：{self.round_note}；{'引擎局面' if origin == 'engine' else '画面读数'}）：{what}"
+        if self.round_note or step_note:
+            note = step_note or self.round_note
+            if step_note:
+                name = algo_spec().split(":")[0]
+            reason = f"{name}（兜底：{note}；{'引擎局面' if origin == 'engine' else '画面读数'}）：{what}"
         if q:
             reason += f"；终局分预测中位 {q.get('50%')}"
+        if getattr(self, "_label_note", None):
+            reason += f"；{self._label_note}"
         return Decision(action=action, reason=reason, source="bench", confidence=None, candidates=cands,
                         seconds=time.monotonic() - t0, decider="battle")

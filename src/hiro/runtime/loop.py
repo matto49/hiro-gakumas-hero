@@ -50,6 +50,23 @@ INTERRUPT_FRAME_GAP_S = 60.0  # 同一句中断说明这么久内只存一帧
 STALL_S = 180.0  # 页面没变、画面也没变（缩略图差 < repeat_guard.SCREEN_DIFF）这么久就停机；认不出的画面同样适用
 
 
+DOWNLOAD_WORDS = ("ダウンロード中",)
+
+
+def download_percent(f) -> float | None:
+    """资源下载页的进度百分比（「データダウンロード中」旁的「27.27%」）；不是下载页返回 None。"""
+    import re
+
+    texts = [t.text.replace(" ", "") for t in f.texts]
+    if not any(w in t for t in texts for w in DOWNLOAD_WORDS):
+        return None
+    for t in texts:
+        m = re.fullmatch(r"(\d{1,3}(?:\.\d+)?)%", t)
+        if m and float(m.group(1)) <= 100:
+            return float(m.group(1))
+    return None
+
+
 class _Flow:
     """给 pause_flag.Watcher 的流控：旗标出现 → 置暂停，消失 → 解除；主线程在检查点等它解除。"""
 
@@ -106,6 +123,7 @@ class Runtime:
         self.screen = Screen(self.raw_device, self.clock)
         self.device = GuardedDevice(self.raw_device, self.screen, self.dialog_words)
         self._unknown_since: float | None = None
+        self._download_pct: float | None = None  # 资源下载页上次读到的百分比
         self._base: tuple[str, object, float] | None = None  # 进展看门狗的基准：(页面, 缩略图, 时刻)
         self._live_since: float | None = None
         self._acted_at: float | None = None  # 最近一次有操作（处理器 DONE / advance 点了 / 中断处理）的时刻
@@ -171,17 +189,41 @@ class Runtime:
     def drive(self, step: Callable[[Frame], object], timeout: float, what: str, *, every: float = TICK):
         """多步流程的一段：每拍过检查点和中断层后调 step(帧)（可以点），返回非 None 就结束并返回它；
         超时抛 ResumeBlocked（what 写进原因）。开局 / 续跑这类「看画面 → 点 → 等下一页」的步骤都用它。"""
-        t0, paused = self.clock(), 0.0
+        t0, paused, live = self.clock(), 0.0, 0.0
         while True:
             t1 = self.clock()
             f, done = self.tick()
+            if done is None and self._live_beat(f):
+                # 横屏 LIVE（初 True End 等结算流程里的演出，协调 11-17）：步骤是竖屏流程，不交给它点（原来点 (12,12) 空点、黑屏也不切全屏）；
+                # 演出的时间不算这一段的超时（最多 LIVE_MAX_S）
+                live = min(live + self.clock() - t1 + every, LIVE_MAX_S)
+                if self.clock() - t0 - paused - live >= timeout:
+                    raise ResumeBlocked(f"{what}：{timeout:.0f}s 没完成")
+                self.sleep(every)
+                continue
             if done is None and (r := self._guarded(step, f, what)) is not None:
                 return r
             if done is not None:
                 paused = min(paused + self.clock() - t1 + every, timeout * INTERRUPT_EXTRA)  # 处理中断的那拍不算这一段的时间
-            if self.clock() - t0 - paused >= timeout:
+            if self.clock() - t0 - paused - live >= timeout:
                 raise ResumeBlocked(f"{what}：{timeout:.0f}s 没完成")
             self.sleep(every)
+
+    def _live_beat(self, f: Frame) -> bool:
+        """drive 的一拍是不是横屏 LIVE：黑屏够久切全屏（LandscapeGuard.tick，同主循环）、曲目页点「TAP TO START」（scenes.live_start），
+        演出中不点。是 LIVE 返回 True（这一拍不交给步骤）。"""
+        img = getattr(f, "img", None)
+        lg = self.landscape
+        if img is None:
+            return False
+        if lg is not None and lg.tick(img):
+            return True  # 刚切了全屏 / 退了全屏：下一拍重截
+        if img.shape[1] <= img.shape[0] and not (lg is not None and lg.active and lg.in_live(img)):
+            return False  # 竖屏、也不是 LIVE 黑屏（只在 LandscapeGuard 开着的设备上把黑屏当 LIVE）
+        from hiro.runtime import scenes
+
+        scenes.live_start(self, f)
+        return True
 
     # ---------------------------------------------------------------- 主循环
     def step(self) -> Outcome:
@@ -252,7 +294,9 @@ class Runtime:
         if out.kind == "stop":
             raise ResumeBlocked(f"{hit.name}：{out.reason}")
         if out.kind != "stay" or (self.landscape is not None and self.landscape.in_live(f.img)):
-            self._mark_acted(f.t)  # LIVE 演出里本来就不点：不算没进展
+            # 按处理器返回时的时刻记（LIVE 演出里本来就不点：不算没进展）。原来记的是进处理器前那帧的时刻：考试处理器跑了 5 分钟，
+            # 出来第一帧是结算后的过场，马上判成「284s 没有任何操作」停机（初 PRO 最終 11-18）
+            self._mark_acted(self.clock() if handler is not None else f.t)
         else:
             self._check_idle(hit, f.t, handler is not None)
         return out
@@ -298,6 +342,13 @@ class Runtime:
             raise ResumeBlocked(f"{hit.name} 页面和画面 {stuck:.0f}s 没变化，停机")
         if hit.name != UNKNOWN.name:
             self._unknown_since = None
+        elif (pct := download_percent(f)) is not None and pct != self._download_pct:
+            # 资源下载页（「データダウンロード中 27.27%」）：百分比在动就是有进展，不按认不出计时（11-20 账号 2：网络不稳，
+            # E209 每 10 秒一次、リトライ 后接着下，180 秒按认不出停机）。百分比不动照常计时
+            self._download_pct, self._unknown_since = pct, f.t
+            self._base = None
+            self._comm_retry = None  # 下载在涨：两次 E209 之间有进展，通信エラー 的连续リトライ 计数重新算
+            logger.info("资源下载中 %.2f%%", pct)
         elif self._unknown_since is None:
             self._unknown_since = f.t
         elif (unknown := f.t - self._unknown_since) >= STALL_S:

@@ -135,6 +135,8 @@ def test_exam_start_without_layer_takes_latest(tmp_path):
     assert p.ensure_loadout()["layer"] == 15 and p.layer == 15  # 考试中起跑：层号从缓存补上，标签不再是 tower-x
 
 
+@pytest.mark.master
+@pytest.mark.sim_master
 def test_draws_saved_with_rivals(tmp_path):
     p = _play(tmp_path)
     p.loadout = {"tower_id": "tower_001-ttmr", "layer": 15, "formation_signature": "sig", "idol_card_id": "i_card-ttmr-2-000",

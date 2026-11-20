@@ -17,15 +17,15 @@ class IdolProfile:
 
     idol_id: str
     name: str
-    max_hp: int
-    playbook: str  # prompts/idols/<playbook>.md
+    max_hp: int | None  # 培育里的最大体力（广 33 带了支援卡 / 潜能，账号相关）；主数据推不出时 None
+    playbook: str | None  # prompts/idols/<playbook>.md；None = 没有专门的打法文件（profile_from_master 生成的偶像）
     item_trigger_card: str | None = None  # 触发固有道具的卡 ID 前缀
     item_charges: int = 0
     item_needs_high_hp: bool = False  # 道具要求 HP≥50% 时才触发
 
     def is_half_hp(self, hp: int) -> bool:
-        """HP≤50%（固有被动得分的条件）。"""
-        return hp * 2 <= self.max_hp
+        """HP≤50%（固有被动得分的条件）。最大体力不知道时 False。"""
+        return self.max_hp is not None and hp * 2 <= self.max_hp
 
 
 CAMPUS_HIRO = IdolProfile(
@@ -709,7 +709,23 @@ def exam_kwargs(exam: dict | None) -> dict:
 
 
 def profile_for(idol: str | None) -> IdolProfile | None:
-    """KAA 培育方案里的偶像 ID（可能是 skin ID，如 i_card-skin-shro-3-007）→ 构筑常量。"""
+    """KAA 培育方案里的偶像 ID（可能是 skin ID，如 i_card-skin-shro-3-007）→ 构筑常量。
+    手写的构筑表（IDOLS，现在只有 Campus 広）优先；别的偶像按主数据生成（profile_from_master，协调 11-19 多偶像）。"""
     if not idol:
         return None
-    return IDOLS.get(idol.replace("i_card-skin-", "i_card-"))
+    cid = idol.replace("i_card-skin-", "i_card-")
+    return IDOLS.get(cid) or profile_from_master(cid)
+
+
+def profile_from_master(idol_card_id: str) -> IdolProfile | None:
+    """主数据 IdolCard → 构筑常量。只填主数据给得出的：id、名字（卡名 + 角色）。
+    最大体力（带支援卡 / 潜能，账号相关）、固有道具的触发卡 / 次数 / 条件、打法文件都给 None / 0，不猜。查不到这张卡返回 None。"""
+    try:
+        from hiro.state.context import catalog
+
+        row = catalog().one("IdolCard", idol_card_id)
+    except Exception:  # noqa: BLE001  主数据不可用 / 没有这张卡
+        return None
+    if not row:
+        return None
+    return IdolProfile(idol_id=idol_card_id, name=f"{row.get('name') or idol_card_id}（{row.get('characterId') or '?'}）", max_hp=None, playbook=None)

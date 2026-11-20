@@ -19,7 +19,7 @@ DEBOUNCE = 3  # 不合法跳变需要连续多少帧才接受
 STABLE = 2  # 连续多少帧算稳定
 
 # 页面局部字段：换页清空，不进 produce / exam
-PAGE_LOCAL = {"options", "complete", "advice", "candidates", "recommended", "cards", "problems", "exam_next"}
+PAGE_LOCAL = {"options", "complete", "advice", "candidates", "recommended", "cards", "problems", "exam_next", "weeks_left", "schedule"}
 # 哪个页面的字段写进哪个分区
 SECTION = {"ACTION_SELECT": "produce", "DECK_LIST": "produce", "HIF_EXAM": "exam", "SELECT_CARD": None, "SELECT_DRINK": None, "HIF_EXAM_RESULT": None}
 # 考试页面里整段替换（不逐项合并）的列表 / 字典字段
@@ -36,6 +36,7 @@ def reduce(state: GameState, obs: Observation) -> GameState:
     if is_transient(page):
         return s  # 转场 / 没认出：什么都不改
     _reduce_page(s, obs)
+    _easy_key(s, obs)  # 获得演出常只停一两帧、页面还在防抖：看到就记，不等页面确认
     if s.page.name != page:
         return s  # 还在防抖，不采用这帧的字段
     _reduce_fields(s, obs)
@@ -82,6 +83,62 @@ def _enter(s: GameState, page: str, area: str, seq: int, *, frames: int = 1) -> 
         _sync_exam_drinks(s, seq)
     if s.mode == "produce" and s.produce is None:
         s.produce = {}
+
+
+def _easy_key(s: GameState, obs: Observation) -> None:
+    """N.I.A PRO 简单模式的 P 道具「N.I.Aキー（黄緑）」（对手分数 −80%）：获得演出（ACQUIRE 的 pitem_id / pitem_ids）、考试 P 道具栏
+    （pitems）、P 道具三选一里看到它，就记 produce.nia_easy_key = True。没看到不写（开局给道具时演出可能被快速点过，不能断言没有）。"""
+    from hiro.state.modes import NIA_EASY_KEY
+
+    f = obs.fields or {}
+    ids = {f.get("pitem_id"), *(f.get("pitem_ids") or [])}
+    for key in ("pitems", "options"):
+        for p in f.get(key) or []:
+            if isinstance(p, dict):
+                ids.add(p.get("pitem_id"))
+    if NIA_EASY_KEY not in ids or (s.produce or {}).get("nia_easy_key"):
+        return
+    s.produce = {**(s.produce or {}), "nia_easy_key": True}
+    s.sources["produce.nia_easy_key"] = Source({"save": "save"}.get(obs.source, "screen"), obs.seq)
+    _note(s, f"seq {obs.seq}: 看到 N.I.Aキー（黄緑）：这局是 N.I.A PRO 简单模式（对手分数 −80%）")
+
+
+def _declined(s: GameState) -> None:
+    """选行动页：中断层记下的「这一周别再选」（produce.declined_options，例如相談開始確認点了キャンセル）同一周放进 page_fields，换周丢掉。"""
+    prod = s.produce or {}
+    d = prod.get("declined_options")
+    if not d:
+        return
+    if d.get("step") is not None and prod.get("step") is not None and d["step"] != prod["step"]:
+        s.produce = {k: v for k, v in prod.items() if k != "declined_options"}
+        return
+    s.page_fields["declined_options"] = list(d.get("options") or [])
+
+
+def _consult_price(s: GameState, obs: Observation, origin: str) -> None:
+    """相談页的删卡价（services.delete.price）→ produce.consult_delete_price（3940a9：初 / N.I.A 按实际价判断选不选相談）。"""
+    price = ((obs.fields.get("services") or {}).get("delete") or {}).get("price")
+    if not isinstance(price, int) or price <= 0 or s.produce is None:
+        return
+    s.produce = {**s.produce, "consult_delete_price": price}
+    s.sources["produce.consult_delete_price"] = Source(origin, obs.seq)
+
+
+def _hajime_nia_step(s: GameState, obs: Observation, origin: str) -> None:
+    """初 / N.I.A：选行动页头「中間 / 1次 / 2次 / 最終まで N週」按 produce.mode 换算成 produce.step（hiro.state.modes.step_from_header）。
+    H.I.F 的 step 由识别层直接给（mode_and_step）；初 / N.I.A 的 mode 是运行时写进局面的，页头读不出来，所以在这里换算。
+    换算不了（不是初 / N.I.A、页头没读到、模式的考试位置不知道）就不写，沿用之前的 step。"""
+    prod = s.produce or {}
+    try:
+        from hiro.state.modes import step_from_header
+
+        step = step_from_header(prod.get("mode"), obs.fields.get("exam_next"), obs.fields.get("weeks_left"))
+    except Exception:  # noqa: BLE001  主数据不可用：不写
+        return
+    if step is None:
+        return
+    s.produce = {**prod, "step": step}
+    s.sources["produce.step"] = Source(origin, obs.seq)
 
 
 def _sync_exam_drinks(s: GameState, seq: int) -> None:
@@ -133,6 +190,13 @@ def _reduce_fields(s: GameState, obs: Observation) -> None:
             _note(s, f"seq {obs.seq}: {full} {old_src.origin}={old!r} vs {origin}={value!r}，采用 {origin}")
         target[key] = copy.deepcopy(value)
         s.sources[full] = Source(origin, obs.seq)
+    if obs.page.name == "ACTION_SELECT":
+        _hajime_nia_step(s, obs, origin)
+        if (s.produce or {}).get("schedule"):
+            s.page_fields["schedule"] = s.produce["schedule"]  # 整局日程（选行动页左上点开的日程列表，hiro.produce.schedule_probe）
+        _declined(s)
+    if obs.page.name == "CONSULT":
+        _consult_price(s, obs, origin)
     if section == "exam":
         _observe_turn(s, obs)
         _attr_permil(s, obs)

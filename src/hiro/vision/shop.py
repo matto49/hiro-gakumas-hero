@@ -2,7 +2,7 @@
 """相談（CONSULT）货架：shelf / services / rerolls_left，格式按 docs/llm-context.md「商店字段」。
 
 画面（720x1280）：上排 4 张技能卡、下排 4 瓶 P 饮料，每格 125x126，下方是价格条（SALE 时「原价 → 实付价」两个数）；
-买过的格子盖着「交換済」；再往下是「強化 P100」「削除 P100」两个服务按钮和左下「あと N回 リフレッシュ」。
+买过的格子盖着「交換済」；再往下是「強化 P100」「削除 P100」两个服务按钮（用过的打勾、写「交換済」，价格变成「次 125」）和左下「あと N回 リフレッシュ」。
 - 文字（价格、SALE、交換済、服务价格、刷新次数）：整块只做一次 Apple Vision，按坐标分到各格。
 - 卡：hiro.vision.card_db（与三选一同一套卡面库）；强化看卡面右上角的红色「+」（有 100–143 像素，无 0）。
 - 饮料：素材包 P 饮料图标库；货架图标约 102 像素，缩到 56 后在 ±6 像素内找最高分，附置信度，
@@ -31,6 +31,7 @@ PRICE_BAND = {CARD_Y: (612, 652), DRINK_Y: (798, 838)}
 SALE_BAND = {CARD_Y: (598, 624), DRINK_Y: (784, 810)}
 SERVICE_BAND = (948, 992)
 SERVICE_X = {"upgrade": (110, 330), "delete": (425, 645)}
+SERVICE_USED_BAND = (940, 1010)  # 服务按钮整块（含下面的「交換済」）
 REROLL_BAND = (1028, 1068)
 HINT_BAND = (872, 926)  # 「持っているスキルカードの強化や削除ができます。」
 PLUS_BOX = (30, 75, 88, 125)  # 卡格内红色「+」的位置 (y1, y2, x1, x2)
@@ -121,7 +122,10 @@ def read_consult(img: MatLike) -> dict:
     for name, xr in SERVICE_X.items():
         nums = _nums(texts_in(xr, SERVICE_BAND))
         sat = float(hsv[SERVICE_BAND[0] : SERVICE_BAND[1], xr[0] : xr[1], 1].mean())
-        services[name] = {"price": nums[-1] if nums else None, "available": sat >= SERVICE_SAT_MIN}
+        # 这次相談已经用过这项服务：按钮上打勾、下面写「交換済」（y≈993，在价格行下面），价格换成「次 125」（下一次的价格）。
+        # 3940a9 决策按它判断这次相談还能不能删 / 强化（续跑时决策记账会丢，以画面为准，协调 11-18）
+        used = any("交換済" in t.replace(" ", "") for t in texts_in(xr, SERVICE_USED_BAND))
+        services[name] = {"price": nums[-1] if nums else None, "available": sat >= SERVICE_SAT_MIN, "used": used}
     m = re.search(r"あと\s*(\d+)\s*回", "".join(texts_in((40, 260), REROLL_BAND)))
     # 正常货架下方有一行「持っているスキルカードの強化や削除ができます。」；购买后的获得动画、卡牌详情弹窗会盖住它
     complete = any("強化や削除" in t.replace(" ", "") for t in texts_in((40, 700), HINT_BAND))

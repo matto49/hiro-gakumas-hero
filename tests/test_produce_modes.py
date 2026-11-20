@@ -1,5 +1,5 @@
 """培育模式表（hiro.state.modes）：produce id → 家族 / 难度 / 步数 / 考试过关名次 / 各场考试的档位（主数据 ProduceStepAuditionDifficulty）。
-设计稿 .temp/plans-20261112/初与NIA-决策-设计.md 第二、九节。"""
+设计稿 （作者本机，未发布） 第二、九节。"""
 
 import pytest
 

@@ -22,12 +22,13 @@ STOP_WORDS = ("メンテナンス中", "メンテナンスを実施", "他の端
 
 
 TAP_GAP_S = 1.5  # 同一个中断点了同一个框之后，这么久之内框还在就不再点（框淡出要时间：カスタマイズ確認 0.5 秒点了两次「決定」，h10 11-15）
+CONFIRM_FADE_S = 8.0  # 点过「決定」之后这么久内框还在、按钮读不到，当成框在淡出（DMM 有时 3–4 秒才响应，qualifyz3 11-18）
 
 
-def _recently(rt, key: str) -> bool:
+def _recently(rt, key: str, gap: float = TAP_GAP_S) -> bool:
     last = getattr(rt, "_interrupt_tap", None)
     now = rt.clock() if callable(getattr(rt, "clock", None)) else 0.0
-    return last is not None and last[0] == key and now - last[1] < TAP_GAP_S
+    return last is not None and last[0] == key and now - last[1] < gap
 
 
 def _tapped(rt, key: str) -> None:
@@ -63,6 +64,24 @@ def _comm_frame(rt, f) -> str | None:
         return None
 
 
+def _comm_title_y(frame) -> int | None:
+    """「通信エラー」字样在一条弹窗标题条上（字的那几行橙黄占比 ≥ HEADER_MIN_FRAC、字下方紧接白色正文框）时返回字的中线 y。"""
+    import cv2
+
+    from hiro.vision import pages
+
+    for t in frame.texts:
+        if not any(h in t.text.replace(" ", "") for h in comm_error.TITLE_HINTS):
+            continue
+        y1, y2 = int(t.rect.y1), int(t.rect.y2)
+        band = frame.img[max(0, y1) : max(y1 + 1, y2), pages.HEADER_X[0] : pages.HEADER_X[1]]
+        hsv = cv2.cvtColor(band, cv2.COLOR_BGR2HSV)
+        frac = float(((hsv[:, :, 0] >= 8) & (hsv[:, :, 0] <= 30) & (hsv[:, :, 1] >= 110) & (hsv[:, :, 2] >= 190)).mean())
+        if frac >= pages.HEADER_MIN_FRAC and any(pages._white_body(frame.img, y) for y in range(y2, y2 + 40, 4)):
+            return (y1 + y2) // 2
+    return None
+
+
 def comm(frame, rt) -> str | None:
     """通信エラー：只点リトライ；只能回标题时点閉じる并抛 CommErrorToTitle（hiro.loop.comm_error）。
     点之前确认弹窗确实在：标题条读出来是通信エラー、リトライ 在标题条下面，重截一帧还在同一个位置（11-17：リトライ 的位置 (299,1019)
@@ -74,7 +93,12 @@ def comm(frame, rt) -> str | None:
         return None
     d = frame.dialog or {}
     if d.get("kind") != "comm_error" and not any(h in (d.get("title") or "") for h in comm_error.TITLE_HINTS):
-        return None  # 画面上有「通信」字样，但最上层的弹窗标题不是通信エラー：不点
+        # 加载画面整片橙黄时，按钮下方的橙色底也像一条「标题条」，排在真标题条下面被当成最上层弹窗（11-20 账号 2 LOADING 页，
+        # E209 没点リトライ，180 s 停机）。这时直接核对「通信エラー」字样本身在不在一条标题条上：字所在的行是橙黄、正下方是白色正文框
+        y = _comm_title_y(frame)
+        if y is None:
+            return None  # 画面上有「通信」字样，但不在弹窗标题条上：不点
+        d = {"kind": "comm_error", "y": y}
     if e["kind"] == "retry" and d.get("y") is not None and e["retry"][1] <= d["y"]:
         return None  # 「リトライ」不在这个弹窗里（在标题条上面）
     f2 = rt.screen.shot()  # 重截核对：弹窗还在、按钮没挪
@@ -134,12 +158,14 @@ def customize_confirm(frame, rt) -> str | None:
     只认 P 道具定制（正文带「Pアイテム」），特別指導的「カスタマイズ実行確認」由它自己的执行器处理。读不到「決定」停机。"""
     if not frame.has_dialog or (d := frame.dialog) is None or d["kind"] != "customize_confirm":
         return None
-    if not any("Pアイテム" in t.text for t in frame.texts):
+    if not any("pアイテム" in t.text.lower() for t in frame.texts):  # RapidOCR 小窗口会读成小写「pアイテム」（qualifyz3 11-18）
         return None
     if _recently(rt, "customize_confirm"):
         return f"P 道具定制确认「{d['title']}」：刚点过「決定」，等框关"
     btn = next((t for t in frame.texts if t.text.strip() == "決定" and t.rect.center.x > 360 and t.rect.center.y > 1000), None)
     if btn is None:
+        if _recently(rt, "customize_confirm", CONFIRM_FADE_S):
+            return f"P 道具定制确认「{d['title']}」：点过「決定」，按钮已读不到，等框关"
         raise ResumeBlocked(f"P 道具定制确认框「{d['title']}」：没读到「決定」，不点，停机")
     rt.device.tap(*btn.rect.center)
     _tapped(rt, "customize_confirm")
@@ -339,9 +365,176 @@ def consult_end_confirm(frame, rt) -> str | None:
     return "相談終了確認：点「決定」"
 
 
+INTERVAL_END_GO = (500, 1160)
+
+
+def interval_end_confirm(frame, rt) -> str | None:
+    """「インターバル終了確認」（使用できるPポイントが残っています。インターバルを終了して本戦へ進みますか？）留在画面上
+    （mainz4 11-18 14:08：轮间还剩 10P，点「終了」后弹出，执行器在等轮间主画面、主循环判 DIALOG 没有处理器，247 秒停机）。
+    这个框只在我们自己点了「終了」后出现（轮间决策已定结束），点「本戦へ」。"""
+    if not frame.has_dialog or (frame.dialog or {}).get("kind") != "interval_end":
+        return None
+    if _recently(rt, "interval_end"):
+        return "インターバル終了確認：刚点过「本戦へ」，等框关"
+    btn = next((t for t in frame.texts if "本戦へ" in t.text and t.rect.center.x > 360 and t.rect.center.y > 1000), None)
+    rt.device.tap(*(btn.rect.center if btn is not None else INTERVAL_END_GO))
+    _tapped(rt, "interval_end")
+    return "インターバル終了確認：点「本戦へ」"
+
+
+DRINK_DETAIL_CANCEL = (237, 1162)  # 「Pドリンク詳細」左下「キャンセル」（实拍 tests/fixtures/pages/pdrink-detail-action-select.png）
+
+
+def drink_detail(frame, rt) -> str | None:
+    """「Pドリンク詳細」（捨てる / キャンセル / 使う）留在画面上：只点「キャンセル」，绝不点「捨てる」「使う」（协调 11-18 初 MASTER 20:31：
+    剧情 SKIP 的第二下落在选行动页饮料栏上点开了它，盖住选行动页停机）。考试里用饮料由考试执行器自己开关这个框，不经过主循环中断层。
+    「キャンセル」读不到时按实拍位置点（左下；「捨てる」在右上、「使う」在右下）。"""
+    if not frame.has_dialog:
+        return None
+    title = (frame.dialog or {}).get("title") or ""
+    if "Pドリンク詳細" not in title.replace(" ", "") and not any("Pドリンク詳細" in t.text.replace(" ", "") for t in frame.texts):
+        return None
+    if _recently(rt, "drink_detail"):
+        return "Pドリンク詳細：刚点过キャンセル，等框关"
+    cancel = _cancel(frame)
+    pos = cancel.rect.center if cancel is not None and cancel.rect.center.x < 360 else DRINK_DETAIL_CANCEL
+    rt.device.tap(*pos)
+    _tapped(rt, "drink_detail")
+    return "Pドリンク詳細：点キャンセル（不丢、不用）"
+
+
+REST_CONFIRM_REST, REST_CONFIRM_CANCEL = (498, 1159), (236, 1161)
+
+
+def rest_confirm(frame, rt) -> str | None:
+    """「休み確認：休んで体力を回復させますか？」（キャンセル / 休む）单独留在画面上（初 Mac 11-17：续跑时停在这一框，DIALOG 没有处理器，
+    181 秒停）。选行动的执行器（action_select._rest）自己会点掉，走到这里说明决策后的确认没在执行器里完成：
+    session 记的最近一次决策是选行动「休息」就点「休む」，否则（续跑后不知道、或者选的不是休息）点「キャンセル」回选行动页重新决策。"""
+    if not frame.has_dialog or "休み確認" not in str((frame.dialog or {}).get("title") or ""):
+        return None
+    if _recently(rt, "rest_confirm"):
+        return "休み確認：刚点过，等框关"
+    last = getattr(getattr(rt, "session", None), "last_decision", None)
+    rest = bool(last) and last[0] == "ACTION_SELECT" and (last[1].action.args or {}).get("option") == "rest"
+    word, fallback = ("休む", REST_CONFIRM_REST) if rest else ("キャンセル", REST_CONFIRM_CANCEL)
+    btn = next((t for t in frame.texts if t.text.replace(" ", "").strip() == word and t.rect.center.y > 1000), None)
+    rt.device.tap(*(btn.rect.center if btn is not None else fallback))
+    _tapped(rt, "rest_confirm")
+    return f"休み確認：{'刚才决策是休息，点「休む」' if rest else '最近的决策不是休息（或续跑后不知道），点「キャンセル」回选行动页重新决策'}"
+
+
+LESSON_CONFIRM_START, LESSON_CONFIRM_CANCEL = (515, 1160), (236, 1161)
+
+
+# 决策后游戏再弹的确认框（标题 → 哪些选行动决策算「已经决定了」）：最近一次决策是其中之一就点「開始する」（执行决策器已经做出的选择），
+# 否则（含续跑不知道之前选了什么）点「キャンセル」回选行动页重新决策。协调 + 3940a9 11-17 定，不加开关。
+DECISION_CONFIRMS = {
+    "レッスン開始確認": ("training", "class"),  # 体力が低下しています（初 Mac 11-17 frames/00360）
+}
+# 一律点「キャンセル」、回选行动页时告诉决策器这一周别再选它（page_fields.declined_options，3940a9 07f1d30 已接）：
+# 相談開始確認（Pポイントの所持数が少ないです）说明按游戏实际价 P 不够，进去也只能直接离开，这一周白费（3940a9 11-18，初第二局第 4 周）
+DECLINE_CONFIRMS = {"相談開始確認": "shop"}
+
+
+def _decline(rt, option: str) -> None:
+    """记进局面 produce.declined_options = {options, step}：reduce 在同一周的选行动页放进 page_fields，换周丢掉；选行动执行完清掉。"""
+    session = getattr(rt, "session", None)
+    state = getattr(session, "state", None)
+    if state is None:
+        return
+    prod = dict(state.produce or {})
+    cur = prod.get("declined_options") or {}
+    opts = sorted({*(cur.get("options") or []), option}) if cur.get("step") == prod.get("step") else [option]
+    prod["declined_options"] = {"options": opts, "step": prod.get("step")}
+    state.produce = prod
+
+
+def decision_confirm(frame, rt) -> str | None:
+    """「レッスン開始確認」「相談開始確認」这类确认框（キャンセル / 開始する）。只认 DECISION_CONFIRMS / DECLINE_CONFIRMS 里的标题；
+    「開始する」不会点在破棄框上（破棄框由 red_line 先处理，标题也不在表里）。"""
+    if not frame.has_dialog:
+        return None
+    title = str((frame.dialog or {}).get("title") or "")
+    decline = next(((t, o) for t, o in DECLINE_CONFIRMS.items() if t in title), None)
+    if decline is not None:
+        if _recently(rt, "decision_confirm"):
+            return f"{decline[0]}：刚点过，等框关"
+        btn = next((t for t in frame.texts if "キャンセル" in t.text and t.rect.center.y > 1000), None)
+        rt.device.tap(*(btn.rect.center if btn is not None else LESSON_CONFIRM_CANCEL))
+        _tapped(rt, "decision_confirm")
+        _decline(rt, decline[1])
+        return f"{decline[0]}：点「キャンセル」，这一周不再选 {decline[1]}（declined_options）"
+    hit = next(((t, opts) for t, opts in DECISION_CONFIRMS.items() if t in title), None)
+    if hit is None:
+        return None
+    name, opts = hit
+    if _recently(rt, "decision_confirm"):
+        return f"{name}：刚点过，等框关"
+    last = getattr(getattr(rt, "session", None), "last_decision", None)
+    go = bool(last) and last[0] == "ACTION_SELECT" and (last[1].action.args or {}).get("option") in opts
+    if go:
+        btn = next((t for t in frame.texts if t.text.replace(" ", "").strip() == "開始する" and t.rect.center.y > 1000), None)
+        pos = btn.rect.center if btn is not None else LESSON_CONFIRM_START
+    else:
+        btn = next((t for t in frame.texts if "キャンセル" in t.text and t.rect.center.y > 1000), None)
+        pos = btn.rect.center if btn is not None else LESSON_CONFIRM_CANCEL
+    rt.device.tap(*pos)
+    _tapped(rt, "decision_confirm")
+    what = "/".join(opts)
+    return f"{name}：{f'刚才决策是 {what}，点「開始する」' if go else f'最近的决策不是 {what}（或续跑后不知道），点「キャンセル」回选行动页重新决策'}"
+
+
+lesson_lowhp_confirm = decision_confirm  # 旧名（ea62356）
+
+
+TAP_NEXT = "TAPで次へ"
+TAP_NEXT_BLOCK = ("キャンセル", "購入", "ジュエル", "破棄", "削除")
+
+
+def tap_next_dialog(frame, rt) -> str | None:
+    """弹窗样式的展示页、底部只有「TAPで次へ」（初结算的 True End 条件页：1 位 + 三个アチーブメント + 「3つのアチーブメントを獲得した
+    状態で試験1位」，协调 11-17：判成 DIALOG 没处理器，182 秒停）：点「TAPで次へ」。有キャンセル / 購入 / ジュエル 等字样的框不点。"""
+    if not frame.has_dialog:
+        return None
+    texts = [t.text.replace(" ", "") for t in frame.texts]
+    if any(w in t for t in texts for w in TAP_NEXT_BLOCK):
+        return None
+    btn = next((t for t in frame.texts if TAP_NEXT in t.text.replace(" ", "") and t.rect.center.y > 1000), None)
+    if btn is None:
+        return None
+    if _recently(rt, "tap_next"):
+        return "「TAPで次へ」：刚点过，等翻页"
+    rt.device.tap(*btn.rect.center)
+    _tapped(rt, "tap_next")
+    return f"展示页「{(frame.dialog or {}).get('title') or ''}」：点「TAPで次へ」"
+
+
+LIVE_RESUME = "画面タップで再開"
+
+
+def live_resume(frame, rt) -> str | None:
+    """LIVE 暂停（「画面タップで再開」，初 True End LIVE 在全屏里暂停、退出全屏后竖屏带黑边显示，协调 11-17）：点这行字继续。
+    先看版面（竖屏、上下两段黑、中间一条横向画面）再 OCR，平常的帧不多花整屏 OCR。"""
+    img = frame.img
+    if img is None or img.shape[0] <= img.shape[1]:
+        return None
+    h = img.shape[0]
+    if float(img[: h * 3 // 10].mean()) > 5 or float(img[h * 7 // 10 :].mean()) > 5 or float(img[h * 4 // 10 : h * 6 // 10].mean()) < 8:
+        return None
+    btn = next((t for t in frame.texts if LIVE_RESUME in t.text.replace(" ", "")), None)
+    if btn is None:
+        return None
+    if _recently(rt, "live_resume"):
+        return "LIVE 暂停：刚点过「画面タップで再開」，等继续"
+    rt.device.tap(*btn.rect.center)
+    _tapped(rt, "live_resume")
+    return "LIVE 暂停：点「画面タップで再開」"
+
+
 Interrupt = Callable[[object, object], "str | None"]
 DEFAULT: tuple[Interrupt, ...] = (red_line, comm, stop_notice, date_changed, settings, customize_confirm, tutorial, reroll_confirm,
-                                   achievement_toast, affection_unlock, use_limit, live_setting, consult_end_confirm)
+                                   achievement_toast, affection_unlock, use_limit, live_setting, consult_end_confirm, interval_end_confirm, drink_detail, rest_confirm,
+                                   decision_confirm, tap_next_dialog, live_resume)
 
 
 def check(frame, rt, interrupts: tuple[Interrupt, ...] = DEFAULT) -> str | None:

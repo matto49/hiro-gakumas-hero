@@ -105,3 +105,21 @@ def test_reroll_confirm_titles_from_settings():
         res = _run(fake)
         assert res.ok, (title, res.error)
         assert shop.REROLL_OK_TAP in fake.clicks and (220, 1160) not in fake.clicks
+
+
+def test_reroll_slow_server_still_counts_after_confirm():
+    """z5（11-19 02:42 DMM）：点了「更新する」，服务器慢（刚出过通信エラー），货架 10 秒后才换（P 544→534、刷新价 10→20），
+    超时判了「货架没换」三次。点过确认后再多等 REROLL_GRACE 秒。"""
+    texts = {"confirm": [("リフレッシュ確認", (200, 600)), ("キャンセル", (220, 1160)), ("更新する", (500, 1160))]}
+    frames = _frames()
+    frames["loading"] = frames["idle"].copy()  # 确认框关了、货架还没换（转圈）
+    fake = Fake(frames, {("idle", REFRESH): "confirm", ("confirm", (500, 1160)): "loading"}, "idle",
+                timed={"loading": (shop.REROLL_TIMEOUT + 2, "after")}, texts=texts)  # fmt: skip
+    res = _run(fake)
+    assert res.ok, res.error
+
+
+def test_reroll_without_confirm_does_not_wait_grace():
+    fake = Fake(_frames(), {}, "idle")  # 没点到确认框：照旧 10 秒判没换
+    res = _run(fake)
+    assert not res.ok and fake.t <= shop.REROLL_TIMEOUT + 3

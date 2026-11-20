@@ -341,6 +341,7 @@ def refresh_badge(boxes) -> str:
     x1, y1, x2, y2 = REROLL_REGION
     return "".join(t.replace(" ", "") for t, _, (bx1, by1, bx2, by2) in boxes if x1 <= (bx1 + bx2) / 2 <= x2 and y1 <= (by1 + by2) / 2 <= y2)
 REROLL_TIMEOUT = 10.0
+REROLL_GRACE = 10.0  # 点过确认框后还没换：服务器慢时再多等这么久
 
 
 def shelf_diff(a: np.ndarray, b: np.ndarray) -> float:
@@ -429,13 +430,18 @@ def _reroll(r: Run, scope: str, info: dict | None) -> ExecutionResult:
         return state["changed"] >= REROLL_CHANGED_FRAMES
 
     ok, img = r.until(done, REROLL_TIMEOUT, tick=tick)
+    if not ok and state["confirmed"] and not state["jewel"]:
+        # 点过确认、服务器慢：货架晚换（z5 11-19 02:42：刚出过通信エラー，P 544→534、刷新价 10→20 都在 10 秒后才出来，判了三次「没换」）
+        logger.info("刷新货架（%s）：确认后 %.0fs 货架还没换，再等 %.0fs", scope, REROLL_TIMEOUT, REROLL_GRACE)
+        ok, img = r.until(done, REROLL_GRACE, tick=tick)
     r.snap(img, "reroll-done" if ok else "reroll-not-done")
     if state["jewel"]:
         return r.result(False, "刷新要花ジュエル，已取消", page_after=PAGE if consult_idle(img) else None)
     if not ok:
         if reroll_dialog(r.ocr(img)):  # 超时还挂着确认框：取消，不留给后面的步骤
             cancel_reroll_dialog(r)
-        return r.result(False, f"点「リフレッシュ」后 {REROLL_TIMEOUT:.0f}s 内货架没换（确认框{'已' if state['confirmed'] else '没'}点，P {p0}）",
+        waited = REROLL_TIMEOUT + (REROLL_GRACE if state["confirmed"] else 0)
+        return r.result(False, f"点「リフレッシュ」后 {waited:.0f}s 内货架没换（确认框{'已' if state['confirmed'] else '没'}点，P {p0}）",
                         page_after=PAGE if consult_idle(r.shoot()) else None)  # fmt: skip
     logger.info("刷新货架（%s）：P %s → %s，货架差 %.1f（%.1fs）", scope, p0, read_p(img, r.ocr), shelf_diff(before, img), r.clock() - r.t0)
     return r.result(True)

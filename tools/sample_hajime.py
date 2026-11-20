@@ -4,7 +4,7 @@
 画面 3 分钟没变化就停下，帧留着，交给人手动接。
 
     PYTHONPATH=src python tools/sample_hajime.py [--difficulty regular|pro|master] [--idol i_card-skin-shro-3-007]
-                                                 [--out ~/github/digital-hiro/.temp/hajime-nia-mac/frames] [--resume]
+                                                 [--out <帧目录>] [--resume]
 
 - --resume：培育进行中时续跑，不开新局（hiro.loop.resume.enter_produce：首页点「プロデュース中」→「再開する」，已在培育里就直接接上；
   破弃提示只点キャンセル 停下）。--difficulty 要和进行中的那局一致（KAA 的控制器按它走）。不加 --resume 时开局前照旧 guard_new，
@@ -175,7 +175,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="初 采样驱动（KAA 标准策略打一局，一路存帧）")
     ap.add_argument("--difficulty", choices=list(DIFFICULTY), default="regular")
     ap.add_argument("--idol", default="i_card-skin-shro-3-007")
-    ap.add_argument("--out", default=str(Path.home() / "github/digital-hiro/.temp/hajime-nia-mac/frames"))
+    ap.add_argument("--out", default=".temp/hajime-nia-mac/frames")
     ap.add_argument("--diff", type=float, default=4.0, help="灰度缩略图（90x160）平均差达到这个就存一帧")
     ap.add_argument("--resume", action="store_true", help="培育进行中：续跑（不开新局）；--difficulty 要和那一局一致")
     args = ap.parse_args()

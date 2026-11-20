@@ -51,3 +51,79 @@ def exam_rank(img: np.ndarray) -> dict | None:
     if r.get("rank") is None:
         return None
     return {"rank": r["rank"], "score": r.get("score"), "retry": r.get("retry")}
+
+
+LESSON_LEFT_BOX = (300, 125, 420, 172)  # 正中「CLEARまで / PERFECTまで」下面的数字（帧 00330：25 在 (359,146)）
+LESSON_PARAM_BOX = (560, 45, 700, 82)  # 右上「评级 + 当前属性值」（课程里加的分实时加在这里）
+
+
+def lesson_goal(img: np.ndarray) -> str | None:
+    """正中写的是「CLEARまで」还是「PERFECTまで」（KAA 同一对模板）；都不是 None。"""
+    from hiro.vision.ui_templates import normalize, tpl
+
+    if img is None:
+        return None
+    img = normalize(img)
+    if tpl("InProduce.TextPerfectUntil").find(img) is not None:
+        return "perfect"
+    if tpl("InProduce.TextClearUntil").find(img) is not None:
+        return "clear"
+    return None
+
+
+def _box_int(img: np.ndarray, box) -> int | None:
+    import re
+
+    from hiro.vision.ocr import ocr
+
+    x1, y1, x2, y2 = box
+    text = "".join(t for t, _ in ocr(img[y1:y2, x1:x2], scale=2))
+    m = re.search(r"(\d{1,4})\s*$", text)  # 属性值前面贴着评级字母（「D 204」）：取末尾的数字
+    return int(m.group(1)) if m else None
+
+
+LESSON_TURNS_BOX = (60, 62, 150, 118)  # 左上「残りターン数」下面的数字
+
+
+def lesson_turns(img: np.ndarray) -> int | None:
+    """左上剩余回合数。数字模板（hiro.exec.exam._hud_int，KAA InLesson 框）读一位数准、两位数会丢一位（追い込み 11 → 1）；
+    OCR 读一位数不准（6 → 9）、两位数和「3+1」（追加回合）准。所以 OCR 给出两位数或「a+b」就用 OCR（a+b 相加），否则用模板。"""
+    import re
+
+    from hiro.exec.exam import _hud_int
+    from hiro.vision import hif
+    from hiro.vision.ocr import ocr
+    from hiro.vision.ui_templates import box
+
+    x1, y1, x2, y2 = LESSON_TURNS_BOX
+    text = "".join(t for t, _ in ocr(img[y1:y2, x1:x2], scale=2)).replace(" ", "")
+    if m := re.fullmatch(r"(\d{1,2})\+(\d{1,2})", text):
+        return int(m.group(1)) + int(m.group(2))
+    tpl_v = _hud_int(img, hif.BOX_TURNS, box("InProduce.InLesson.BoxRemainingTurns"))
+    if re.fullmatch(r"\d{2}", text):
+        # 模板核对（协调 11-18：续跑时 6 回合的课读成 19）：模板两位数会丢一位，但剩下那位应该是 OCR 两位数里的一位（11 → 1）；
+        # 对不上就信模板（19 vs 6 → 6）。模板读不到时照 OCR
+        if tpl_v is None or str(tpl_v) in text:
+            return int(text)
+        return tpl_v
+    return tpl_v
+
+
+def read_lesson_hud(img: np.ndarray) -> dict | None:
+    """练习课 HUD → {goal: clear / perfect, left: 离目标还差多少, param: 当前属性值}；不在练习课 None。读不到的项给 None。
+    课程分实时加在右上的属性值上：满分线 = (当前属性值 − 开课时属性值) + PERFECTまで 的数（帧 00512：204 − 155 + 1 = 50）。"""
+    goal = lesson_goal(img)
+    if goal is None:
+        return None
+    return {"goal": goal, "left": _box_int(img, LESSON_LEFT_BOX), "param": _param(img)}
+
+
+def _param(img: np.ndarray) -> int | None:
+    """右上属性值。追い込み课过了 CLEAR 以后这里换成「追い込みボーナス N」（帧 02290），那时不是属性值：给 None。"""
+    from hiro.vision.ocr import ocr
+
+    x1, y1, x2, y2 = LESSON_PARAM_BOX
+    text = "".join(t for t, _ in ocr(img[y1:y2, x1:x2], scale=2))
+    if any(w in text for w in ("込み", "ナス", "ボーナス")):
+        return None
+    return _box_int(img, LESSON_PARAM_BOX)

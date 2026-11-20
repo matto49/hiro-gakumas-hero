@@ -5,6 +5,8 @@ import pytest
 
 import hiro.exec.exam as ex
 
+pytestmark = [pytest.mark.master]
+
 
 @pytest.mark.parametrize(("card_id", "want"), [
     ("p_card-00-acc-0_002", False),  # 眠気：0 消耗、没有效果

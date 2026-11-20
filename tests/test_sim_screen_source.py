@@ -187,3 +187,62 @@ def test_second_generated_sleepy_keeps_the_first():
     assert src.game is not None, src.lost
     hand = [src.game.env.rx.card_info(i)[0] for i in src.game.env.zones["hand"]]
     assert hand.count(SLEEPY) == 2, hand
+
+
+@pytest.mark.parametrize("on", [False, True])
+def test_r2_ouenbou_pool_fill_swaps_placeholder(monkeypatch, on):
+    """mainz4 R2 复盘③（协调 11-18）：HIRO_SIM_OUENBOU_POOL=1 时 R2 応援棒按広的真实卡池（やる気流派）补；画面露出的基础卡在引擎里不够时
+    换掉一张还没露面的占位卡，牌组总数保持 22。缺省开；0 关掉是旧轮换：补的卡对不上，露出的卡只能新建，引擎牌组越补越多。"""
+    _needs_new_card()
+    from hiro.sim import interval as iv
+    from hiro.sim import resource as rv
+    from hiro.sim.screen_source import SimScreenExamStateSource
+
+    if on:
+        monkeypatch.delenv("HIRO_SIM_OUENBOU_POOL", raising=False)  # 缺省开（协调 11-18）
+    else:
+        monkeypatch.setenv("HIRO_SIM_OUENBOU_POOL", "0")
+    deck = (list(rv.REFERENCE_DECK) * 2)[:17]
+    SHIGUSA = "p_card-02-act-0_038"  # 仕草の基本（卡池里有、旧轮换前 5 张没有；新补法只补 1 张）
+    from hiro.brain.battle import BattleBrain
+    from hiro.sim.env import SimGame
+
+    setup, _ = rv.setup_for("r2", deck=deck, drinks=[], hp=20, max_hp=33, permil=None)
+    truth = SimGame(iv._env(setup, seed=7), "r2", CAMPUS_HIRO)
+    truth.memory = BattleBrain(CAMPUS_HIRO, None).new_memory("r2")
+    src = SimScreenExamStateSource()
+    src.begin({"exam": "r2", "profile": CAMPUS_HIRO, "session": _Session(deck)})
+    mem = copy.deepcopy(truth.memory)
+    state = truth.state()
+    src.screen_drinks = []
+    src._sync(state, mem)
+    assert src.game is not None, src.lost
+    screen = copy.deepcopy(state)
+    for c in screen.hand[:2]:  # 画面上露出两张 仕草の基本
+        c.card_id, c.upgrade = SHIGUSA, 0
+    src.game = None
+    src._sync(screen, mem)
+    assert src.game is not None, src.lost
+    env = src.game.env
+    total = sum(len(env.zones[z]) for z in ("hand", "deck", "grave", "lost"))
+    hand = [env.rx.card_info(i)[0] for i in env.zones["hand"]]
+    assert hand.count(SHIGUSA) == 2
+    assert SHIGUSA not in [c for c, _ in iv.ouenbou_fill(deck)[17:]]  # 旧轮换前 5 张没有 仕草
+    assert total == (22 if on else 24)  # 关掉时两张都只能新建，22 + 2
+
+
+def test_unique_item_fallback_when_ledger_empty(monkeypatch):
+    """mainz4（11-18）：P 道具账本为空时合成开局把模板道具全清掉，引擎里没有固有道具。HIRO_SIM_UNIQUE_ITEM=1 时只放偶像卡的固有道具
+    （IdolCard.beforeProduceItemId），也可以直接写道具 id；缺省开（协调 11-18），0 关。"""
+    from hiro.sim import screen_source as ss
+
+    src = ss.SimScreenExamStateSource()
+    src.begin({"exam": "r2", "profile": CAMPUS_HIRO, "session": _Session([("p_card-02-men-1_031", 0)])})
+    monkeypatch.setenv("HIRO_FORMATION_PLAN", "off")
+    monkeypatch.setenv("HIRO_SIM_UNIQUE_ITEM", "0")
+    assert src._run_loadout()[0]["items"] == ()
+    monkeypatch.delenv("HIRO_SIM_UNIQUE_ITEM", raising=False)  # 缺省开
+    run, notes = src._run_loadout()
+    assert run["items"] == ("pitem_02-3-076-0",) and any("固有道具" in n for n in notes)
+    monkeypatch.setenv("HIRO_SIM_UNIQUE_ITEM", "pitem_02-3-076-1")
+    assert src._run_loadout()[0]["items"] == ("pitem_02-3-076-1",)

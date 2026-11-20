@@ -130,3 +130,59 @@ def test_comm_episode_window():
     assert not c._in_comm_error_episode(100.0)  # 90s 没再弹：这一轮结束
     c._note_comm_retry(200.0)  # 新一轮从 200 起算
     assert c._comm_first == 200.0
+
+
+def test_e209_retry_hits_button_not_hint_sentence():
+    """11-19 账号 2：E209「アセット取得に失敗」的说明句含「リトライ」、排在按钮上面；原来点的是说明句 (299,1019)，10 次都没重试。
+    按钮 OCR 读成「くリトライ」也要认。"""
+    from hiro.loop.comm_error import comm_error
+
+    boxes = [("通信エラー", 1, (60, 885, 220, 920)), ("アセット取得に失敗", 1, (60, 965, 280, 1000)),
+             ("通信環境の良い場所でリトライしてください", 1, (60, 1002, 540, 1036)), ("(E209)", 1, (60, 1040, 140, 1072)),
+             ("X タイトルへ", 1, (130, 1145, 295, 1178)), ("くリトライ", 1, (410, 1145, 546, 1178))]  # fmt: skip
+    got = comm_error(boxes)
+    assert got["kind"] == "retry" and got["retry"] == (478, 1161)
+
+
+@pytest.mark.fixtures
+def test_e209_on_orange_loading_screen_is_a_dialog():
+    """11-19 账号 2：资源下载的加载画面整片橙黄，E209 弹窗的标题条和背景连成一片，has_dialog=False，中断层没点リトライ，180 s 停机。"""
+    import os
+    from pathlib import Path
+
+    import cv2
+
+    from hiro.loop.comm_error import comm_error
+    from hiro.runtime.frame import Frame
+
+    path = Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures")) / "pages" / "comm-e209-on-loading-acct2.png"
+    if not path.exists():
+        pytest.skip("需要实机截图 pages/comm-e209-on-loading-acct2.png")
+    f = Frame(cv2.imread(str(path)), 0)
+    assert f.has_dialog and (f.dialog or {}).get("kind") == "comm_error"
+    e = comm_error(f.boxes)
+    assert e["kind"] == "retry" and abs(e["retry"][0] - 475) < 30 and abs(e["retry"][1] - 1161) < 20
+
+
+@pytest.mark.fixtures
+def test_e209_on_loading_with_orange_bottom_still_retries():
+    """11-20 账号 2 LOADING 页：按钮下方的橙色底被当成最下面的「标题条」，弹窗 kind 读成别的，中断层不点リトライ、180 s 停机。
+    现在核对「通信エラー」字样本身在标题条上（橙色行 + 下方白色正文框），照样只点リトライ。"""
+    import os
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    import cv2
+
+    from hiro.runtime import interrupts
+    from hiro.runtime.frame import Frame
+
+    path = Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures")) / "pages" / "comm-e209-on-loading-move-acct2.png"
+    if not path.exists():
+        pytest.skip("需要实机截图 pages/comm-e209-on-loading-move-acct2.png")
+    img = cv2.imread(str(path))
+    taps = []
+    rt = SimpleNamespace(screen=SimpleNamespace(shot=lambda: Frame(img, 0)), device=SimpleNamespace(tap=lambda x, y: taps.append((x, y))),
+                         sleep=lambda s: None, clock=lambda: 0.0)  # fmt: skip
+    assert interrupts.comm(Frame(img, 0), rt) == "通信エラー：retry"
+    assert len(taps) == 1 and abs(taps[0][0] - 478) < 40 and abs(taps[0][1] - 1161) < 20

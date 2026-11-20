@@ -18,6 +18,7 @@ import pytest
 
 TESTS = Path(__file__).parent
 FIXTURES = TESTS / "fixtures"
+os.environ.setdefault("HIRO_GUIDES_FETCH", "0")  # 测试不联网下载偶像卡攻略包（hiro.brain.guides.refresh_if_stale）
 if not FIXTURES.exists() and os.environ.get("HIRO_FIXTURES") and Path(os.environ["HIRO_FIXTURES"]).is_dir():
     try:
         FIXTURES.symlink_to(Path(os.environ["HIRO_FIXTURES"]).resolve(), target_is_directory=True)
@@ -165,6 +166,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "user_assets(*kinds): 需要自建素材（HIRO_USER_ASSETS）；kinds 见 hiro.vision.assets.USER_ASSETS")
     config.addinivalue_line("markers", "synthetic: 只用合成图（源码里的 .png 是自己画的），不按「读样例截图」跳过")
     config.addinivalue_line("markers", "fixtures: 要读 tests/fixtures 的截图样例（经类 / 多层辅助函数间接读，自动判断看不出来时显式标）")
+    config.addinivalue_line("markers", "kaa: 要 KAA（可选组 play）：经 hiro.produce.hif 的策略类 / kaa_patches 等在运行时才导入，自动判断看不出来时显式标")
     config.addinivalue_line("markers", "master: 要主数据 game.db（经决策器 / 识别层间接查，自动判断看不出来时显式标）")
     config.addinivalue_line("markers", "sim_master: 要真跑模拟器（vendor/gakumas-player 的主数据 catalog.sqlite 已构建）")
     config.addinivalue_line("markers", "lowres_sample(why): 样例是低分辨率截图（360x640 / 540x960 放大），只在 Vision OCR 下断言；"
@@ -212,6 +214,8 @@ def pytest_collection_modifyitems(config, items):
         if item.get_closest_marker("sim_master") is not None and not _sim_master_ok():
             item.add_marker(pytest.mark.skip(reason="需要模拟器主数据（python vendor/gakumas-player/scripts/fetch_master.py）"))
             continue
+        if item.get_closest_marker("kaa") is not None and not _kaa_ok():
+            item.add_marker(pytest.mark.skip(reason="需要 KAA（pip install -e '.[play]'）"))
         if item.get_closest_marker("master") is not None and not _master_ok():
             item.add_marker(pytest.mark.skip(reason="需要主数据 game.db（KAA 公开数据，HIRO_KAA_GAME_DATA）"))
             continue
@@ -338,3 +342,18 @@ def _bench_advisor_off(monkeypatch, request):
     测试里默认关掉（不联网、行为和以前的规则出招一致）；bench 中转层自己的测试（标 bench_on）再打开。"""
     if request.node.get_closest_marker("bench_on") is None:
         monkeypatch.setenv("HIRO_BENCH_ADVISOR", "0")
+
+
+_KAA_MISSING = re.compile(r"No module named '(?:kaa|kotonebot)\b|import of (?:kaa|kotonebot)\b")
+
+
+@pytest.hookimpl(hookwrapper=True)
+def pytest_make_collect_report(collector):
+    """没装 KAA（公开 CI 只装 dev 组）时，测试文件间接用到 KAA（例如导入 hiro.produce.hif 的策略类、从别的测试文件导入的替身顶层 import kaa）
+    在收集阶段就报 ModuleNotFoundError。_collect_ignore 只看顶层的直接导入，拦不住这种；这里把「缺 KAA / kotonebot」导致的收集错误改成跳过。
+    装了 KAA 时不改任何结果。"""
+    outcome = yield
+    rep = outcome.get_result()
+    if rep.failed and isinstance(collector, pytest.Module) and _KAA_MISSING.search(str(rep.longrepr)) and not _kaa_ok():
+        rep.outcome = "skipped"
+        rep.longrepr = (str(collector.path), 0, "Skipped: 要 KAA（可选组 play，子模块 vendor/kaa）")

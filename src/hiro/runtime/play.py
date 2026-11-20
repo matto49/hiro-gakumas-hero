@@ -33,6 +33,10 @@ QUICK_WAIT_TAP_BY_KIND = {"gift_effect": 1.0, "day_countdown": 4.0}
 # 选拔 / 本战通关后的结算流程开头几页（选回忆照片、选拔突破证书），判页认不出：交 finish.finish_produce_end 一路点到开始确认页停
 # （同旧主循环 HiroController._is_produce_finished）
 END_MARKERS = ("メモリーにするフォト", "選抜試験突破者")
+# 剧情 SKIP（左下 (225,1200)）在选行动页上正是饮料栏第 3 格（协调 11-18 初 MASTER 20:31：剧情帧上隔 0.36 秒点了两次 SKIP，
+# 第一下已经跳过、第二下落在刚出来的选行动页上，点开「Pドリンク詳細」盖住页面，选行动读不到选项停机）。
+# 点过 SKIP 这么久之内不再点；点之前对新截的帧再核一次底栏还在
+COMMU_RETAP_S = 2.0
 QUICK_WAIT_TAP_POS = {"day_countdown": "safe"}  # 倒计时下面就是选行动页，(12,12) 会点进左上框：改点安全空白
 
 
@@ -60,6 +64,8 @@ def advance(rt, frame, hit) -> bool:
         return True
     if frame.img is not None and frame.img.shape[1] > frame.img.shape[0]:
         return False  # 横屏演出中：不点
+    if hit.name in ADVANCE_PAGES and scenes.tap_next(rt, frame):
+        return True
     if scenes.commu_skip(rt, frame):
         _flag_deck_after_commu(rt)
         return True
@@ -92,13 +98,45 @@ def _flag_deck_after_commu(rt) -> None:
     logger.info("跳过培育剧情：牌组标成待复核，下次选行动页读一次牌组")
 
 
+def _clock(rt) -> float:
+    import time
+
+    return rt.clock() if callable(getattr(rt, "clock", None)) else time.monotonic()
+
+
+def _commu_tap_ok(rt) -> bool:
+    """剧情 SKIP 能不能点：上次点 SKIP 不到 COMMU_RETAP_S 秒不点（剧情正在收尾，下一帧多半已是选行动页）；
+    新截一帧底栏不在了也不点。"""
+    from hiro.vision.quick import commu_bar
+
+    last = getattr(rt, "_commu_tap_at", None)
+    if last is not None and _clock(rt) - last < COMMU_RETAP_S:
+        logger.info("快速判页 commu：%.1f 秒前刚点过 SKIP，不再点（等剧情收尾）", _clock(rt) - last)
+        return False
+    if getattr(rt, "screen", None) is None:
+        return True  # 没有截图通道（离线替身）：只按间隔
+    try:
+        fresh = rt.screen.shot().img
+    except Exception:  # noqa: BLE001  截不到图：不点，下一拍再看
+        return False
+    if not commu_bar(fresh):
+        logger.info("快速判页 commu：点之前重截，剧情底栏已经不在，不点 SKIP")
+        return False
+    return True
+
+
 def _quick_tap(rt, q: dict, now: float) -> bool:
     """快速判页带 tap 的页直接点；不带 tap 的页同一种等太久点兜底位置。返回是否点了。"""
     from hiro.vision.quick import SAFE_BLANK_TAP
 
     if q.get("tap") is not None:
         rt._quick_wait = None
+        skip = q["page"] == "commu" and not (q.get("fields") or {}).get("kind")  # 剧情底栏 SKIP（事件台词框 event_dialogue 点的是台词框，不管）
+        if skip and not _commu_tap_ok(rt):
+            return False
         rt.device.tap(*q["tap"])
+        if skip:
+            rt._commu_tap_at = _clock(rt)
         if q["page"] == "commu":
             _flag_deck_after_commu(rt)
         logger.info("快速判页 %s %s：点 %s", q["page"], (q.get("fields") or {}).get("text") or (q.get("fields") or {}).get("name") or "", q["tap"])

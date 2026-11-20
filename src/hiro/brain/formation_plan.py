@@ -34,19 +34,24 @@ GAIN_BY_RANK = (2900, 1900, 950)
 FINAL_BY_RANK = (3150, 2170, 1170)
 
 
-def idol_info(idol: str, main_attr: str | None = None) -> dict:
-    """偶像卡（可以是 skin id）→ {idol_card_id, name, plan, effect, profile, profile_caveat, default_main, attr_order}。"""
+def idol_info(idol: str, main_attr: str | None = None, mode: str | None = None) -> dict:
+    """偶像卡（可以是 skin id）→ {idol_card_id, name, plan, effect, profile, profile_caveat, default_main, attr_order, main_why}。
+    默认主属性：显式指定 > 偶像卡攻略的 formation.main_attr（mode 给了初 / N.I.A 的 produce id 时；广要 HIRO_GUIDES_HIRO=1）>
+    DEFAULT_MAIN > 成长率最高。"""
+    from hiro.brain.idol_know import main_attr as guide_main
     from hiro.state.context import catalog
     from hiro.state.memory_priority import profile_for_idol
 
     cid = idol.replace("i_card-skin-", "i_card-")
     row = catalog().one("IdolCard", cid)
     growth = {a: row.get(GROWTH_KEY[a]) or 0 for a in ATTRS}
-    default = main_attr or DEFAULT_MAIN.get(cid) or max(ATTRS, key=lambda a: growth[a])
+    guided = None if main_attr else guide_main(mode, cid)
+    default = main_attr or (guided[0] if guided else None) or DEFAULT_MAIN.get(cid) or max(ATTRS, key=lambda a: growth[a])
+    main_why = ("指定" if main_attr else f"攻略 {guided[1]}" if guided else "项目已定（DEFAULT_MAIN）" if cid in DEFAULT_MAIN else "成长率最高")
     profile, caveat = profile_for_idol(cid)
     order = [default] + sorted((a for a in ATTRS if a != default), key=lambda a: -growth[a])
     return {"idol_card_id": cid, "name": row.get("name"), "plan": row["planType"], "effect": row.get("examEffectType"),
-            "profile": profile, "profile_caveat": caveat, "default_main": default, "attr_order": order, "growth": growth}  # fmt: skip
+            "profile": profile, "profile_caveat": caveat, "default_main": default, "attr_order": order, "growth": growth, "main_why": main_why}  # fmt: skip
 
 
 def param_bases(attr_order: list[str]) -> tuple[dict, dict]:
@@ -62,12 +67,13 @@ def _load(path: str | Path | None):
 
 
 def build(idol: str, *, support_inventory: dict | None, memory_inventory: dict | list | None, support_set: int | None = None,
-          memory_set: int | None = None, main_attr: str | None = None, fixed_main: bool = False) -> dict:  # fmt: skip
-    """库存 → 编成方案（dict，写进 conf/formation-plan.json 的就是它）。main_attr：默认主属性（fixed_main 时不比较逆练）。"""
+          memory_set: int | None = None, main_attr: str | None = None, fixed_main: bool = False, mode: str | None = None) -> dict:  # fmt: skip
+    """库存 → 编成方案（dict，写进 conf/formation-plan.json 的就是它）。main_attr：默认主属性（fixed_main 时不比较逆练）。
+    mode：初 / N.I.A 的 produce id（给了就查偶像卡攻略：默认主属性 + 支援卡 / 回忆推荐对照，见 guide_check）。"""
     from hiro.brain import support_select as ss
     from hiro.brain.formation import select_memories
 
-    info = idol_info(idol, main_attr)
+    info = idol_info(idol, main_attr, mode)
     out = {"version": 1, "created": time.strftime("%Y-%m-%d %H:%M:%S"), "idol": info, "profile": info["profile"], "notes": []}
     if info["profile_caveat"]:
         out["notes"].append(info["profile_caveat"])
@@ -120,6 +126,36 @@ def build(idol: str, *, support_inventory: dict | None, memory_inventory: dict |
         mem["error"] = "没有回忆库存（先跑 tools.memory_inventory --live）"
         mem["cards"] = []
     out["memory"] = mem
+    if mode:
+        out["guide_check"] = guide_check(mode, info["idol_card_id"], sup, mem, support_inventory, memory_inventory)
+        out["notes"].extend(out["guide_check"].get("notes") or [])
+    return out
+
+
+def guide_check(mode: str, idol_card: str, sup: dict, mem: dict, support_inventory, memory_inventory) -> dict:
+    """偶像卡攻略的 formation.support / formation.memory 推荐 和 这份方案对照（设计文档 4.9-3：具体选哪张由数字小广按库存和估值算，
+    攻略只给推荐、卡池要求和依据）。列出：推荐里库存有、方案也选了的；推荐里库存有、方案没选的（写进 notes 提醒人看）；推荐里库存没有的。"""
+    from hiro.brain import guides
+    from hiro.brain.idol_know import lookup
+
+    from hiro.brain import support_select as ss
+
+    chosen_sup = {o.get("support_card_id") for o in (sup.get("own") or []) if isinstance(o, dict)} - {None}
+    owned_sup = {c.get("support_card_id") for c in ss.normalize_inventory(support_inventory or {}).get("cards") or []} - {None}
+    chosen_mem = set(mem.get("cards") or [])
+    out = {"notes": []}
+    for decision, chosen, owned in (("formation.support", chosen_sup, owned_sup), ("formation.memory", chosen_mem, None)):
+        rows = []
+        for it in guides.merge(lookup(mode, idol_card, decision)):
+            if it.side != "prefer":
+                continue
+            have = None if owned is None else it.id in owned
+            rows.append({"id": it.id, "chosen": it.id in chosen, "owned": have, "role": it.fields.get("role"), "entry": it.entry.id,
+                         "share": (it.fields.get("stat") or {}).get("share")})  # fmt: skip
+        out[decision] = rows
+        miss = [r["id"] for r in rows if r["owned"] and not r["chosen"]][:5]
+        if miss:
+            out["notes"].append(f"{decision}：攻略推荐、库存里有但方案没选的：{'、'.join(miss)}（按估值没选，人看一下）")
     return out
 
 
@@ -207,11 +243,12 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--memory-set", type=int, default=None, help="方案要存进的メモリー编成号（1–20）")
     ap.add_argument("--main-attr", choices=ATTRS, default=None, help="默认主属性（不给按项目已定 / 成长率最高）")
     ap.add_argument("--fixed-main", action="store_true", help="只用 --main-attr，不比较逆练")
+    ap.add_argument("--mode", default=None, help="初 / N.I.A 的 produce id（produce-002 等）：查偶像卡攻略（默认主属性、支援卡 / 回忆推荐对照）")
     ap.add_argument("--out", default=PLAN_PATH)
     ap.add_argument("--report", default=REPORT_PATH)
     args = ap.parse_args(argv)
     plan = build(args.idol, support_inventory=_load(args.support_inventory), memory_inventory=_load(args.memory_inventory),
-                 support_set=args.support_set, memory_set=args.memory_set, main_attr=args.main_attr, fixed_main=args.fixed_main)  # fmt: skip
+                 support_set=args.support_set, memory_set=args.memory_set, main_attr=args.main_attr, fixed_main=args.fixed_main, mode=args.mode)  # fmt: skip
     write(plan, args.out, args.report)
     print(format_report(plan))
     print(f"→ {args.out}\n→ {args.report}")

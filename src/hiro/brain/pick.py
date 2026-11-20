@@ -21,7 +21,7 @@ class PickDecision:
 class CardPicker:
     def __init__(self, profile: IdolProfile | None, llm: LLMAdapter | None):
         self.llm = llm
-        prompts = ["card_pick.md"] + ([f"idols/{profile.playbook}.md"] if profile else [])
+        prompts = ["card_pick.md"] + ([f"idols/{profile.playbook}.md"] if profile and profile.playbook else [])
         self.system = load_prompt(*prompts)
         self.prompt_version = prompt_version(*prompts)
         self.picked: list[str] = []  # 本次培育里我们选过的卡，作为牌组的已知部分

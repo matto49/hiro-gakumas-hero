@@ -85,7 +85,8 @@ class ActionSelectState:
     star: int | None
     advice: str | None
     options: list[ActionOption] = field(default_factory=list)
-    exam_next: str | None = None  # 初：页头「中間まで / 最終まで」→ mid1 / final（3940a9 按它查下一场的审查基准）
+    exam_next: str | None = None  # 初 / N.I.A：页头「中間 / 1次 / 2次 / 最終まで」→ mid1 / mid2 / final（3940a9 按它查下一场的审查基准）
+    weeks_left: int | None = None  # 初 / N.I.A：页头「N週」（离下一场考试还有几周；换算成 step 见 hiro.state.modes.step_from_header）
 
     @property
     def complete(self) -> bool:
@@ -294,7 +295,20 @@ def normalize_hif(text: str) -> str:
     return re.sub(r"H[\s.．。、,，「」|｜lI1Ｉ]{0,4}F", "H.I.F", text)
 
 
-HAJIME_HEADER = {"中間": "mid1", "最終": "final"}  # 初 页头「中間まで / 最終まで」（H.I.F 是「選抜試験1まで」「H.I.F本戦まで」）
+# 初 / N.I.A 页头「中間まで / 1次まで / 2次まで / 最終まで」（H.I.F 是「選抜試験1まで」「H.I.F本戦まで」）。初 Mac 11-17、N.I.A Mac 11-17 帧核过
+HAJIME_HEADER = {"中間": "mid1", "1次": "mid1", "2次": "mid2", "最終": "final"}
+WEEKS_MAX = 12
+
+
+def _weeks(header: str, img: MatLike) -> int | None:
+    """页头「N週」：OCR 常把「3」读成「ろ」（初 / N.I.A 帧「中間まで ろ週」「2次まで ろ週」）；读不出数字再用 ddddocr 读大号数字（同 _days_dddd）。"""
+    m = re.search(r"([\dろ]{1,2})\s*週", header)
+    if m:
+        v = int(m.group(1).replace("ろ", "3"))
+        if 1 <= v <= WEEKS_MAX:
+            return v
+    v = _days_dddd(img)
+    return v if v is not None and 1 <= v <= WEEKS_MAX else None
 
 
 def read_action_select(img: MatLike) -> ActionSelectState:
@@ -318,6 +332,7 @@ def read_action_select(img: MatLike) -> ActionSelectState:
         growth[a] = float(g.group(1)) if g else None
     advice = "".join(t for t, _ in ocr(img[slice(*ADVICE_BAND)], scale=2)) or None
     exam_next = next((v for k, v in HAJIME_HEADER.items() if exam and k in exam.group(1)), None)
+    weeks_left = _weeks(header, img) if exam_next else None
     options = _oikomi_options(img) if exam_next else []
     return ActionSelectState(
         exam=normalize_hif(exam.group(1)) if exam else None,
@@ -332,6 +347,7 @@ def read_action_select(img: MatLike) -> ActionSelectState:
         advice=advice,
         options=options or _options(img, hajime=exam_next is not None),
         exam_next=exam_next,
+        weeks_left=weeks_left,
     )
 
 

@@ -23,7 +23,7 @@ class BattleBrain:
         self.profile = profile
         self.llm = llm
         self.max_retries = max_retries
-        prompts = ["exam.md"] + ([f"idols/{profile.playbook}.md"] if profile else [])
+        prompts = ["exam.md"] + ([f"idols/{profile.playbook}.md"] if profile and profile.playbook else [])
         self.system = load_prompt(*prompts)
         self.prompt_version = prompt_version(*prompts)
         self.calls: list[dict] = []  # 每次 LLM 调用的耗时与结果，写进记录

@@ -1,5 +1,5 @@
 """编成第 1 步选偶像：hiro.vision.idols（偶像卡图库，和 KAA idols 库同一套描述子）+ hiro.produce.idol_select（翻页找卡）。
-和 KAA idols_db 的对照（120 张，第一名和距离全一致）在 .temp/goal-progress/classify/idol_parity.py。"""
+和 KAA idols_db 的对照（120 张，第一名和距离全一致）在 （作者本机，未发布）。"""
 
 import cv2
 import numpy as np

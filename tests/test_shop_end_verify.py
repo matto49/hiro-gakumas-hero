@@ -8,6 +8,8 @@ from test_shop_exec import FakeConsult, frame, near
 from hiro.contracts import Action, ActionKind
 from hiro.produce import shop
 
+pytestmark = [pytest.mark.fixtures]
+
 
 @pytest.mark.parametrize("name, shown", [("toast_delete", True), ("toast_upgrade", True), ("support_banner", True), ("toast_delete_dmm", True),
                                           ("idle", True), ("consult_end_scene", False), ("exam_loading", False), ("left", False)])  # fmt: skip

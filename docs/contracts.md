@@ -63,7 +63,7 @@ HIF_EXAM 的 `motivation` / `impression`：状态栏读到槽位且每个蓝底�
 | `page` | `{name, area, since_seq, stable, frames}` |
 | `produce` | `hiro.state.produce.ProduceState` 的字段（协议名），允许部分 `None`；齐全时 `produce_state()` 给出对象 |
 | `exam` | `BattleState.build` 的观测参数（与 HIF_EXAM 的 Observation.fields 同名） |
-| `exam_session` | `{label, turn, last_remaining}` |
+| `exam_session` | `{label, turn, last_remaining, brief_permil, brief_exam_no, lesson}`；`lesson` 只在初的练习课里有（见变更记录 2026-11-18） |
 | `page_fields` | 只属于当前页面的字段（`options` `complete` `advice` `candidates` `recommended`），换页即清空 |
 | `sources` | `"produce.stamina"` → `{origin, seq}`，`origin ∈ save > screen > infer` |
 | `pending_page` | 防抖中的候选页面 |
@@ -162,3 +162,4 @@ HIF_EXAM 的 `motivation` / `impression`：状态栏读到槽位且每个蓝底�
 | 2026-11-03 | 识别-01（决策 da6c8e5 牌组读全）：`deck.merge_deck_list(screens)` 一览页多屏 → DECK_LIST 字段（deck 只在恰好拼出标签张数且全认出时给，重叠拼不上退回首屏 + 末屏），本战开局写 produce.deck；`merge_dialog_screens` 的 cards 加 `dimmed` `screen`；SKILL_CARD_REMOVAL / ENHANCE / CHANGE_2 加 `deck_complete` `deck_screens`（执行侧滑动读整副后给，cards 换成整副、带 `deck_index` `screen`）；轮间 changes 的 upgrade 不再因橙色插画给 None。 |
 | 2026-11-13 | 去 KAA 第 0 步：`PageObs.source`（可空、只增不改，版本号不变）记哪一层判出的页面：主循环 `quick` / `kaa` / 我们的补判 `interval_title` / `exam_ocr` / `pixel` / `drink_ocr` / `pitem_ocr` / `idle_scene` / `produce_end_ocr` / `none`，`Session.observe` 自己分类时为 `classify`，钩子按上下文给页面时为 None。只记不用；`tools/page_sources.py` 按 trace 出基线表（KAA 出手次数）。 |
 | 2026-11-14 | 去 KAA 第 1 步：判页 `hiro.vision.classify.classify(img) -> PageHit`（纯函数、不依赖 KAA），`PageObs.source` 新增取值 `template`（自有模板判页，接替 `kaa`）、`signature`、`page_ocr`、`start_ocr`、`deck_ocr`、`landscape`；新页面名 `INITIAL_CHOICE`（开局二选一，原来 KAA 判页时双击第一项后报 IDLE）、`LIVE`（横屏）。旧主循环经 `scene.classify_current` 用它，两个新名字映射回 `IDLE` / `unknown`。 |
+| 2026-11-18 | 初课程：`ExamSession.lesson`（可空、只增不改）= `{kind, attr, nth, turns_total, clear_target, perfect_target, param_start, level_ids, exam_extra_turn, lesson_limit_up_score}`，`hiro.runtime.hajime.LessonInfo` 从练习课画面读、按主数据 `ProduceStepLessonLevel` 对照；读不到 / 对不上为 None。考试（非课程）进场时清成 None。 |

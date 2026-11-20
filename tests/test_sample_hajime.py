@@ -8,6 +8,8 @@ from types import SimpleNamespace as NS
 import numpy as np
 import pytest
 
+pytestmark = [pytest.mark.kaa]
+
 
 def _mod():
     p = Path(__file__).resolve().parents[1] / "tools" / "sample_hajime.py"

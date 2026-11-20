@@ -39,8 +39,48 @@ def test_rule_and_sim_decisions_swap(monkeypatch, source):
 
 
 def test_fallback_still_stops(monkeypatch):
+    monkeypatch.delenv("HIRO_DRINK_FULL_AUTO", raising=False)
     st, swapped = _st(monkeypatch, "fallback")
     st._stop = lambda page, why, **kw: (_ for _ in ()).throw(UnhandledPage(why))
     with pytest.raises(UnhandledPage):
         st._drink_full_skip()
     assert swapped == []
+
+
+# ---------------------------------------------------------------- 开关 HIRO_DRINK_FULL_AUTO（协调 11-17，初 REGULAR 实机：LLM 结论同规则仍停机）
+def _stopping(st):
+    st._stop = lambda page, why, **kw: (_ for _ in ()).throw(UnhandledPage(why))
+
+
+def test_llm_stops_when_switch_off(monkeypatch):
+    monkeypatch.delenv("HIRO_DRINK_FULL_AUTO", raising=False)
+    st, swapped = _st(monkeypatch, "llm")
+    _stopping(st)
+    with pytest.raises(UnhandledPage):
+        st._drink_full_skip()
+    assert swapped == []
+
+
+def test_llm_swaps_when_switch_on(monkeypatch):
+    monkeypatch.setenv("HIRO_DRINK_FULL_AUTO", "1")
+    st, swapped = _st(monkeypatch, "llm")
+    _stopping(st)
+    assert st._drink_full_skip() is True and swapped == [(0, 1)]
+
+
+def test_unrecognized_skips_when_switch_on(monkeypatch):
+    """开关开：决策认不出（fallback）就勾「受け取らない」→ 点按钮，不停机；随后的「報酬スキップ」由 on_pdrink_max_confirm 放行。"""
+    monkeypatch.setenv("HIRO_DRINK_FULL_AUTO", "1")
+    st, swapped = _st(monkeypatch, "fallback")
+    _stopping(st)
+    clicks, recorded, notes = [], [], []
+    texts = [Text("Pドリンク所持上限", Box(350, 1170, 370, 1190)), Text("受け取らない", Box(290, 990, 430, 1022)),
+             Text("受け取らない", Box(300, 1080, 420, 1114))]  # fmt: skip
+    monkeypatch.setattr(hif, "screen_texts", lambda *a, **k: texts)
+    monkeypatch.setattr(hif, "device", NS(screenshot=lambda: None, click=lambda x, y: clicks.append((x, y))))
+    monkeypatch.setattr(hif, "sleep", lambda s: None)
+    st.s.record = lambda obs, **k: recorded.append(k.get("decision"))
+    st.s.note = notes.append
+    assert st._drink_full_skip() is True
+    assert swapped == [] and clicks == [(360, 1006), (360, 1097)] and st._skip_incoming_drink
+    assert recorded[0].action.args == {"discard": [], "receive": False} and "默认跳过" in recorded[0].reason and notes

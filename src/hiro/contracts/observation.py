@@ -51,7 +51,7 @@ FIELD_CATALOG: dict[str, tuple[str, ...]] = {
     "HIF_EXAM_RESULT": ("score", "rank", "passed", "exam_no", "rank_line", "participants", "entries", "retry"),
     "STUDY": ("choices", "selected", "effect", "complete"),
     "OUTING": ("choices", "selected", "effect", "complete"),
-    "EVENT_CHOICE": ("choices", "selected", "effect", "complete"),
+    "EVENT_CHOICE": ("choices", "selected", "effect", "complete", "dialogue_only"),
     "DECK_LIST": ("deck", "deck_size", "cards", "complete", "problems"),
     "SKILL_CARD_REMOVAL": ("cards", "selected", "selected_card", "agree", "confirm", "deck_complete", "deck_screens", "cancelable"),
     "SKILL_CARD_ENHANCE": ("cards", "selected", "selected_card", "agree", "confirm", "upgradable", "deck_complete", "deck_screens", "cancelable", "trigger"),

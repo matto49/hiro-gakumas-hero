@@ -36,9 +36,11 @@ def _rt(tmp_path, now):
     return rt, taps
 
 
-def test_unknown_page_not_tapped_then_stops_with_frame(tmp_path, monkeypatch):
+def test_unknown_page_with_buttons_not_tapped_then_stops_with_frame(tmp_path, monkeypatch):
+    """认不出、画面上有按钮字样（キャンセル 等）：不点，不交给 play.advance 连点，stop_s 后存帧停下。"""
     from hiro.runtime import play
     from hiro.runtime.frame import Frame
+    from hiro.vision.ocr import Box, Text
 
     monkeypatch.setattr(play, "advance", lambda *a: pytest.fail("认不出的画面不该交给 play.advance 连点"))
     now = [0.0]
@@ -46,7 +48,7 @@ def test_unknown_page_not_tapped_then_stops_with_frame(tmp_path, monkeypatch):
     sampler = ns.Sampler(lambda img: UNKNOWN, tmp_path / "frames")
     adv = ns.make_advance(sampler, stop_s=15)
     f = Frame(np.full((1280, 720, 3), 90, np.uint8), 0.0)
-    f.__dict__["texts"] = []
+    f.__dict__["texts"] = [Text("キャンセル", Box(150, 1140, 280, 1180))]
     assert adv(rt, f, UNKNOWN) is False
     now[0] = 10.0
     assert adv(rt, f, UNKNOWN) is False and taps == []
@@ -54,6 +56,24 @@ def test_unknown_page_not_tapped_then_stops_with_frame(tmp_path, monkeypatch):
     with pytest.raises(ResumeBlocked, match="认不出"):
         adv(rt, f, UNKNOWN)
     assert list((tmp_path / "frames").glob("stop-*-unknown.jpg"))
+
+
+def test_quiet_unknown_tapped_up_to_cap_then_stops(tmp_path, monkeypatch):
+    """认不出、没有任何字的过场：每 3 秒点一下 (12,12)，最多 QUIET_TAP_MAX 下；还认不出就照旧 stop_s 后停下。"""
+    from hiro.runtime import play
+    from hiro.runtime.frame import Frame
+
+    monkeypatch.setattr(play, "advance", lambda *a: pytest.fail("认不出的画面不该交给 play.advance 连点"))
+    now = [0.0]
+    rt, taps = _rt(tmp_path, now)
+    adv = ns.make_advance(ns.Sampler(lambda img: UNKNOWN, tmp_path / "frames"), stop_s=15)
+    f = Frame(np.full((1280, 720, 3), 90, np.uint8), 0.0)
+    f.__dict__["texts"] = []
+    with pytest.raises(ResumeBlocked, match="认不出"):
+        for _ in range(200):
+            adv(rt, f, UNKNOWN)
+            now[0] += 1.0
+    assert taps == [ns.BUBBLE_TAP] * ns.QUIET_TAP_MAX
 
 
 def test_known_advance_page_delegates(tmp_path, monkeypatch):
@@ -186,3 +206,50 @@ def test_support_event_art_tapped_on_unknown(tmp_path, monkeypatch):
     flash[:] = (215, 190, 0)  # BGR 纯蓝绿
     taps.clear()
     assert adv(rt, Frame(flash, 0.0), UNKNOWN) is False and taps == []
+
+
+# ---------------------------------------------------------------- 没有界面的过场：认不出 3 秒后点空白（协调 11-18 N.I.A 第二局停 4 次）
+def _quiet(img, rt_t=(0.0, 4.0)):
+    from hiro.runtime import nia_sample as ns
+    from hiro.runtime.frame import Frame
+
+    taps, t = [], [rt_t[0]]
+    rt = NS(clock=lambda: t[0], device=NS(tap=lambda x, y: taps.append((x, y))))
+    st = {"since": None, "page": None, "quiet": 0, "unknown_since": None}
+    f = Frame(img, 0.0)
+    first = ns._quiet_tap(rt, f, st)
+    t[0] = rt_t[1]
+    return first, ns._quiet_tap(rt, f, st), taps, st
+
+
+@pytest.mark.parametrize("name", ["nia-quiet-whiteboard.jpg", "nia-quiet-idol.jpg"])
+def test_quiet_scene_tapped_after_wait(name):
+    first, second, taps, st = _quiet(_real(name))
+    assert first is False and second is True and taps == [(12, 12)] and st["quiet"] == 1
+
+
+def test_quiet_not_before_wait():
+    _, second, taps, _ = _quiet(_real("nia-quiet-whiteboard.jpg"), (0.0, 1.0))
+    assert second is False and taps == []
+
+
+def test_quiet_not_on_button_words(monkeypatch):
+    from hiro.vision.ocr import Box, Text
+
+    monkeypatch.setattr("hiro.runtime.frame.screen_texts", lambda img: [Text("キャンセル", Box(150, 1140, 280, 1180))])
+    _, second, taps, _ = _quiet(np.full((1280, 720, 3), 90, np.uint8))
+    assert second is False and taps == []
+
+
+def test_quiet_capped():
+    from hiro.runtime import nia_sample as ns
+    from hiro.runtime.frame import Frame
+
+    img = _real("nia-quiet-idol.jpg")
+    taps, t = [], [0.0]
+    rt = NS(clock=lambda: t[0], device=NS(tap=lambda x, y: taps.append((x, y))))
+    st = {"since": None, "page": None, "quiet": 0, "unknown_since": None}
+    for _ in range(30):
+        ns._quiet_tap(rt, Frame(img, 0.0), st)
+        t[0] += 4.0
+    assert len(taps) == ns.QUIET_TAP_MAX

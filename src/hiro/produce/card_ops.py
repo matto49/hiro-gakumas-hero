@@ -284,6 +284,37 @@ STAGE2_MAX_CANCELS = 2
 _STAGE2_CANCELS: dict = {}  # (card_id, remove_upgrade) → 本进程里阶段 2 因找不到那张而取消的次数
 
 
+LAST_CHANGED: dict | None = None  # 最近一次阶段 2 实际换出的卡 {card_id, upgrade}（成功时写，开始时清空）：给记账取实际强化次数
+CHANGE_GUESS_ART_MIN = 0.40  # 同 deck.GRID_AGREE_MIN：已知要找哪张卡时，卡图相关第一是它、分数够就当候选（还要详情栏卡名核对）
+
+
+def guess_unread_target(img, cards: list[dict], card_id: str, remove_upgrade: int | None = None) -> dict | None:
+    """阶段 2 要换的卡没在卡格里认出来时，在认不出的格子里按目标卡核对：卡图相关第一正是 card_id、分数 ≥ CHANGE_GUESS_ART_MIN，
+    强化次数不冲突，且只有一格符合 → 返回这一格（guessed=True，点了以后要详情栏卡名确认才换）；否则 None。
+    mainz3（11-18 03:47，DMM 559x993）：ひなたぼっこ 左侧两个角标盖住卡面，票数 2:2 并列、卡图 0.494 只领先 0.086，
+    通用识别认不出；账本挑出它，执行侧找不到就点キャンセル，绕回换卡页死循环。不放宽通用门槛，只在知道找哪张时核对。"""
+    from hiro import master
+    from hiro.vision.deck import _plus, grid_art_scores
+
+    hits = []
+    for c in cards:
+        if c.get("card_id") is not None or not c.get("rect"):
+            continue
+        x, y, w, h = c["rect"]
+        crop = img[y : y + h, x : x + w]
+        art = grid_art_scores(crop)
+        if not art or art[0][1] < CHANGE_GUESS_ART_MIN:
+            continue
+        card = master.card_by_asset(art[0][0])
+        if card is None or card._id != card_id:
+            continue
+        up = _plus(crop)
+        if remove_upgrade is not None and up is not None and up != remove_upgrade:
+            continue
+        hits.append({**c, "card_id": card_id, "name": card.name, "upgrade": up, "guessed": True, "art": round(art[0][1], 3)})
+    return hits[0] if len(hits) == 1 else None
+
+
 def change_stage2(self, index: int = 0, card_id: str | None = None, cancel: bool = False, remove_index: int | None = None,
                   remove_upgrade: int | None = None) -> bool:  # fmt: skip
     """换卡阶段 2：选被换掉的原卡 → チェンジ → 确认。认不出 / 只剩保护卡时点キャンセル，返回 False；画面不在阶段 2 也返回 False。
@@ -296,6 +327,8 @@ def change_stage2(self, index: int = 0, card_id: str | None = None, cancel: bool
     from hiro.vision.deck import read_card_dialog
     from hiro.vision.ui_templates import tap, tpl
 
+    global LAST_CHANGED
+    LAST_CHANGED = None
     if not _poll(lambda img: tpl("InProduce.DialogCardChange2.Title").exists(img), CHANGE_STAGE_TIMEOUT):
         logger.warning("换卡阶段 2：画面不在阶段 2（阶段 1 未完成？），交回主循环")
         return False
@@ -344,6 +377,10 @@ def change_stage2(self, index: int = 0, card_id: str | None = None, cancel: bool
                     why += "（翻屏找到）"
                     break
             run.snap(img, "stage2-scrolled")
+    if target is None and not cancel and card_id:
+        guess = guess_unread_target(img, dialog["cards"], card_id, remove_upgrade)
+        if guess is not None:
+            target, why = guess, f"{why}；认不出的格子 {guess['index']} 卡图最像它（{guess['art']}），点后按详情栏卡名核对"
     if target is None:
         if card_id and not cancel:
             _STAGE2_CANCELS[key] = _STAGE2_CANCELS.get(key, 0) + 1
@@ -354,10 +391,17 @@ def change_stage2(self, index: int = 0, card_id: str | None = None, cancel: bool
         return False
     device.click(*target["center"])
     _sleep(CHANGE_POLL)
-    picked = read_card_dialog(device.screenshot(), CHANGE2_CARD_AREA)
+    from hiro.vision.deck import CHANGE2_DETAIL_BOX
+
+    picked = read_card_dialog(device.screenshot(), CHANGE2_CARD_AREA, expect=target["card_id"] if target.get("guessed") else None,
+                              detail_box=CHANGE2_DETAIL_BOX)  # fmt: skip
     run.snap(device.screenshot(), "stage2-picked")
     sel = picked.get("selected_card") or {}
     chosen, chosen_up = sel.get("card_id"), sel.get("upgrade")
+    if target.get("guessed") and chosen != target["card_id"]:
+        logger.warning("换卡阶段 2：猜的格子 %s 详情栏读到 %s，不是要换的 %s，点「キャンセル」", target["index"], chosen, target["card_id"])
+        device.click(*CHANGE_CANCEL_TAP)
+        return False
     if chosen and (chosen != target["card_id"] or (target.get("upgrade") is not None and chosen_up is not None and chosen_up != target["upgrade"])):
         logger.warning("换卡阶段 2：选中的是 %s（强化 %s），不是要换的 %s（强化 %s），点「キャンセル」", chosen, chosen_up, target["card_id"],
                        target.get("upgrade"))  # fmt: skip
@@ -380,6 +424,7 @@ def change_stage2(self, index: int = 0, card_id: str | None = None, cancel: bool
             gone += 1
             if gone >= 2:  # 连续两帧阶段 2 标题和确认框都不在：换完了
                 run.snap(img, "stage2-done")
+                LAST_CHANGED = {"card_id": target["card_id"], "upgrade": target.get("upgrade")}
                 return True
     logger.warning("换卡阶段 2：%.0fs 内确认框没有关闭", CHANGE_STAGE_TIMEOUT)
     return False

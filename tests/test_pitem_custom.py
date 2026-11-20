@@ -25,6 +25,8 @@ def _img(name):
     ("custom-plush-dmmt1.jpg", ["ロボ（黄）", "もじゃ（黄）", "インコ（黄）"]),
     ("custom-deco-dmmt2.jpg", ["花ロボ（黄）", "リボンロボ（黄）", "羽ロボ（黄）"]),
     ("custom-deco-dmmw1.jpg", ["リボンロボ（黄）", "羽ロボ（黄）", "花ロボ（黄）"]),
+    # z6（11-19 12:54 DMM 1080x1920）：上面是淡紫的もじゃ（高饱和像素不够），没认出第二段，三格都读成「もじゃ（黄）」停机；第三格是メダル（首个实机样本）
+    ("custom-deco-moja-z6.jpg", ["花もじゃ（黄）", "羽もじゃ（黄）", "メダルもじゃ（黄）"]),
 ])  # fmt: skip
 def test_custom_names_from_real_frames(name, want):
     from hiro.vision.pitem_custom import custom_names, is_decoration_stage

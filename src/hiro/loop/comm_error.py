@@ -46,7 +46,11 @@ def comm_error(boxes) -> dict | None:
     texts = [(_norm(t), b) for t, _, b in boxes]
     if not any(any(h in t for h in TITLE_HINTS) or ("通信" in t and ("エラー" in t or "工ラー" in t)) for t, _ in texts):
         return None
-    retry = next((_center(b) for t, b in texts if RETRY in t and not contains(t, TO_TITLE_BUTTON)), None)
+    # 按钮是「リトライ」短字（OCR 会多读按钮图标成「くリトライ」）；E209「アセット取得に失敗」的说明句「通信環境の良い場所でリトライしてください」
+    # 也含リトライ，排在按钮上面，原来先命中它、点了 10 次说明文字都没重试（11-19 账号 2）。先找以リトライ结尾的短字，说明句不点
+    cands = [(t, b) for t, b in texts if RETRY in t and not contains(t, TO_TITLE_BUTTON) and "ください" not in t]
+    button = [(t, b) for t, b in cands if t.endswith(RETRY) and len(t) <= len(RETRY) + 2]
+    retry = next((_center(b) for t, b in (button or cands)), None)
     close = next((_center(b) for t, b in texts if t.endswith(CLOSE)), None)
     kind = "retry" if retry else "to_title" if close else "unknown"
     return {"kind": kind, "retry": retry, "close": close}

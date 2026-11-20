@@ -319,3 +319,16 @@ def test_exam_stage_survives_resume(tmp_path):
     c.exam_count, c.nia_stage, c.nia_audition_number = 0, None, None
     Core.next_exam_file = path
     assert c._battle_label(None) == "nia-final#audition-2" and not path.exists()
+
+
+def test_reward_icon_tie_does_not_raise(monkeypatch):
+    """「獲得報酬」小图标：所有模板 IoU 都是 0（打平）时不能去比名字和 None（同 _icon_attr 的 TypeError，协调 11-18）。"""
+    from hiro.vision import nia
+
+    empty = np.zeros((44, 44), bool)
+    monkeypatch.setattr(nia, "_reward_templates", lambda: {"card": empty, "stamina": empty})  # 每个模板 IoU 都是 0
+    img = np.zeros((1280, 720, 3), np.uint8)
+    # 一格白色图形，形状和任何模板都不重叠：IoU 全 0
+    cx, cy = nia.REWARD_X0, 900 + nia.REWARD_DY
+    img[cy - 22 : cy - 18, cx - 22 : cx + 22] = 255
+    assert nia.read_rewards(img, (400, 900)) == ["unknown"]

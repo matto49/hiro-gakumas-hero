@@ -3,7 +3,7 @@
 图：AssetSource.game_data("skill_cards")（KAA 公开数据 skill_cards/，按 IMREAD_COLOR 读，同 KAA）。描述子：OpenCV SIFT，nfeatures=500，
 其余参数缺省（同 KAA SiftDescriptor(nfeatures=500)）。检索：所有卡的描述子（约 47 万个）放进 faiss IVFFlat，
 nlist = 1024、nprobe = 16。KAA 用 IVFFlat、nprobe = nlist = 100，等于全量搜索，每张卡要 1.4 秒（换卡弹窗一屏 12 张 20 多秒）；
-这里只搜最近的 16 个簇，每张约 40 ms，fixtures 上 60 张卡和全量搜索结果全一致（.temp/goal-progress/card_db/ivf_probe.py）。
+这里只搜最近的 16 个簇，每张约 40 ms，fixtures 上 60 张卡和全量搜索结果全一致（作者本机，未发布）。
 描述子少于 IVF_MIN 个（测试用的小图库）时用精确索引。查询：截图每个描述子找 1 个最近邻，距离（L2 平方）≤ GOOD_MATCH_MAX_DIST
 的给那张图投一票；按「票数多、其次最小距离小」排序（同 KAA ImageDatabase.query）。match：同一张卡的角色专属图（-hmsz 等后缀）
 合并计票，最高 < MIN_VOTES 票不认（同 KAA match_card_region）。
