@@ -10,6 +10,9 @@ requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later; KAA 派生的文件为 GPL-3.0（见 LICENSE.GPL-3.0）" }
 dependencies = ["numpy", "opencv-python-headless"]
 
+[project.scripts]
+hiro = "hiro.cli.main:main"
+
 [project.optional-dependencies]
 dev = ["pytest"]
 # 实机游玩：操作层 / 识别层基于 KAA（kotones-auto-assistant，GPL-3.0），以 git 子模块 vendor/kaa 固定版本引入

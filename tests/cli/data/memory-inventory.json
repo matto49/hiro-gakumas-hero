@@ -1,0 +1,170 @@
+{
+ "entries": [
+  {
+   "stats": {
+    "Vo": 30,
+    "Da": 52,
+    "Vi": 79,
+    "hp": 9
+   },
+   "timing": "mid",
+   "timing_text": "中間試験/1次オーディション後に獲得",
+   "card_text": "魅惑の視線",
+   "card": {
+    "card_id": "p_card-01-men-3_036",
+    "name": "魅惑の視線",
+    "upgrade": 0
+   },
+   "effect": [
+    "センスのみ",
+    "集中消費3",
+    "-ろ",
+    "絶好調4ターン",
+    "消費体力減少2ターン",
+    "（スキルカード使用数追加+1",
+    "重複不可 レッスン中1回"
+   ],
+   "abilities": [
+    {
+     "text": "【センス専用】ダンスSPレッスン開始時、90％の確率で好調2ターン",
+     "disabled": true
+    },
+    {
+     "text": "初期ビジュアル上昇+15",
+     "disabled": false
+    },
+    {
+     "text": "初期ボーカル上昇+10",
+     "disabled": false
+    },
+    {
+     "text": "【センス専用】ビジュアルSPレッスン開始時、70%の確率でく好調2ターン",
+     "disabled": true
+    },
+    {
+     "text": "ボーカルレッスン終了時、45%の確率で体力回復4",
+     "disabled": false
+    }
+   ],
+   "page": 0,
+   "slot": 0,
+   "cell": [
+    0,
+    0
+   ],
+   "thumb": "51e89e09e397",
+   "refreshed": true
+  },
+  {
+   "stats": {
+    "Vo": 20,
+    "Da": 52,
+    "Vi": 79,
+    "hp": 9
+   },
+   "timing": "mid",
+   "timing_text": "中間試験/1次オーディション後に獲得",
+   "card_text": "シュプレヒコール+",
+   "card": {
+    "card_id": "p_card-01-act-2_001",
+    "name": "シュプレヒコール",
+    "upgrade": 1
+   },
+   "effect": [
+    "センスのみ",
+    "+ 集中消費1",
+    "国",
+    "★ パラメータ+6",
+    "＆ 好調3ターン",
+    "◆",
+    "国スキルカード使用数追加+1",
+    "重複不可"
+   ],
+   "abilities": [
+    {
+     "text": "ダンスパラメータボーナス+2.8%",
+     "disabled": false
+    },
+    {
+     "text": "デーカルSPレッスン開始時、55%の確率で♥消費体力減少2ターン",
+     "disabled": true
+    },
+    {
+     "text": "初期ビジュアル上昇+15",
+     "disabled": false
+    },
+    {
+     "text": "ビジュアルSPレッスン開始時、55%の確率で元気+4",
+     "disabled": true
+    },
+    {
+     "text": "ボーカルパラメータボーナス+2.1%",
+     "disabled": false
+    }
+   ],
+   "page": 0,
+   "slot": 1,
+   "cell": [
+    0,
+    1
+   ],
+   "thumb": "c69b1627e192",
+   "refreshed": true
+  },
+  {
+   "stats": {
+    "Vo": 20,
+    "Da": 77,
+    "Vi": 84,
+    "hp": 9
+   },
+   "timing": "start",
+   "timing_text": "開始時に獲得",
+   "card_text": "エキサイト＋",
+   "card": {
+    "card_id": "p_card-01-act-1_036",
+    "name": "エキサイト",
+    "upgrade": 1
+   },
+   "effect": [
+    "センスのみ",
+    "★ パラメータ+16",
+    "ご絶好調4ターン",
+    "レッスン中1回"
+   ],
+   "abilities": [
+    {
+     "text": "初期ダンス上昇+25",
+     "disabled": false
+    },
+    {
+     "text": "ごジュアルSPレッスン開始時、70%の確率で消費体力減少2ターン",
+     "disabled": true
+    },
+    {
+     "text": "【センス専用】ボーカルSPレッスン開始時、60％の確率で集中+2",
+     "disabled": true
+    },
+    {
+     "text": "初期Pポイント+50",
+     "disabled": false
+    },
+    {
+     "text": "初期ビジュアル上昇+20",
+     "disabled": false
+    }
+   ],
+   "page": 0,
+   "slot": 2,
+   "cell": [
+    0,
+    2
+   ],
+   "thumb": "292c14ed1c61",
+   "refreshed": true
+  }
+ ],
+ "gaps": [],
+ "scanned_at": "2026-11-16 18:44:59",
+ "complete": true
+}
