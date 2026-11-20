@@ -13,6 +13,7 @@ import { useThreads } from "./lib/threads";
 import { Cockpit } from "./pages/Cockpit";
 import { InfoPage } from "./pages/InfoPage";
 import { PlanPage } from "./pages/PlanPage";
+import { StartPage } from "./pages/StartPage";
 import { SettingsPage } from "./pages/Settings";
 import { Wizard } from "./pages/Wizard";
 
@@ -142,6 +143,8 @@ export function App({ agent: agentProp }: { agent?: Agent }) {
   return (
     <div className="flex h-full">
       <Sidebar
+        view={view}
+        onNav={setView}
         threads={t.threads}
         active={thread.id}
         liveJob={current?.id ?? null}
@@ -156,7 +159,6 @@ export function App({ agent: agentProp }: { agent?: Agent }) {
           t.setActive(id);
           setView({ name: "chat" });
         }}
-        onSettings={() => setView({ name: "settings" })}
       />
       <main className="flex min-w-0 flex-1">
         {view.name === "chat" && (
@@ -179,6 +181,11 @@ export function App({ agent: agentProp }: { agent?: Agent }) {
         {view.name === "info" && (
           <div className="min-w-0 flex-1">
             <InfoPage kind={view.kind} onAsk={ask} onOpenJob={(jobId) => setView({ name: "cockpit", jobId })} />
+          </div>
+        )}
+        {view.name === "start" && (
+          <div className="flex min-w-0 flex-1 flex-col">
+            <StartPage onOpenJob={(jobId) => setView({ name: "cockpit", jobId })} />
           </div>
         )}
         {view.name === "plan" && (

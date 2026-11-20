@@ -6,7 +6,7 @@ import { cardsFor } from "../lib/quick";
 import { ConfirmCard, ErrorCard } from "./Cards";
 import { Button } from "./ui";
 
-export function StartTask({ label, args, primary, onOpenJob }: { label: string; args: string[]; primary?: boolean; onOpenJob?: (jobId: string) => void }) {
+export function StartTask({ label, args, primary, disabled, onOpenJob }: { label: string; args: string[]; primary?: boolean; disabled?: boolean; onOpenJob?: (jobId: string) => void }) {
   const call = useHiro();
   const [cards, setCards] = useState<Card[]>([]);
   const [busy, setBusy] = useState(false);
@@ -21,7 +21,7 @@ export function StartTask({ label, args, primary, onOpenJob }: { label: string; 
   return (
     <div className="flex flex-col gap-2">
       <div>
-        <Button primary={primary} disabled={busy} onClick={start}>
+        <Button primary={primary} disabled={busy || disabled} onClick={start}>
           {label}
         </Button>
       </div>
