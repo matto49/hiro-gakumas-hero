@@ -751,7 +751,8 @@ class HiroController(ProduceController):
             return go
 
         got = unread_story.handle(cancel=tap("キャンセル"), confirm=tap("決定"),
-                                  texts=lambda: [b.text for b in screen_texts(device.screenshot())])  # fmt: skip
+                                  texts=lambda: [(b.text, b.rect.center.y) for b in screen_texts(device.screenshot())],
+                                  snap=device.screenshot)  # fmt: skip
         self._unknown_since = None
         if HiroController.session is not None:
             HiroController.session.recover("dialog", f"未读剧情：{got}")

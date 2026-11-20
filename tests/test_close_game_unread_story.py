@@ -138,3 +138,23 @@ def test_flag_watcher_does_not_end_a_hold(tmp_path):
         w.tick()
         assert pause_flag.paused() and calls == []
     assert not pause_flag.paused()
+
+
+def test_dialog_text_ignores_bar_and_other_regions():
+    items = [("麻央", 880), ("みんな、今日もよろしくね。", 960), ("ログ", 1220), ("AUTO", 1220), ("SKIP", 1220), ("早送り", 1220),
+             ("プロデュースコミュ", 60)]  # fmt: skip
+    assert us.dialog_text(items) == "麻央みんな、今日もよろしくね。"
+    assert not us._changed("麻央みんな、今日もよろしくね。", "麻央みんな、今日もよろしくね")  # OCR 差一个字不算推进
+
+
+def test_idle_timer_resets_while_story_advances(tmp_path):
+    """剧情在推进（剧情框文字在变）就不关；停在同一句 60 秒才关。画面动态（人物待机、风）不影响：只看文字。"""
+    says = ["おはよう", "今日もレッスン頑張ろう", "プロデューサー、見てて", "ふふっ、ありがとう", "次はダンスだね",
+            "少し休憩しようか", "うん、大丈夫", "まだまだいけるよ", "本番が楽しみ", "それじゃあ、また明日"]  # fmt: skip
+    lines = [[("麻央", 880), (t, 960), ("SKIP", 1220), ("早送り", 1220)] for t in says]
+    screens = [lines[i // 4] for i in range(40)] + [lines[9]]  # 每 4 次（12 秒）换一句，换到最后一句后不动
+    r = Rig(tmp_path, screens, timeout="60")
+    with pytest.raises(us.UnreadStoryTimeout):
+        r.run()
+    assert r.t >= 40 * us.POLL_S - 12 + 60  # 最后一次换句之后又等满 60 秒
+    assert r.calls[-1] == ("close", "emulator")

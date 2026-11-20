@@ -364,7 +364,8 @@ def _unread_commu(orig):
         device.screenshot()
         if R.Common.TextSkipCommuComfirmation.exists() or R.Common.TextFastforwardCommuDialogTitle.exists():
             unread_story.handle(cancel=lambda: dialog.no(), confirm=lambda: dialog.yes(),
-                                texts=lambda: [b.text for b in screen_texts(device.screenshot())])  # fmt: skip
+                                texts=lambda: [(b.text, b.rect.center.y) for b in screen_texts(device.screenshot())],
+                                snap=device.screenshot)  # fmt: skip
             return True
         return orig(img)
 
