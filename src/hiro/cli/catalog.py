@@ -47,6 +47,15 @@ def load(lang: str = "ja") -> dict:
     return json.loads(p.read_text(encoding="utf-8"))
 
 
+def idol_name(idol: str) -> str:
+    """偶像卡编号（可以是 skin id）→ 卡名（给人看的摘要用）；资料库没下载或查不到时原样返回编号。"""
+    try:
+        row = (load("ja").get("idols") or {}).get(idol.replace("i_card-skin-", "i_card-")) or {}
+    except (CliError, OSError, ValueError):
+        return idol
+    return row.get("name") or idol
+
+
 def _texts(entry: dict) -> list[str]:
     out = [entry.get("name") or "", entry.get("text") or ""]
     for up in (entry.get("up") or {}).values():

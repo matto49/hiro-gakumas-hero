@@ -147,8 +147,9 @@ export function Sidebar(p: {
           className={cx("flex items-center gap-1.5 text-left hover:text-ink", p.view.name === "settings" && "font-semibold text-ink")}
           onClick={() => p.onNav({ name: "settings" })}
         >
-          <Settings2 className="size-3.5 text-ink-3" />
-          模型：{p.model} ›
+          <Settings2 className="size-3.5 flex-none text-ink-3" />
+          <span className="min-w-0 truncate">模型：{p.model}</span>
+          <span className="flex-none">›</span>
         </button>
       </div>
     </aside>

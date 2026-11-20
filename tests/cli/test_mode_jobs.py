@@ -50,3 +50,18 @@ def test_mode_jobs_require_an_idol_for_new(run_cli):
     for kind in ("hajime", "nia"):
         code, env = run_cli("run", "start", kind)
         assert env["ok"] is False and env["error"]["code"] == "bad_args", kind
+
+
+def test_summary_uses_idol_card_name_from_catalog(hiro_home):
+    """开局摘要给玩家看：资料库里有这张偶像卡就写卡名，不写内部编号；没有资料库时退回编号。"""
+    import json
+
+    from hiro.cli.catalog import catalog_dir
+
+    assert "i_card-skin-shro-3-007" in KINDS["hif"].summary({"idol": "i_card-skin-shro-3-007"})
+    d = catalog_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "catalog.ja.json").write_text(json.dumps({"idols": {"i_card-shro-3-007": {"name": "【Campus mode!!】篠澤広"}}}), encoding="utf-8")
+    for kind in ("hif", "hajime", "nia"):
+        s = KINDS[kind].summary({"idol": "i_card-skin-shro-3-007"})
+        assert "【Campus mode!!】篠澤広" in s and "i_card" not in s, s

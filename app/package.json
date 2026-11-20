@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test src",
     "package": "bun scripts/mygo.mjs package",
-    "fetch-uv": "bun scripts/fetch-uv.mjs"
+    "fetch-uv": "bun scripts/fetch-uv.mjs",
+    "preview:build": "vite build -c vite.preview.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

@@ -37,7 +37,11 @@ export function useJob(jobId: string | null): JobView {
       if (!live) return false;
       if (r.events.length) {
         next.current = r.events[r.events.length - 1]!.seq + 1;
-        setEvents((old) => [...old, ...r.events]);
+        // 只接比手上最后一条新的（两次查询重叠时不重复）
+        setEvents((old) => {
+          const last = old.length ? old[old.length - 1]!.seq : -1;
+          return [...old, ...r.events.filter((e) => e.seq > last)];
+        });
       }
       setState(r.state);
       const st = await data<{ current: Job | null; recent: Job[] }>(call, ["run", "status"]);

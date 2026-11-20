@@ -81,7 +81,7 @@ function usePersistence(t: ReturnType<typeof useThreads>) {
   }, [t.threads, api]);
 }
 
-export function App({ agent: agentProp }: { agent?: Agent }) {
+export function App({ agent: agentProp, initialView }: { agent?: Agent; initialView?: View }) {
   const call = useHiro();
   const api = useAssistant();
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -97,7 +97,7 @@ export function App({ agent: agentProp }: { agent?: Agent }) {
   }, [agentProp, settings, api, quick]);
   const t = useThreads();
   usePersistence(t);
-  const [view, setView] = useState<View>({ name: "chat" });
+  const [view, setView] = useState<View>(initialView ?? { name: "chat" });
   const [thinking, setThinking] = useState(false);
   const { current, summary } = useStatus();
   const thread = t.threads.find((x) => x.id === t.active) ?? t.threads[0]!;

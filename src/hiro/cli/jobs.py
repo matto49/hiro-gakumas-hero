@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import hiro
+from hiro.cli.catalog import idol_name
 
 REPO = Path(hiro.__file__).resolve().parents[2]  # 仓库根（tools/ 下的脚本从这里找）
 LIVE = ("running", "paused", "takeover")
@@ -141,7 +142,7 @@ def _produce_summary(name: str, default_level: str):
         level = (p.get("difficulty") or default_level).upper()
         if (p.get("command") or "new") == "resume":
             return f"接着打进行中的{name}培育"
-        return f"开一局{name} {level}" + (f"（{p['idol']}）" if p.get("idol") else "")
+        return f"开一局{name} {level}" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "")
 
     return summary
 
@@ -167,7 +168,7 @@ def _hif_summary(p: dict) -> str:
         return "接着打进行中的 H.I.F 培育"
     if (p.get("mode") or "qualify") == "main":
         return "开一局 H.I.F 本战（会用掉一份选拔回忆）"
-    return "开一局 H.I.F 选拔" + (f"（{p['idol']}）" if p.get("idol") else "")
+    return "开一局 H.I.F 选拔" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "")
 
 
 KINDS: dict[str, Kind] = {
