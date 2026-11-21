@@ -202,3 +202,17 @@ def test_dmm_pause_centers_game_window(tmp_path, monkeypatch):
     r2.env["HIRO_DEVICE"] = "mumu"
     r2.run()
     assert moved == [1]  # 模拟器不挪
+
+
+def test_story_ending_into_exam_resumes(tmp_path):
+    """11-20 DMM：第 2 回 選抜試験 的开场剧情看完直接进考试（Now loading → 开始页「スター性:達成…」），
+    以前认不出是游戏页面，干等 60 秒关了游戏。"""
+    loading, exam = ["第2回", "Now loading"], ["`229スター性:達成12744507%", "1H"]
+    r = Rig(tmp_path, [COMMU, loading] + [exam] * us.LEFT_POLLS, timeout="60")
+    assert r.run() == "left" and r.calls == ["cancel"]
+
+
+def test_kana_heavy_page_counts_but_chinese_does_not():
+    assert us.is_game_page(["実力は十分ですね。好成績を狙うには"])  # 没有关键词，但假名多、没有简体字
+    assert not us.is_game_page(["表送情感的歌曲", "理解得根快", "我根期待"])
+    assert not us.is_game_page(COMMU)

@@ -109,7 +109,15 @@ BAR_KEYS = ("ログ", "AUT", "SKI", "LOG", "跳过", "跳過", "自动", "自動
 # 程序认不出页面，宁可接着等（超时就关游戏），也不在看不懂的界面上继续操作（AGENTS.md：游戏界面必须是日文原版）
 # 只用带假名的词：体力 / 決定 / 相談 这类汉字词中文界面里也有（测试 test_chinese_ui_after_story_does_not_resume）
 GAME_PAGE_WORDS = ("レッスン", "ドリンク", "残りターン", "スキルカード", "次へ", "プロデュース", "アイテム", "おでかけ",
-                   "お休み", "ホーム", "キャンセル", "パラメータ")  # fmt: skip
+                   "お休み", "ホーム", "キャンセル", "パラメータ",
+                   # 剧情结束直接进考试（11-20 DMM：第 2 回 選抜試験 的开场剧情 → Now loading → 考试开始页，没认出来，干等 60 秒关了游戏）
+                   "スター性", "ターン", "オーディション", "ステージ", "NOWLOADING", "LOADING")  # fmt: skip
+KANA_MIN = 8  # 没命中上面的词时：假名至少这么多字、又没有简体中文专用字，也算日文原版页面
+SIMPLIFIED_ONLY = set("的了们这个说吗么没时对还会为过让给现样着里么么吧呢该么点关开发东车门间问")  # 汉化插件译文常见、日文里不用的简体字
+
+
+def _kana(text: str) -> int:
+    return sum(1 for ch in text if "ぁ" <= ch <= "ゟ" or "ァ" <= ch <= "ヺ")
 
 
 def is_commu(texts) -> bool:
@@ -122,7 +130,13 @@ def is_commu(texts) -> bool:
 def is_game_page(texts) -> bool:
     """日文原版的游戏页面（不在剧情里）。"""
     texts = _texts_only(texts)
-    return not is_commu(texts) and any(w in t for t in texts for w in GAME_PAGE_WORDS)
+    if is_commu(texts):
+        return False
+    up = [_norm(t).upper() for t in texts]
+    if any(w in t for t in up for w in GAME_PAGE_WORDS):
+        return True
+    joined = "".join(up)
+    return _kana(joined) >= KANA_MIN and not (set(joined) & SIMPLIFIED_ONLY)
 
 
 # Windows 通知（Toast）：借 PowerShell 的 AppId 发，scenario=reminder 会一直留在屏幕上直到点掉，带提示音。
