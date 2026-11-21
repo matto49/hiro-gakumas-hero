@@ -68,7 +68,22 @@ def is_skip_settings(texts) -> bool:
     return kind_of(texts) is not None
 
 
-def read(boxes) -> dict | None:
+STORY_TOGGLES = ("support_commu", "start_commu", "hajime_commu", "affection_movie")  # 跳剧情类的演出开关
+
+
+def desired(stop_story: bool | None = None) -> dict[str, str | None]:
+    """各开关要的状态：缺省全 ON。HIRO_UNREAD_STORY=stop 时（hiro.loop.unread_story）：「未読コミュでも早送り」要 OFF
+    （开着时未读剧情自己快进过去，不弹确认框，就认不出未读）；跳剧情类的演出开关不动（None = 保持原样）。"""
+    if stop_story is None:
+        from hiro.loop.unread_story import stopping
+
+        stop_story = stopping()
+    if not stop_story:
+        return {}
+    return {"unread_ff": "OFF", **{k: None for k in STORY_TOGGLES}}
+
+
+def read(boxes, stop_story: bool | None = None) -> dict | None:
     """不是设置框返回 None；是 → {kind, items: {key: "ON" | "OFF" | None}, off: [(x, y)…]（要点的开关）, option: (x, y) | None, ok}。"""
     kind = kind_of([t for t, _, _ in boxes])
     if kind is None:
@@ -77,6 +92,7 @@ def read(boxes) -> dict | None:
     switches = [(_norm(t), _center(b)) for t, _, b in boxes if _norm(t) in ("ON", "OFF") and b[0] > SWITCH_X]
     items: dict[str, str | None] = {}
     off: list[tuple[int, int]] = []
+    want = desired(stop_story)
     for key, needles in spec["toggles"].items():
         ys = [_center(b)[1] for t, _, b in boxes if any(n in _norm(t) for n in needles)]
         hit = None
@@ -86,8 +102,9 @@ def read(boxes) -> dict | None:
                 hit = near[0]
                 break
         items[key] = hit[1] if hit else None
-        if hit and hit[1] == "OFF" and hit[2] not in off:
-            off.append(hit[2])
+        goal = want.get(key, "ON")
+        if hit and goal is not None and hit[1] != goal and hit[2] not in off:
+            off.append(hit[2])  # 要点的开关（名字沿用 off：以前只会把 OFF 点成 ON）
     option = None
     if spec["option"] is not None:
         want, avoid = spec["option"]
@@ -97,9 +114,9 @@ def read(boxes) -> dict | None:
 
 
 def handle(boxes, *, shoot: Callable, ocr: Callable, click: Callable[[int, int], None],
-           sleep: Callable[[float], None] = time.sleep) -> dict | None:  # fmt: skip
+           sleep: Callable[[float], None] = time.sleep, stop_story: bool | None = None) -> dict | None:  # fmt: skip
     """处理设置框：不是返回 None；是 → {kind, items（最后读到的开关状态）, option（选了没有）, clicked（点开的开关数）, ok（点了決定没有）}。"""
-    r = read(boxes)
+    r = read(boxes, stop_story)
     if r is None:
         return None
     kind, picked = r["kind"], False
@@ -119,16 +136,16 @@ def handle(boxes, *, shoot: Callable, ocr: Callable, click: Callable[[int, int],
             sleep(0.4)
         sleep(0.4)
         img = shoot()
-        r2 = read(ocr(img)) if img is not None else None
+        r2 = read(ocr(img), stop_story) if img is not None else None
         if r2 is None or r2["kind"] != kind:  # 弹窗不见了（不该发生）：交给主循环重判
             return {"kind": kind, "items": r["items"], "option": picked, "clicked": clicked, "ok": False}
         r = r2
-    if r["off"] or any(v is None for v in r["items"].values()):
+    if r["off"] or any(v is None for k, v in r["items"].items() if desired(stop_story).get(k, "ON") is not None):
         logger.warning("%s：还有没打开 / 没读到的开关 %s，照样点「決定」", kind, r["items"])
     if r["ok"] is None:
         logger.warning("%s：没读到「決定」，不点", kind)
         return {"kind": kind, "items": r["items"], "option": picked, "clicked": clicked, "ok": False}
     click(*r["ok"])
     sleep(1.0)
-    logger.warning("%s（设置被重置）：选项 %s，打开 %d 个开关 → 決定；%s", kind, "已选" if picked else "-", clicked, r["items"])
+    logger.warning("%s（设置被重置）：选项 %s，拨了 %d 个开关 → 決定；%s", kind, "已选" if picked else "-", clicked, r["items"])
     return {"kind": kind, "items": r["items"], "option": picked, "clicked": clicked, "ok": True}

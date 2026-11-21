@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import threading
+from contextlib import contextmanager
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -45,6 +46,22 @@ def active_clock() -> float:
     """扣掉录屏暂停时长的单调时钟（暂停期间不走）。"""
     now = time.monotonic()
     return now - paused_total(now)
+
+
+@contextmanager
+def hold():
+    """主线程自己在等人（例如未读剧情，hiro.loop.unread_story）：这段时间按暂停计，active_clock 不走。
+    已经在暂停里（录屏旗标）就不重复记，也不替它结束。"""
+    mine = not paused()
+    if mine:
+        _mark(True)
+        _state["held"] = True
+    try:
+        yield
+    finally:
+        if mine:
+            _state["held"] = False
+            _mark(False)
 
 
 def _mark(pause: bool, now: float | None = None) -> None:
@@ -106,7 +123,7 @@ class Watcher:
             self._since = time.monotonic()
             self.flow.request_pause()
             self._event("rec_pause", why)
-        elif why is None and paused():
+        elif why is None and paused() and not _state.get("held"):  # 主线程自己在等人（hold）的暂停不归旗标管
             dur = time.monotonic() - getattr(self, "_since", time.monotonic())
             _mark(False)
             self.flow.request_resume()

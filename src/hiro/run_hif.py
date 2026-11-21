@@ -277,6 +277,7 @@ def main():
         finally:
             trace.close()
             _write_report(trace, name)
+            _close_game(args)
     HiroController.session = session
     for k, v in {"session": session, "use_llm": not args.no_llm, "llm_spec": args.llm, "main_attr": args.main_attr,
                  "exams_done": args.exams_done}.items():  # fmt: skip
@@ -389,7 +390,18 @@ def main():
         rec_watch.stop()
         trace.close()
         _write_report(trace, name)
+        _close_game(args)
     return 0
+
+
+def _close_game(args) -> None:
+    """HIRO_CLOSE_GAME 开着、且不是 play_game 起的子进程：这一段结束就关游戏 / 模拟器（hiro.loop.close_game）。"""
+    try:
+        from hiro.loop import close_game
+
+        close_game.close_at_exit(why=f"run_hif {args.command} --mode {args.mode} 结束")
+    except Exception as e:  # noqa: BLE001  收尾出错不改退出码
+        logger.warning("关游戏失败：%r", e)
 
 
 def _write_report(trace, name: str) -> None:
