@@ -26,6 +26,17 @@ export interface Pending {
   expires_at: number;
 }
 
+/** Preset 是一家 OpenAI 兼容的 API 服务商。名称在界面的消息目录里（providerXxx），这里只放地址。 */
+export interface Preset {
+  id: string;
+  /** 自定义为空，要用户填 */
+  base_url: string;
+  /** 只有 DeepSeek 有缺省模型；其他家从 /models 里选 */
+  default_model: string;
+  /** 去哪里创建 Key（设置页提示用） */
+  key_url: string;
+}
+
 /** Progress 是安装过程的一行输出。 */
 export interface Progress {
   step: string;
@@ -49,11 +60,16 @@ export interface Result {
 
 /** Settings 是模型设置（不含 Key）。 */
 export interface Settings {
-  /** deepseek（缺省）/ codex / claude / none（不用模型） */
+  /** Presets 里的一家（缺省 deepseek）/ codex / claude / none（不用模型） */
   provider: string;
+  /** 用哪个模型 */
   model?: string;
+  /** 自定义服务商的地址；预设的服务商留空用预设地址 */
   base_url?: string;
+  /** 当前服务商有没有存 Key */
   has_key: boolean;
+  /** HasKeys：每家服务商有没有存 Key（切换服务商时界面显示「已保存」用）。只在给界面的结果里有，不写进文件。 */
+  has_keys?: Record<string, boolean>;
   /** WizardDone：新手向导走完了（或跳过了），之后打开直接进主窗口。 */
   wizard_done?: boolean;
 }
@@ -90,9 +106,14 @@ export const Hiro = {
 export const Assistant = {
   /** Ask 让初星助手回答一句话（history 是之前的对话）。 */
   ask: bind<[Turn[], string], Reply>("Assistant.Ask", (history: Turn[], text: string) => [history, text]),
-  /** Models 列出这个 Key 能用的 DeepSeek 模型（GET /models），设置页的下拉框用。 */
-  models: bind<[], string[]>("Assistant.Models", () => []),
-  /** Save 保存模型设置；key 非空时存进钥匙串（空的不动已存的）。 */
+  /**
+   * Models 列出这家服务商这个 Key 能用的模型（GET /models），设置页的下拉框用。
+   * key 为空时用钥匙串里已存的；baseURL 只对自定义服务商有用。
+   */
+  models: bind<[string, string, string], string[]>("Assistant.Models", (provider: string, baseURL: string, key: string) => [provider, baseURL, key]),
+  /** Providers 是设置页的服务商列表（预设地址、缺省模型、创建 Key 的地址）。 */
+  providers: bind<[], Preset[]>("Assistant.Providers", () => []),
+  /** Save 保存模型设置；key 非空时存进这家服务商的钥匙串条目（空的不动已存的）。 */
   save: bind<[Settings, string], void>("Assistant.Save", (s: Settings, key: string) => [s, key]),
   /** Settings 读模型设置。 */
   settings: bind<[], Settings>("Assistant.Settings", () => []),

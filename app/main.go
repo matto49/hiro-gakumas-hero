@@ -7,11 +7,13 @@ import (
 	"log"
 
 	"github.com/egoist/mygo"
+
+	"github.com/matto49/hiro-gakumas-hero/app/locales"
 )
 
 // AppName 是程序的显示名（窗口标题；mygo.config.ts 的 name、index.html 的标题要和它一致）。
 // 内部标识 top.matto.hiro-console、数据目录 hiro-console、命令行 hiro 都不随改名变（设置和钥匙串里的 Key 不丢）。
-const AppName = "初星助手"
+var AppName = locales.AppTitle()
 
 func main() {
 	fixPath()

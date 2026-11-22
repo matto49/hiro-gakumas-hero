@@ -18,21 +18,62 @@ import (
 	"github.com/egoist/mygo"
 )
 
-// 模型配置和对话入口（设计稿 §8）：照 magpie 的「服务商 + Key + 模型」，简化成三家。
+// 模型配置和对话入口（设计稿 §8）：照 magpie 的「服务商 + Key + 模型」。
 //
-//	deepseek  填 API Key（存系统钥匙串，界面只显示「已保存」），走内置的工具调用循环（Agent）
-//	codex     用户已登录的 codex 命令行，当外部 agent 跑：读 hiro 的说明、自己调 hiro 命令
+//	API 服务商（Presets：DeepSeek、Kimi、通义千问、智谱 GLM、OpenAI、OpenRouter、自定义）
+//	          都走 OpenAI 兼容接口：填 API Key（按服务商分别存系统钥匙串，界面只显示「已保存」）→ /models 列模型 → 选一个；
+//	          右侧对话走内置的工具调用循环（Agent），对局里规则拿不准时的决策也用它（HIRO_LLM=openai:…）
+//	codex     用户已登录的 codex 命令行，当外部 agent 跑：读 hiro 的说明、自己调 hiro 命令（设置页「高级」里）
 //	claude    用户已登录的 claude 命令行，同上
 //
 // 命令行模式只读：它们只能查信息；要开局时在回答里写 HIRO_ACTION 行，由程序发起、拿到待确认后出确认卡。
 // hiro 命令行在 HIRO_AGENT_SANDBOX 下另外拒绝 confirm / secret / run start。
 
+// Preset 是一家 OpenAI 兼容的 API 服务商。名称在界面的消息目录里（providerXxx），这里只放地址。
+type Preset struct {
+	ID           string `json:"id"`
+	BaseURL      string `json:"base_url"`      // 自定义为空，要用户填
+	DefaultModel string `json:"default_model"` // 只有 DeepSeek 有缺省模型；其他家从 /models 里选
+	KeyURL       string `json:"key_url"`       // 去哪里创建 Key（设置页提示用）
+}
+
+// Presets 是设置页可选的 API 服务商（顺序即界面顺序）。
+var Presets = []Preset{
+	{ID: "deepseek", BaseURL: DefaultDeepSeekURL, DefaultModel: DefaultDeepSeekModel, KeyURL: "https://platform.deepseek.com/api_keys"},
+	{ID: "kimi", BaseURL: "https://api.moonshot.cn/v1", KeyURL: "https://platform.moonshot.cn/console/api-keys"},
+	{ID: "qwen", BaseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1", KeyURL: "https://bailian.console.aliyun.com/?apiKey=1"},
+	{ID: "glm", BaseURL: "https://open.bigmodel.cn/api/paas/v4", KeyURL: "https://open.bigmodel.cn/usercenter/apikeys"},
+	{ID: "openai", BaseURL: "https://api.openai.com/v1", KeyURL: "https://platform.openai.com/api-keys"},
+	{ID: "openrouter", BaseURL: "https://openrouter.ai/api/v1", KeyURL: "https://openrouter.ai/settings/keys"},
+	{ID: "custom"},
+}
+
+func preset(id string) (Preset, bool) {
+	for _, p := range Presets {
+		if p.ID == id {
+			return p, true
+		}
+	}
+	return Preset{}, false
+}
+
+// isAPI 是走 API Key 的服务商（不是命令行、不是「不用模型」）。
+func isAPI(id string) bool {
+	_, ok := preset(id)
+	return ok
+}
+
+// keyName 是这家服务商的 Key 在钥匙串里的名字（DeepSeek 沿用旧名字，升级后不用重填）。
+func keyName(id string) string { return id + "-api-key" }
+
 // Settings 是模型设置（不含 Key）。
 type Settings struct {
-	Provider string `json:"provider"` // deepseek（缺省）/ codex / claude / none（不用模型）
-	Model    string `json:"model,omitempty"`
-	BaseURL  string `json:"base_url,omitempty"`
-	HasKey   bool   `json:"has_key"`
+	Provider string `json:"provider"`           // Presets 里的一家（缺省 deepseek）/ codex / claude / none（不用模型）
+	Model    string `json:"model,omitempty"`    // 用哪个模型
+	BaseURL  string `json:"base_url,omitempty"` // 自定义服务商的地址；预设的服务商留空用预设地址
+	HasKey   bool   `json:"has_key"`            // 当前服务商有没有存 Key
+	// HasKeys：每家服务商有没有存 Key（切换服务商时界面显示「已保存」用）。只在给界面的结果里有，不写进文件。
+	HasKeys map[string]bool `json:"has_keys,omitempty"`
 	// WizardDone：新手向导走完了（或跳过了），之后打开直接进主窗口。
 	WizardDone bool `json:"wizard_done,omitempty"`
 }
@@ -41,7 +82,6 @@ type Settings struct {
 const (
 	DefaultDeepSeekURL   = "https://api.deepseek.com"
 	DefaultDeepSeekModel = "deepseek-flash" // 2026-11-17 /models 只列 deepseek-flash、deepseek-v4-pro
-	deepseekKeyName      = "deepseek-api-key"
 )
 
 var errNoKey = errors.New("没有保存 Key")
@@ -49,34 +89,49 @@ var errNoKey = errors.New("没有保存 Key")
 // legacyDeepSeek：没填或旧名字。deepseek-chat / deepseek-reasoner 现在都由 deepseek-flash 应答，统一写成 flash。
 var legacyDeepSeek = map[string]bool{"": true, "deepseek-chat": true, "deepseek-reasoner": true}
 
-// Models 列出这个 Key 能用的 DeepSeek 模型（GET /models），设置页的下拉框用。
-func (a *Assistant) Models(ctx context.Context) ([]string, error) {
-	s := a.Settings()
-	key, err := a.Keys.Get(deepseekKeyName)
-	if err != nil || key == "" {
-		return nil, errors.New("还没填 DeepSeek 的 API Key")
+// endpoint 是这家服务商实际用的地址：自定义用填的，预设的用预设地址（旧设置里 DeepSeek 填过的地址照用）。
+func endpoint(id, baseURL string) string {
+	p, _ := preset(id)
+	if id == "custom" || (baseURL != "" && id == "deepseek") {
+		return strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	}
-	url := s.BaseURL
+	return p.BaseURL
+}
+
+// Models 列出这家服务商这个 Key 能用的模型（GET /models），设置页的下拉框用。
+// key 为空时用钥匙串里已存的；baseURL 只对自定义服务商有用。
+func (a *Assistant) Models(ctx context.Context, provider, baseURL, key string) ([]string, error) {
+	if !isAPI(provider) {
+		return nil, errors.New("这家不用 API Key")
+	}
+	if key = strings.TrimSpace(key); key == "" {
+		k, err := a.Keys.Get(keyName(provider))
+		if err != nil || k == "" {
+			return nil, errors.New("还没填 API Key")
+		}
+		key = k
+	}
+	url := endpoint(provider, baseURL)
 	if url == "" {
-		url = DefaultDeepSeekURL
+		return nil, errors.New("还没填接口地址")
 	}
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, "GET", strings.TrimRight(url, "/")+"/models", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url+"/models", nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bearer "+key)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("连不上 DeepSeek：%w", err)
+		return nil, fmt.Errorf("连不上服务商：%w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == 401 || resp.StatusCode == 403 {
 		return nil, ErrUnauthorized
 	}
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("DeepSeek 出错（%d）", resp.StatusCode)
+		return nil, fmt.Errorf("服务商出错（%d）", resp.StatusCode)
 	}
 	var out struct {
 		Data []struct {
@@ -92,8 +147,12 @@ func (a *Assistant) Models(ctx context.Context) ([]string, error) {
 			ids = append(ids, m.ID)
 		}
 	}
+	sort.Strings(ids)
 	return ids, nil
 }
+
+// Providers 是设置页的服务商列表（预设地址、缺省模型、创建 Key 的地址）。
+func (a *Assistant) Providers() []Preset { return Presets }
 
 // KeyStore 存模型的 API Key。
 type KeyStore interface {
@@ -136,17 +195,41 @@ func (a *Assistant) Settings() Settings {
 	if s.Provider == "deepseek" && legacyDeepSeek[s.Model] {
 		s.Model = DefaultDeepSeekModel
 	}
-	s.HasKey = false
-	if s.Provider == "deepseek" {
-		if k, err := a.Keys.Get(deepseekKeyName); err == nil && k != "" {
-			s.HasKey = true
+	s.HasKeys = map[string]bool{}
+	for _, p := range Presets {
+		if k, err := a.Keys.Get(keyName(p.ID)); err == nil && k != "" {
+			s.HasKeys[p.ID] = true
 		}
 	}
+	s.HasKey = s.HasKeys[s.Provider]
 	return s
 }
 
+// apiConfig 是当前 API 服务商的地址、模型和 Key；没配好返回说明。
+func (a *Assistant) apiConfig() (url, model, key string, err error) {
+	s := a.Settings()
+	if !isAPI(s.Provider) {
+		return "", "", "", errors.New("还没配模型：到设置里选服务商")
+	}
+	key, kerr := a.Keys.Get(keyName(s.Provider))
+	if kerr != nil || key == "" {
+		return "", "", "", errors.New("还没填 API Key：到设置里填")
+	}
+	url, model = endpoint(s.Provider, s.BaseURL), s.Model
+	if p, _ := preset(s.Provider); model == "" {
+		model = p.DefaultModel
+	}
+	switch {
+	case url == "":
+		return "", "", "", errors.New("还没填接口地址：到设置里填")
+	case model == "":
+		return "", "", "", errors.New("还没选模型：到设置里选")
+	}
+	return url, model, key, nil
+}
+
 // jobEnv 是开局时交给工具层的模型设置（对局里的 LLM 跟着这里走，hiro.brain.llm 读这些变量）：
-// DeepSeek 有 Key → OpenAI 兼容接口；Claude / Codex → 本机命令行；不用模型或 DeepSeek 没填 Key → off（只用规则和算法）。
+// API 服务商配好了 → OpenAI 兼容接口；Claude / Codex → 本机命令行；不用模型或没配好 → off（只用规则和算法）。
 func (a *Assistant) jobEnv() []string {
 	s := a.Settings()
 	switch s.Provider {
@@ -154,36 +237,39 @@ func (a *Assistant) jobEnv() []string {
 		return []string{"HIRO_LLM=claude:sonnet"}
 	case "codex":
 		return []string{"HIRO_LLM=codex"}
-	case "deepseek":
-		key, err := a.Keys.Get(deepseekKeyName)
-		if err != nil || key == "" {
-			break
-		}
-		url, model := s.BaseURL, s.Model
-		if url == "" {
-			url = DefaultDeepSeekURL
-		}
-		if model == "" {
-			model = DefaultDeepSeekModel
-		}
+	}
+	if url, model, key, err := a.apiConfig(); err == nil {
 		return []string{"HIRO_LLM=openai:" + model, "OPENAI_BASE_URL=" + url, "OPENAI_API_KEY=" + key}
 	}
 	return []string{"HIRO_LLM=off"}
 }
 
-// Save 保存模型设置；key 非空时存进钥匙串（空的不动已存的）。
+// Save 保存模型设置；key 非空时存进这家服务商的钥匙串条目（空的不动已存的）。
 func (a *Assistant) Save(s Settings, key string) error {
-	if s.Provider != "" && s.Provider != "deepseek" && s.Provider != "codex" && s.Provider != "claude" && s.Provider != "none" {
+	if s.Provider != "" && !isAPI(s.Provider) && s.Provider != "codex" && s.Provider != "claude" && s.Provider != "none" {
 		return fmt.Errorf("不认识的服务商 %q", s.Provider)
 	}
+	if s.Provider == "" {
+		s.Provider = "deepseek"
+	}
 	if k := strings.TrimSpace(key); k != "" {
-		if err := a.Keys.Set(deepseekKeyName, k); err != nil {
+		if !isAPI(s.Provider) {
+			return errors.New("这家不用 API Key")
+		}
+		if err := a.Keys.Set(keyName(s.Provider), k); err != nil {
 			return fmt.Errorf("Key 存不进系统钥匙串：%w", err)
 		}
 	}
+	if s.Provider != "custom" && s.Provider != "deepseek" {
+		s.BaseURL = "" // 预设地址不写进文件：以后预设改了跟着改
+	}
 	// has_key 只记「有没有」（给 hiro doctor 看），Key 本身只在钥匙串里
-	k, err := a.Keys.Get(deepseekKeyName)
-	s.HasKey = err == nil && k != ""
+	s.HasKey = false
+	if isAPI(s.Provider) {
+		k, err := a.Keys.Get(keyName(s.Provider))
+		s.HasKey = err == nil && k != ""
+	}
+	s.HasKeys = nil
 	b, _ := json.MarshalIndent(s, "", "  ")
 	if err := os.MkdirAll(a.Home, 0o755); err != nil {
 		return err
@@ -192,20 +278,9 @@ func (a *Assistant) Save(s Settings, key string) error {
 }
 
 func (a *Assistant) provider() (ChatProvider, error) {
-	s := a.Settings()
-	if s.Provider != "deepseek" {
-		return nil, errors.New("还没配模型：到设置里选服务商")
-	}
-	key, err := a.Keys.Get(deepseekKeyName)
-	if err != nil || key == "" {
-		return nil, errors.New("还没填 DeepSeek 的 API Key：到设置里填")
-	}
-	url, model := s.BaseURL, s.Model
-	if url == "" {
-		url = DefaultDeepSeekURL
-	}
-	if model == "" {
-		model = DefaultDeepSeekModel
+	url, model, key, err := a.apiConfig()
+	if err != nil {
+		return nil, err
 	}
 	return OpenAICompat{BaseURL: url, Model: model, Key: key, Client: &http.Client{Timeout: 120 * time.Second}}, nil
 }

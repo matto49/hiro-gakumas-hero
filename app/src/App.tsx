@@ -3,7 +3,7 @@ import { Chat } from "./components/Chat";
 import { RightPanel } from "./components/RightPanel";
 import { Sidebar, type View } from "./components/Sidebar";
 import { quickAgent, type Agent } from "./lib/agent";
-import { modelAgent, modelLabel, useAssistant, type Settings } from "./lib/assistant";
+import { modelAgent, modelLabel, modelReady, useAssistant, type Settings } from "./lib/assistant";
 import type { Thread } from "./lib/chat";
 import { cardsFor } from "./lib/quick";
 import { data, useHiro, type Envelope, type Job, type Summary } from "./lib/hiro";
@@ -92,7 +92,7 @@ export function App({ agent: agentProp, initialView }: { agent?: Agent; initialV
   const quick = useMemo(() => quickAgent(call), [call]);
   const agent = useMemo(() => {
     if (agentProp) return agentProp;
-    const ready = settings && (settings.provider === "codex" || settings.provider === "claude" || (settings.provider === "deepseek" && settings.has_key));
+    const ready = modelReady(settings);
     return ready ? modelAgent(api, settings!) : { ...quick, label: modelLabel(settings) };
   }, [agentProp, settings, api, quick]);
   const t = useThreads();

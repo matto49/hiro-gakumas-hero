@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { HiroCtx } from "../lib/hiro";
-import { fakeCaller } from "../test/fake";
+import { choose, fakeCaller } from "../test/fake";
 import { StartPage } from "./StartPage";
 
 afterEach(cleanup);
@@ -37,7 +37,7 @@ test("H.I.F 本战带主属性和编成号", async () => {
   fireEvent.click(screen.getByRole("button", { name: /^H\.I\.F/ }));
   fireEvent.click(screen.getByRole("radio", { name: "本战" }));
   fireEvent.change(screen.getByLabelText("偶像卡"), { target: { value: "i_card-skin-shro-3-007" } });
-  fireEvent.change(screen.getByLabelText("主属性"), { target: { value: "Da" } });
+  await choose("主属性", "Da");
   fireEvent.change(screen.getByLabelText("支援卡编成号"), { target: { value: "4" } });
   fireEvent.change(screen.getByLabelText("回忆编成号"), { target: { value: "5" } });
   fireEvent.click(screen.getByRole("button", { name: "准备开局" }));

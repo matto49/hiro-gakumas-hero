@@ -1,22 +1,60 @@
 // 表单的小件：带标签的输入、分段单选、勾选。开局页、编成页、设置页共用。
 import type { ReactNode } from "react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { cx } from "./ui";
 
 export const inputCls =
   "h-8 w-full rounded-md border border-line-strong bg-surface px-2.5 text-[13px] text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-brand focus:ring-3 focus:ring-brand/25";
 
-// 下拉框：去掉系统自带的渐变外观，右边画一个小箭头
-const CHEVRON = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237a736c' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")";
-export const selectCls = `${inputCls} appearance-none bg-no-repeat bg-[position:right_8px_center] pr-7 cursor-pointer`;
-export const selectStyle = { backgroundImage: CHEVRON };
+export interface ChoiceOption<T extends string> {
+  value: T;
+  label: string;
+}
 
-export function Field({ label, hint, children, className }: { label: string; hint?: ReactNode; children: ReactNode; className?: string }) {
+/** 下拉框（UI 库的 Select，不用原生的 select 元素：原生的在 macOS 上是系统灰色菜单，和界面不搭）。
+ *  选项少于 2 个时也照样能点开，选中项在触发按钮上显示它的文字。 */
+export function Choice<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+  placeholder,
+  className,
+}: {
+  label: string;
+  value: T | null;
+  options: ChoiceOption<T>[];
+  onChange: (v: T) => void;
+  placeholder?: string;
+  className?: string;
+}) {
   return (
-    <label className={cx("flex min-w-0 flex-col gap-1", className)}>
+    <Select<T> items={options} value={value} onValueChange={(v) => v !== null && onChange(v)}>
+      <SelectTrigger
+        aria-label={label}
+        className={cx("h-8 w-full rounded-md border-line-strong bg-surface text-[13px] text-ink focus-visible:border-brand focus-visible:ring-brand/25", className)}
+      >
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent alignItemWithTrigger={false} className="text-[13px]">
+        {options.map((o) => (
+          <SelectItem key={o.value} value={o.value} className="text-[13px]">
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+export function Field({ label, hint, children, className, as = "label" }: { label: string; hint?: ReactNode; children: ReactNode; className?: string; as?: "label" | "div" }) {
+  const Tag = as;
+  return (
+    <Tag className={cx("flex min-w-0 flex-col gap-1", className)}>
       <span className="text-[12px] font-medium text-ink-2">{label}</span>
       {children}
       {hint && <span className="text-[11.5px] leading-snug text-ink-3">{hint}</span>}
-    </label>
+    </Tag>
   );
 }
 

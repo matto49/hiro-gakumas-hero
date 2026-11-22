@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AssistantCtx, type AssistantApi, type Settings } from "../lib/assistant";
 import { HiroCtx } from "../lib/hiro";
-import { fakeCaller } from "../test/fake";
+import { choiceState, choose, fakeCaller } from "../test/fake";
 import { SettingsPage } from "./Settings";
 
 afterEach(cleanup);
@@ -37,10 +37,9 @@ test("填 DeepSeek Key 保存后输入框清空、只显示已保存", async () 
     </HiroCtx.Provider>,
   );
   await waitFor(() => expect(screen.getByLabelText("服务商")).toBeTruthy());
-  const select = screen.getByLabelText("服务商") as HTMLSelectElement;
-  expect(select.value).toBe("deepseek");
-  expect(select.options[0]!.value).toBe("deepseek");
-  expect([...select.options].map((o) => o.value)).toContain("none");
+  const prov = await choiceState("服务商");
+  expect(prov.shown).toContain("DeepSeek");
+  expect(prov.options).toEqual(["不用模型", "DeepSeek（推荐）", "Kimi（Moonshot）", "通义千问", "智谱 GLM", "OpenAI", "OpenRouter", "自定义（OpenAI 兼容）"]);
   const key = screen.getByLabelText("API Key") as HTMLInputElement;
   expect(key.type).toBe("password");
   fireEvent.change(key, { target: { value: "sk-abc" } });
@@ -103,12 +102,11 @@ test("填了 Key 后模型是从 DeepSeek 拉回来的下拉框，默认 flash",
       </AssistantCtx.Provider>
     </HiroCtx.Provider>,
   );
-  await waitFor(() => expect((screen.getByLabelText("模型") as HTMLElement).tagName).toBe("SELECT"));
-  const sel = screen.getByLabelText("模型") as HTMLSelectElement;
-  expect([...sel.options].map((o) => o.value)).toEqual(["deepseek-flash", "deepseek-v4-pro"]);
-  expect(sel.value).toBe("deepseek-flash");
-  fireEvent.change(sel, { target: { value: "deepseek-v4-pro" } });
-  fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  await waitFor(() => expect((screen.getByLabelText("模型") as HTMLElement).tagName).toBe("BUTTON"));
+  const st = await choiceState("模型");
+  expect(st.options).toEqual(["deepseek-flash（默认）", "deepseek-v4-pro"]);
+  expect(st.shown).toContain("deepseek-flash");
+  await choose("模型", "deepseek-v4-pro");
   await waitFor(() => expect(fake.saved.at(-1)![0].model).toBe("deepseek-v4-pro"));
 });
 
@@ -124,4 +122,55 @@ test("没填 Key 时模型是手填框，默认 deepseek-flash", async () => {
   const inp = (await screen.findByLabelText("模型")) as HTMLInputElement;
   expect(inp.tagName).toBe("INPUT");
   expect(inp.value).toBe("deepseek-flash");
+});
+
+test("换成 Kimi：填 Key 后按 Kimi 列模型，选一个后保存时 Key 存到 Kimi 名下", async () => {
+  const fake = fakeAssistant({ provider: "deepseek", has_key: true, has_keys: { deepseek: true } });
+  const asked: [string, string, string][] = [];
+  fake.api.models = async (p, url, key) => {
+    asked.push([p, url, key]);
+    return ["moonshot-v1-8k", "kimi-k2"];
+  };
+  render(
+    <HiroCtx.Provider value={hiro.call}>
+      <AssistantCtx.Provider value={fake.api}>
+        <SettingsPage onChanged={() => {}} />
+      </AssistantCtx.Provider>
+    </HiroCtx.Provider>,
+  );
+  await waitFor(() => expect(screen.getByLabelText("服务商")).toBeTruthy());
+  await choose("服务商", "Kimi（Moonshot）");
+  expect(screen.getByText(/还没填/)).toBeTruthy();
+  fireEvent.change(screen.getByLabelText("API Key"), { target: { value: "sk-kimi" } });
+  await waitFor(() => expect(asked.some(([p, , k]) => p === "kimi" && k === "sk-kimi")).toBe(true));
+  await waitFor(() => expect((screen.getByLabelText("模型") as HTMLElement).tagName).toBe("BUTTON"));
+  await choose("模型", "kimi-k2");
+  fireEvent.click(screen.getByRole("button", { name: "保存" }));
+  await waitFor(() => expect(fake.saved.at(-1)?.[0].provider).toBe("kimi"));
+  expect(fake.saved.at(-1)![0].model).toBe("kimi-k2");
+  expect(fake.saved.at(-1)![1]).toBe("sk-kimi");
+});
+
+test("本机命令行收在「高级」里，默认不展开；正在用命令行时展开", async () => {
+  const fake = fakeAssistant({ provider: "deepseek", has_key: false });
+  const { unmount } = render(
+    <HiroCtx.Provider value={hiro.call}>
+      <AssistantCtx.Provider value={fake.api}>
+        <SettingsPage onChanged={() => {}} />
+      </AssistantCtx.Provider>
+    </HiroCtx.Provider>,
+  );
+  await waitFor(() => expect(screen.getByText("高级：用本机命令行")).toBeTruthy());
+  expect((screen.getByText("高级：用本机命令行").closest("details") as HTMLDetailsElement).open).toBe(false);
+  unmount();
+  const cli = fakeAssistant({ provider: "claude", has_key: false });
+  render(
+    <HiroCtx.Provider value={hiro.call}>
+      <AssistantCtx.Provider value={cli.api}>
+        <SettingsPage onChanged={() => {}} />
+      </AssistantCtx.Provider>
+    </HiroCtx.Provider>,
+  );
+  await waitFor(() => expect((screen.getByText("高级：用本机命令行").closest("details") as HTMLDetailsElement).open).toBe(true));
+  expect(screen.getByText(/现在用的是 Claude Code/)).toBeTruthy();
 });

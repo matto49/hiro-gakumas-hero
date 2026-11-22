@@ -1,7 +1,7 @@
 // 开局页（设计简报 §5）：五种模式一行一个，点开展开参数，下面内联确认（不弹窗）。参数缺省按编成方案。
 import { ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Check, Field, Segmented, inputCls, selectCls, selectStyle } from "../components/Field";
+import { Check, Choice, Field, Segmented, inputCls } from "../components/Field";
 import { IdolPicker } from "../components/IdolPicker";
 import { StartTask } from "../components/StartTask";
 import { PageTitle, cx } from "../components/ui";
@@ -27,14 +27,13 @@ const DAILY: [string, string][] = [
   ["club_reward", "社团"],
 ];
 
-const ATTR_OPTS = (
-  <>
-    <option value="">按编成方案</option>
-    <option value="Vo">Vo</option>
-    <option value="Da">Da</option>
-    <option value="Vi">Vi</option>
-  </>
-);
+// 主属性：「按编成方案」是空值（下拉框的值不能是空串，用 plan 代替）
+const ATTR_OPTS = [
+  { value: "plan", label: "按编成方案" },
+  { value: "Vo", label: "Vo" },
+  { value: "Da", label: "Da" },
+  { value: "Vi", label: "Vi" },
+];
 
 function ProduceForm({ mode, plan, onArgs }: { mode: "hif" | "hajime" | "nia"; plan: PlanSummary | null; onArgs: (a: string[] | null) => void }) {
   const [resume, setResume] = useState(false);
@@ -80,10 +79,8 @@ function ProduceForm({ mode, plan, onArgs }: { mode: "hif" | "hajime" | "nia"; p
           <Field label="偶像卡" hint={plan?.idol.name ? `编成方案是按「${plan.idol.name}」出的` : "搜卡名，也可以直接填编号"}>
             <IdolPicker value={idol} onChange={setIdol} />
           </Field>
-          <Field label="主属性">
-            <select aria-label="主属性" className={selectCls} style={selectStyle} value={attr} onChange={(e) => setAttr(e.target.value)}>
-              {ATTR_OPTS}
-            </select>
+          <Field as="div" label="主属性">
+            <Choice label="主属性" value={attr || "plan"} options={ATTR_OPTS} onChange={(v) => setAttr(v === "plan" ? "" : v)} />
           </Field>
           <Field label="支援卡编成号">
             <input aria-label="支援卡编成号" inputMode="numeric" className={inputCls} value={sset} onChange={(e) => setSset(e.target.value.replace(/\D/g, ""))} placeholder="1–20" />
