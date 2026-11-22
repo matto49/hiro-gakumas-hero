@@ -112,10 +112,10 @@ func TestPrepJobsArgv(t *testing.T) {
 	if a := argv("scan-account", params(), d); strings.Join(a[1:], " ") != "-m hiro.vision.home_values --live --out "+filepath.Join(d, "out.json") {
 		t.Fatalf("%v", a)
 	}
-	if a := argv("scan-supports", params(), d); !strings.HasSuffix(a[1], "support_inventory.py") || strings.Join(a[2:], " ") != "--list --out "+filepath.Join(d, "out.json") {
+	if a := argv("scan-supports", params(), d); !strings.HasSuffix(a[1], "support_inventory.py") || strings.Join(a[2:], " ") != "--list --from-home --out "+filepath.Join(d, "out.json") {
 		t.Fatalf("%v", a)
 	}
-	if a := argv("scan-memories", params(), d); strings.Join(a[1:], " ") != "-m hiro.memory_scan scan --out "+filepath.Join(d, "out.json") {
+	if a := argv("scan-memories", params(), d); strings.Join(a[1:], " ") != "-m hiro.memory_scan scan --from-home --out "+filepath.Join(d, "out.json") {
 		t.Fatalf("%v", a)
 	}
 	if a := argv("tower", params("idol", "篠澤広", "no_llm", true), "/j/J1"); strings.Join(a, " ") != "/py -m hiro.runtime.tower_play --idol-name 篠澤広 --layers 1 --trace J1 --no-llm" {

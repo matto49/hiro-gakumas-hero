@@ -197,10 +197,10 @@ KINDS: dict[str, Kind] = {
                          lambda p, d: [_PY, "-m", HOME_READER, "--live", "--out", str(d / "out.json")],
                          lambda p: "读首页的 PLv / AP / ジュエル（只截图，不点）", output="account", pausable=False),
     "scan-supports": Kind("scan-supports", "扫描支援卡（只读：在「選択」列表里滚动，最后点キャンセル）",
-                          lambda p, d: [_PY, str(REPO / "tools" / "support_inventory.py"), "--list", "--out", str(d / "out.json")],
+                          lambda p, d: [_PY, str(REPO / "tools" / "support_inventory.py"), "--list", "--from-home", "--out", str(d / "out.json")],
                           lambda p: "扫描支援卡库存（只读，不改编成）", output="supports", pausable=False),
     "scan-memories": Kind("scan-memories", "扫描回忆（只读：在「メモリー選択」里逐格读）",
-                          lambda p, d: [_PY, "-m", "hiro.memory_scan", "scan", "--out", str(d / "out.json")],
+                          lambda p, d: [_PY, "-m", "hiro.memory_scan", "scan", "--from-home", "--out", str(d / "out.json")],
                           lambda p: "扫描回忆库存（只读，不改编成）", output="memories", pausable=False),
 }
 

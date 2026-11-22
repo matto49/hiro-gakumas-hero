@@ -152,10 +152,18 @@ def main() -> None:
     g.add_argument("--list-offline", nargs="+", metavar="PNG", help="「選択」列表截图离线汇总")
     ap.add_argument("--formations", type=int, default=20)
     ap.add_argument("--out", default="reports/live/support-inventory.json")
+    ap.add_argument("--from-home", action="store_true", help="和 --list 一起用：从首页 / 编成菜单开始，先进支援卡编成页、点第 1 格打开「選択」列表")
     a = ap.parse_args()
     if a.list or a.list_offline:
         from hiro.vision.support_screens import read_support_list
 
+        if a.list and a.from_home:
+            from hiro.produce import formation_menu
+            from hiro.tool_device import open_tool_device
+            from hiro.vision.support_screens import read_support_formation
+
+            formation_menu.open_picker(formation_menu.tool_device(open_tool_device()), "support",
+                                       ready=lambda img: read_support_list(img) is not None, read_formation=read_support_formation)  # fmt: skip
         screens = list_scan() if a.list else [r for p in a.list_offline if (r := read_support_list(_load(p))) is not None]
         inv = {"generated": time.time(), "source": "list", **aggregate_list(screens)}
     else:

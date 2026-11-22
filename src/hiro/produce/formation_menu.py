@@ -299,3 +299,42 @@ def run(dev: Device, plan: dict, mode: str, *, what: tuple[str, ...] = ("support
 
 
 __all__ = ["Menu", "read_menu", "read_mode", "read_memory_icons", "memory_diff", "support_diff", "write_memory", "write_support", "run"]
+
+
+PICKER_TRIES = 4  # 点格子后最多看几次列表开没开（每次 1.5 秒，第一次和中途各点一次）
+
+
+def open_picker(dev: Device, kind: str, *, ready: Callable[[object], bool], read_formation=None) -> None:
+    """从首页（或编成菜单）进支援卡 / 回忆的选择列表，给库存扫描用（初星助手的「扫描」按钮）：进菜单 → 切到 kind 页 →
+    点当前编成第 1 格。只点格子，不点「決定」；列表里由扫描自己读完点キャンセル。ready(截图) 判断列表开了没有。"""
+    from hiro.produce.formation_writer import FormationWriteError, _settled_step2
+
+    menu = Menu(dev)
+    menu.open()
+    menu.ensure_tab(kind)
+    if kind == "memory":
+        slot = MEMORY_TILES[0]
+    else:
+        page = _settled_step2(dev, read_formation, view="formation")
+        if page is None or not page.get("slots"):
+            raise FormationWriteError("读不到支援卡编成页的格子")
+        slot = tuple(page["slots"][0]["center"])
+    for attempt in range(PICKER_TRIES):
+        if attempt in (0, PICKER_TRIES // 2):
+            dev.click(*slot)
+        dev.sleep(1.5)
+        if ready(dev.shoot()):
+            logger.info("编成菜单：%s 选择列表已打开（点了第 1 格）", kind)
+            return
+    raise FormationWriteError(f"点{'回忆' if kind == 'memory' else '支援卡'}格没打开选择列表")
+
+
+def tool_device(d) -> Device:
+    """hiro.tool_device 的设备 → 编成菜单 / 写编成用的 Device（同 tools/write_formation.py）。"""
+    import time
+
+    from hiro.produce.formation_writer import Device as WriterDevice
+    from hiro.vision.ocr import screen_texts
+
+    return WriterDevice(shoot=d.screenshot, click=d.tap, swipe=lambda x1, y1, x2, y2, dur=None: d.swipe(x1, y1, x2, y2, duration=dur or 0.3),
+                        ocr=lambda img: [(t.text, 1.0, tuple(int(v) for v in t.rect)) for t in screen_texts(img)], sleep=time.sleep)  # fmt: skip

@@ -59,3 +59,23 @@ test("读进现有方案后，偶像卡框写卡名，「出方案」可以直�
   await waitFor(() => expect(fake.calls.some((c) => c[1] === "formation")).toBe(true));
   expect(fake.calls.find((c) => c[1] === "formation")!.slice(0, 4)).toEqual(["plan", "formation", "--idol", "i_card-skin-shro-3-007"]);
 });
+
+test("库存：显示支援卡 / 回忆是哪天扫的，旧了提示先扫描，按钮发起扫描任务", async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const fake = fakeCaller({
+    "plan show": { ok: true, exit: 0, data: PLAN },
+    "info summary": { ok: true, exit: 0, data: { account: null, kinds: { supports: { count: 67, scanned_at: "2026-01-02 14:56:00" }, memories: { count: 384, scanned_at: `${today} 08:00:00` } } } },
+    "run start scan-supports": { ok: true, exit: 3, data: {}, pending: { id: "p2", command: "run start", summary: "扫描支援卡", expires_at: 1 } },
+  });
+  render(
+    <HiroCtx.Provider value={fake.call}>
+      <PlanPage onOpenJob={() => {}} />
+    </HiroCtx.Provider>,
+  );
+  await waitFor(() => expect(screen.getByText(/支援卡 67 张/)).toBeTruthy());
+  expect(screen.getByText(/回忆 384 份/)).toBeTruthy();
+  expect(screen.getByText(/支援卡库存是 \d+ 天前扫的/)).toBeTruthy();
+  expect(screen.queryByText(/回忆库存是 \d+ 天前扫的/)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "重新扫描支援卡" }));
+  await waitFor(() => expect(fake.calls.some((c) => c.join(" ") === "run start scan-supports")).toBe(true));
+});

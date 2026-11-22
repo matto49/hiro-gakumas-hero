@@ -5,8 +5,51 @@ import { StartTask } from "../components/StartTask";
 import { Field, Segmented, inputCls } from "../components/Field";
 import { IdolPicker, toSkinId } from "../components/IdolPicker";
 import { Button, PageTitle } from "../components/ui";
-import { HiroError, data, useHiro } from "../lib/hiro";
+import { HiroError, data, useHiro, type Summary } from "../lib/hiro";
 import type { PlanSummary } from "../lib/plan";
+
+// 库存超过这么多天算旧：出方案前提示先扫描（新抽的卡、新拿的回忆不在方案里）
+const STALE_DAYS = 3;
+
+const INVENTORY: [kind: "supports" | "memories", name: string, unit: string, job: string][] = [
+  ["supports", "支援卡", "张", "scan-supports"],
+  ["memories", "回忆", "份", "scan-memories"],
+];
+
+function daysAgo(at: string): number {
+  const t = Date.parse(at.replace(" ", "T"));
+  return Number.isNaN(t) ? 0 : Math.floor((Date.now() - t) / 86_400_000);
+}
+
+/** 出方案用的库存：各是哪天扫的，旧了提示，旁边是扫描入口（会动游戏，要你确认）。 */
+function Inventory({ summary, onOpenJob }: { summary: Summary | null; onOpenJob: (jobId: string) => void }) {
+  return (
+    <div className="mt-3 flex flex-col gap-2 border-t border-line pt-3">
+      <div className="text-[12px] font-medium text-ink-3">用到的库存（游戏停在首页再扫；只读，扫完点キャンセル退出）</div>
+      {INVENTORY.map(([kind, name, unit, job]) => {
+        const k = summary?.kinds[kind];
+        const at = k?.scanned_at ?? null;
+        const age = at ? daysAgo(at) : null;
+        const stale = age === null || age > STALE_DAYS;
+        return (
+          <div key={kind} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="min-w-[180px] text-[13px]">
+              {at ? `${name} ${k!.count} ${unit} · ${at.slice(5, 16)} 扫描` : `${name}：还没扫描`}
+            </span>
+            {stale && (
+              <span className="text-[12px] text-warn">
+                {at ? `${name}库存是 ${age} 天前扫的，新拿到的不在方案里，建议先扫描` : "出方案前要先扫描"}
+              </span>
+            )}
+            <span className="ml-auto">
+              <StartTask label={at ? `重新扫描${name}` : `扫描${name}`} args={[job]} onOpenJob={onOpenJob} />
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 const SCENARIOS: [string, string][] = [
   ["hif", "H.I.F"],
@@ -24,6 +67,11 @@ export function PlanPage({ onOpenJob }: { onOpenJob: (jobId: string) => void }) 
   const [attr, setAttr] = useState("");
   const [scenario, setScenario] = useState("hif");
   const [busy, setBusy] = useState(false);
+  const [summary, setSummary] = useState<Summary | null>(null);
+
+  useEffect(() => {
+    data<Summary>(call, ["info", "summary"]).then(setSummary, () => {});
+  }, [call]);
 
   useEffect(() => {
     data<PlanSummary>(call, ["plan", "show"])
@@ -75,6 +123,7 @@ export function PlanPage({ onOpenJob }: { onOpenJob: (jobId: string) => void }) 
                 {busy ? "计算中…" : "出方案"}
               </Button>
             </div>
+            <Inventory summary={summary} onOpenJob={onOpenJob} />
           </section>
           {err && (
             <div role="alert" className="rounded-xl border border-line bg-surface-2 px-4 py-3">

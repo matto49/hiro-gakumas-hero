@@ -282,14 +282,14 @@ var Kinds = map[string]*Kind{
 	"scan-supports": {
 		Name: "scan-supports", Help: "扫描支援卡（只读：在「選択」列表里滚动，最后点キャンセル）",
 		Argv: func(_ *jsonx.Object, dir string, rt Runtime) []string {
-			return []string{rt.Python, filepath.Join(rt.Repo, "tools", "support_inventory.py"), "--list", "--out", out(dir)}
+			return []string{rt.Python, filepath.Join(rt.Repo, "tools", "support_inventory.py"), "--list", "--from-home", "--out", out(dir)}
 		},
 		Summary: fixed("扫描支援卡库存（只读，不改编成）"), Output: "supports",
 	},
 	"scan-memories": {
 		Name: "scan-memories", Help: "扫描回忆（只读：在「メモリー選択」里逐格读）",
 		Argv: func(_ *jsonx.Object, dir string, rt Runtime) []string {
-			return []string{rt.Python, "-m", "hiro.memory_scan", "scan", "--out", out(dir)}
+			return []string{rt.Python, "-m", "hiro.memory_scan", "scan", "--from-home", "--out", out(dir)}
 		},
 		Summary: fixed("扫描回忆库存（只读，不改编成）"), Output: "memories",
 	},
