@@ -56,9 +56,11 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 
 | 命令 | 用途 |
 |---|---|
-| `hiro catalog sync` | 下载 / 更新资料库（第一次用前运行；报 `catalog_missing` 时也是它） |
+| `hiro catalog sync` | 下载 / 更新资料库，含支援卡资料（第一次用前运行；报 `catalog_missing` 时也是它） |
 | `hiro catalog search <词> [--kind cards\|items\|drinks\|idols\|memories] [--lang ja\|zh]` | 按名字或效果文字搜，最多 50 条 |
 | `hiro catalog get <编号> [--lang zh]` | 一条完整记录（强化后的效果在 `up` 里） |
+| `hiro catalog supports` | 本机的支援卡资料：中日文名、SP 发生率、各凸等级上限、按等级的能力、事件（界面用） |
+| `hiro catalog lookup [--ids <编号,…>] [--texts <回忆能力日文原文，一行一条>] [--lang zh]` | 按编号一次取多条记录的名字、效果文字和图名，回忆能力原文换成中文（界面用） |
 | `hiro catalog sprite <asset>` | 小图的本机路径（界面用） |
 
 ## 开局编成方案（只计算，直接执行）

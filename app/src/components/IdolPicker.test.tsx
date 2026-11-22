@@ -19,18 +19,25 @@ const IDOLS = [
 
 test("按名字搜偶像卡，选中后交出 skin 编号、框里显示卡名", async () => {
   const seen: string[] = [];
-  const fake = fakeCaller({ "catalog search": { ok: true, exit: 0, data: { items: IDOLS, truncated: false } } });
+  const ZH = IDOLS.map((x) => ({ ...x, name: x.name.replace("篠澤広", "筱泽广") }));
+  const fake = fakeCaller({
+    "catalog search": (args) => ({ ok: true, exit: 0, data: { items: args.includes("zh") ? ZH : IDOLS, truncated: false } }),
+  });
   render(
     <HiroCtx.Provider value={fake.call}>
       <Host seen={seen} />
     </HiroCtx.Provider>,
   );
   fireEvent.change(screen.getByLabelText("偶像卡"), { target: { value: "篠澤" } });
-  await waitFor(() => expect(screen.getByRole("option", { name: /Campus mode!!/ })).toBeTruthy());
-  expect(fake.calls.at(-1)).toEqual(["catalog", "search", "篠澤", "--kind", "idols"]);
+  await waitFor(() => expect(screen.getByRole("option", { name: /Campus mode!!】筱泽广/ })).toBeTruthy());
+  expect(fake.calls.slice(-2)).toEqual([
+    ["catalog", "search", "篠澤", "--kind", "idols", "--lang", "ja"],
+    ["catalog", "search", "篠澤", "--kind", "idols", "--lang", "zh"],
+  ]);
+  expect(screen.getByRole("option", { name: /Campus mode!!/ }).textContent).toContain("【Campus mode!!】篠澤広"); // 日文原名做副标题
   fireEvent.mouseDown(screen.getByRole("option", { name: /Campus mode!!/ }));
   expect(seen.at(-1)).toBe("i_card-skin-shro-3-007");
-  expect((screen.getByLabelText("偶像卡") as HTMLInputElement).value).toBe("【Campus mode!!】篠澤広");
+  expect((screen.getByLabelText("偶像卡") as HTMLInputElement).value).toBe("【Campus mode!!】筱泽广");
   expect(screen.queryByRole("option")).toBeNull();
 });
 

@@ -17,14 +17,14 @@ const catJA = `{"schema": 18,
    "asset": "img_general_skillcard_ido-3_105", "up": {"0": {"name": "エウレカ！", "text": "好調3ターン"}}}},
  "items": {"pitem_3-076": {"name": "選びとった熱", "rarity": "SSR", "plan": "PLAN2", "text": "試験開始時", "asset": "img_general_pitem_3-076"}},
  "drinks": {}, "enchants": {}, "idols": {"i_card-shro-3-007": {"name": "【Campus mode!!】篠澤広", "rarity": "SSR", "plan": "PLAN2"}},
- "memories": {}}`
+ "memories": {"ability-1": {"name": "", "rarity": "R", "text": "初期ビジュアル上昇+15"}}}`
 
 func server(t *testing.T) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/catalog" && r.URL.Query().Get("lang") == "zh":
-			_, _ = w.Write([]byte(strings.Replace(catJA, `"name": "エウレカ！", "rarity"`, `"name": "尤里卡！", "rarity"`, 1)))
+			_, _ = w.Write([]byte(strings.Replace(strings.Replace(catJA, `"name": "エウレカ！", "rarity"`, `"name": "尤里卡！", "rarity"`, 1), `"text": "初期ビジュアル上昇+15"`, `"text": "初始视觉+15"`, 1)))
 		case r.URL.Path == "/api/catalog":
 			if r.Header.Get("User-Agent") != "hiro-console" {
 				http.Error(w, "ua", http.StatusForbidden)
@@ -33,6 +33,10 @@ func server(t *testing.T) *httptest.Server {
 			_, _ = w.Write([]byte(catJA))
 		case r.URL.Path == "/sprites/img_general_pitem_3-076.png":
 			_, _ = w.Write([]byte("\x89PNG fake"))
+		case r.URL.Path == "/sprites/support-s_card-3-0000.webp":
+			_, _ = w.Write([]byte("RIFF fake webp"))
+		case r.URL.Path == "/api/supports":
+			_, _ = w.Write([]byte(supportsJSON))
 		default:
 			http.NotFound(w, r)
 		}
@@ -131,5 +135,51 @@ func TestIdolNameWithoutCatalog(t *testing.T) {
 	t.Setenv("HIRO_HOME", t.TempDir())
 	if IdolName("i_card-skin-shro-3-007") != "i_card-skin-shro-3-007" {
 		t.Fatal("falls back to the id")
+	}
+}
+
+const supportsJSON = `{"format": "gkbench.supports.v1", "characters": {}, "source": {"master_date": "2026-11-16"},
+ "cards": {"s_card-3-0000": {"name": {"ja": "あなたにも作ってあげる！", "zh": "我也会做给你的！"}, "rarity": "SSR", "type": "visual",
+   "lesson": {"param": "visual", "permil": 37, "zh": "/ 概率高"}, "caps": [40, 45, 50, 55, 60],
+   "abilities": [{"unlock": 1, "steps": [{"lv": 40, "zh": "初始视觉能力值上升+52"}]}], "events": [{"level": 1, "zh": "获得", "item": "pitem_3-076"}]}}}`
+
+func TestSyncAlsoFetchesSupportsAndLookupGivesChineseNames(t *testing.T) {
+	r := reg(t)
+	server(t)
+	if code, env := run(t, r, "catalog", "sync"); code != 0 || func() int64 { n, _ := jsonx.Int(jsonx.Obj(jsonx.Obj(env, "data"), "counts"), "supports"); return n }() != 1 {
+		t.Fatalf("sync %v", env)
+	}
+	_, env := run(t, r, "catalog", "supports")
+	card := jsonx.Obj(jsonx.Obj(jsonx.Obj(env, "data"), "cards"), "s_card-3-0000")
+	if jsonx.Str(jsonx.Obj(card, "name"), "zh") != "我也会做给你的！" {
+		t.Fatalf("supports %v", env)
+	}
+	_, env = run(t, r, "catalog", "lookup", "--ids", "p_card-01-ido-3_105,i_card-skin-shro-3-007,nope", "--lang", "zh")
+	items := jsonx.Obj(jsonx.Obj(env, "data"), "items")
+	if jsonx.Str(jsonx.Obj(items, "p_card-01-ido-3_105"), "name") != "尤里卡！" || jsonx.Str(jsonx.Obj(items, "p_card-01-ido-3_105"), "text") != "好調3ターン" {
+		t.Fatalf("lookup %v", env)
+	}
+	if jsonx.Str(jsonx.Obj(items, "i_card-skin-shro-3-007"), "asset") != "idol-i_card-shro-3-007" || items.Has("nope") {
+		t.Fatalf("lookup idol %v", env)
+	}
+	_, env = run(t, r, "catalog", "lookup", "--texts", "初期ビジュアル上昇+15\n初期ビジュアル上昇+15B9", "--lang", "zh")
+	tr := jsonx.Obj(jsonx.Obj(env, "data"), "texts")
+	if jsonx.Str(tr, "初期ビジュアル上昇+15") != "初始视觉+15" || tr.Len() != 1 {
+		t.Fatalf("texts %v", env)
+	}
+}
+
+func TestSpriteFallsBackToWebp(t *testing.T) {
+	reg(t)
+	server(t)
+	p, err := SpritePath("support-s_card-3-0000")
+	if err != nil || !strings.HasSuffix(p, ".webp") {
+		t.Fatalf("%v %v", p, err)
+	}
+	if p2, _ := SpritePath("support-s_card-3-0000"); p2 != p {
+		t.Fatal("second call must use the cached file")
+	}
+	if _, err := SpritePath("nothing-here"); err == nil {
+		t.Fatal("missing sprite must fail")
 	}
 }

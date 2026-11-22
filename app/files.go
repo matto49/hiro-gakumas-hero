@@ -11,7 +11,8 @@ import (
 
 // homeFiles 把 HIRO_HOME 里界面要用的图交给网页（hiro://localhost/…）：
 //
-//	/sprites/<asset>.png            资料库小图（catalog/sprites，没有就让工具层下载）
+//	/sprites/<asset>.png            资料库小图（catalog/sprites 里的 <asset>.png 或 .webp：攻略站上支援卡卡面、偶像卡是 webp；
+//	                                没有就让工具层下载）
 //	/traces/<任务>/frames/<n>.jpg    对局截图（work/traces）
 //	/review/<任务>.html              复盘页（hiro run review 生成在 jobs/<任务>/review.html）
 //
@@ -27,11 +28,20 @@ func homeFiles(home string, fetchSprite func(ctx context.Context, asset string) 
 			return
 		}
 		if m := sprite.FindStringSubmatch(p); m != nil {
-			file := filepath.Join(home, "catalog", "sprites", m[1]+".png")
-			if !exists(file) && fetchSprite != nil {
-				_ = fetchSprite(r.Context(), m[1])
+			find := func() string {
+				for _, ext := range []string{".png", ".webp"} {
+					if f := filepath.Join(home, "catalog", "sprites", m[1]+ext); exists(f) {
+						return f
+					}
+				}
+				return ""
 			}
-			if exists(file) {
+			file := find()
+			if file == "" && fetchSprite != nil {
+				_ = fetchSprite(r.Context(), m[1])
+				file = find()
+			}
+			if file != "" {
 				w.Header().Set("Cache-Control", "max-age=604800")
 				http.ServeFile(w, r, file)
 				return

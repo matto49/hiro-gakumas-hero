@@ -1,7 +1,11 @@
 // Package catalog 是 `hiro catalog …`：游戏资料库（卡牌、P 道具、饮料、偶像卡、回忆技能）。同 Python 版 hiro.cli.catalog。
 //
 // 数据来自初星攻略站的公开接口（GKMS 主数据生成，中文取学マス汉化插件的翻译），下载到 HIRO_HOME/catalog，
-// 不随仓库发布（AGENTS.md：不往仓库加游戏素材）。小图按需下载、缓存。
+// 不随仓库发布（AGENTS.md：不往仓库加游戏素材）：
+//
+//	/api/catalog、/api/catalog?lang=zh   技能卡、饮料、P 道具、回忆、偶像卡（catalog.ja.json / catalog.zh.json）
+//	/api/supports                       支援卡（中日文名、类型、SP 发生率、各凸等级上限、按等级的能力、事件；supports.json）
+//	/sprites/<图名>.png 或 .webp         小图，按需下载、缓存（支援卡卡面、偶像卡是 webp，其余是 png）
 package catalog
 
 import (
@@ -22,7 +26,7 @@ import (
 )
 
 const (
-	defaultURL  = "https://hiro.matto.top/gkbench"
+	defaultURL  = "https://gakumas.wiki" // 初星攻略站（旧地址 hiro.matto.top/gkbench 会 301 过来）
 	searchLimit = 50
 	userAgent   = "hiro-console"
 )
@@ -227,7 +231,36 @@ func Register(r *cli.Registry) {
 						}
 					}
 				}
+				raw, err := fetch(baseURL()+"/api/supports", 60*time.Second)
+				if err != nil {
+					return nil, err
+				}
+				sup, err := jsonx.DecodeObject(raw)
+				if err != nil || jsonx.Str(sup, "format") != supportsFormat {
+					return nil, clierr.New("bad_catalog", "支援卡资料格式不对："+baseURL()+"/api/supports", "稍后重试；一直这样请反馈")
+				}
+				if err := writeAtomic(filepath.Join(d, "supports.json"), raw); err != nil {
+					return nil, err
+				}
+				counts.Set("supports", jsonx.Obj(sup, "cards").Len())
 				return jsonx.NewObject().Set("langs", Langs).Set("counts", counts).Set("dir", d), nil
+			},
+		},
+		&cli.Command{
+			Name: "catalog supports", Risk: cli.Read, NoAgent: true,
+			Help:    "本机资料库里的支援卡资料（中日文名、SP 发生率、能力、事件），界面的支援卡页用。",
+			Handler: func(*cli.Ctx, cli.Args) (any, error) { return LoadSupports() },
+		},
+		&cli.Command{
+			Name: "catalog lookup", Risk: cli.Read, NoAgent: true,
+			Help: "按编号一次取多条记录的名字、效果文字和图名（界面给信息页配中文名和图标用）。",
+			Args: []cli.Arg{
+				{Name: "--ids", Help: "编号，逗号分隔"},
+				{Name: "--texts", Help: "回忆能力的日文原文，一行一条：给出 --lang 那种语言的同一条（对不上的不列）"},
+				{Name: "--lang", Help: "语言", Choices: Langs, Default: "zh"},
+			},
+			Handler: func(_ *cli.Ctx, a cli.Args) (any, error) {
+				return Lookup(strings.Split(a.Str("ids"), ","), strings.Split(a.Str("texts"), "\n"), a.Str("lang"))
 			},
 		},
 		&cli.Command{
@@ -283,7 +316,10 @@ func Register(r *cli.Registry) {
 	)
 }
 
-// SpritePath 返回小图的本机路径，没有就下载。
+// SpriteExts 是小图可能的格式（攻略站上支援卡卡面、偶像卡是 webp，其余是 png）。
+var SpriteExts = []string{".png", ".webp"}
+
+// SpritePath 返回小图的本机路径，没有就下载（先试 png 再试 webp，按实际格式存）。
 func SpritePath(asset string) (string, error) {
 	if !assetPattern.MatchString(asset) {
 		return "", clierr.New("bad_args", "图名不合法："+asset, "用资料库记录里的 asset 字段")
@@ -292,13 +328,108 @@ func SpritePath(asset string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	p := filepath.Join(d, asset+".png")
-	if _, err := os.Stat(p); err == nil {
-		return p, nil
+	for _, ext := range SpriteExts {
+		if p := filepath.Join(d, asset+ext); exists(p) {
+			return p, nil
+		}
 	}
-	data, err := fetch(baseURL()+"/sprites/"+asset+".png", 30*time.Second)
+	var last error
+	for _, ext := range SpriteExts {
+		data, err := fetch(baseURL()+"/sprites/"+asset+ext, 30*time.Second)
+		if err != nil {
+			last = err
+			continue
+		}
+		p := filepath.Join(d, asset+ext)
+		return p, writeAtomic(p, data)
+	}
+	return "", last
+}
+
+func exists(p string) bool {
+	_, err := os.Stat(p)
+	return err == nil
+}
+
+// ---------------------------------------------------------------- 支援卡、按编号批量取
+
+const supportsFormat = "gkbench.supports.v1"
+
+// LoadSupports 读本机的支援卡资料（catalog sync 下载的 supports.json）；没下载报 catalog_missing。
+func LoadSupports() (*jsonx.Object, error) {
+	d, err := Dir()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return p, writeAtomic(p, data)
+	data, err := os.ReadFile(filepath.Join(d, "supports.json"))
+	if err != nil {
+		return nil, clierr.New("catalog_missing", "支援卡资料还没下载", "运行 hiro catalog sync")
+	}
+	o, err := jsonx.DecodeObject(data)
+	if err != nil || jsonx.Str(o, "format") != supportsFormat {
+		return nil, clierr.New("bad_catalog", "支援卡资料文件坏了", "重新运行 hiro catalog sync")
+	}
+	return o, nil
+}
+
+// Lookup 按编号取记录的类别、名字、效果文字、稀有度和图名（查不到的编号不列）。偶像卡编号可以是 skin id。
+// texts 是回忆能力的日文原文，按资料库里同一条回忆能力换成 lang 的文字（对不上的不列：多半是扫描时 OCR 读错了字）。
+func Lookup(ids, texts []string, lang string) (*jsonx.Object, error) {
+	cat, err := Load(lang)
+	if err != nil {
+		return nil, err
+	}
+	trans := jsonx.NewObject()
+	if want := nonEmpty(texts); len(want) > 0 {
+		ja, err := Load("ja")
+		if err != nil {
+			return nil, err
+		}
+		byText := map[string]string{}
+		mja, mto := jsonx.Obj(ja, "memories"), jsonx.Obj(cat, "memories")
+		for _, id := range mja.Keys() {
+			t := jsonx.Str(jsonx.Obj(mja, id), "text")
+			if _, ok := byText[t]; t != "" && !ok {
+				if to := jsonx.Str(jsonx.Obj(mto, id), "text"); to != "" {
+					byText[t] = to
+				}
+			}
+		}
+		for _, t := range want {
+			if to, ok := byText[t]; ok {
+				trans.Set(t, to)
+			}
+		}
+	}
+	out := jsonx.NewObject()
+	for _, raw := range ids {
+		id := strings.TrimSpace(raw)
+		if id == "" || out.Has(id) {
+			continue
+		}
+		key := strings.Replace(id, "i_card-skin-", "i_card-", 1)
+		for _, k := range Kinds {
+			e := jsonx.Obj(jsonx.Obj(cat, k), key)
+			if e == nil {
+				continue
+			}
+			row := brief(k, key, e)
+			if k == "idols" && jsonx.Str(row, "asset") == "" {
+				row.Set("asset", "idol-"+key) // 攻略站的偶像卡缩略图
+			}
+			out.Set(id, row)
+			break
+		}
+	}
+	return jsonx.NewObject().Set("lang", lang).Set("items", out).Set("texts", trans), nil
+}
+
+func nonEmpty(v []string) []string {
+	var out []string
+	for _, s := range v {
+		if s = strings.TrimSpace(s); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
 }

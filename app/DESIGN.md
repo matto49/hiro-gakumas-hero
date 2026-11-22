@@ -39,7 +39,8 @@
 | 件 | 用在哪 |
 |---|---|
 | `ui.tsx`：`Button`（`primary` = 橙色实心，其余描边）、`Chip`（筛选）、`Dot`、`SourceTag`、`Panel`、`Empty`、`Logo`、`PageTitle` | 到处 |
-| `Field.tsx`：`Field`、`inputCls`、`selectCls` + `selectStyle`、`Segmented`（真 radio）、`Check`（真 checkbox） | 所有表单。下拉框必须用 `selectCls`，不用系统渐变外观 |
+| `Field.tsx`：`Field`、`inputCls`、`Choice`（下拉框，UI 库的 Select）、`Segmented`（真 radio）、`Check`（真 checkbox） | 所有表单。下拉框一律用 `Choice`，不写原生 `select`（macOS 上是系统灰色菜单；`src/test/no-native-select.test.ts` 会拦） |
+| `CatalogBits.tsx`：`Thumb`（卡面小图）、`NameStack`（中文名 + 日文原名）、`RowTip`（悬浮说明，UI 库的 Tooltip）、`TipSection` | 信息页、编成方案、偶像卡选择 |
 | `IdolPicker` | 要填偶像卡的地方。按名字搜资料库，交出 skin 编号；也能直接填编号 |
 | `StartTask` | 会动游戏的按钮：点了先出确认条，再点「开始」才发起 |
 | `Job.tsx`：`StatePill`、`JobFrame`（9:16 游戏画面）、`StepRow`、`ScoreStrip`、`ReviewButton`、`JobControls` | 驾驶舱、右栏当前任务、对话里的对局卡 |
@@ -51,6 +52,9 @@
 - **现在这一步**：步骤列表第一行 `brand-tint` 底，时间位置写「现在」。
 - **突破**：4 个斜的小格，点亮几个就是突破几次，后面跟数字。
 - **页面名、动作名**：一律经 `pageLabel` / `actionLabel`（`src/lib/labels.ts`）转成中文，界面上不出现 `HIF_EXAM`、`PlayCard` 这种内部名。偶像卡也写卡名，不写 `i_card-…`。
+- **卡名中文优先**：支援卡、回忆、偶像卡、技能卡先写中文名（初星攻略站的资料，`hiro catalog sync` 同步到本机），日文原名小字跟在下面或后面，游戏原名始终看得到（对照 OCR 用）；资料库没同步时只写日文，页面上给「同步资料库」提示条。属性写声乐 / 舞蹈 / 视觉 / 辅助；稀有度照游戏写 SSR / SR / R。
+- **卡面小图**：列表每行左边 36 px（`size-9`，编成方案里 28 px）圆角小图，`Thumb` 取 `hiro://…/sprites/<图名>.png`（本机缓存，没缓存时让工具层下载一次）；取不到显示 `surface-3` 底的占位，不留空白。
+- **悬浮说明**：行上的详细说明用 `RowTip`（UI 库的 Tooltip，不用 `title` 属性）：标题写中文名 + 日文原名，下面按小节写（支援卡：当前等级的能力、SP 发生率、事件；回忆：技能卡效果、属性加成、能力；技能卡 / P 道具：效果）。
 
 ## 动作和确认
 

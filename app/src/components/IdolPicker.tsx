@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { HiroError, data, useHiro } from "../lib/hiro";
 import { inputCls } from "./Field";
+import { Thumb } from "./CatalogBits";
 import { cx } from "./ui";
 
-type Idol = { id: string; name: string | null; rarity?: string | null };
+type Idol = { id: string; name: string | null; rarity?: string | null; zh?: string | null };
 
 const RARITY_TONE: Record<string, string> = { SSR: "text-brand-ink", SR: "text-da-strong", R: "text-ink-3" };
 const RARITY_RANK: Record<string, number> = { SSR: 0, SR: 1, R: 2 };
@@ -45,8 +46,18 @@ export function IdolPicker({
   const search = async (q: string) => {
     const n = ++seq.current;
     try {
-      const r = await data<{ items: Idol[] }>(call, ["catalog", "search", q, "--kind", "idols"]);
+      // 日文、中文各搜一次合起来（中文名、日文名都能搜），显示中文名、日文原名做副标题
+      const [ja, zhr] = await Promise.all(
+        ["ja", "zh"].map((lang) => data<{ items: Idol[] }>(call, ["catalog", "search", q, "--kind", "idols", "--lang", lang]).catch(() => ({ items: [] as Idol[] }))),
+      );
       if (n !== seq.current) return;
+      const zhName = new Map(zhr!.items.map((x) => [x.id, x.name]));
+      const merged = new Map<string, Idol>();
+      for (const x of [...ja!.items, ...zhr!.items]) if (!merged.has(x.id)) merged.set(x.id, { ...x });
+      if (!ja!.items.length && !zhr!.items.length) {
+        await data(call, ["catalog", "search", q, "--kind", "idols"]); // 两边都空时再搜一次，资料库没下载的错误照常报出来
+      }
+      const r = { items: [...merged.values()].map((x) => ({ ...x, zh: zhName.get(x.id) ?? null, name: ja!.items.find((y) => y.id === x.id)?.name ?? x.name })) };
       setItems([...r.items].sort(byRarity).slice(0, 12));
       setNote(r.items.length ? null : "没找到这张卡，换个词试试");
       setOpen(true);
@@ -81,7 +92,7 @@ export function IdolPicker({
 
   const pick = (it: Idol) => {
     seq.current++;
-    setText(it.name ?? it.id);
+    setText(it.zh ?? it.name ?? it.id);
     setOpen(false);
     setNote(null);
     onChange(toSkinId(it.id));
@@ -126,7 +137,11 @@ export function IdolPicker({
               onMouseDown={(e) => (e.preventDefault(), pick(it))}
             >
               <span className={cx("w-8 flex-none text-[11px] font-bold", RARITY_TONE[it.rarity ?? ""] ?? "text-ink-3")}>{it.rarity ?? ""}</span>
-              <span className="jp min-w-0 flex-1 truncate">{it.name ?? it.id}</span>
+              <Thumb asset={`idol-${it.id}`} className="size-7" />
+              <span className="min-w-0 flex-1 truncate">
+                <span className={cx(!it.zh && "jp")}>{it.zh ?? it.name ?? it.id}</span>
+                {it.zh && it.name && it.zh !== it.name && <span className="jp ml-1.5 text-[11px] text-ink-3">{it.name}</span>}
+              </span>
             </li>
           ))}
         </ul>

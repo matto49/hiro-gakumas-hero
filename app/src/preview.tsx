@@ -1,6 +1,7 @@
 // 界面预览（不打包进程序）：假数据 + 指定页面，给离屏截图和设计验收用。
 //   bun run preview:build  →  .preview/preview/index.html#start（chat / start / cockpit / plan / supports / memories / settings）
 import { StrictMode } from "react";
+import CATALOG from "./preview-catalog.json";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { AssistantCtx, type AssistantApi } from "./lib/assistant";
@@ -14,16 +15,27 @@ import "./style.css";
 Object.defineProperty(document, "hidden", { configurable: true, get: () => false });
 Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
 
+// 资料库的一小份真数据（预览里的中文名、悬浮说明用；从初星攻略站同步的资料里截的）
+const CAT = CATALOG as unknown as {
+  supports: Record<string, { name: { ja: string; zh?: string } }>;
+  cards: Record<string, { id: string; ja: string; name: string; text: string; asset: string; rarity: string }>;
+  texts: Record<string, string>;
+};
 const now = Date.now() / 1000;
 const ok = (data: unknown): Envelope => ({ ok: true, exit: 0, data });
 const SUP = [
   ["わたしと美鈴、超仲良し", "Vi", 60, 4], ["さあ、もう一戦！", "Vo", 60, 4], ["そろそろ焼けたかな？", "Da", 60, 4],
   ["二人ならあっという間だね", "Vo", 60, 4], ["あっちも行きたいですわ！", "Da", 60, 4], ["さみだれ", "Vi", 60, 4],
   ["まだ上がりませんように！", "Vo", 55, 3], ["ひとりごとです", "Vi", 55, 3], ["会長、準備は万端です", "Vi", 50, 2],
-].map(([name, attr, level, breaks], i) => ({ id: `s${i}`, name, rarity: "SSR", attr, level, breaks }));
+].map(([name, attr, level, breaks], i) => ({
+  id: Object.entries(CAT.supports).find(([, v]) => v.name.ja === name)?.[0] ?? `s${i}`, name, rarity: "SSR", attr, level, breaks,
+}));
 const MEM = [
   ["ワクワクが止まらない", "start", 30, 52, 79], ["デイドリーミング", "start", 41, 60, 66], ["届いて！", "mid", 55, 70, 40], ["私がスター", "mid", 60, 22, 71],
-].map(([card, timing, Vo, Da, Vi]) => ({ card, timing, stats: { Vo, Da, Vi }, abilities: ["初期ビジュアル上昇+15", "ボーカルレッスン終了時、45%の確率で体力回復4"] }));
+].map(([card, timing, Vo, Da, Vi]) => ({
+  card, card_id: Object.values(CAT.cards).find((c) => c.ja === card)?.id ?? null, timing, stats: { Vo, Da, Vi },
+  abilities: ["初期ビジュアル上昇+15", "ボーカルレッスン終了時、45%の確率で体力回復4"],
+}));
 const JOB = { id: "J1", kind: "hif", params: {}, state: "running", summary: "开一局 H.I.F 选拔（【Campus mode!!】篠澤広）", started_at: now - 900, ended_at: null, exit_code: null, pausable: true };
 const EVENTS = [
   { seq: 0, t: now - 900, type: "start", text: JOB.summary },
@@ -43,6 +55,7 @@ const routes: [string, Envelope][] = [
   ["run status", ok({ current: JOB, recent: [] })],
   ["info summary", ok({ account: { plv: 65, ap: 85, ap_max: 100, jewel: 15220 }, kinds: { supports: { count: 67, scanned_at: "2026-11-17 02:23:05" }, memories: { count: 384, scanned_at: "2026-11-16 18:44:59" }, account: { count: 1, scanned_at: "2026-11-20 10:01:00" } } })],
   ["info supports", ok({ kind: "supports", scanned_at: "2026-11-17 02:23:05", complete: true, items: SUP })],
+  ["catalog supports", ok({ format: "gkbench.supports.v1", cards: CAT.supports })],
   ["info memories", ok({ kind: "memories", scanned_at: "2026-11-16 18:44:59", complete: true, items: MEM })],
   ["plan show", ok(PLAN)],
   ["doctor", ok({ items: [
@@ -54,6 +67,11 @@ const routes: [string, Envelope][] = [
 ];
 const call = async (args: string[]): Promise<Envelope> => {
   const k = args.join(" ");
+  if (k.startsWith("catalog lookup")) {
+    const zh = args.includes("zh");
+    const items = Object.fromEntries(Object.values(CAT.cards).map((c) => [c.id, { ...c, name: zh ? c.name : c.ja }]));
+    return ok({ items, texts: zh ? CAT.texts : {} });
+  }
   if (k.startsWith("run events")) {
     const since = Number(args[args.indexOf("--since") + 1] ?? 0) || 0;
     return ok({ job: "J1", state: "running", events: EVENTS.filter((e) => e.seq >= since) });
@@ -78,7 +96,17 @@ const api: AssistantApi = {
   ask: async () => ({ cards: [] }), listThreads: async () => [THREAD], saveThread: async () => {}, deleteThread: async () => {},
 };
 
-const page = location.hash.slice(1) || "chat";
+// #supports-tip / #memories-tip：打开第一行的悬浮说明（截图核对用）
+const [page = "chat", tipFlag] = (location.hash.slice(1) || "chat").split("-");
+if (tipFlag === "tip") {
+  const poke = (n = 0) => {
+    const row = document.querySelector("main li");
+    if (!row) return n < 50 && setTimeout(() => poke(n + 1), 100);
+    for (const t of ["pointerenter", "mouseenter", "pointerover", "mouseover"]) row.dispatchEvent(new PointerEvent(t, { bubbles: t.endsWith("over") }));
+    row.dispatchEvent(new FocusEvent("focus"));
+  };
+  setTimeout(poke, 300);
+}
 const boot: BootApi = { status: async () => ({ ready: true, steps: [] }), reset: async () => {}, run: async () => {} };
 const VIEWS: Record<string, View> = {
   chat: { name: "chat" }, start: { name: "start" }, cockpit: { name: "cockpit", jobId: "J1" }, plan: { name: "plan" },
