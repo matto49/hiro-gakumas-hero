@@ -331,3 +331,13 @@ func bgrColor(v [3]float64) color.RGBA {
 }
 
 func clamp8(v float64) uint8 { return uint8(math.Max(0, math.Min(255, math.Round(v)))) }
+
+// ConvertScaleAbs 同 cv2.convertScaleAbs(src, alpha=a)：|src·a| 四舍五入、饱和到 0–255。
+func ConvertScaleAbs(b *img.BGR, alpha float64) *img.BGR {
+	m := must(bgrMat(b))
+	defer m.Close()
+	out := gocv.NewMat()
+	defer out.Close()
+	check(gocv.ConvertScaleAbs(m, &out, alpha, 0))
+	return toBGR(out)
+}

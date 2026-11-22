@@ -43,6 +43,10 @@ func pyExpr(expr string) string {
 				b.WriteString(`\t\n\v\f\r\x1c-\x1f \x{85}\p{Z}`)
 			case n == 's':
 				b.WriteString(reS)
+			case n == 'S' && !inClass:
+				b.WriteString(`[^\t\n\v\f\r\x1c-\x1f \x{85}\p{Z}]`)
+			case n == 'D':
+				b.WriteString(`\P{Nd}`)
 			default:
 				b.WriteByte(c)
 				b.WriteByte(n)

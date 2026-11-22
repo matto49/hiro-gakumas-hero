@@ -359,6 +359,7 @@ type Spec struct {
 	Allow  int            // 允许几张不一样
 	Sample int            // 只取均匀分布的这么多张（0 = 全部；慢的函数用）
 	Ignore []string       // 两边都不比的键（任意层级，如耗时 "ms"）
+	Pages  []string       // 只取 Python 判成这些页面的截图（manifest 的 page；空 = 不限）
 }
 
 // Sample 均匀取 n 张（n <= 0 或不少于总数时原样返回）。
@@ -380,7 +381,22 @@ func Compare(t *testing.T, s Spec, fn func(*img.BGR) (any, error)) {
 	call, tol, allow := s.Call, s.Tol, s.Allow
 	cases := Cases(t)
 	var ids []string
+	if len(s.Pages) > 0 {
+		keep := map[string]bool{}
+		for _, p := range s.Pages {
+			keep[p] = true
+		}
+		var sel []Case
+		for _, c := range cases {
+			if keep[c.Page] {
+				sel = append(sel, c)
+				ids = append(ids, c.ID)
+			}
+		}
+		cases = sel
+	}
 	if s.Sample > 0 && s.Sample < len(cases) {
+		ids = nil
 		cases = Sample(cases, s.Sample)
 		for _, c := range cases {
 			ids = append(ids, c.ID)

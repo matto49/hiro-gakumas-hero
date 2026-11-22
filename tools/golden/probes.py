@@ -88,3 +88,19 @@ def digit_reads(img):
         v, m = digits.read_score(img, b)
         out.append({"text": list(t1), "aligned": list(t2), "int": digits.read_int(img, b), "lead": list(lead), "score": v, "method": m["method"]})
     return out
+
+
+def action_select(img):
+    from hiro.vision.action import read_action_select
+
+    return read_action_select(img).to_dict()
+
+
+def deck_pages(img):
+    """牌组相关：一览页、删除 / 强化弹窗、换卡第 1 步、确认弹窗（各自只在像这一页时读）。"""
+    from hiro.vision import deck
+
+    out = {"deck_list": deck.read_deck_list(img) if deck.is_deck_list(img) else None,
+           "dialog": deck.read_card_dialog(img), "change1": deck.read_change_candidates(img), "confirm": deck.read_confirm_dialog(img),
+           "scroll": deck.dialog_scroll(img, deck.REMOVAL_GRID)}
+    return out

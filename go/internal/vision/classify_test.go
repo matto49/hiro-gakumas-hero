@@ -129,3 +129,49 @@ func TestDigitReads(t *testing.T) {
 		})
 	})
 }
+
+func TestActionSelect(t *testing.T) {
+	golden.Compare(t, golden.Spec{Call: "probes:action_select", Pages: []string{"ACTION_SELECT"}, Allow: 2}, func(b *img.BGR) (any, error) {
+		var out any
+		err := func() (err error) {
+			defer cv.Recover(&err)
+			st, err := ReadActionSelect(b)
+			out = st
+			return err
+		}()
+		return out, err
+	})
+}
+
+func TestDeckPages(t *testing.T) {
+	pages := []string{"DECK_LIST", "SKILL_CARD_REMOVAL", "SKILL_CARD_ENHANCE", "SKILL_CARD_CHANGE_1", "SKILL_CARD_CHANGE_2", "DIALOG", "CONSULT"}
+	golden.Compare(t, golden.Spec{Call: "probes:deck_pages", Pages: pages, Allow: 4}, func(b *img.BGR) (any, error) {
+		var out any
+		err := func() (err error) {
+			defer cv.Recover(&err)
+			var dl any
+			if IsDeckList(b) {
+				d, err := ReadDeckList(b)
+				if err != nil {
+					return err
+				}
+				dl = d
+			}
+			dia, err := ReadCardDialog(b, removalGrid, detailBox, "")
+			if err != nil {
+				return err
+			}
+			ch, err := ReadChangeCandidates(b)
+			if err != nil {
+				return err
+			}
+			cf, err := ReadConfirmDialog(b)
+			if err != nil {
+				return err
+			}
+			out = map[string]any{"deck_list": dl, "dialog": dia, "change1": ch, "confirm": cf, "scroll": DialogScroll(b, removalGrid, 683)}
+			return nil
+		}()
+		return out, err
+	})
+}
