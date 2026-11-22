@@ -47,6 +47,7 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | `hiro info supports [--rarity SSR] [--attr Vo\|Da\|Vi\|Assist] [--name 字]` | 支援卡（等级、突破） |
 | `hiro info memories [--timing start\|mid\|final] [--card 字]` | 回忆（技能卡、获得时机、参数、能力） |
 | `hiro info affection` | 每位偶像的好感度 |
+| `hiro info formations` | 编成位现状（最近一次读的那个模式）：每个编成号几格有东西，0 是空的 |
 | `hiro info game-settings` | 游戏设置里快进 / 跳过演出那 5 项开没开（最近一次检查；`verdict` 是一句话结论） |
 | `hiro info import --kind supports\|memories\|game_settings <json>` | 把扫描工具的输出导入信息库（扫描任务结束时会自动做，一般不用手动） |
 
@@ -85,7 +86,9 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | `daily` | `--items activity_funds,presents,assignment,contest,mission_reward,club_reward`（可选，缺省全部） | 日常：活動費、礼物、工作、竞赛、任务奖励、社团。只选前四项以外的（工作、竞赛）时走 KAA |
 | `scan-account` | — | 读首页顶栏的 PLv / AP / ジュエル（只截一张图，不点；游戏要停在首页、没有弹窗） |
 | `scan-supports` | — | 扫描支援卡（只读，不改编成） |
+| `scan-idols` | — | 扫描偶像卡（只读：偶像一览里逐张点开读卡名，最后点「<<」退出，不点決定），结果进 `hiro info idols` |
 | `scan-memories` | — | 扫描回忆（只读，不改编成） |
+| `scan-formations` | `--scenario hif\|hajime\|nia` | 读编成位现状（只读：翻 1–20 号、读图，不点格子），结果进 `hiro info formations` |
 | `write-formation` | `--scenario hif\|hajime\|nia`、`--what support,memory`、`--dry-run` | 把编成方案写进游戏的编成位，写完回读核对。**先用 `--dry-run`** 看差在哪几格（不改），再正式写；没有方案时直接报 `no_plan` |
 | `check-settings` | — | 检查游戏设置的快进 / 跳过演出（只读：打开菜单看完回首页，不点开关），结果进 `hiro info game-settings` |
 | `fit-window` | — | 只在 Windows DMM 版：把游戏窗口调成适合识别的大小 |

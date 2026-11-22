@@ -106,7 +106,7 @@ func TestSummaryCountsEachKind(t *testing.T) {
 	if n, _ := jsonx.Int(jsonx.Obj(kinds, "idols"), "count"); n != 0 || !jsonx.IsNull(jsonx.Obj(kinds, "idols"), "scanned_at") {
 		t.Fatalf("idols %v", kinds)
 	}
-	if strings.Join(kinds.Keys(), ",") != "account,idols,supports,memories,affection,game_settings" || !jsonx.IsNull(d, "account") {
+	if strings.Join(kinds.Keys(), ",") != "account,idols,supports,memories,affection,game_settings,formations" || !jsonx.IsNull(d, "account") {
 		t.Fatalf("summary %v", d)
 	}
 }

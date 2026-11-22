@@ -25,10 +25,11 @@ var scanHint = map[string]string{
 	"memories":      "还没扫描回忆：运行 hiro run start scan-memories",
 	"affection":     "还没扫描好感度（这一项的扫描还没做，先在游戏里看）",
 	"game_settings": "还没检查游戏设置：运行 hiro run start check-settings",
+	"formations":    "还没读过编成位：游戏停在首页时运行 hiro run start scan-formations",
 }
 
 // ImportKinds 是能导入的类别（顺序同 Python NORMALIZE）。
-var ImportKinds = []string{"account", "idols", "supports", "memories", "game_settings"}
+var ImportKinds = []string{"account", "idols", "supports", "memories", "game_settings", "formations"}
 
 // ---------------------------------------------------------------- 扫描输出 → 每条一行
 
@@ -85,6 +86,21 @@ func normalizeIdols(inv *jsonx.Object) []any {
 	return out
 }
 
+// normalizeFormations：编成位现状（hiro.produce.formation_survey）→ 每个编成号一行（模式写在每行里，换模式读会覆盖整份）。
+func normalizeFormations(inv *jsonx.Object) []any {
+	out := []any{}
+	mode := get(inv, "mode")
+	for _, v := range jsonx.List(inv, "sets") {
+		r, _ := v.(*jsonx.Object)
+		if r == nil {
+			continue
+		}
+		out = append(out, jsonx.NewObject().Set("mode", mode).Set("kind", get(r, "kind")).Set("set", get(r, "set")).
+			Set("filled", get(r, "filled")).Set("cards", get(r, "cards")))
+	}
+	return out
+}
+
 func normalizeMemories(inv *jsonx.Object) []any {
 	out := []any{}
 	for _, v := range jsonx.List(inv, "entries") {
@@ -130,6 +146,7 @@ func normalizeAccount(inv *jsonx.Object) []any {
 
 var normalize = map[string]func(*jsonx.Object) []any{
 	"account": normalizeAccount, "idols": normalizeIdols, "supports": normalizeSupports, "memories": normalizeMemories, "game_settings": normalizeGameSettings,
+	"formations": normalizeFormations,
 }
 
 // ImportInventory 把扫描工具的输出存进信息库，返回 {kind, snapshot, count}。扫描任务结束时由服务调用。
@@ -357,6 +374,11 @@ func Register(r *cli.Registry) {
 			Name: "info affection", Risk: cli.Read,
 			Help:    "每位偶像的好感度（親愛度，最新一次扫描）。",
 			Handler: func(*cli.Ctx, cli.Args) (any, error) { return listing("affection", nil) },
+		},
+		&cli.Command{
+			Name: "info formations", Risk: cli.Read,
+			Help:    "编成位现状（最近一次读的那个模式）：每个编成号几格有东西、是哪些卡；0 是空的。",
+			Handler: func(*cli.Ctx, cli.Args) (any, error) { return listing("formations", nil) },
 		},
 		&cli.Command{
 			Name: "info game-settings", Risk: cli.Read,

@@ -53,7 +53,7 @@ func TestNoForbiddenCommands(t *testing.T) {
 func TestSameCommandsAsPython(t *testing.T) {
 	want := []string{
 		"tools", "confirm", "cancel", "pending list",
-		"info summary", "info supports", "info memories", "info idols", "info affection", "info game-settings", "info import",
+		"info summary", "info supports", "info memories", "info idols", "info affection", "info formations", "info game-settings", "info import",
 		"catalog sync", "catalog supports", "catalog lookup", "catalog search", "catalog get", "catalog sprite",
 		"run start", "run status", "run events", "run pause", "run takeover", "run resume", "run stop", "run report", "run review",
 		"secret set", "secret list", "secret copy", "secret delete", "doctor", "plan formation", "plan show",

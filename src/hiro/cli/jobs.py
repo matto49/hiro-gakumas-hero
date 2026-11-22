@@ -205,6 +205,10 @@ KINDS: dict[str, Kind] = {
     "scan-memories": Kind("scan-memories", "扫描回忆（只读：在「メモリー選択」里逐格读）",
                           lambda p, d: [_PY, "-m", "hiro.memory_scan", "scan", "--from-home", "--out", str(d / "out.json")],
                           lambda p: "扫描回忆库存（只读，不改编成）", output="memories", pausable=False),
+    "scan-formations": Kind("scan-formations", "读编成位现状（只读：编成菜单里翻 1–20 号、读图，不点格子）",
+                            lambda p, d: [_PY, "-m", "hiro.produce.formation_survey", "--mode", p.get("scenario") or "hif", "--out", str(d / "out.json")],
+                            lambda p: f"读 {({'hif': 'H.I.F', 'hajime': '初', 'nia': 'N.I.A'}).get(p.get('scenario') or 'hif')} 的编成位现状（只读，不改编成）",
+                            output="formations", pausable=False),
 }
 
 

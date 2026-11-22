@@ -19,7 +19,7 @@ import (
 )
 
 // Kinds 是信息的类别。
-var Kinds = []string{"account", "idols", "supports", "memories", "affection", "game_settings"}
+var Kinds = []string{"account", "idols", "supports", "memories", "affection", "game_settings", "formations"}
 
 // Schema 是建表语句（同 Python _SCHEMA）。
 const Schema = `

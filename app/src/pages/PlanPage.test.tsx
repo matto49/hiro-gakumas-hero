@@ -79,3 +79,27 @@ test("库存：显示支援卡 / 回忆是哪天扫的，旧了提示先扫描�
   fireEvent.click(screen.getByRole("button", { name: "重新扫描支援卡" }));
   await waitFor(() => expect(fake.calls.some((c) => c.join(" ") === "run start scan-supports")).toBe(true));
 });
+
+test("编成位：读过之后编成号下面标空 / 已有几格，空着的编成号点一下就填上", async () => {
+  const sets = Array.from({ length: 20 }, (_, i) => i + 1);
+  const rows = [
+    ...sets.map((n) => ({ mode: "hif", kind: "support", set: n, filled: n === 4 || n === 12 ? 0 : 5 })),
+    ...sets.map((n) => ({ mode: "hif", kind: "memory", set: n, filled: n === 5 ? 4 : 0 })),
+  ];
+  const fake = fakeCaller({
+    "plan show": { ok: true, exit: 0, data: PLAN },
+    "info summary": { ok: true, exit: 0, data: { account: null, kinds: {} } },
+    "info formations": { ok: true, exit: 0, data: { kind: "formations", scanned_at: "2026-11-23 10:00:00", items: rows } },
+  });
+  render(
+    <HiroCtx.Provider value={fake.call}>
+      <PlanPage onOpenJob={() => {}} />
+    </HiroCtx.Provider>,
+  );
+  await waitFor(() => expect(screen.getByText(/空着的支援卡编成/)).toBeTruthy());
+  fireEvent.change(screen.getByLabelText("回忆编成号"), { target: { value: "5" } });
+  expect(screen.getByText(/编成 5 已有 4 格/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "支援卡编成 12" }));
+  expect((screen.getByLabelText("支援卡编成号") as HTMLInputElement).value).toBe("12");
+  expect(screen.getAllByText(/编成 12 是空的/).length).toBeGreaterThan(0);
+});

@@ -1,11 +1,11 @@
 // 编成方案页：出方案（按社区规则，用信息库里的库存）→ 看理由 → 先看差在哪（只看不改）→ 写进游戏。
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { PlanView } from "../components/PlanView";
 import { StartTask } from "../components/StartTask";
 import { Field, Segmented, inputCls } from "../components/Field";
 import { IdolPicker, toSkinId } from "../components/IdolPicker";
 import { Button, PageTitle } from "../components/ui";
-import { HiroError, data, useHiro, type Summary } from "../lib/hiro";
+import { HiroError, data, useHiro, type Listing, type Summary } from "../lib/hiro";
 import type { PlanSummary } from "../lib/plan";
 
 // 库存超过这么多天算旧：出方案前提示先扫描（新抽的卡、新拿的回忆不在方案里）
@@ -51,6 +51,36 @@ function Inventory({ summary, onOpenJob }: { summary: Summary | null; onOpenJob:
   );
 }
 
+type SetRow = { mode: string | null; kind: "support" | "memory"; set: number; filled: number | null };
+const MODE_LABEL: Record<string, string> = { hif: "H.I.F", hajime: "初", nia: "N.I.A" };
+
+/** 编成号输入框下面的一句：读过编成位就说这个编成号空不空（写进去会覆盖已有的），没读过就是原来的提示。 */
+function setHint(rows: SetRow[], kind: "support" | "memory", value: string, fallback: string): ReactNode {
+  const n = Number(value);
+  const row = rows.find((r) => r.kind === kind && r.set === n);
+  if (!value || !row) return fallback;
+  const where = row.mode ? `（${MODE_LABEL[row.mode] ?? row.mode} 的编成）` : "";
+  if (row.filled === 0) return <span className="text-good">{`编成 ${n} 是空的${where}`}</span>;
+  if (row.filled == null) return `编成 ${n} 上次没读出来${where}`;
+  return <span className="text-warn">{`编成 ${n} 已有 ${row.filled} 格${where}，写进去会覆盖，确认不是你自己常用的`}</span>;
+}
+
+/** 空着的编成号：点一下填进输入框。 */
+function EmptySets({ rows, kind, name, onPick }: { rows: SetRow[]; kind: "support" | "memory"; name: string; onPick: (n: number) => void }) {
+  const empty = rows.filter((r) => r.kind === kind && r.filled === 0).map((r) => r.set);
+  if (!rows.some((r) => r.kind === kind)) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink-3">
+      <span>{empty.length ? `空着的${name}编成：` : `${name}编成没有空的`}</span>
+      {empty.slice(0, 8).map((n) => (
+        <button key={n} type="button" aria-label={`${name}编成 ${n}`} onClick={() => onPick(n)} className="rounded-md border border-line bg-surface px-1.5 py-0.5 text-[12px] text-ink-2 hover:border-line-strong hover:text-ink">
+          {n}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const SCENARIOS: [string, string][] = [
   ["hif", "H.I.F"],
   ["hajime", "初"],
@@ -68,9 +98,11 @@ export function PlanPage({ onOpenJob }: { onOpenJob: (jobId: string) => void }) 
   const [scenario, setScenario] = useState("hif");
   const [busy, setBusy] = useState(false);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [sets, setSets] = useState<SetRow[]>([]);
 
   useEffect(() => {
     data<Summary>(call, ["info", "summary"]).then(setSummary, () => {});
+    data<Listing<SetRow>>(call, ["info", "formations"]).then((r) => setSets(r.items ?? []), () => {});
   }, [call]);
 
   useEffect(() => {
@@ -110,12 +142,16 @@ export function PlanPage({ onOpenJob }: { onOpenJob: (jobId: string) => void }) 
               <Field label="偶像卡" className="col-span-3 sm:col-span-1">
                 <IdolPicker value={idol} onChange={setIdol} initialName={plan?.idol.name} />
               </Field>
-              <Field label="支援卡编成号" hint="写进游戏用的编成位">
+              <Field label="支援卡编成号" hint={setHint(sets, "support", sset, "写进游戏用的编成位")}>
                 <input aria-label="支援卡编成号" className={inputCls} inputMode="numeric" placeholder="1–20" value={sset} onChange={(e) => setSset(e.target.value.replace(/\D/g, ""))} />
               </Field>
-              <Field label="回忆编成号" hint="不要选自己常用的">
+              <Field label="回忆编成号" hint={setHint(sets, "memory", mset, "不要选自己常用的")}>
                 <input aria-label="回忆编成号" className={inputCls} inputMode="numeric" placeholder="1–20" value={mset} onChange={(e) => setMset(e.target.value.replace(/\D/g, ""))} />
               </Field>
+            </div>
+            <div className="mt-2 flex flex-col gap-1">
+              <EmptySets rows={sets} kind="support" name="支援卡" onPick={(n) => setSset(String(n))} />
+              <EmptySets rows={sets} kind="memory" name="回忆" onPick={(n) => setMset(String(n))} />
             </div>
             <div className="mt-3 flex items-end justify-between gap-3">
               <Segmented name="plan-attr" label="主属性" value={attr} onChange={setAttr} options={[["", "自动"], ["Vo", "Vo"], ["Da", "Da"], ["Vi", "Vi"]]} />
@@ -124,6 +160,13 @@ export function PlanPage({ onOpenJob }: { onOpenJob: (jobId: string) => void }) 
               </Button>
             </div>
             <Inventory summary={summary} onOpenJob={onOpenJob} />
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="min-w-[180px] text-[13px]">{sets.length ? `编成位 · ${MODE_LABEL[sets[0]!.mode ?? ""] ?? ""} 已读` : "编成位：还没读"}</span>
+              <span className="text-[12px] text-ink-3">读一遍 {MODE_LABEL[scenario]} 的 1–20 号，看哪些空着（只翻页，不点格子）</span>
+              <span className="ml-auto">
+                <StartTask label="读编成位" args={["scan-formations", "--scenario", scenario]} onOpenJob={onOpenJob} />
+              </span>
+            </div>
           </section>
           {err && (
             <div role="alert" className="rounded-xl border border-line bg-surface-2 px-4 py-3">

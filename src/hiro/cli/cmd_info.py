@@ -51,6 +51,12 @@ def normalize_idols(inv: dict) -> list[dict]:
     return out
 
 
+def normalize_formations(inv: dict) -> list[dict]:
+    """编成位现状（hiro.produce.formation_survey）→ 每个编成号一行（模式写在每行里，换模式读会覆盖整份）。"""
+    return [{"mode": inv.get("mode"), "kind": r.get("kind"), "set": r.get("set"), "filled": r.get("filled"), "cards": r.get("cards")}
+            for r in inv.get("sets") or []]  # fmt: skip
+
+
 def normalize_memories(inv: dict) -> list[dict]:
     """hiro.memory_scan 的输出（entries: [...]）→ 每份回忆一行。"""
     out = []
@@ -79,7 +85,8 @@ def normalize_account(inv: dict) -> list[dict]:
     return [{k: inv.get(k) for k in ("plv", "ap", "ap_max", "jewel")}]
 
 
-NORMALIZE = {"account": normalize_account, "idols": normalize_idols, "supports": normalize_supports, "memories": normalize_memories, "game_settings": normalize_game_settings}
+NORMALIZE = {"account": normalize_account, "idols": normalize_idols, "supports": normalize_supports, "memories": normalize_memories, "game_settings": normalize_game_settings,
+             "formations": normalize_formations}
 
 
 def import_inventory(kind: str, inv: dict, source: str) -> dict:
@@ -169,6 +176,11 @@ def _idols(a: dict) -> dict:
 @command("info affection", Risk.READ, "每位偶像的好感度（親愛度，最新一次扫描）。")
 def _affection(a: dict) -> dict:
     return _listing("affection")
+
+
+@command("info formations", Risk.READ, "编成位现状（最近一次读的那个模式）：每个编成号几格有东西、是哪些卡；0 是空的。")
+def _formations(a: dict) -> dict:
+    return _listing("formations")
 
 
 @command("info game-settings", Risk.READ, "游戏设置里快进 / 跳过演出那 5 项开没开（最近一次检查的结果，ON / OFF / null 读不到）。")
