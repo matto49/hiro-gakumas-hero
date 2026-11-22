@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """界面预览截图：bun run preview:build 之后，把每个页面离屏渲染成 png（不弹窗、不抢焦点）。
 用法：python3 scripts/preview-snap.py [页面 ...]   输出 .preview/shots/<页面>.png
-截图工具 wksnap 在 digital-hiro-research/win-tts/tools（WKSNAP 环境变量可覆盖）。"""
+截图工具 wksnap（离屏 WKWebView 截图的小程序）：用 WKSNAP 环境变量指过去，没设时从 PATH 里找。"""
 import os, re, subprocess, sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / ".preview"
-WKSNAP = os.environ.get("WKSNAP", str(Path.home() / "github/digital-hiro-research/win-tts/tools/wksnap"))
+WKSNAP = os.environ.get("WKSNAP", "wksnap")
 VIEWS = sys.argv[1:] or ["chat", "start", "cockpit", "plan", "supports", "memories", "settings"]
 
 html = (ROOT / "preview/index.html").read_text()

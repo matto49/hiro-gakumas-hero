@@ -91,7 +91,7 @@ go/
 
 1. **单元测试**：每个包自己的 `_test.go`。Python `tests/cli/` 的 86 个用例逐条搬过来。
 2. **对照测试**（`go/internal/parity`）：准备一个 HIRO_HOME 夹具，同一组命令分别用 Python 和 Go 跑，比较 JSON（比较语义，不比空格）。本机有 Python 环境时跑，没有就跳过；设 `HIRO_PARITY_PYTHON=<python 路径>` 指定。
-3. **黄金数据**（阶段 3 起）：`tools/golden/export_vision.py` 用 Python 版把截图（`digital-hiro` 仓库的 tests/fixtures 742 张 + traces 848 张）逐张跑一遍判页、读数和整帧 OCR，结果写到 `~/.cache/hiro/golden/vision`（截图和读数都不进仓库）；Go 的识别测试读这个目录逐张比对，目录不存在就跳过。要用装了 pyobjc Vision 的 Python（`~/github/digital-hiro/.venv`）、`HIRO_OCR=vision`，否则 OCR 后端不一样，结果没法比。
+3. **黄金数据**（阶段 3 起）：`tools/golden/export_vision.py` 用 Python 版把截图（作者本机的 tests/fixtures 截图样例和 traces 里的帧）逐张跑一遍判页、读数和整帧 OCR，结果写到 `~/.cache/hiro/golden/vision`（截图和读数都不进仓库）；Go 的识别测试读这个目录逐张比对，目录不存在就跳过。要用装了 pyobjc Vision 的 Python 环境、`HIRO_OCR=vision`，否则 OCR 后端不一样，结果没法比。
    逐函数对照：`tools/golden/probe.py` 在每张截图上跑 Python 版的某个函数（组合探针在 `tools/golden/probes.py`），`internal/golden` 缓存结果并和 Go 逐张比；`task golden` 跑全部。对照用的 Python 是专用环境 `~/.cache/hiro/golden-venv`（包版本同上，只把 onnxruntime 换成 1.22，和 Go 用的版本逐位一致），没有就设 `HIRO_PARITY_PYTHON`。
 4. **实机**（阶段 2、5）：每个模式在 Mac（账号 2：初 / N.I.A / 偶像之路）或 Windows（账号 1：H.I.F）打一局。
 

@@ -2,7 +2,7 @@
 // 和 tools/golden/probe.py 逐函数跑出来的 Python 结果。Go 测试在同一批像素上跑 Go 版，逐张比。
 //
 // 数据在 HIRO_GOLDEN（缺省 ~/.cache/hiro/golden/vision），不进仓库；目录不在就跳过。
-// 逐函数对照要 HIRO_PARITY_PYTHON（装了 pyobjc Vision 的 Python，如 ~/github/digital-hiro/.venv/bin/python）；
+// 逐函数对照要 HIRO_PARITY_PYTHON（装了 pyobjc Vision 的 Python 环境里的 python）；
 // 结果按「函数 + 参数 + manifest 修改时间」缓存在 <golden>/probe/，同样的参数只跑一次。
 package golden
 
