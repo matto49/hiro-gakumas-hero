@@ -598,7 +598,7 @@ func normDigits(s string) string {
 	var sb strings.Builder
 	for _, r := range s {
 		if d := digitValue(r); d >= 0 {
-			sb.WriteRune(rune('0' + d))
+			sb.WriteByte("0123456789"[d])
 		} else {
 			sb.WriteRune(r)
 		}
