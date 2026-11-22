@@ -125,3 +125,9 @@ func DrinkFullBadge(b *img.BGR) (bool, error) {
 	}
 	return false, nil
 }
+
+// boxGenki 元気框：布局框左放宽 20、右放宽 10（四位数元気首位 / 末位在布局框外）。
+func boxGenki() ocr.Box {
+	g := LayoutBox(examView, "GaugeRoot/GenkiGauge/IconRoot/Icon/GenkiValue")
+	return ocr.Box{X1: g.X1 - 20, Y1: g.Y1, X2: min(720, g.X2+10), Y2: g.Y2}
+}

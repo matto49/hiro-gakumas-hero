@@ -199,6 +199,9 @@ task nilaway    # 空指针分析（参考）
   - [x] 判页的模板 / 像素部分：template_scene、option_regions、at_commu、页面签名（带遮罩 NCC）、quick_page、fallback_page，1590 张全一样
   - [x] ddddocr（`ocr/dddd.go`、`pil`）：Pillow 缩放 / 转灰度逐字节一样；onnxruntime 同版本时输出逐位一样
   - [ ] 判页链剩下的：整帧 OCR 页面地图（pages.classify_page、tower 页面、特別指導）、classify_scene / classify
-  - [ ] 卡面图库 card_db（SIFT + IVF）、卡图 card_art、手牌、状态栏、P 道具 / 饮料栏、数字字体（digits）
+  - [x] 卡面图库 card_db（gocv SIFT + OpenCV kmeans 训练的 IVF，Go 多协程检索；从零建索引 14 秒）：400 张截图认卡和 Python（faiss）全一样；三选一 card_select
+  - [x] 数字字体 digits：随仓库字体直接用 Pillow 渲染好的模板（data/glyph_templates.json，按字体 SHA-256 认），400 张 × 8 个 HUD 框只差 4 处（都在 ddddocr 兜底，onnxruntime 版本不同）
+  - [x] layout（客户端布局 + 校准）、P 饮料图标 drinks、获得演出卡面核对
+  - [ ] 卡图 card_art、手牌、状态栏、P 道具 / 饮料栏
   - [ ] 各页读数（hif 考试、deck、action、shop、event、support、nia、hajime、customize）→ extract / observe
   - [ ] RapidOCR（onnxruntime，Windows）

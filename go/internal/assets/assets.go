@@ -22,6 +22,8 @@ import (
 	"sync"
 
 	_ "modernc.org/sqlite" // 主数据 game.db（纯 Go）
+
+	"github.com/matto49/hiro-gakumas-hero/go/internal/home"
 )
 
 // Kind 是图标类别（插件约定的名字）。
@@ -274,4 +276,15 @@ func (s *Source) Available(kind string) bool {
 		return s.SupportDir() != ""
 	}
 	return s.IconDir(kind) != ""
+}
+
+// CacheDir 识别层的缓存目录（卡面描述子、索引等算一次就存的东西）：HIRO_CACHE → 仓库的 cache/（开发机，素材包所在仓库）→ HIRO_HOME/cache。
+func CacheDir() string {
+	if v := os.Getenv("HIRO_CACHE"); v != "" {
+		return v
+	}
+	if r := PackRoot(); r != "" {
+		return filepath.Join(filepath.Dir(filepath.Dir(r)), "cache")
+	}
+	return filepath.Join(home.Dir(), "cache")
 }

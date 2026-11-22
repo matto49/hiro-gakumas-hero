@@ -5,6 +5,7 @@ import (
 
 	"github.com/matto49/hiro-gakumas-hero/go/internal/cv"
 	"github.com/matto49/hiro-gakumas-hero/go/internal/img"
+	"github.com/matto49/hiro-gakumas-hero/go/internal/master"
 	"github.com/matto49/hiro-gakumas-hero/go/internal/ocr"
 )
 
@@ -81,15 +82,11 @@ func ReadDeckSize(b *img.BGR) (int, bool, error) {
 // ---------------------------------------------------------------- 获得弹窗：卡 / P 饮料 / P 道具的获得演出
 
 var (
-	acquireBar   = ocr.Box{X1: 40, Y1: 840, X2: 680, Y2: 910}  // 画面中下部的名称栏
-	memoryLabel  = ocr.Box{X1: 120, Y1: 400, X2: 620, Y2: 500} // 卡上方的橙色标签「メモリー効果」
-	hudPanel     = ocr.Box{X1: 520, Y1: 25, X2: 705, Y2: 160}  // 培育 HUD 右上「審査基準」白框
-	errNotPorted = notPorted("还没迁")
+	acquireBar  = ocr.Box{X1: 40, Y1: 840, X2: 680, Y2: 910}  // 画面中下部的名称栏
+	memoryLabel = ocr.Box{X1: 120, Y1: 400, X2: 620, Y2: 500} // 卡上方的橙色标签「メモリー効果」
+	hudPanel    = ocr.Box{X1: 520, Y1: 25, X2: 705, Y2: 160}  // 培育 HUD 右上「審査基準」白框
+	acquireArt  = ocr.Box{X1: 262, Y1: 556, X2: 455, Y2: 750} // 获得卡时中间缩略图的卡面部分
 )
-
-type notPorted string
-
-func (e notPorted) Error() string { return string(e) }
 
 // MemoryEffectPopup 回忆效果的卡展示：卡上方有「メモリー効果」标签，或者画面上没有培育 HUD。
 func MemoryEffectPopup(b *img.BGR) (bool, error) {
@@ -164,8 +161,13 @@ func ReadAcquirePopup(b *img.BGR, art bool) (map[string]any, error) {
 			return nil, err
 		}
 		out["memory_effect"] = mem
-		if art {
-			return nil, errNotPorted // 卡面核对（card_db）随卡面图库一起迁
+		if art { // 用中间缩略图认卡核对；agree=false 时 card_id 仍以名称栏为准
+			out["art_card_id"], out["agree"] = nil, nil
+			if a := CardMatch(crop(b, acquireArt), cardMinVotes); a != "" {
+				if c := master.CardByAsset(a); c != nil {
+					out["art_card_id"], out["agree"] = c.ID, c.ID == item.Card.CardID
+				}
+			}
 		}
 	}
 	return out, nil

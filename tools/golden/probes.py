@@ -50,3 +50,41 @@ def dddd_crops(img):
         gray = _dddd().classification(cv2.imencode(".png", bw)[1].tobytes())
         out.append([color, gray])
     return out
+
+
+def card_matches(img):
+    """卡面图库认卡：获得演出中间的卡面 + 三选一每张候选的卡面 → base asset（认不出 None）；外加三选一的「おすすめ」。"""
+    from hiro.vision import card_db
+    from hiro.vision.card_select import card_letters, recommended_flags, select_card_options
+    from hiro.vision.ui_templates import normalize
+
+    img = normalize(img)
+    out = [card_db.match(img[556:750, 262:455])]
+    for r in card_letters(img):
+        x1, y1, x2, y2 = r.center.x - 60, r.y1 - 105, r.center.x + 60, r.y2
+        out.append(None if x1 < 0 or y1 < 0 else card_db.match(img[y1:y2, x1:x2]))
+    return {"matches": out, "recommended": recommended_flags(img, select_card_options(img))}
+
+
+def _digit_boxes():
+    from hiro.vision import hif
+
+    return [tuple(hif.BOX_TURNS), tuple(hif.BOX_GENKI), tuple(hif.BOX_HP), tuple(hif.BOX_MY_SCORE), tuple(hif.BOX_PITEM_CHARGES),
+            (322, 50, 436, 94), (330, 94, 440, 136), (500, 120, 700, 170)]
+
+
+def digit_reads(img):
+    """游戏字体读数：几块 HUD 框上的 read_text（对齐 / 不对齐）、read_int、read_leading_int、read_score（只要值和读法）。"""
+    from hiro.vision import digits
+
+    out = []
+    for b in _digit_boxes():
+        if img.shape[0] < b[3] or img.shape[1] < b[2]:
+            out.append(None)
+            continue
+        t1 = digits.read_text(img, b)
+        t2 = digits.read_text(img, b, align=True)
+        lead = digits.read_leading_int(img, b)
+        v, m = digits.read_score(img, b)
+        out.append({"text": list(t1), "aligned": list(t2), "int": digits.read_int(img, b), "lead": list(lead), "score": v, "method": m["method"]})
+    return out
