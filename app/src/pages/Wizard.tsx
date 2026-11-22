@@ -148,24 +148,43 @@ export function Wizard({ onDone }: { onDone: () => void }) {
         </div>
         <div>
           <div className="mb-2 text-[12px] font-medium text-ink-3">第一次使用 · 六步</div>
-          <ol className="m-0 flex list-none flex-col gap-0.5 p-0">
-            {STEPS.map((s, i) => (
-              <li
-                key={s}
-                aria-current={i === step ? "step" : undefined}
-                className={cx("flex items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px]", i === step ? "bg-surface font-semibold text-ink shadow-[0_1px_2px_oklch(0.2_0.005_60/0.1)]" : i < step ? "text-ink-2" : "text-ink-3")}
-              >
-                <span
+          <ol className="m-0 flex list-none flex-col p-0">
+            {STEPS.map((s, i) => {
+              const done = i < step;
+              const now = i === step;
+              const last = i === STEPS.length - 1;
+              return (
+                <li
+                  key={s}
+                  aria-current={now ? "step" : undefined}
                   className={cx(
-                    "grid size-5 flex-none place-items-center rounded-full text-[11px] font-bold",
-                    i === step ? "bg-brand text-white" : i < step ? "bg-ok-t text-good" : "border border-line-strong text-ink-3",
+                    "relative flex items-center gap-3 rounded-md px-2 py-2 text-[13px] leading-none",
+                    now ? "bg-brand-tint font-semibold text-ink" : done ? "text-ink-2" : "text-ink-2",
                   )}
                 >
-                  {i < step ? <CheckIcon className="size-3" strokeWidth={3} /> : i + 1}
-                </span>
-                {s}
-              </li>
-            ))}
+                  {/* 竖线：连到下一步的圆圈；走过的那段用品牌浅色 */}
+                  {!last && (
+                    <span
+                      aria-hidden
+                      className={cx("absolute top-[30px] left-[18px] h-[16px] w-[1.5px] rounded-full", done ? "bg-brand/60" : "bg-line-strong")}
+                    />
+                  )}
+                  <span
+                    className={cx(
+                      "relative z-[1] inline-flex size-[22px] flex-none items-center justify-center rounded-full text-[11.5px] leading-none font-semibold tabular-nums",
+                      now
+                        ? "bg-brand text-white shadow-[0_0_0_3px_var(--color-brand-soft)]"
+                        : done
+                          ? "bg-brand-soft text-brand-ink"
+                          : "border-[1.5px] border-line-strong bg-surface text-ink-3",
+                    )}
+                  >
+                    {done ? <CheckIcon className="size-3" strokeWidth={3} /> : i + 1}
+                  </span>
+                  <span className={cx(now ? "" : done ? "" : "text-ink-2")}>{s}</span>
+                </li>
+              );
+            })}
           </ol>
         </div>
         <p className="mt-auto mb-0 text-[11.5px] leading-relaxed text-ink-3">每一步以后都能在「设置」里改。会动游戏的操作都要你点确认。</p>
