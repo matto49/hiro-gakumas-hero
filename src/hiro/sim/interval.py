@@ -578,11 +578,11 @@ def plan_actions(best: dict, opts: list[Option]) -> list:
 from hiro.state.finals_context import CONTEXT, CONTEXT_FILE  # noqa: E402
 
 
-def note_exam(label: str, *, deck=None, drinks=None, permil=None, trace_dir=None) -> None:
+def note_exam(label: str, *, deck=None, drinks=None, permil=None, max_hp=None, trace_dir=None) -> None:
     """同 hiro.state.finals_context.note_exam（记账、落盘），另外记下轮间缓存目录、记下倍率时预热 R2。"""
     from hiro.state import finals_context
 
-    finals_context.note_exam(label, deck=deck, drinks=drinks, permil=permil, trace_dir=trace_dir)
+    finals_context.note_exam(label, deck=deck, drinks=drinks, permil=permil, max_hp=max_hp, trace_dir=trace_dir)
     on_context(label, permil=permil, trace_dir=trace_dir)
 
 
@@ -601,14 +601,15 @@ def _prewarm_r2(workers: int = 4) -> None:
     """R1 结束（note_exam 记下倍率）时，让常驻进程池的每个进程先把 R2 的考试编译好（R1 牌组、无饮料），进轮间时方案 / 增益表不用等编译。不阻塞。"""
     deck = [tuple(x) for x in CONTEXT.get("deck") or []]
     permil = {a: v for a, v in (CONTEXT.get("permil") or {}).items() if v}
-    if not deck or not permil:
-        return
+    max_hp = CONTEXT.get("max_hp")
+    if not deck or not permil or not max_hp:
+        return  # 最大体力没读到：不拿猜的数值预热
     for a in ("Vo", "Da", "Vi"):
         permil.setdefault(a, min(permil.values()))
     if sim_workers(workers) <= 1:
         return  # 不开进程池（Windows 默认）：没有常驻子进程可预热，用到时在主进程里编译
     try:
-        setup = R2Setup(deck=deck, drinks=[], hp=33, max_hp=33, permil=permil)
+        setup = R2Setup(deck=deck, drinks=[], hp=max_hp, max_hp=max_hp, permil=permil)
         pool = _pool(workers)
         for _ in range(workers):
             pool.submit(bare_exam, setup)

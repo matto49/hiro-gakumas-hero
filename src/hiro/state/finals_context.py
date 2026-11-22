@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-CONTEXT: dict = {}  # {"deck": [(card_id, upgrade)], "drinks": [drink_id], "permil": {Vo, Da, Vi}}
+CONTEXT: dict = {}  # {"deck": [(card_id, upgrade)], "drinks": [drink_id], "permil": {Vo, Da, Vi}, "max_hp": 画面读到的最大体力}
 CONTEXT_FILE = "finals_context.json"
 
 
-def note_exam(label: str, *, deck=None, drinks=None, permil=None, trace_dir=None) -> None:
-    """本战 R1 的考试循环调用：读到牌组时记牌组，考试结束时记剩下的饮料和三属性倍率。"""
+def note_exam(label: str, *, deck=None, drinks=None, permil=None, max_hp=None, trace_dir=None) -> None:
+    """本战 R1 的考试循环调用：读到牌组时记牌组，考试结束时记剩下的饮料、三属性倍率和最大体力（开考时的画面读数）。"""
     if label != "r1":
         return
     if deck is not None:
@@ -19,6 +19,8 @@ def note_exam(label: str, *, deck=None, drinks=None, permil=None, trace_dir=None
         CONTEXT["drinks"] = list(drinks)
     if permil:
         CONTEXT["permil"] = {k: int(v) for k, v in permil.items() if v}
+    if max_hp:
+        CONTEXT["max_hp"] = int(max_hp)
     if trace_dir is not None:
         try:
             (Path(trace_dir) / CONTEXT_FILE).write_text(json.dumps(CONTEXT, ensure_ascii=False), encoding="utf-8")

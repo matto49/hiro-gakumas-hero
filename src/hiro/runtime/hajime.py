@@ -1,6 +1,6 @@
 """「初」（はじめ）新主循环：从プロデュース选初 + 难度开局，打完一局（协调 11-17 ①，目标初 REGULAR）。
 
-    PYTHONPATH=src python -m hiro.runtime.hajime new    --idol i_card-skin-shro-3-007 [--difficulty regular] [--main-attr Da]
+    PYTHONPATH=src python -m hiro.runtime.hajime new    --idol i_card-skin-shro-3-007 [--difficulty regular] [--main-attr Vo]
     PYTHONPATH=src python -m hiro.runtime.hajime resume --idol i_card-skin-shro-3-007
 
 - 开局：培育入口 → 剧本页翻到初（Produce.LogoHajime）→ OCR 点「レギュラー / REGULAR」（--difficulty pro / master 同理）→ 第 1–4 步同
@@ -332,6 +332,21 @@ def hajime_core(scenario_mode: str):
     return HajimeCore
 
 
+def hajime_main_attr(idol: str, mode: str, plan: dict | None) -> str | None:
+    """初没给 --main-attr 时的主属性：开局编成方案是为初生成的（plan.mode 是初）就用方案的；否则按项目定的默认（formation_plan.default_main，
+    广在初是 Vo，用户 11-20）；都没有 None（决策器按支援卡编成 / 成长率推）。为 H.I.F 生成的方案（主 Da）不拿来开初。"""
+    from hiro.brain.formation_plan import default_main
+    from hiro.state.modes import HAJIME, family
+
+    if plan and plan.get("main_attr") and family(plan.get("mode")) == HAJIME:
+        logger.info("初主属性：开局编成方案（%s）的 %s", plan.get("mode"), plan["main_attr"])
+        return plan["main_attr"]
+    attr = default_main(idol, mode)
+    if attr:
+        logger.info("初主属性：项目默认 %s%s", attr, "（编成方案不是为初生成的，没用它的主属性）" if plan and plan.get("main_attr") else "")
+    return attr
+
+
 def run(args) -> int:
     from hiro import kaa_env
     from hiro.contracts import TraceWriter
@@ -355,6 +370,8 @@ def run(args) -> int:
         logger.error("new 开局要编成号：--support-set / --memory-set，或开局编成方案")
         return 2
     mode = MODES[args.difficulty]
+    if args.main_attr is None:
+        args.main_attr = hajime_main_attr(args.idol, mode, kaa_env.ACTIVE_PLAN)
     from hiro.runtime.segments import trace_name
 
     session = Session(TraceWriter(name=trace_name("hajime", args.command, args.trace)))  # 续跑接上一段（体力 / P / 属性 / step 打底）

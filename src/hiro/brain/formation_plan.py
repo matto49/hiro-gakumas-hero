@@ -29,6 +29,18 @@ ATTRS = ("Vo", "Da", "Vi")
 GROWTH_KEY = {"Vo": "produceVocalGrowthRatePermil", "Da": "produceDanceGrowthRatePermil", "Vi": "produceVisualGrowthRatePermil"}
 # 项目里已经定过的主属性（用户 / 决策-07：Campus 広 主 Da，虽然成长率 Vo 最高）；其他偶像默认按成长率最高的属性
 DEFAULT_MAIN = {"i_card-shro-3-007": "Da"}
+# 按模式的默认主属性，优先于 DEFAULT_MAIN（用户 11-20：Campus 広 在初里主 Vo，初 LEGEND 排行榜 89% 是 Vo 最高；
+# 主 Da（决策-07）是 H.I.F 的决定，H.I.F 和 N.I.A 照旧，N.I.A 等用户再定）
+DEFAULT_MAIN_BY_MODE = {("i_card-shro-3-007", "hajime"): "Vo"}
+
+
+def default_main(idol_card: str, mode: str | None = None) -> str | None:
+    """项目已定的默认主属性：按模式的（DEFAULT_MAIN_BY_MODE）> DEFAULT_MAIN；都没有 None。mode 是 produce id（produce-002）或家族名（hajime）。"""
+    from hiro.state.modes import family
+
+    cid = idol_card.replace("i_card-skin-", "i_card-")
+    fam = family(mode) or mode
+    return DEFAULT_MAIN_BY_MODE.get((cid, fam)) or DEFAULT_MAIN.get(cid)
 # 回忆属性词条的作用基数（memory_priority.PARAM_GAINS / PARAM_FINALS 按主属性 / 第二 / 第三属性重排；数值取自 main8，粗估）
 GAIN_BY_RANK = (2900, 1900, 950)
 FINAL_BY_RANK = (3150, 2170, 1170)
@@ -46,8 +58,9 @@ def idol_info(idol: str, main_attr: str | None = None, mode: str | None = None) 
     row = catalog().one("IdolCard", cid)
     growth = {a: row.get(GROWTH_KEY[a]) or 0 for a in ATTRS}
     guided = None if main_attr else guide_main(mode, cid)
-    default = main_attr or (guided[0] if guided else None) or DEFAULT_MAIN.get(cid) or max(ATTRS, key=lambda a: growth[a])
-    main_why = ("指定" if main_attr else f"攻略 {guided[1]}" if guided else "项目已定（DEFAULT_MAIN）" if cid in DEFAULT_MAIN else "成长率最高")
+    fixed = default_main(cid, mode)
+    default = main_attr or (guided[0] if guided else None) or fixed or max(ATTRS, key=lambda a: growth[a])
+    main_why = ("指定" if main_attr else f"攻略 {guided[1]}" if guided else "项目已定（按模式）" if fixed else "成长率最高")
     profile, caveat = profile_for_idol(cid)
     order = [default] + sorted((a for a in ATTRS if a != default), key=lambda a: -growth[a])
     return {"idol_card_id": cid, "name": row.get("name"), "plan": row["planType"], "effect": row.get("examEffectType"),
@@ -74,7 +87,7 @@ def build(idol: str, *, support_inventory: dict | None, memory_inventory: dict |
     from hiro.brain.formation import select_memories
 
     info = idol_info(idol, main_attr, mode)
-    out = {"version": 1, "created": time.strftime("%Y-%m-%d %H:%M:%S"), "idol": info, "profile": info["profile"], "notes": []}
+    out = {"version": 1, "created": time.strftime("%Y-%m-%d %H:%M:%S"), "idol": info, "profile": info["profile"], "mode": mode, "notes": []}
     if info["profile_caveat"]:
         out["notes"].append(info["profile_caveat"])
 

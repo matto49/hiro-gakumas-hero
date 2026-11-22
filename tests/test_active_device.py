@@ -20,7 +20,7 @@ def test_default_forwards_to_kotonebot(monkeypatch):
 
     calls = []
     fake = NS(screenshot=lambda: "img", click=lambda x, y: calls.append(("click", x, y)),
-              double_click=lambda x, y, i: calls.append(("dbl", x, y, i)), swipe=lambda *a, **k: calls.append(("swipe", a, k)))  # fmt: skip
+              double_click=lambda x, y, interval=None: calls.append(("dbl", x, y, interval)), swipe=lambda *a, **k: calls.append(("swipe", a, k)))  # fmt: skip
     monkeypatch.setattr(kotonebot, "device", fake)
     monkeypatch.setattr(kotonebot, "sleep", lambda s: calls.append(("sleep", s)))
     assert active.device.screenshot() == "img"

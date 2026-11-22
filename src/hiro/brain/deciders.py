@@ -160,7 +160,9 @@ class ProduceDeciders:
                 return
             from hiro.sim import resource as rv
 
-            rv.prewarm("selection", deck=[(c.card_id, c.upgrade) for c in ps.deck], max_hp=ps.max_stamina or 33)
+            if not ps.max_stamina:
+                return  # 最大体力还没从画面读到：不预热（不猜数值）
+            rv.prewarm("selection", deck=[(c.card_id, c.upgrade) for c in ps.deck], max_hp=ps.max_stamina)
         except Exception as e:  # noqa: BLE001  预热失败不影响决策
             logger.debug("饮料模拟预热失败：%s", e)
 
@@ -1023,7 +1025,9 @@ class ProduceDeciders:
 
             deck = deck or [tuple(x) for x in CONTEXT.get("deck") or []] or None
             permil = CONTEXT.get("permil")
-        max_hp = ps.max_stamina or 33
+        max_hp = ps.max_stamina
+        if not max_hp:
+            return None  # 最大体力没从画面读到：只按社区规则（不拿写死的数值去模拟）
         hp = max_hp if stage != "r2" else (ps.stamina or max_hp)
         return {"exam": stage, "deck": deck, "hp": hp, "max_hp": max_hp, "permil": permil}
 
@@ -3070,7 +3074,7 @@ class ProduceDeciders:
         pf = state.page_fields
         hp, p = pf.get("stamina"), pf.get("produce_point")
         produce = dict(state.produce or {})
-        max_hp = pf.get("max_stamina") or produce.get("max_stamina") or (self.profile.max_hp if self.profile else None)
+        max_hp = pf.get("max_stamina") or produce.get("max_stamina")
         if hp is None or p is None or not max_hp:
             return None, set()
         observed = {k for k, v in produce.items() if v is not None}
@@ -3095,7 +3099,7 @@ class ProduceDeciders:
 
         pf = state.page_fields
         hp, p = pf.get("stamina"), pf.get("produce_point")
-        max_hp = pf.get("max_stamina") or (state.produce or {}).get("max_stamina") or (self.profile.max_hp if self.profile else None)
+        max_hp = pf.get("max_stamina") or (state.produce or {}).get("max_stamina")
         skipped = "货架未识别：没有补卡 / 买饮料 / 用ワッペン（社区：轮间卡便宜，用来用完ワッペン、补卡）"
         if hp is None or p is None or not max_hp:
             return Decision(Action(ActionKind.INTERVAL_END), f"轮间货架未识别，体力 / P 点也没读到（体力 {hp}，P {p}），直接结束", "rule", 0.2,

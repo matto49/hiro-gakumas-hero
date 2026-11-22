@@ -1071,6 +1071,25 @@ def r1_deck_to_note(exam: str, session, context: dict) -> list | None:
     return [(c["card_id"], int(c.get("upgrade") or 0)) for c in rows if isinstance(c, dict) and c.get("card_id")] or None
 
 
+def seed_max_hp(memory: ExamMemory, session, rec=None) -> int | None:
+    """开考时给本场考试记忆填最大体力：取培育页头部 OCR 读到的「体力 x/上限」（主循环状态 produce.max_stamina）。
+    最大体力随偶像卡等级、开花、账号等级、支援卡等浮动，不写死；考试画面只显示当前体力，所以要在培育页读。
+    记忆里已经有（续跑读回）就不覆盖；读不到就留 None（不猜），日志写明。"""
+    if getattr(memory, "max_hp", None):
+        return memory.max_hp
+    if not hasattr(memory, "set_max_hp"):
+        return None  # 不是 ExamMemory（插件自带的记忆）：不管
+    produce = (getattr(getattr(session, "state", None), "produce", None) or {}) if session is not None else {}
+    value = produce.get("max_stamina")
+    if memory.set_max_hp(value, "produce_screen"):
+        logger.info("[%s] 最大体力 %s（培育页读数）", memory.exam, memory.max_hp)
+    else:
+        logger.warning("[%s] 最大体力未读到（培育页没读出体力上限）：半血 / 道具判断按未知处理", memory.exam)
+    if rec is not None:
+        rec.log("exam_max_hp", exam=memory.exam, max_hp=memory.max_hp, source=memory.max_hp_source)
+    return memory.max_hp
+
+
 def _round_deck(session) -> list:
     """这一场考试的牌组 [(card_id, 强化次数)]：培育记账（R2 含轮间买的）；没有时用 R1 记下的（finals_context）。"""
     rows = []
@@ -1125,9 +1144,10 @@ def run_exam(
             memory, restored = got
             rec.log("exam_memory_restored", exam=exam, source=str(restored), turn=memory.turn, last_remaining=memory.last_remaining)
             session.note(f"读回本场考试记忆（{restored.name}）：T{memory.turn}")
+    seed_max_hp(memory, session, rec)
     source.begin({"exam": exam, "profile": brain.profile, "target_score": target_score, "session": session, "brain": brain, "rec": rec})
     advisor.on_round_start(round_no if round_no is not None else (2 if exam == "r2" else 1),
-                           {"exam": exam, "idol": brain.profile.idol_id if brain.profile else None, "brain": brain,
+                           {"exam": exam, "idol": brain.profile.idol_id if brain.profile else None, "brain": brain, "max_hp": getattr(memory, "max_hp", None),
                             "deck": _round_deck(session), "session": session})  # fmt: skip
     rec.log("exam_brain_start", exam=exam, profile=brain.profile.idol_id if brain.profile else None, source=source.confidence())
     failures = 0
@@ -1192,6 +1212,7 @@ def run_exam(
                 if frame.remaining is not None and memory.last_remaining is not None and frame.remaining > memory.last_remaining:
                     rec.log("exam_memory_discarded", exam=exam, screen_remaining=frame.remaining, memory_remaining=memory.last_remaining)
                     memory = brain.new_memory(exam)  # 画面剩余回合比记忆多：不是同一场（再挑戦 / 新开）
+                    seed_max_hp(memory, session, rec)
                 restored = None
             if stable_wait.waited >= STABLE_WAIT_S and session is not None:
                 session.note(f"画面 {stable_wait.waited:.0f}s 不稳定，用单帧出决策")
@@ -1336,7 +1357,7 @@ def run_exam(
             permil = {**{k: v for k, v in seen.items() if v}, **(CONTEXT.get("permil") or {})} if exam == "r1" else seen
             deck = r1_deck_to_note(exam, session, CONTEXT)
             note_exam(exam, deck=deck, drinks=[x.drink_id for x in last_state.drinks if getattr(x, "drink_id", None)], permil=permil,
-                      trace_dir=session.trace.dir if session is not None else None)  # fmt: skip
+                      max_hp=getattr(memory, "max_hp", None), trace_dir=session.trace.dir if session is not None else None)  # fmt: skip
         source.end(result_info or None)
         advisor.on_round_end(result_info or None)
         if session is not None:
