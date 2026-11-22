@@ -15,6 +15,7 @@ const TITLE: Record<Kind, string> = { supports: "支援卡", memories: "回忆",
 
 /** 有扫描任务的信息：[任务种类, 第一次的按钮字, 之后的按钮字] */
 const SCAN: Partial<Record<Kind, [string, string, string]>> = {
+  idols: ["scan-idols", "扫描", "重新扫描"],
   supports: ["scan-supports", "扫描", "重新扫描"],
   memories: ["scan-memories", "扫描", "重新扫描"],
   game_settings: ["check-settings", "检查", "重新检查"],

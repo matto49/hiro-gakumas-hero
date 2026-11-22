@@ -88,7 +88,7 @@ function Account({ summary, onOpen, onOpenPlan, onOpenJob }: { summary: Summary 
         <ul className="m-0 mt-1.5 flex list-none flex-col p-0">
           {ROWS.map(([k, label]) => {
             const s = summary?.kinds[k];
-            const cant = k === "idols" || k === "affection";
+            const cant = k === "affection";
             return (
               <li key={k}>
                 <button type="button" className="flex h-8 w-full items-center justify-between rounded-md px-2 text-left hover:bg-surface-3/60" onClick={() => onOpen(k)}>

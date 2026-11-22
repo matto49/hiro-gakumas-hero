@@ -33,7 +33,7 @@ func after(a []string, k string) string {
 }
 
 func TestKindOrderAndPausable(t *testing.T) {
-	if strings.Join(KindNames, ",") != "selftest,hif,tower,hajime,nia,daily,write-formation,check-settings,fit-window,scan-account,scan-supports,scan-memories" {
+	if strings.Join(KindNames, ",") != "selftest,hif,tower,hajime,nia,daily,write-formation,check-settings,fit-window,scan-account,scan-idols,scan-supports,scan-memories" {
 		t.Fatalf("%v", KindNames)
 	}
 	for _, k := range []string{"hif", "tower", "hajime", "nia", "selftest"} {
@@ -41,7 +41,7 @@ func TestKindOrderAndPausable(t *testing.T) {
 			t.Fatalf("%s should be pausable", k)
 		}
 	}
-	for _, k := range []string{"daily", "write-formation", "check-settings", "fit-window", "scan-account", "scan-supports", "scan-memories"} {
+	for _, k := range []string{"daily", "write-formation", "check-settings", "fit-window", "scan-account", "scan-idols", "scan-supports", "scan-memories"} {
 		if Kinds[k].Pausable {
 			t.Fatalf("%s should not be pausable", k)
 		}

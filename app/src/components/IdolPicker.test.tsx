@@ -67,3 +67,26 @@ test("搜到的卡按稀有度排：SSR 在前", async () => {
   await waitFor(() => expect(screen.getAllByRole("option").length).toBe(3));
   expect(screen.getAllByRole("option").map((o) => o.textContent)).toEqual(["SSR【Campus mode!!】篠澤広", "SR【SR】篠澤広", "R【学園生活】篠澤広"]);
 });
+
+test("扫描过偶像卡：框是空的时点一下列出持有的卡；搜索结果里持有的排前面、标「持有」", async () => {
+  const seen: string[] = [];
+  const fake = fakeCaller({
+    "info idols": { ok: true, exit: 0, data: { kind: "idols", scanned_at: "2026-11-23 10:00:00", items: [{ id: "i_card-shro-1-000", name: "【学園生活】篠澤広", rarity: "R" }] } },
+    "catalog search": { ok: true, exit: 0, data: { items: IDOLS, truncated: false } },
+  });
+  render(
+    <HiroCtx.Provider value={fake.call}>
+      <Host seen={seen} />
+    </HiroCtx.Provider>,
+  );
+  await waitFor(() => expect(fake.calls.some((c) => c.join(" ") === "info idols")).toBe(true));
+  fireEvent.focus(screen.getByLabelText("偶像卡"));
+  await waitFor(() => expect(screen.getByRole("option", { name: /学園生活/ })).toBeTruthy());
+  expect(screen.getAllByRole("option")).toHaveLength(1);
+  fireEvent.change(screen.getByLabelText("偶像卡"), { target: { value: "篠澤" } });
+  await waitFor(() => expect(screen.getAllByRole("option")).toHaveLength(2));
+  const opts = screen.getAllByRole("option");
+  expect(opts[0]!.textContent).toContain("学園生活"); // R 但持有：排在没持有的 SSR 前面
+  expect(opts[0]!.textContent).toContain("持有");
+  expect(opts[1]!.textContent).not.toContain("持有");
+});

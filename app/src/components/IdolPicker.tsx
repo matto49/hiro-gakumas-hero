@@ -1,4 +1,5 @@
 // 偶像卡选择：按名字搜资料库（catalog search --kind idols），点一张就交出 skin 编号（开局脚本要的那种）。
+// 扫描过偶像卡（info idols）时：框是空的点一下就列出持有的卡；搜索结果里持有的排前面、标「持有」。
 // 直接填 i_card-… 编号也行（资料库没下载时用）。
 import { useEffect, useRef, useState } from "react";
 import { HiroError, data, useHiro } from "../lib/hiro";
@@ -36,6 +37,17 @@ export function IdolPicker({
   const [active, setActive] = useState(0);
   const [note, setNote] = useState<string | null>(null);
   const seq = useRef(0);
+  const [owned, setOwned] = useState<Idol[]>([]);
+
+  useEffect(() => {
+    data<{ items: Idol[] }>(call, ["info", "idols"])
+      .then((r) => setOwned((r.items ?? []).filter((x) => x.id)))
+      .catch(() => {});
+  }, [call]);
+  const ownedIds = new Set(owned.map((x) => x.id));
+  const ownedNames = new Set(owned.map((x) => x.name));
+  const isOwned = (it: Idol) => ownedIds.has(it.id) || (it.name != null && ownedNames.has(it.name));
+  const byOwned = (a: Idol, b: Idol) => Number(isOwned(b)) - Number(isOwned(a)) || byRarity(a, b);
 
   // 外面换了值（比如编成方案读进来）且框里不是这张卡的名字时，跟着改
   useEffect(() => {
@@ -58,7 +70,7 @@ export function IdolPicker({
         await data(call, ["catalog", "search", q, "--kind", "idols"]); // 两边都空时再搜一次，资料库没下载的错误照常报出来
       }
       const r = { items: [...merged.values()].map((x) => ({ ...x, zh: zhName.get(x.id) ?? null, name: ja!.items.find((y) => y.id === x.id)?.name ?? x.name })) };
-      setItems([...r.items].sort(byRarity).slice(0, 12));
+      setItems([...r.items].sort(byOwned).slice(0, 12));
       setNote(r.items.length ? null : "没找到这张卡，换个词试试");
       setOpen(true);
       setActive(0);
@@ -111,7 +123,13 @@ export function IdolPicker({
         placeholder={placeholder}
         value={text}
         onChange={(e) => type(e.target.value)}
-        onFocus={() => items.length > 0 && !value && setOpen(true)}
+        onFocus={() => {
+          if (!text.trim() && owned.length) {
+            setItems([...owned].sort(byRarity));
+            setActive(0);
+            setOpen(true);
+          } else if (items.length > 0 && !value) setOpen(true);
+        }}
         onBlur={() => setOpen(false)}
         onKeyDown={(e) => {
           if (!open || !items.length) return;
@@ -142,6 +160,7 @@ export function IdolPicker({
                 <span className={cx(!it.zh && "jp")}>{it.zh ?? it.name ?? it.id}</span>
                 {it.zh && it.name && it.zh !== it.name && <span className="jp ml-1.5 text-[11px] text-ink-3">{it.name}</span>}
               </span>
+              {isOwned(it) && <span className="flex-none rounded bg-ok-t px-1.5 py-0.5 text-[10.5px] font-medium text-good">持有</span>}
             </li>
           ))}
         </ul>

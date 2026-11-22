@@ -28,6 +28,7 @@ export const KIND_LABEL: Record<string, string> = {
   nia: "N.I.A",
   tower: "偶像之路",
   daily: "日常",
+  "scan-idols": "扫描偶像卡",
   "scan-supports": "扫描支援卡",
   "scan-memories": "扫描回忆",
   "scan-account": "读首页数值",

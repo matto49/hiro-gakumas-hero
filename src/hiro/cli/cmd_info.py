@@ -41,6 +41,16 @@ def normalize_supports(inv: dict) -> list[dict]:
     return out
 
 
+def normalize_idols(inv: dict) -> list[dict]:
+    """偶像卡扫描（hiro.produce.idol_scan）→ 每张一行；idol_card_id 扫描时按主数据对上，对不上（新卡）留空。"""
+    out = []
+    for c in inv.get("idols") or []:
+        title, chara = c.get("title") or "", c.get("character") or ""
+        out.append({"id": c.get("idol_card_id"), "name": f"【{title}】{chara}", "title": title, "idol": chara, "rarity": _rarity(c.get("rarity")),
+                    "plan": c.get("plan"), "effect": c.get("effect")})  # fmt: skip
+    return out
+
+
 def normalize_memories(inv: dict) -> list[dict]:
     """hiro.memory_scan 的输出（entries: [...]）→ 每份回忆一行。"""
     out = []
@@ -69,7 +79,7 @@ def normalize_account(inv: dict) -> list[dict]:
     return [{k: inv.get(k) for k in ("plv", "ap", "ap_max", "jewel")}]
 
 
-NORMALIZE = {"account": normalize_account, "supports": normalize_supports, "memories": normalize_memories, "game_settings": normalize_game_settings}
+NORMALIZE = {"account": normalize_account, "idols": normalize_idols, "supports": normalize_supports, "memories": normalize_memories, "game_settings": normalize_game_settings}
 
 
 def import_inventory(kind: str, inv: dict, source: str) -> dict:

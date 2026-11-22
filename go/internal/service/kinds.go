@@ -207,7 +207,7 @@ func fixed(s string) func(*jsonx.Object) string { return func(*jsonx.Object) str
 // KindNames 是任务种类（顺序同 Python KINDS）。
 var KindNames = []string{
 	"selftest", "hif", "tower", "hajime", "nia", "daily", "write-formation", "check-settings", "fit-window",
-	"scan-account", "scan-supports", "scan-memories",
+	"scan-account", "scan-idols", "scan-supports", "scan-memories",
 }
 
 // Kinds 是全部任务种类。
@@ -278,6 +278,13 @@ var Kinds = map[string]*Kind{
 			return []string{rt.Python, "-m", HomeReader, "--live", "--out", out(dir)}
 		},
 		Summary: fixed("读首页的 PLv / AP / ジュエル（只截图，不点）"), Output: "account",
+	},
+	"scan-idols": {
+		Name: "scan-idols", Help: "扫描偶像卡（只读：偶像一览里逐张点开读卡名，最后点「<<」退出，不点決定）",
+		Argv: func(_ *jsonx.Object, dir string, rt Runtime) []string {
+			return []string{rt.Python, "-m", "hiro.produce.idol_scan", "--out", out(dir)}
+		},
+		Summary: fixed("扫描偶像卡（只读，不改选中的偶像）"), Output: "idols",
 	},
 	"scan-supports": {
 		Name: "scan-supports", Help: "扫描支援卡（只读：在「選択」列表里滚动，最后点キャンセル）",

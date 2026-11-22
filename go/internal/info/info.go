@@ -20,7 +20,7 @@ import (
 // scanHint 是没扫描过时的提示。
 var scanHint = map[string]string{
 	"account":       "还没读过首页数值：游戏停在首页时运行 hiro run start scan-account",
-	"idols":         "还没扫描偶像卡（这一项的扫描还没做，先在游戏里看）",
+	"idols":         "还没扫描偶像卡：游戏停在首页时运行 hiro run start scan-idols",
 	"supports":      "还没扫描支援卡：运行 hiro run start scan-supports",
 	"memories":      "还没扫描回忆：运行 hiro run start scan-memories",
 	"affection":     "还没扫描好感度（这一项的扫描还没做，先在游戏里看）",
@@ -28,7 +28,7 @@ var scanHint = map[string]string{
 }
 
 // ImportKinds 是能导入的类别（顺序同 Python NORMALIZE）。
-var ImportKinds = []string{"account", "supports", "memories", "game_settings"}
+var ImportKinds = []string{"account", "idols", "supports", "memories", "game_settings"}
 
 // ---------------------------------------------------------------- 扫描输出 → 每条一行
 
@@ -65,6 +65,22 @@ func normalizeSupports(inv *jsonx.Object) []any {
 		out = append(out, jsonx.NewObject().Set("id", or(get(c, "support_card_id"), cid)).Set("name", get(c, "name")).
 			Set("rarity", rarity(get(c, "rarity"))).Set("attr", get(c, "attr")).Set("type", get(c, "type")).
 			Set("level", get(c, "level")).Set("breaks", get(c, "breaks")))
+	}
+	return out
+}
+
+// normalizeIdols：偶像卡扫描（hiro.produce.idol_scan）→ 每张一行。idol_card_id 扫描时按主数据对上，对不上（新卡）留空。
+func normalizeIdols(inv *jsonx.Object) []any {
+	out := []any{}
+	for _, v := range jsonx.List(inv, "idols") {
+		c, _ := v.(*jsonx.Object)
+		if c == nil {
+			continue
+		}
+		title, chara := jsonx.Str(c, "title"), jsonx.Str(c, "character")
+		out = append(out, jsonx.NewObject().Set("id", get(c, "idol_card_id")).Set("name", "【"+title+"】"+chara).
+			Set("title", title).Set("idol", chara).Set("rarity", rarity(get(c, "rarity"))).Set("plan", get(c, "plan")).
+			Set("effect", get(c, "effect")))
 	}
 	return out
 }
@@ -113,7 +129,7 @@ func normalizeAccount(inv *jsonx.Object) []any {
 }
 
 var normalize = map[string]func(*jsonx.Object) []any{
-	"account": normalizeAccount, "supports": normalizeSupports, "memories": normalizeMemories, "game_settings": normalizeGameSettings,
+	"account": normalizeAccount, "idols": normalizeIdols, "supports": normalizeSupports, "memories": normalizeMemories, "game_settings": normalizeGameSettings,
 }
 
 // ImportInventory 把扫描工具的输出存进信息库，返回 {kind, snapshot, count}。扫描任务结束时由服务调用。
