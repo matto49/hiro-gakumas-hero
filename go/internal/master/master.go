@@ -5,6 +5,7 @@ package master
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"sync"
 
@@ -176,4 +177,79 @@ func DrinkByAsset(asset string) *Drink {
 		}
 	}
 	return nil
+}
+
+// CustomizeLevel 是一个定制项的一级（ProduceCardCustomize 一行）。
+type CustomizeLevel struct {
+	Count, Price int
+}
+
+var (
+	custOnce sync.Once
+	custRows map[string][]CustomizeLevel
+	charOnce sync.Once
+	charList []string
+)
+
+// CustomizeLevels 定制项 id → 各级（customizeCount, producePoint），表里的顺序。
+func CustomizeLevels() map[string][]CustomizeLevel {
+	custOnce.Do(func() {
+		custRows = map[string][]CustomizeLevel{}
+		db := assets.Default().MasterDB()
+		if db == nil {
+			return
+		}
+		rows, err := db.Query("SELECT id, customizeCount, producePoint FROM ProduceCardCustomize")
+		if err != nil {
+			return
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var id string
+			var c, p sql.NullInt64
+			if rows.Scan(&id, &c, &p) == nil {
+				custRows[id] = append(custRows[id], CustomizeLevel{int(c.Int64), int(p.Int64)})
+			}
+		}
+	})
+	return custRows
+}
+
+// CardCustomizeIDs 这张卡（这个强化等级）的定制项 id，主数据里的顺序。
+func CardCustomizeIDs(id string, upgrade int) []string {
+	db := assets.Default().MasterDB()
+	if db == nil {
+		return nil
+	}
+	var raw sql.NullString
+	if db.QueryRow("SELECT produceCardCustomizeIds FROM ProduceCard WHERE id = ? AND upgradeCount = ?", id, upgrade).Scan(&raw) != nil {
+		return nil
+	}
+	var out []string
+	if raw.String != "" {
+		_ = json.Unmarshal([]byte(raw.String), &out)
+	}
+	return out
+}
+
+// CharacterNames 角色全名（姓 + 名），Character 表的顺序。
+func CharacterNames() []string {
+	charOnce.Do(func() {
+		db := assets.Default().MasterDB()
+		if db == nil {
+			return
+		}
+		rows, err := db.Query("SELECT lastName, firstName FROM Character")
+		if err != nil {
+			return
+		}
+		defer func() { _ = rows.Close() }()
+		for rows.Next() {
+			var a, b sql.NullString
+			if rows.Scan(&a, &b) == nil {
+				charList = append(charList, a.String+b.String)
+			}
+		}
+	})
+	return charList
 }

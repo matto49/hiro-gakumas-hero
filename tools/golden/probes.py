@@ -104,3 +104,15 @@ def deck_pages(img):
            "dialog": deck.read_card_dialog(img), "change1": deck.read_change_candidates(img), "confirm": deck.read_confirm_dialog(img),
            "scroll": deck.dialog_scroll(img, deck.REMOVAL_GRID)}
     return out
+
+
+def special_guidance(img):
+    from hiro.vision.customize import read_special_guidance
+
+    return read_special_guidance(img)
+
+
+def hud_resources(img):
+    from hiro.vision.pages import read_hud_resources
+
+    return read_hud_resources(img)

@@ -175,3 +175,32 @@ func TestDeckPages(t *testing.T) {
 		return out, err
 	})
 }
+
+func recovered(fn func() (any, error)) (out any, err error) {
+	defer cv.Recover(&err)
+	return fn()
+}
+
+func TestSpecialGuidance(t *testing.T) {
+	golden.Compare(t, golden.Spec{Call: "probes:special_guidance", Pages: []string{"SPECIAL_GUIDANCE"}, Allow: 1}, func(b *img.BGR) (any, error) {
+		return recovered(func() (any, error) { return ReadSpecialGuidance(b, nil) })
+	})
+}
+
+func TestHudResources(t *testing.T) {
+	golden.Compare(t, golden.Spec{Call: "probes:hud_resources", Pages: []string{"ACTION_SELECT", "HIF_ROUND_INTERVAL", "CONSULT"}, Allow: 3}, func(b *img.BGR) (any, error) {
+		return recovered(func() (any, error) { return ReadHudResources(b) })
+	})
+}
+
+func TestClassifyPage(t *testing.T) {
+	golden.Compare(t, golden.Spec{Call: "hiro.vision.pages:classify_page", Sample: 300, Allow: 6}, func(b *img.BGR) (any, error) {
+		return recovered(func() (any, error) {
+			r, err := ClassifyPage(b)
+			if err != nil || r == nil {
+				return nil, err
+			}
+			return []any{r.Page, r.Fields}, nil
+		})
+	})
+}
