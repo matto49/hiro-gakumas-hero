@@ -23,8 +23,9 @@ hiro-gakumas-hero（数字小广）的 OCR 测试集：游戏整帧截图 + 每�
 ```bash
 export HIRO_OCR_DATASET=<本仓库路径>
 python -m tools.ocr_dataset pick <trace 目录…> --contributor <名字>   # 投稿：挑帧打包进 inbox/
-python -m tools.ocr_dataset label                                     # 维护者：AI 标注 inbox/ 里的投稿
-python -m tools.ocr_dataset review                                    # 维护者：核对待定框
+python -m tools.ocr_dataset label inbox/<贡献者>/<日期>               # 维护者：AI 标注投稿（Mac；Vision + Claude，待定框再问 Codex）
+python -m tools.ocr_dataset spot-check                                # 维护者：抽 50 个 agreed 框人工核对（≥98% 才合格）
+python -m tools.ocr_dataset review                                    # 维护者：核对待定框；--apply <导出的 JSON> 写回
 python -m tools.ocr_dataset eval --backend rapidocr,vision --set core # 评测
 python -m tools.ocr_dataset validate                                  # 校验
 ```
