@@ -337,15 +337,16 @@ def _pp_engine(languages):
 
 
 def _pp_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, tuple[int, int, int, int]]]:
-    """img 已放大；四点框取外接矩形、除以 scale 换回原图坐标；简体字换回日文写法。"""
+    """img 已放大；四点框取外接矩形、减去补白偏移、除以 scale 换回原图坐标；简体字换回日文写法。"""
     if img.ndim == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-    res = _pp_engine(languages)(img)
+    padded, ox, oy = _pad_to(img, RAPID_PAD)  # 小图居中补白（同 RapidOCR）：不补白时 HUD 小框上检测不到字
+    res = _pp_engine(languages)(padded)
     if res.boxes is None or res.txts is None:
         return []
     out = []
     for box, text, conf in zip(res.boxes, res.txts, res.scores, strict=False):
-        xs, ys = [p[0] for p in box], [p[1] for p in box]
+        xs, ys = [p[0] - ox for p in box], [p[1] - oy for p in box]
         out.append(
             (
                 str(text).translate(_SIMPLIFIED),
