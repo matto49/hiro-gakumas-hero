@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "OCR 测试集：一帧的标注（规格 §5.1；CI 用 tools/validate.py 校验，这份 Schema 给人和编辑器看）",
+  "type": "object",
+  "required": ["schema", "id", "image", "sha256", "source", "platform", "page", "boxes"],
+  "properties": {
+    "schema": {"const": 1},
+    "id": {"type": "string", "description": "<平台>-<来源运行>-<seq 五位>，和文件名一致"},
+    "image": {"type": "string"},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "source": {"type": "object", "required": ["run", "seq"], "properties": {
+      "run": {"type": "string"}, "seq": {"type": "integer"}, "contributor": {"type": ["string", "null"]}, "captured": {"type": ["string", "null"]}}},
+    "platform": {"type": "object", "required": ["kind", "stored"], "properties": {
+      "kind": {"enum": ["dmm", "dmm540", "dmm720", "dmm1080", "mumu", "mac", "adb", "other"]},
+      "native": {"type": ["array", "null"], "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},
+      "stored": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},
+      "device": {"type": ["string", "null"]}, "note": {"type": ["string", "null"]}}},
+    "page": {"type": "string", "description": "判页结果（hiro.vision.classify 的页面名）"},
+    "boxes": {"type": "array", "items": {"type": "object", "required": ["id", "box", "text", "status", "answers", "tags", "ignore"], "properties": {
+      "id": {"type": "integer"},
+      "box": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 4, "maxItems": 4, "description": "[x1, y1, x2, y2]，按 platform.stored 的整帧坐标"},
+      "text": {"type": ["string", "null"], "description": "正确文字"},
+      "status": {"enum": ["agreed", "resolved", "disputed", "ignored"]},
+      "answers": {"type": "object", "description": "各方原始答案：vision / llm / lexicon，以及被评测后端的读法（只记录）"},
+      "tags": {"type": "object", "required": ["type"], "properties": {
+        "field": {"type": ["string", "null"]},
+        "type": {"enum": ["button", "title", "name", "number", "body", "label", "other"]}}},
+      "ignore": {"type": "boolean"}}}}
+  }
+}
