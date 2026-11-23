@@ -6,6 +6,8 @@
 
 from __future__ import annotations
 
+import math
+
 from tools.ocr_dataset import scenario
 
 # ---------- 适配器 ----------
@@ -15,16 +17,36 @@ def _strip_plus(name):
     return name.rstrip("+＋") if isinstance(name, str) else name
 
 
+# 主数据 ExamSetting：examStaminaConsumptionDownPermil 500、examStaminaConsumptionAddPermil 1000
+_STAMINA_DOWN, _STAMINA_ADD = 500, 1000
+
+
+def _shown_cost(base: int, statuses: list[dict]) -> int:
+    """卡上显示的体力消耗 = 引擎 calculate_damage 的换算（gakumas_exam_rs/src/exam.rs）：×(1-減少)、×(1+増加)、向上取整、再减「消費体力削減」。
+
+    系统记卡面原始消耗、另外读状态交给引擎换算；画面显示换算后的数，所以打分时按同一规则换算后再比。"""
+    names = {s.get("name") for s in statuses}
+    x = float(base)
+    if "消費体力減少" in names:
+        x *= (1000 - _STAMINA_DOWN) / 1000
+    if "消費体力増加" in names:
+        x *= (1000 + _STAMINA_ADD) / 1000
+    v = math.ceil(x - 1e-9)
+    fix = sum(s.get("value") or 0 for s in statuses if s.get("name") == "消費体力削減")
+    return max(0, v - fix) if fix >= 1 else v
+
+
 def _exam(f: dict) -> dict:
     scores = list(f.get("npc_scores") or [])
     if f.get("my_score") is not None and f.get("my_rank_index"):  # 选拔和本战的顶部排名条都包含自己的分数
         scores.insert(max(0, int(f["my_rank_index"]) - 1), f["my_score"])
     hand = []
     for h in sorted(f.get("hand") or [], key=lambda h: h.get("slot", 0)):
+        sts = f.get("statuses") or []
         if h.get("genki_cost") is not None:
-            ct, c = "green_heart", h["genki_cost"]
+            ct, c = "green_heart", _shown_cost(h["genki_cost"], sts)
         elif h.get("hp_cost") is not None:
-            ct, c = "red_heart", h["hp_cost"]
+            ct, c = "red_heart", _shown_cost(h["hp_cost"], sts)
         elif h.get("extra_cost") is not None:
             ct, c = "buff", h["extra_cost"]
         else:

@@ -161,3 +161,14 @@ def test_plus_hidden_by_stacking_is_not_scored():
     truth = {"hand": [{"name": "あのときの", "plus": None}]}
     got = {"hand": [{"name": "あのときの約束", "plus": False}]}
     assert {r["path"]: r["result"] for r in se.score_frame("exam", truth, got)} == {"hand[0].name": "对"}
+
+
+def test_hand_cost_is_compared_after_engine_conversion():
+    """画面显示的是按状态换算后的消耗：消費体力減少 ×0.5 向上取整、消費体力増加 ×2、再减 消費体力削減（引擎 calculate_damage）。"""
+    raw = {**EXAM_RAW, "statuses": [{"slot": 0, "name": "消費体力減少", "value": 3}, {"slot": 1, "name": "消費体力削減", "value": 1}],
+           "hand": [{"slot": 0, "name": "成長痛++", "genki_cost": 4}, {"slot": 1, "name": "距離感の基本", "hp_cost": 3},
+                    {"slot": 2, "name": "きらきら紙吹雪+", "extra_cost": 2}]}  # fmt: skip
+    got = se.adapt("exam", raw)
+    assert [h["cost"] for h in got["hand"]] == [1, 1, 2]  # 4→2→1、3→2→1；buff 消耗不受体力状态影响
+    up = se.adapt("exam", {**raw, "statuses": [{"slot": 0, "name": "消費体力増加", "value": 1}]})
+    assert [h["cost"] for h in up["hand"]] == [8, 6, 2]
