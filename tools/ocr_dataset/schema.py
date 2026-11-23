@@ -16,7 +16,8 @@ import sys
 from pathlib import Path
 
 SCHEMA_VERSION = 1  # 旧的框级标注（第一批 302 帧），第 3 步重建后停用
-SCHEMA_FIELDS = 2  # 字段真值（规格 2026-11-23-recognition-dataset-fields-design.md §4）
+SCHEMA_FIELDS = 2  # 字段真值（规格 2026-11-23-recognition-dataset-fields-design.md §4），已被 v3 取代
+SCHEMA_SCENARIO = 3  # 场景真值（规格 2026-11-23-recognition-dataset-scenarios-design.md §4）
 SETS = ("core", "hard")
 NATIVE_SUFFIX = ".native.png"  # 帧旁边可选的原生分辨率截图 <id>.native.png
 IMAGE_EXT = (".png", ".jpg", ".jpeg")
@@ -51,8 +52,8 @@ def validate_frame(d) -> list[str]:
     if not isinstance(d, dict):
         return ["标注不是 JSON 对象"]
     errs: list[str] = []
-    if d.get("schema") not in (SCHEMA_VERSION, SCHEMA_FIELDS):
-        errs.append(f"schema 应为 {SCHEMA_FIELDS}（字段真值）或 {SCHEMA_VERSION}（旧的框级标注）")
+    if d.get("schema") not in (SCHEMA_VERSION, SCHEMA_FIELDS, SCHEMA_SCENARIO):
+        errs.append(f"schema 应为 {SCHEMA_SCENARIO}（场景真值）、{SCHEMA_FIELDS}（字段真值）或 {SCHEMA_VERSION}（旧的框级标注）")
     for k in ("id", "image", "sha256", "page"):
         if not isinstance(d.get(k), str) or not d.get(k):
             errs.append(f"缺 {k}（非空字符串）")
@@ -69,6 +70,8 @@ def validate_frame(d) -> list[str]:
             errs.append("platform.native 应为 [宽, 高] 或 null")
     if d.get("schema") == SCHEMA_FIELDS:
         return errs + _validate_truth(d)
+    if d.get("schema") == SCHEMA_SCENARIO:
+        return errs + _validate_scenario(d)
     boxes = d.get("boxes")
     if not isinstance(boxes, list):
         return errs + ["缺 boxes（列表）"]
@@ -107,6 +110,31 @@ def _validate_truth(d: dict) -> list[str]:
     st = d.get("field_status", {})
     if not isinstance(st, dict) or any(v not in STATUSES for v in st.values()):
         errs.append(f"field_status 应为 {{字段路径: {STATUSES} 之一}}")
+    return errs
+
+
+def _scenario_ids() -> set[str] | None:
+    """同目录的 scenarios.json 里的场景名（数据仓库里 tools/validate.py 旁边也放一份）；没有就不查场景名。"""
+    p = Path(__file__).with_name("scenarios.json")
+    if not p.is_file():
+        return None
+    return {k for k in json.loads(p.read_text(encoding="utf-8")) if not k.startswith("_")}
+
+
+def _validate_scenario(d: dict) -> list[str]:
+    errs = []
+    ids = _scenario_ids()
+    if not isinstance(d.get("scenario"), str) or (ids is not None and d["scenario"] not in ids):
+        errs.append(f"scenario 应为场景定义里的名字（{sorted(ids) if ids else '?'}）")
+    if not isinstance(d.get("truth"), dict):
+        errs.append("truth 应为对象")
+    st = d.get("item_status", {})
+    if not isinstance(st, dict) or any(v not in STATUSES for v in st.values()):
+        errs.append(f"item_status 应为 {{信息项路径: {STATUSES} 之一}}")
+    for i, b in enumerate(d.get("buttons") or []):
+        box = b.get("box") if isinstance(b, dict) else "x"
+        if not isinstance(b, dict) or not isinstance(b.get("label"), str) or not (box is None or (isinstance(box, list) and len(box) == 4 and all(_is_int(v) for v in box))):
+            errs.append(f"buttons[{i}] 应为 {{label: 文字, box: [x1, y1, x2, y2] 或 null}}")
     return errs
 
 
@@ -169,6 +197,7 @@ def init(root: str | Path) -> Path:
         ".github/workflows/validate.yml": SKELETON / "validate.yml",
         "schema/frame.schema.json": Path(__file__).with_name("frame.schema.json"),
         "tools/validate.py": Path(__file__),
+        "tools/scenarios.json": Path(__file__).with_name("scenarios.json"),
     }
     for rel, src in files.items():
         dst = root / rel

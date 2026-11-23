@@ -86,7 +86,8 @@ def _bool(v):
 def _value(spec: dict, v):
     t = spec["type"]
     if t == "int":
-        return _int(v)
+        n = _int(v)
+        return abs(n) if n is not None and spec.get("abs") else n
     if t == "text":
         return _text(v)
     if t == "bool":

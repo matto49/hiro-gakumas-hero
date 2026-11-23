@@ -108,3 +108,8 @@ def test_cli_init_and_validate(tmp_path):
 def test_init_ignores_local_work_dir(tmp_path):
     root = schema.init(tmp_path / "ds")
     assert ".work/" in (root / ".gitignore").read_text(encoding="utf-8").split()
+
+
+def test_init_ships_scenarios_next_to_validator(tmp_path):
+    root = schema.init(tmp_path / "ds")
+    assert (root / "tools" / "scenarios.json").is_file() and (root / "tools" / "validate.py").is_file()

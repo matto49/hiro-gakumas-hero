@@ -26,12 +26,12 @@ def test_prompt_lists_every_item_and_forbids_guessing():
 
 def test_normalize_coerces_types():
     raw = {"turns_left": "9", "exam_attr": "Vocal", "multiplier_pct": "2,805%", "top_scores": ["403,729", 303833],
-           "hp": 27, "genki": "0", "hand": [{"name": " 気まぐれハート ", "plus": "true", "cost_type": "GENKI", "cost": "1"}],
+           "hp": 27, "genki": "0", "hand": [{"name": " 気まぐれハート ", "plus": "true", "cost_type": "GREEN_HEART", "cost": "1"}],
            "selected_preview": None, "status_values": ["6", "1回"], "unknown_key": 1}  # fmt: skip
     got = scenario.normalize("exam", raw)
     assert got["turns_left"] == 9 and got["exam_attr"] == "vocal" and got["multiplier_pct"] == 2805
     assert got["top_scores"] == [403729, 303833] and got["genki"] == 0
-    assert got["hand"] == [{"name": "気まぐれハート", "plus": True, "cost_type": "genki", "cost": 1}]
+    assert got["hand"] == [{"name": "気まぐれハート", "plus": True, "cost_type": "green_heart", "cost": 1}]
     assert got["selected_preview"] is None and got["status_values"] == [6, 1]
     assert "unknown_key" not in got and "deck_left" not in got  # 没给的项不补
 
@@ -48,3 +48,8 @@ def test_merge_two_answers():
     assert truth["turns_left"] == 9 and truth["hand"][0]["name"] == "イメトレ"
     assert status == {"hp": "disputed", "hand[1].name": "disputed", "hand[1].plus": "disputed"}
     assert truth["hp"] == 27  # 待定项先填第一方的读法
+
+
+def test_abs_fields_drop_sign():
+    got = scenario.normalize("exam", {"hand": [{"name": "a", "plus": False, "cost_type": "hp", "cost": "-2"}]})
+    assert got["hand"][0]["cost"] == 2
