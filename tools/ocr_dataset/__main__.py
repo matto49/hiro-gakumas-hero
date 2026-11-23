@@ -49,7 +49,22 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("review", help="待定框核对页；--apply 把导出的答案写回")
     p.add_argument("--dataset")
     p.add_argument("--apply", metavar="ANSWERS_JSON", help="review 页或抽查页导出的 JSON")
+    p = sub.add_parser("eval", help="评测 OCR 后端，报告写到 reports/")
+    p.add_argument("--backend", default="rapidocr", help="逗号分隔：vision / rapidocr / winocr / ppocr5 / simd（装了 PR #9 时）/ rapidocr+charset")
+    p.add_argument("--set", default="core", choices=schema.SETS)
+    p.add_argument("--tags", default="", help="platform=dmm540,page=CONSULT")
+    p.add_argument("--compare", help="上一份报告的 JSON")
+    p.add_argument("--name", default="eval", help="报告文件名后缀")
+    p.add_argument("--dataset")
     a = ap.parse_args(argv)
+    if a.cmd == "eval":
+        from tools.ocr_dataset import eval as ev
+
+        tags = dict(kv.split("=", 1) for kv in a.tags.split(",") if "=" in kv)
+        md, js = ev.main(dataset_root(a.dataset), [b.strip() for b in a.backend.split(",") if b.strip()], a.set, tags, a.compare, a.name)
+        print(md.read_text(encoding="utf-8").split("## 按")[0])
+        print(f"→ {md}\n→ {js}")
+        return 0
     if a.cmd == "review":
         from tools.ocr_dataset import review
 
