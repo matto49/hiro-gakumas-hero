@@ -249,13 +249,25 @@ def _unit_label(img: MatLike, k: int) -> str | None:
 VALUE_UNIT = re.compile(r"(\d+)(ターン|回|%)")
 
 
+BRIGHT_BG_MIN = 0.15  # 数值框里白色像素占比：深色背景 0.03–0.13；天空 / 浅色石地上 0.19–0.95
+
+
+def _bright_behind(img: MatLike, k: int) -> bool:
+    """数值框背景很亮：数字的白色填充和背景连成一片，字体比对会判成「框里没字」（识别测试集进阶集 やる気 98 等 9 格），这时「没字」不可信。"""
+    from hiro.vision.digits import WHITE
+
+    cy = _slot_y(k)
+    box = img[cy + 2 : cy + 32, SLOT_X + 12 : SLOT_X + 60]
+    return box.size > 0 and cv2.inRange(cv2.cvtColor(box, cv2.COLOR_BGR2HSV), *WHITE).mean() / 255 >= BRIGHT_BG_MIN
+
+
 def _value(img: MatLike, k: int, kind: str, card_id: str | None = None) -> tuple[int | None, str | None]:
     """数值用游戏字体比对，「%」由紧跟数字的小圈认出；卡牌效果槽的「ターン / 回」按卡缓存，首次用 Apple Vision 读。
     字体比对没把握时（数字被特效遮住、状态槽数字后跟着认不出的字）退回 ddddocr + Apple Vision。"""
     cy = _slot_y(k)
     region, x0, y0 = _masked_region(img, k)
     value, suffix = read_leading_int(region, (SLOT_X + 12 - x0, cy + 2 - y0, SLOT_X + 60 - x0, cy + 32 - y0))
-    if value is None and suffix == "empty":
+    if value is None and suffix == "empty" and not _bright_behind(img, k):
         return None, None  # 常驻效果（エウレカ！等）不显示数值
     if value is not None and suffix in (None, "%"):
         return value, suffix
