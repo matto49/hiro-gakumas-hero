@@ -17,6 +17,7 @@ import cv2
 from tools.ocr_dataset import label, schema
 
 CONTEXT_PAD = (90, 60)  # 上下文图在框外多取的 (x, y)
+CONTEXT_SCALE = 2  # 上下文图放大倍数（原尺寸只有约 200 像素宽，看不清）
 
 REVIEW_JS = """
 function pick(btn){const it=btn.closest('.item');it.querySelector('input[type=text]').value=btn.dataset.v;mark(it,'text')}
@@ -45,7 +46,9 @@ def _context(img, box):
     px, py = CONTEXT_PAD
     x1, y1, x2, y2 = max(0, box[0] - px), max(0, box[1] - py), min(w, box[2] + px), min(h, box[3] + py)
     c = img[y1:y2, x1:x2].copy()
-    cv2.rectangle(c, (box[0] - x1, box[1] - y1), (box[2] - x1, box[3] - y1), (0, 0, 255), 2)
+    c = cv2.resize(c, None, fx=CONTEXT_SCALE, fy=CONTEXT_SCALE, interpolation=cv2.INTER_CUBIC)
+    s = CONTEXT_SCALE
+    cv2.rectangle(c, (int((box[0] - x1) * s), int((box[1] - y1) * s)), (int((box[2] - x1) * s), int((box[3] - y1) * s)), (0, 0, 255), 2)
     return c
 
 
@@ -64,7 +67,7 @@ def _item(s: str, fr: dict, b: dict, img) -> str:
         f'<div class="item" data-frame="{e(fr["id"])}" data-set="{s}" data-box="{b["id"]}">'
         f'<div class="meta">{e(fr["id"])} #{b["id"]} · 页面 {e(fr.get("page") or "")} · {b["tags"]["type"]} · 框 {b["box"]}</div>'
         f'<img src="data:image/png;base64,{label._png_b64(crop)}">'
-        f'<img src="data:image/png;base64,{label._png_b64(_context(img, b["box"]))}" style="max-width:600px">'
+        f'<img src="data:image/png;base64,{label._png_b64(_context(img, b["box"]))}" style="max-width:720px">'
         f'<div class="ans">{"".join(buttons)}</div>'
         f'<input type="text" value="{e(b.get("text") or "")}" placeholder="手填正确文字"> '
         f'<button onclick="ign(this)">忽略（装饰字 / 读不出 / 不是字）</button></div>'
