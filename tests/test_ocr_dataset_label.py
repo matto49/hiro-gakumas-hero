@@ -381,3 +381,31 @@ def test_run_stops_queued_frames_on_keyboard_interrupt(tmp_path):
     with pytest.raises(KeyboardInterrupt):
         label.run(ds, inbox, readers=rd, lex=LEX, pad=0, workers=1)
     assert rd.llm_calls <= 2
+
+
+def test_reask_rereads_llm_for_multi_sheet_frames(tmp_path, monkeypatch):
+    ds, inbox = _dataset(tmp_path)
+
+    class Split(FakeReaders):
+        def read_llm(self, img, boxes):
+            return ["", "4,680", "絹成"]
+
+    label.run(ds, inbox, readers=Split(), lex=LEX, pad=0)
+    p = ds / "core" / "dmm540-r-00001.json"
+    fr = json.loads(p.read_text(encoding="utf-8"))
+    fr["boxes"][2]["answers"]["llm2"] = "x"
+    p.write_text(json.dumps(fr, ensure_ascii=False), encoding="utf-8")
+
+    class Again:
+        name = "claude"
+        calls = 0
+
+        def read_llm(self, img, boxes):
+            Again.calls += 1
+            return ["", "4,680", "編成"]
+
+    assert label.reask(ds, Again(), lex=LEX, multi_sheet_only=True)["frames"] == 0  # 一张图放得下：不重问
+    got = label.reask(ds, Again(), lex=LEX, multi_sheet_only=False)
+    assert got["frames"] == 1 and Again.calls == 1
+    b = json.loads(p.read_text(encoding="utf-8"))["boxes"][2]
+    assert b["answers"]["llm"] == "編成" and "llm2" not in b["answers"] and b["status"] == "agreed"

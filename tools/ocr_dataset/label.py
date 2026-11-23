@@ -200,6 +200,50 @@ def adjudicate(dataset: str | Path, reader, lex: Lexicon | None = None, workers:
     return {"frames": asked, "changed": changed, "disputed": len(rebuild_disputed(root))}
 
 
+def reask(dataset: str | Path, reader, lex: Lexicon | None = None, multi_sheet_only: bool = True, pad: int = PAD,
+          workers: int = 1, log: Callable[[str], None] = print) -> dict[str, int]:  # fmt: skip
+    """重新问一遍 LLM（每帧一次）：换掉 answers.llm、清掉 llm2（之后要重新 adjudicate），再按 decide 重判；人看过的框不动。
+    multi_sheet_only：只重问拼图超过一张的帧（修编号错位 bug 之前标的帧，第二张起的答案不可信）。"""
+    root = Path(dataset)
+    lex = lex or _load_lexicon(root)
+    jobs = []
+    for s in schema.SETS:
+        for js in sorted((root / s).glob("*.json")) if (root / s).is_dir() else []:
+            fr = json.loads(js.read_text(encoding="utf-8"))
+            if not fr.get("boxes"):
+                continue
+            img = cv2.imread(str(root / s / fr["image"]))
+            if multi_sheet_only and len(crop_sheets(img, [b["box"] for b in fr["boxes"]], pad)) <= 1:
+                continue
+            jobs.append((js, fr, img))
+    pool = ThreadPoolExecutor(max(1, workers))
+    asked = changed = 0
+    try:
+        futs = [(j, pool.submit(reader.read_llm, j[2], [b["box"] for b in j[1]["boxes"]])) for j in jobs]
+        for k, ((js, fr, _), fut) in enumerate(futs, 1):
+            try:
+                texts = fut.result()
+            except Exception as e:  # noqa: BLE001
+                log(f"[{k}/{len(jobs)}] {fr['id']} 重问失败：{type(e).__name__}: {e}")
+                continue
+            asked += 1
+            for b, t in zip(fr["boxes"], texts):
+                if b.get("reviewed") or b.get("status") == "resolved":
+                    continue
+                b["answers"]["llm"] = t
+                b["answers"].pop("llm2", None)
+                text, status = decide(b["answers"], lex)
+                changed += status != b["status"]
+                b["text"], b["status"], b["ignore"] = text, status, status == "ignored"
+            js.write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
+            log(f"[{k}/{len(jobs)}] {fr['id']}：重问 {len(texts)} 框")
+    except BaseException:
+        pool.shutdown(wait=False, cancel_futures=True)
+        raise
+    pool.shutdown()
+    return {"frames": asked, "changed": changed, "disputed": len(rebuild_disputed(root))}
+
+
 def redecide(dataset: str | Path, lex: Lexicon | None = None) -> dict[str, int]:
     """规则改了以后，用帧里存的各方答案重新定 status / 文字（不重新识别、不问 LLM）；人看过的框（有 reviewed）不动。"""
     root = Path(dataset)

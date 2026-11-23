@@ -47,6 +47,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dataset")
     p.add_argument("--llm2", default="codex")
     p.add_argument("--workers", type=int, default=2)
+    p = sub.add_parser("reask", help="重新问一遍 LLM（缺省只问拼图超过一张的帧），之后再跑 adjudicate")
+    p.add_argument("--dataset")
+    p.add_argument("--llm", default=None, help="缺省 HIRO_LLM，再缺省 claude:opus")
+    p.add_argument("--all", action="store_true", help="所有帧都重问")
+    p.add_argument("--workers", type=int, default=2)
     p = sub.add_parser("redecide", help="规则改了以后用已存的答案重新定 status（不重新识别）")
     p.add_argument("--dataset")
     p = sub.add_parser("spot-check", help="从 agreed 框里随机抽查，生成本地核对页")
@@ -104,6 +109,13 @@ def main(argv: list[str] | None = None) -> int:
 
         st = label.adjudicate(dataset_root(a.dataset), label.RealReaders(a.llm2), workers=a.workers)
         print(f"看了 {st['frames']} 帧，改判 {st['changed']} 个；剩余待定 {st['disputed']} 个")
+        return 0
+    if a.cmd == "reask":
+        from tools.ocr_dataset import label
+
+        st = label.reask(dataset_root(a.dataset), label.RealReaders(a.llm or os.environ.get("HIRO_LLM") or "claude:opus"),
+                         multi_sheet_only=not a.all, workers=a.workers)  # fmt: skip
+        print(f"重问 {st['frames']} 帧，改判 {st['changed']} 个；剩余待定 {st['disputed']} 个（接着跑 adjudicate）")
         return 0
     if a.cmd == "redecide":
         from tools.ocr_dataset import label
