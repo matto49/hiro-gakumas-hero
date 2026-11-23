@@ -101,3 +101,58 @@ def ingest(dataset: str | Path, sid: str, labeled_dir: str | Path, detect) -> di
         (core / f"{meta['id']}.json").write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
         written += 1
     return {"written": written, "buttons_missing": missing}
+
+
+def _spec_for(sid: str, path: str) -> dict | None:
+    """信息项路径（hand[0].cost、hp、actions[休む].hp_change）→ 场景定义里这一项 / 子项的类型说明。"""
+    import re
+
+    from tools.ocr_dataset import scenario
+
+    parts = re.sub(r"\[[^\]]*\]", "", path).split(".")
+    item = next((it for it in scenario.load()[sid]["items"] if it["key"] == parts[0]), None)
+    if item is None or len(parts) == 1:
+        if item is not None and item["type"] == "list" and "fields" not in item and "[" in path:
+            return {"type": item.get("item", "text")}
+        return item
+    return next((f for f in item.get("fields", []) if f["key"] == parts[1]), None)
+
+
+def apply_answers(dataset: str | Path, comments: list[dict]) -> dict[str, int]:
+    """核对页上的「定答案」意见（kind = 定答案，field = 信息项路径，text = 值）写回帧的真值：同一项以最后提交的为准；
+    值先按 JSON 解析（一键取 Claude / Codex 时是 JSON），不是 JSON 就当手填的文字，再按场景定义的类型归一。写回的项记 resolved。"""
+    import time as _time
+
+    from tools.ocr_dataset import scenario
+
+    root = Path(dataset)
+    latest: dict[tuple[str, str], dict] = {}
+    for c in sorted((c for c in comments if c.get("kind") == "定答案" and c.get("field") and not c.get("deleted")), key=lambda c: c.get("created", 0)):
+        latest[(c["target"], c["field"])] = c
+    applied = missing = 0
+    by_frame: dict[str, list[dict]] = {}
+    for (fid, _), c in latest.items():
+        by_frame.setdefault(fid, []).append(c)
+    for fid, cs in by_frame.items():
+        js = root / "core" / f"{fid}.json"
+        if not js.is_file():
+            missing += len(cs)
+            continue
+        fr = json.loads(js.read_text(encoding="utf-8"))
+        sid = fr["scenario"]
+        for c in cs:
+            spec = _spec_for(sid, c["field"])
+            if spec is None:
+                missing += 1
+                continue
+            try:
+                raw = json.loads(c["text"])
+            except ValueError:
+                raw = c["text"]
+            value = scenario._value(spec, raw)
+            scenario._set(fr["truth"], c["field"], value)
+            fr.setdefault("item_status", {})[c["field"]] = "resolved"
+            fr.setdefault("reviewed", {})[c["field"]] = _time.strftime("%Y-%m-%d")
+            applied += 1
+        js.write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
+    return {"applied": applied, "missing": missing}

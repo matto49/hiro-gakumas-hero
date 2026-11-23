@@ -63,3 +63,27 @@ def test_ingest_writes_frames_from_labeled_runs(tmp_path):
     assert fr["scenario"] == "exam" and fr["buttons"] == [{"label": "SKIP", "box": [560, 760, 640, 820]}]
     assert (ds / "core" / "mac-x-00001.jpg").is_file() and not img.exists()  # 图片跟着帧进 core
     assert schema.validate_dir(ds) == []
+
+
+def test_apply_final_answers(tmp_path):
+    ds = schema.init(tmp_path / "ds")
+    cv2.imwrite(str(ds / "core" / "dmm-r-00001.jpg"), np.zeros((1280, 720, 3), np.uint8))
+    fr = {"schema": 3, "id": "dmm-r-00001", "image": "dmm-r-00001.jpg", "sha256": schema.sha256(ds / "core" / "dmm-r-00001.jpg"),
+          "source": {"run": "r", "seq": 1}, "platform": {"kind": "dmm", "stored": [720, 1280]}, "page": "HIF_EXAM", "scenario": "exam",
+          "truth": {"hand": [{"name": "デイドリーミンク", "cost": None}], "hp": 27},
+          "item_status": {"hand[0].name": "disputed", "hand[0].cost": "disputed", "hp": "disputed"}, "buttons": []}  # fmt: skip
+    (ds / "core" / "dmm-r-00001.json").write_text(json.dumps(fr, ensure_ascii=False), encoding="utf-8")
+    comments = [
+        {"id": "1", "target": "dmm-r-00001", "field": "hand[0].name", "kind": "定答案", "text": '"デイドリーミング"', "created": 1},
+        {"id": "2", "target": "dmm-r-00001", "field": "hand[0].name", "kind": "定答案", "text": '"デイドリーミンク"', "created": 2},  # 后提交的为准
+        {"id": "3", "target": "dmm-r-00001", "field": "hand[0].cost", "kind": "定答案", "text": "1", "created": 3},
+        {"id": "4", "target": "dmm-r-00001", "field": "hp", "kind": "定答案", "text": "21 吧", "created": 4},  # 手填的非 JSON：按类型取数字
+        {"id": "5", "target": "dmm-r-00001", "field": "hp", "kind": "其他", "text": "随便说说", "created": 5},  # 不是定答案：不动
+        {"id": "6", "target": "nope", "field": "hp", "kind": "定答案", "text": "1", "created": 6},
+    ]
+    got = st.apply_answers(ds, comments)
+    assert got == {"applied": 3, "missing": 1}
+    fr = json.loads((ds / "core" / "dmm-r-00001.json").read_text(encoding="utf-8"))
+    assert fr["truth"]["hand"][0] == {"name": "デイドリーミンク", "cost": 1} and fr["truth"]["hp"] == 21
+    assert fr["item_status"] == {"hand[0].name": "resolved", "hand[0].cost": "resolved", "hp": "resolved"}
+    assert schema.validate_dir(ds) == []
