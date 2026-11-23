@@ -71,7 +71,7 @@
     "key": "hand",
     "type": "list",
     "importance": "高",
-    "desc": "下方手牌，从左到右每张一项",
+    "desc": "画面最下方手牌栏里的牌，从左到右每张一项；正在打出、被抬到画面中间的那张不算手牌（写在 playing_name）",
     "fields": [
      {
       "key": "name",
@@ -104,6 +104,18 @@
       "derivable": true
      }
     ]
+   },
+   {
+    "key": "playing_name",
+    "type": "text",
+    "importance": "中",
+    "desc": "正在打出、被抬到画面中间的那张牌的卡名（不含末尾的「+」）；没有写 null"
+   },
+   {
+    "key": "playing_plus",
+    "type": "bool",
+    "importance": "中",
+    "desc": "正在打出的那张牌卡名末尾有没有「+」；没有在打出的牌写 null"
    },
    {
     "key": "selected_preview",

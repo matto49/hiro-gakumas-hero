@@ -56,8 +56,31 @@ def test_backfill_items_updates_truth_only_for_those_keys(tmp_path):
           "item_status": {"hp": "resolved"}, "answers": {"claude": {"items": {"turns_left": 3}}, "codex": {"items": {"turns_left": 3}}}}  # fmt: skip
     (ds / "core" / "a.json").write_text(json.dumps(fr), encoding="utf-8")
     readers = {"claude": MockLLM(replies=[{"items": {"extra_turns": 1}, "buttons": []}]), "codex": MockLLM(replies=[{"items": {"extra_turns": 2}, "buttons": []}])}
-    assert sl.backfill(ds, "core", "exam", ["extra_turns"], readers) == {"frames": 1, "disputed": 1}
+    assert sl.backfill(ds, "core", "exam", ["extra_turns"], readers) == {"frames": 1, "disputed": 1, "dropped_reviewed": []}
     got = json.loads((ds / "core" / "a.json").read_text(encoding="utf-8"))
     assert got["truth"] == {"turns_left": 3, "hp": 9, "extra_turns": 1}
     assert got["item_status"] == {"hp": "resolved", "extra_turns": "disputed"}
     assert got["answers"]["codex"]["items"] == {"turns_left": 3, "extra_turns": 2}
+
+
+def test_backfill_replaces_list_items_and_reports_dropped_human_answers(tmp_path):
+    """重定义「手牌」后补问：整列换成新读法，旧的状态（包括人定过的）清掉，并报告哪些帧的人工答案被清了。"""
+    import json
+
+    import cv2
+
+    from tools.ocr_dataset import schema
+
+    ds = schema.init(tmp_path / "ds")
+    cv2.imwrite(str(ds / "core" / "a.jpg"), np.zeros((20, 20, 3), np.uint8))
+    fr = {"schema": 3, "id": "a", "image": "a.jpg", "scenario": "exam",
+          "truth": {"hand": [{"name": "x"}, {"name": "成長痛"}, {"name": "えいえいおー"}], "hp": 9},
+          "item_status": {"hand[1].name": "resolved", "hp": "resolved"}, "reviewed": {"hand[1].name": "2026-11-23", "hp": "2026-11-23"}}  # fmt: skip
+    (ds / "core" / "a.json").write_text(json.dumps(fr, ensure_ascii=False), encoding="utf-8")
+    item = {"items": {"hand": [{"name": "x", "plus": False}, {"name": "えいえいおー", "plus": True}], "playing_name": "成長痛", "playing_plus": True}, "buttons": []}
+    readers = {"claude": MockLLM(replies=[item]), "codex": MockLLM(replies=[item])}
+    got = sl.backfill(ds, "core", "exam", ["hand", "playing_name", "playing_plus"], readers)
+    assert got == {"frames": 1, "disputed": 0, "dropped_reviewed": ["a"]}
+    fr = json.loads((ds / "core" / "a.json").read_text(encoding="utf-8"))
+    assert [h["name"] for h in fr["truth"]["hand"]] == ["x", "えいえいおー"] and fr["truth"]["playing_name"] == "成長痛"
+    assert fr["item_status"] == {"hp": "resolved"} and fr["reviewed"] == {"hp": "2026-11-23"}

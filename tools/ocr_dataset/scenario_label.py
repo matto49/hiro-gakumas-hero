@@ -48,6 +48,7 @@ def backfill(dataset, set_: str, sid: str, keys: list[str], readers: dict, log=p
 
     root = Path(dataset) / set_
     frames = disputed = 0
+    dropped: list[str] = []
     for js in sorted(root.glob("*.json")):
         fr = json.loads(js.read_text(encoding="utf-8"))
         if fr.get("schema") != 3 or fr.get("scenario") != sid:
@@ -58,9 +59,16 @@ def backfill(dataset, set_: str, sid: str, keys: list[str], readers: dict, log=p
             log(f"{fr['id']} 补问失败：{e}")
             continue
         st = fr.setdefault("item_status", {})
-        for p in list(st):
-            if p.split("[")[0].split(".")[0] in keys and st[p] == "disputed":
-                del st[p]
+        rv = fr.get("reviewed") or {}
+        mine = lambda p: p.split("[")[0].split(".")[0] in keys  # noqa: E731
+        if any(mine(p) for p in rv):
+            dropped.append(fr["id"])  # 这几项整列重读，旧的人工答案位置可能对不上了：清掉并报告
+        for p in [p for p in st if mine(p)]:
+            del st[p]
+        for p in [p for p in rv if mine(p)]:
+            del rv[p]
+        for k in keys:
+            fr["truth"].pop(k, None)
         fr["truth"].update(r["truth"])
         for p, s in r["item_status"].items():
             st[p] = s
@@ -70,4 +78,4 @@ def backfill(dataset, set_: str, sid: str, keys: list[str], readers: dict, log=p
         js.write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
         frames += 1
         log(f"{fr['id']}：补问 {keys} → {r['truth']}")
-    return {"frames": frames, "disputed": disputed}
+    return {"frames": frames, "disputed": disputed, "dropped_reviewed": dropped}
