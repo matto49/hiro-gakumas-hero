@@ -185,7 +185,7 @@ python -m tools.ocr_dataset eval --backend rapidocr,simd,rapidocr+charset --set 
 ## 8. 交付顺序
 
 1. 数据仓库骨架（目录、schema、CONTRIBUTING、CI 校验）。
-2. `pick` + 第一批精筛（104 张 DMM 帧 + Windows DMM trace + Mac 对照）。
+2. `pick` + 第一批精筛（104 张 DMM 帧 + Windows DMM trace（Mac 上的 `feat_matto_oss_windows/traces` 和 Windows 上 `hiro-w4` 的 traces）+ Mac 对照）。
 3. `label`（三方答案 + 词表吸附）+ `review` 页；跑完第一批，处理待定框。
 4. `eval`（含 `rapidocr+charset` 实验后端）+ 第一份报告：PP-OCRv3 / PR #9 SIMD / PP-OCRv3 + 字表，按场景出表。
 5. 主仓库 `run.json` 补元信息 + `HIRO_TRACE_NATIVE` 开关。
@@ -197,6 +197,6 @@ python -m tools.ocr_dataset eval --backend rapidocr,simd,rapidocr+charset --set 
 - 9.2 去重阈值、分层抽样的 N / K、进阶集的「高失败」阈值：先按上面的值跑，看第一批的分布再调。
 - 9.3 词表来源：KAA 主数据（卡、饮料、P 道具、偶像、支援卡的名字）+ 识别代码里的界面文字常量（按钮、标题、危险词）；生成时记主数据版本。
 - 9.4 PR #9 的 SIMD 后端（分支 `nvidiaowner:feat/simd-paddle-ocr`，`HIRO_OCR=simd`）要在 Windows 上编译 .NET 辅助程序才能跑，
-  Mac 上跑不了：在能连上的那台 Windows 上跑 `eval`，数据仓库在那边 clone（LFS 一起拉）。Windows 暂时连不上时，第一份报告先出
-  PP-OCRv3 和 PP-OCRv3 + 字表两列，SIMD 那列跑完补进同一份报告（我定的）。另外要先核实 PR 里「PP-OCRv6」模型的来历和许可。
+  Mac 上跑不了：在那台 Windows（`C:\Users\matto\hiro-w4`，DMM 实战的 trace 也在这里）上编译、跑 `eval`，数据仓库在那边 clone（LFS 一起拉）；
+  第一份报告三列一起出（你确认 Windows 能连）。另外要先核实 PR 里「PP-OCRv6」模型的来历和许可。
 - 9.5 `review` 页的样子：能用就行，不做设计稿。
