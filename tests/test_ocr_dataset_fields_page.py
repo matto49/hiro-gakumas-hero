@@ -36,3 +36,11 @@ def test_page_lists_truth_fields_reads_and_comment_hooks(tmp_path):
     assert html.count('class="bad"') == 2  # rapidocr 的分数和卡读错
     assert 'class="crit"' in html  # 高代价字段有标记
     assert "api/comments" in html and "data:image/jpeg;base64," in html
+
+
+def test_page_can_link_images_as_files(tmp_path):
+    ds, reads = _ds(tmp_path)
+    out = fields_page.build(ds, reads, names=lambda *a: None, out=tmp_path / "site" / "index.html", image_files=True)
+    html = out.read_text(encoding="utf-8")
+    assert 'src="img/dmm-r-00001.jpg"' in html and 'loading="lazy"' in html and "base64" not in html
+    assert (tmp_path / "site" / "img" / "dmm-r-00001.jpg").is_file()

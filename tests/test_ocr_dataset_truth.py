@@ -61,3 +61,9 @@ def test_compare_lists_missing_and_extra():
 def test_compare_got_none_marks_all_wrong():
     rows = truth.compare({"a": 1, "b": 2}, None)
     assert [r.ok for r in rows] == [False, False]
+
+
+def test_compare_missing_equals_none():
+    """读数取稳定项时会丢掉值为 None 的键：真值是 None、读数里没有这个键，算对。"""
+    rows = truth.compare({"statuses": [{"card_id": None, "value": 3}]}, {"statuses": [{"value": 3}]})
+    assert [(r.path, r.ok) for r in rows] == [("statuses[0].card_id", True), ("statuses[0].value", True)]

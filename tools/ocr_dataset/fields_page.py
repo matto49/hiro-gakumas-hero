@@ -65,17 +65,31 @@ def _show(v) -> str:
     return html.escape(v if isinstance(v, str) else json.dumps(v, ensure_ascii=False))
 
 
-def _img(path: Path, width: int = 540) -> str:
+def _jpg(path: Path, width: int = 540) -> bytes:
     img = cv2.imread(str(path))
     if img is None:
-        return ""
+        return b""
     img = cv2.resize(img, (width, int(img.shape[0] * width / img.shape[1])), interpolation=cv2.INTER_AREA)
     ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 82])
-    return base64.b64encode(buf.tobytes()).decode()
+    return buf.tobytes()
 
 
-def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = None, names: Callable | None = None, set_: str = "core") -> Path:
+def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = None, names: Callable | None = None, set_: str = "core",
+          image_files: bool = False) -> Path:  # fmt: skip
+    """image_files：图片另存到页面旁边的 img/（懒加载，部署用）；否则内嵌 base64（单文件，本地看）。"""
     root = Path(dataset)
+    out = Path(out) if out else root / ".work" / "fields.html"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if image_files:
+        (out.parent / "img").mkdir(exist_ok=True)
+
+    def img_src(fr: dict) -> str:
+        data = _jpg(root / set_ / fr["image"])
+        if image_files:
+            (out.parent / "img" / f"{fr['id']}.jpg").write_bytes(data)
+            return f'img/{e(fr["id"])}.jpg" loading="lazy'
+        return "data:image/jpeg;base64," + base64.b64encode(data).decode()
+
     names = names or default_names
     backends = list(reads)
     e = html.escape
@@ -96,7 +110,7 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
             bad_any = False
             for b in backends:
                 g = got[b].get(path)
-                ok = path in got[b] and g == want
+                ok = (path in got[b] and g == want) or (want is None and g is None)  # 同 truth.compare：真值 None、读数没这个键算对
                 bad_any |= not ok
                 cells.append(f'<td class="{"ok" if ok else "bad"}">{"（没读到）" if path not in got[b] else _show(g)}</td>')
             status = st.get(path, "")
@@ -118,14 +132,12 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
             f'<section class="frame" data-page="{e(page)}"><h2>{e(fid)}</h2><p class="meta">{meta}</p>{extra}'
             f'<p><button class="cmb" data-target="{e(fid)}" data-field="" onclick="openForm(this)">对这张图提意见</button></p>'
             f'<div data-cm data-target="{e(fid)}" data-field=""></div>'
-            f'<div class="row"><img class="shot" src="data:image/jpeg;base64,{_img(root / set_ / fr["image"])}" onclick="this.classList.toggle(\'big\')">'
+            f'<div class="row"><img class="shot" src="{img_src(fr)}" onclick="this.classList.toggle(\'big\')">'
             f'<div class="tbl"><table><tr><th>字段</th><th>真值（要读出的内容）</th><th>方法</th>'
             + "".join(f"<th>{e(b)} 读到</th>" for b in backends)
             + f'<th>意见</th></tr>{"".join(rows)}</table></div></div></section>'
         )
     pages = sorted({f.get("page") or "?" for f in frames})
-    out = Path(out) if out else root / ".work" / "fields.html"
-    out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(
         '<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex"><title>识别测试集：每张图要读出的内容</title><style>'
         "body{font:13px system-ui,sans-serif;margin:20px;color:#222}section{border-top:2px solid #333;padding:8px 0 20px}"
