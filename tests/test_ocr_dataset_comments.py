@@ -60,3 +60,9 @@ def test_bad_post_is_400(server):
     with pytest.raises(urllib.error.HTTPError) as e:
         _req(server + "/comments", {"target": "page"})
     assert e.value.code == 400
+
+
+def test_clean_keeps_field_path():
+    c = cs.clean({"target": "dmm-x-00001", "field": "hand[2].card_id", "kind": "标注错误", "text": "应该是 えいえいおー+"})
+    assert c["field"] == "hand[2].card_id"
+    assert len(cs.clean({"target": "p", "field": "x" * 500, "kind": "其他", "text": "a"})["field"]) == 200

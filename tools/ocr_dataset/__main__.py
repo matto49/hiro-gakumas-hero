@@ -52,6 +52,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--llm", default=None, help="缺省 HIRO_LLM，再缺省 claude:opus")
     p.add_argument("--all", action="store_true", help="所有帧都重问")
     p.add_argument("--workers", type=int, default=2)
+    p = sub.add_parser("import-regression", help="把 tests/dmm_regression.json 的回归帧转成字段真值帧写进数据仓库（旧框级帧挪到 legacy-v1/）")
+    p.add_argument("--dataset")
+    p = sub.add_parser("eval-fields", help="字段评测：每个后端跑实机分页读取，和字段真值逐字段比")
+    p.add_argument("--dataset")
+    p.add_argument("--backend", default="vision,rapidocr")
+    p.add_argument("--set", default="core", choices=schema.SETS)
+    p.add_argument("--name", default="fields")
     p = sub.add_parser("redecide", help="规则改了以后用已存的答案重新定 status（不重新识别）")
     p.add_argument("--dataset")
     p = sub.add_parser("spot-check", help="从 agreed 框里随机抽查，生成本地核对页")
@@ -107,6 +114,19 @@ def main(argv: list[str] | None = None) -> int:
 
         st = label.adjudicate(dataset_root(a.dataset), label.RealReaders(a.llm2), workers=a.workers)
         print(f"看了 {st['frames']} 帧，改判 {st['changed']} 个；剩余待定 {st['disputed']} 个")
+        return 0
+    if a.cmd == "import-regression":
+        from tools.ocr_dataset import regression
+
+        st = regression.import_all(dataset_root(a.dataset))
+        print(f"导入 {st['imported']} 帧（缺图 {st['missing']}），旧框级帧挪走 {st['legacy_moved']} 帧 → legacy-v1/")
+        return 0
+    if a.cmd == "eval-fields":
+        from tools.ocr_dataset import fields_eval
+
+        md, js = fields_eval.main(dataset_root(a.dataset), [b.strip() for b in a.backend.split(",") if b.strip()], a.set, a.name)
+        print(md.read_text(encoding="utf-8").split("## 按页面")[0])
+        print(f"→ {md}\n→ {js}")
         return 0
     if a.cmd == "reask":
         from tools.ocr_dataset import label

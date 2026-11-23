@@ -15,7 +15,8 @@ import shutil
 import sys
 from pathlib import Path
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 1  # 旧的框级标注（第一批 302 帧），第 3 步重建后停用
+SCHEMA_FIELDS = 2  # 字段真值（规格 2026-11-23-recognition-dataset-fields-design.md §4）
 SETS = ("core", "hard")
 NATIVE_SUFFIX = ".native.png"  # 帧旁边可选的原生分辨率截图 <id>.native.png
 IMAGE_EXT = (".png", ".jpg", ".jpeg")
@@ -50,8 +51,8 @@ def validate_frame(d) -> list[str]:
     if not isinstance(d, dict):
         return ["标注不是 JSON 对象"]
     errs: list[str] = []
-    if d.get("schema") != SCHEMA_VERSION:
-        errs.append(f"schema 应为 {SCHEMA_VERSION}")
+    if d.get("schema") not in (SCHEMA_VERSION, SCHEMA_FIELDS):
+        errs.append(f"schema 应为 {SCHEMA_FIELDS}（字段真值）或 {SCHEMA_VERSION}（旧的框级标注）")
     for k in ("id", "image", "sha256", "page"):
         if not isinstance(d.get(k), str) or not d.get(k):
             errs.append(f"缺 {k}（非空字符串）")
@@ -66,6 +67,8 @@ def validate_frame(d) -> list[str]:
             errs.append("platform.stored 应为 [宽, 高]")
         if plat.get("native") is not None and not _size(plat.get("native")):
             errs.append("platform.native 应为 [宽, 高] 或 null")
+    if d.get("schema") == SCHEMA_FIELDS:
+        return errs + _validate_truth(d)
     boxes = d.get("boxes")
     if not isinstance(boxes, list):
         return errs + ["缺 boxes（列表）"]
@@ -92,6 +95,18 @@ def validate_frame(d) -> list[str]:
             errs.append(f"{where}.tags.type 应为 {TYPES} 之一")
         if not isinstance(b.get("ignore"), bool):
             errs.append(f"{where}.ignore 应为 true / false")
+    return errs
+
+
+def _validate_truth(d: dict) -> list[str]:
+    """schema 2：truth 里至少有 fields / quick_fields / checks 之一；field_status 的值是 STATUSES 之一。"""
+    errs = []
+    t = d.get("truth")
+    if not isinstance(t, dict) or not any(isinstance(t.get(k), dict) and t.get(k) for k in ("fields", "quick_fields", "checks")):
+        errs.append("truth 要有 fields / quick_fields / checks 至少一项（非空对象）")
+    st = d.get("field_status", {})
+    if not isinstance(st, dict) or any(v not in STATUSES for v in st.values()):
+        errs.append(f"field_status 应为 {{字段路径: {STATUSES} 之一}}")
     return errs
 
 

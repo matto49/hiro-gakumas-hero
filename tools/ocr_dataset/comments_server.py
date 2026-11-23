@@ -3,7 +3,7 @@
 只用标准库（部署时单文件拷过去）。数据一行一条 JSON（追加写），同一个 id 以最后一条为准，deleted=true 表示删除。
     GET  /comments   → 全部意见（按提交时间）
     POST /comments   → 新增 / 修改（带 id）/ 删除（{id, deleted: true}）
-意见挂在：target = "page"（整体）或帧 id；box = 框 id（可选）；kind 是意见类型。
+意见挂在：target = "page"（整体）或帧 id；box = 框 id 或 field = 字段路径（可选）；kind 是意见类型。
 """
 
 from __future__ import annotations
@@ -34,6 +34,8 @@ def clean(body: dict) -> dict:
     out["target"], out["kind"], out["text"] = target, kind, text[:TEXT_MAX]
     if isinstance(body.get("box"), int) and not isinstance(body.get("box"), bool):
         out["box"] = body["box"]
+    if body.get("field"):
+        out["field"] = str(body["field"])[:200]  # 字段路径（字段真值版样例页），如 hand[2].card_id
     if body.get("quote"):
         out["quote"] = str(body["quote"])[:200]
     return out
