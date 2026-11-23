@@ -87,3 +87,17 @@ def test_apply_final_answers(tmp_path):
     assert fr["truth"]["hand"][0] == {"name": "デイドリーミンク", "cost": 1} and fr["truth"]["hp"] == 21
     assert fr["item_status"] == {"hand[0].name": "resolved", "hand[0].cost": "resolved", "hp": "resolved"}
     assert schema.validate_dir(ds) == []
+
+
+def test_apply_final_answers_finds_frames_in_any_set(tmp_path):
+    """进阶集（hard/）核对页上定的答案也要写回，不能只找 core/。"""
+    ds = schema.init(tmp_path / "ds")
+    (ds / "hard").mkdir(exist_ok=True)
+    cv2.imwrite(str(ds / "hard" / "dmm-r-00002.jpg"), np.zeros((1280, 720, 3), np.uint8))
+    fr = {"schema": 3, "id": "dmm-r-00002", "image": "dmm-r-00002.jpg", "sha256": schema.sha256(ds / "hard" / "dmm-r-00002.jpg"),
+          "source": {"run": "r", "seq": 2}, "platform": {"kind": "dmm", "stored": [720, 1280]}, "page": "HIF_EXAM", "scenario": "exam",
+          "truth": {"hp": 27}, "item_status": {"hp": "disputed"}, "buttons": []}  # fmt: skip
+    (ds / "hard" / "dmm-r-00002.json").write_text(json.dumps(fr, ensure_ascii=False), encoding="utf-8")
+    got = st.apply_answers(ds, [{"id": "1", "target": "dmm-r-00002", "field": "hp", "kind": "定答案", "text": "21", "created": 1}])
+    assert got == {"applied": 1, "missing": 0}
+    assert json.loads((ds / "hard" / "dmm-r-00002.json").read_text(encoding="utf-8"))["truth"]["hp"] == 21
