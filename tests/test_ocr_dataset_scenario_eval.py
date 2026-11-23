@@ -63,8 +63,8 @@ def test_score_right_wrong_unread_and_skips():
 
 
 def test_score_unread_when_system_lacks_item():
-    rows = se.score_frame("consult", {"shelf": [{"price": 53, "sale_from": 77}]}, {"shelf": [{"price": 53}]})
-    assert {r["path"]: r["result"] for r in rows} == {"shelf[0].price": "对", "shelf[0].sale_from": "没读"}
+    rows = se.score_frame("consult", {"shelf": [{"price": 53, "purchased": True}]}, {"shelf": [{"price": 53}]})
+    assert {r["path"]: r["result"] for r in rows} == {"shelf[0].price": "对", "shelf[0].purchased": "没读"}
 
 
 def test_score_actions_aligned_by_label():
@@ -97,10 +97,10 @@ def test_button_found_outside_box_is_wrong():
 
 
 def test_report_md_has_unread_section():
-    frames = [_fr("b", "consult", {"shelf": [{"price": 53, "sale_from": 77}]})]
+    frames = [_fr("b", "consult", {"shelf": [{"price": 53, "purchased": True}]})]
     r = se.evaluate(frames, {"b": {"page": "CONSULT", "fields": {"shelf": [{"price": 53}]}, "texts": []}}, backend="vision")
     md = se.report_md([r])
-    assert "没读" in md and "shelf[].sale_from" in md
+    assert "没读" in md and "shelf[].purchased" in md
 
 
 def test_zero_cost_equals_no_cost():
@@ -139,3 +139,19 @@ def test_button_check_prefers_best_matching_text():
     texts = [("持っているスキルカードの強化や削除ができます。", (115, 884, 595, 912)), ("削除", (443, 954, 508, 984))]
     rows = se.score_buttons([{"label": "削除", "box": [443, 954, 508, 984]}], texts)
     assert rows[0]["result"] == "对" and rows[0]["got"] == "削除"
+
+
+def test_unscored_items_are_kept_but_not_scored():
+    """用户 11-23：NEW 标记、SALE 原价不识别也没事——真值留着，不计分。"""
+    truth = {"shelf": [{"kind": "card", "price": 53, "sale_from": 77, "purchased": False}]}
+    got = {"shelf": [{"kind": "card", "price": 53, "purchased": False}]}
+    assert {r["path"] for r in se.score_frame("consult", truth, got)} == {"shelf[0].kind", "shelf[0].price", "shelf[0].purchased"}
+    truth = {"shelf": [{"kind": "card", "price": 50, "new": True, "purchased": False}]}
+    assert "shelf[0].new" not in {r["path"] for r in se.score_frame("round_interval", truth, {"shelf": [{"kind": "card", "price": 50}]})}
+
+
+def test_excluded_frames_are_not_scored():
+    frames = [{**_fr("a", "consult", {"p_points": 280}), "excluded": "弹窗盖住背景，背景不用读"}, _fr("b", "consult", {"p_points": 280})]
+    reads = {"a": {"page": "DELETE_RESULT", "fields": {}, "texts": []}, "b": {"page": "CONSULT", "fields": {"produce_point": 280}, "texts": []}}
+    r = se.evaluate(frames, reads, backend="vision")
+    assert r["frames"] == 1 and r["groups"]["all"]["n"] == 1 and r["groups"]["page"]["n"] == 1

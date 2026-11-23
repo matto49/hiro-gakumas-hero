@@ -78,3 +78,9 @@ def test_page_crops_the_region_of_the_item(tmp_path):
 def test_values_are_shown_in_plain_words():
     assert fp.plain(True) == "有" and fp.plain(False) == "没有" and fp.plain(None) == "—"
     assert fp.plain("green_heart") == "绿心" and fp.plain("vocal") == "Vo" and fp.plain([58, 2]) == "58、2"
+
+
+def test_excluded_frames_are_skipped_in_aggregate():
+    frames = [{**_fr("a", {"deck_left": 5}), "excluded": "不是这个场景"}]
+    reads = {b: {"a": {"fields": {}}} for b in B}
+    assert fp.aggregate([("core", frames)], {"core": reads}, B) == []

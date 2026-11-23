@@ -54,7 +54,7 @@
    {
     "key": "multiplier_pct",
     "type": "int",
-    "importance": "高",
+    "importance": "低",
     "desc": "本回合属性旁的倍率百分比，只要数字（2805% → 2805）",
     "label": "属性倍率",
     "region": [
@@ -62,7 +62,8 @@
      30,
      340,
      150
-    ]
+    ],
+    "note": "用户 11-23：考前说明已读清倍率，不必每回合读对；测试集保留"
    },
    {
     "key": "top_scores",
@@ -334,7 +335,9 @@
       "key": "sale_from",
       "type": "int",
       "desc": "SALE 时被划掉的原价，没有 SALE 写 null",
-      "label": "SALE 原价"
+      "label": "SALE 原价",
+      "unscored": true,
+      "why_unscored": "用户 11-23：不识别也没事（打折后的实付价已经识别）"
      },
      {
       "key": "purchased",
@@ -482,7 +485,9 @@
       "key": "new",
       "type": "bool",
       "desc": "这一格是否有「NEW」标记",
-      "label": "NEW 标记"
+      "label": "NEW 标记",
+      "unscored": true,
+      "why_unscored": "用户 11-23：不识别也没事"
      },
      {
       "key": "purchased",

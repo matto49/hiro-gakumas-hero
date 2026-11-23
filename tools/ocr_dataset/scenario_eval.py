@@ -118,7 +118,7 @@ SKIP = ("disputed", "ignored")
 
 def _field_flags(sid: str) -> dict[str, set[str]]:
     """场景定义里标了 prefix_ok（画面会截断的名字）/ derivable（画面可能被遮住、系统可从主数据补）的叶子路径（下标换成 []）。"""
-    out = {"prefix_ok": set(), "derivable": set()}
+    out = {"prefix_ok": set(), "derivable": set(), "unscored": set()}
     for it in scenario.load()[sid]["items"]:
         for f in it.get("fields", []):
             for flag in out:
@@ -150,6 +150,8 @@ def score_frame(sid: str, truth: dict, got: dict, item_status: dict | None = Non
             continue
         g = fg.get(p)
         leaf = _norm_item(p)
+        if leaf in flags["unscored"]:
+            continue  # 用户定的「不识别也没事」：真值留着，不计分
         if (w is None or w == "none") and leaf in flags["derivable"]:
             continue  # 画面上被遮住 / 看不到，系统按主数据补出来的不算错
         if w is None:
@@ -223,7 +225,7 @@ def evaluate(frames: list[dict], reads: dict[str, dict], backend: str = "?", sec
     errors = []
     for fr in frames:
         r = reads.get(fr["id"])
-        if r is None:
+        if r is None or fr.get("excluded"):  # excluded：整帧不计分（写明原因，如弹窗盖住背景、截图其实不是这个场景）
             continue
         sid = fr["scenario"]
         page.add("对" if r.get("page") in scenario.load()[sid].get("pages", []) else "错")
@@ -241,7 +243,7 @@ def evaluate(frames: list[dict], reads: dict[str, dict], backend: str = "?", sec
 
     times = [seconds[f["id"]] for f in frames if seconds and f["id"] in seconds]
     warm = times[1:] if len(times) > 1 else times
-    return {"backend": backend, "frames": sum(1 for f in frames if f["id"] in reads), "groups": {"all": dict(total), "page": dict(page),
+    return {"backend": backend, "frames": sum(1 for f in frames if f["id"] in reads and not f.get("excluded")), "groups": {"all": dict(total), "page": dict(page),
             **{g: {k: dict(v) for k, v in sorted(d.items())} for g, d in groups.items()}}, "errors": errors,
             "timing": {"p50": float(np.percentile(warm, 50)) if warm else None, "p90": float(np.percentile(warm, 90)) if warm else None}}  # fmt: skip
 

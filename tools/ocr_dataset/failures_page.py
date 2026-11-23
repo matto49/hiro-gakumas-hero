@@ -45,6 +45,8 @@ def aggregate(sets: list[tuple[str, list[dict]]], reads: dict[str, dict[str, dic
     groups: dict[tuple[str, str], dict] = {}
     for set_name, frames in sets:
         for fr in frames:
+            if fr.get("excluded"):
+                continue
             per = {b: _rows(fr, reads[set_name][b].get(fr["id"])) for b in backends}
             paths = dict.fromkeys(p for b in backends for p in per[b])
             for p in paths:
