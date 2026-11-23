@@ -112,6 +112,42 @@ def settled_frame(grab: Callable[[], np.ndarray], screen: LogicalScreen, *, sett
         return screen.frame(image)
 
 
+# 最近一张逻辑帧和它的原生截图（OCR 测试集采集用，规格 docs/ryugi/specs/2026-11-23-ocr-dataset-design.md §6.6）：
+# trace 存帧时认出「这张就是刚截的那一帧」，就能补 run.json 的原生尺寸；HIRO_TRACE_NATIVE=1 时另存原生 PNG。只留一帧，不攒内存。
+_LAST: tuple | None = None  # (逻辑帧, 原生图或 None, (宽, 高))
+
+
+def _remember(logical: np.ndarray, native: np.ndarray, size: tuple[int, int]) -> None:
+    global _LAST
+    import os
+
+    keep = native.copy() if os.environ.get("HIRO_TRACE_NATIVE") == "1" else None
+    _LAST = (logical, keep, size)
+
+
+def native_for(image) -> tuple[np.ndarray | None, tuple[int, int] | None]:
+    """image 是最近一张截图缩放出来的逻辑帧时返回 (原生图或 None, 原生尺寸)；不是返回 (None, None)。"""
+    last = _LAST
+    if last is None or last[0] is not image:
+        return None, None
+    return last[1], last[2]
+
+
+def platform_meta() -> dict:
+    """这次运行的设备 / 截图方式 / OCR 后端，写进 trace 的 run.json（原生尺寸等第一张截图存帧时补）。"""
+    import os
+
+    try:
+        from hiro.vision.ocr import engine
+
+        ocr = engine()
+    except Exception:  # noqa: BLE001  识别层不可用（离线工具）时不记
+        ocr = None
+    env = os.environ.get
+    return {"device": env("HIRO_DEVICE") or None, "screenshot": env("HIRO_SCREENSHOT") or None,
+            "dmm_driver": env("HIRO_DMM_DRIVER") or None, "ocr": ocr, "native": None}  # fmt: skip
+
+
 class LogicalScreen:
     """原生截图 ↔ 逻辑坐标。每张截图都更新一次原生尺寸（窗口被拉大拉小、横竖屏切换时跟着变）。"""
 
@@ -141,9 +177,9 @@ class LogicalScreen:
         if (cw, ch) != (w, h):
             image = image[y0 : y0 + ch, x0 : x0 + cw]
         size = logical_size(cw, ch)
-        if (cw, ch) == size:
-            return np.ascontiguousarray(image)
-        return cv2.resize(image, size)
+        out = np.ascontiguousarray(image) if (cw, ch) == size else cv2.resize(image, size)
+        _remember(out, image, (w, h))
+        return out
 
     def to_native(self, x: float, y: float) -> tuple[int, int]:
         """逻辑坐标 → 原生像素（x、y 各按各的比例，夹在画面内）。要先截过一张图。"""
