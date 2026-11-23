@@ -54,6 +54,8 @@ STATUS_MIN_SCORE = 0.6
 CAPTURED_MIN_SCORE, CAPTURED_MIN_MARGIN = 0.72, 0.12
 ENCHANT_MIN_SCORE = 0.6
 ENCHANT_MIN_FAINT = 0.7
+# 蓝底槽图标配不上时按卡面再配：真卡牌效果 0.80–0.93；饮料效果、半透明的状态只凑到 0.46–0.68（识别测试集进阶集 11-24）
+ENCHANT_ON_BLUE_MIN = 0.75
 CARD_INNER = 24  # 卡面比对的缩放边长
 
 
@@ -324,7 +326,13 @@ def _read_slot(img: MatLike, k: int, *, faint: bool = False) -> dict:
     elif blue_ratio >= BLUE_MIN_RATIO:
         top = _split_pair(patch, match_status_icon(patch))
         score, key = top[0]
-        if not _accepted(meta, top):
+        cscore, asset = (0.0, None) if _accepted(meta, top) else match_enchant_card(img, k)
+        if cscore >= ENCHANT_ON_BLUE_MIN:
+            # 卡面偏蓝 / 偏淡的卡牌效果（ワクワクが止まらない、エウレカ！……）蓝色像素也够多：图标配不上、卡面配得很像就是卡牌效果
+            card = _card_from_asset(asset)
+            entry = {"slot": k, "kind": "enchant", "card_id": card._id if card else None,
+                     "name": card.name if card else None, "asset": asset, "score": round(cscore, 3)}  # fmt: skip
+        elif not _accepted(meta, top):
             entry = {
                 "slot": k,
                 "kind": "status",
