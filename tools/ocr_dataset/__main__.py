@@ -42,6 +42,13 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--llm", help="LLM 适配器（缺省 HIRO_LLM，再缺省 claude:opus）")
     p.add_argument("--workers", type=int, default=2, help="同时标几帧（LLM 调用并行）")
     p.add_argument("--limit", type=int)
+    p.add_argument("--llm2", default="codex", help="第二个 LLM（只读待定框，和第一个不同源）；none 不跑")
+    p = sub.add_parser("adjudicate", help="第二个 LLM 读一遍还待定的框，三家两家一致就定下")
+    p.add_argument("--dataset")
+    p.add_argument("--llm2", default="codex")
+    p.add_argument("--workers", type=int, default=2)
+    p = sub.add_parser("redecide", help="规则改了以后用已存的答案重新定 status（不重新识别）")
+    p.add_argument("--dataset")
     p = sub.add_parser("spot-check", help="从 agreed 框里随机抽查，生成本地核对页")
     p.add_argument("--dataset")
     p.add_argument("-n", type=int, default=50)
@@ -86,8 +93,23 @@ def main(argv: list[str] | None = None) -> int:
         total = 0
         for d in a.inbox:
             total += label.run(root, d, readers=readers, set_=a.set, workers=a.workers, limit=a.limit)
+        if a.llm2 != "none":
+            st = label.adjudicate(root, label.RealReaders(a.llm2), workers=a.workers)
+            print(f"第二个 LLM（{a.llm2}）看了 {st['frames']} 帧的待定框，改判 {st['changed']} 个")
         disputed = json.loads((root / "disputed.json").read_text(encoding="utf-8"))
         print(f"标完 {total} 帧；待定框 {len(disputed)} 个（disputed.json），用 review 处理")
+        return 0
+    if a.cmd == "adjudicate":
+        from tools.ocr_dataset import label
+
+        st = label.adjudicate(dataset_root(a.dataset), label.RealReaders(a.llm2), workers=a.workers)
+        print(f"看了 {st['frames']} 帧，改判 {st['changed']} 个；剩余待定 {st['disputed']} 个")
+        return 0
+    if a.cmd == "redecide":
+        from tools.ocr_dataset import label
+
+        st = label.redecide(dataset_root(a.dataset))
+        print(f"改了 {st['changed']} 个框；剩余待定 {st['disputed']} 个")
         return 0
     if a.cmd == "spot-check":
         from tools.ocr_dataset import label

@@ -38,7 +38,12 @@ def test_merge_boxes_chains_one_long_line_over_two_pieces():
         ("編 成", "編成", ("編成", "agreed")),  # 归一后一致
         ("えいえいおー十", "えいえいおー+", ("えいえいおー+", "agreed")),  # 一方正好是词表词、另一方吸附后同词
         ("綿成", "編成", ("編成", "disputed")),  # 两字词不容错：綿成吸附不到
-        ("えいえいおー十", "えいえいおー十", ("えいえいおー十", "disputed")),  # 两方一致但词表吸附成别的词：可疑
+        ("えいえいおー十", "えいえいおー十", ("えいえいおー十", "agreed")),  # 两方一致就算（规格：词表没有这个词也不拦）
+        ("→次へ", "次へ", ("次へ", "agreed")),  # 两端的图标符号去掉再比
+        (")27", "27", ("27", "agreed")),
+        ("-NEW", "NEW", ("-NEW", "disputed")),  # 横线可能是负号（-3），不当图标去掉
+        ("+950", "✦950", ("+950", "disputed")),  # + 有意义，不去
+        ("不安です.........", "不安です......", ("不安です.........", "disputed")),  # 点数不同不算一致
         ("綿成", "綿成", ("綿成", "agreed")),  # 两方一致、词表里没有相近词
         ("綿成", "絹成", ("綿成", "disputed")),  # 两方都不是词表词
         ("abc", "xyz", ("abc", "disputed")),
@@ -185,3 +190,106 @@ def test_counter_counts_types_for_pick(monkeypatch):
 def test_type_of_long_text_falls_back_to_body():
     assert label.type_of("★ランダムな特定のPドリンクを獲得", [180, 463, 450, 484], "ACQUIRE")["type"] == "body"
     assert label.type_of("ブーストエキス", [264, 853, 464, 890], "ACQUIRE")["type"] == "other"
+
+
+def test_decide_accepts_either_vision_read():
+    assert label.decide({"vision": "", "vision_frame": "9", "llm": "9"}, LEX) == ("9", "agreed")
+    assert label.decide({"vision": "ろ", "vision_frame": "3", "llm": "3"}, LEX) == ("3", "agreed")
+    assert label.decide({"vision": "", "vision_frame": "", "llm": "P"}, LEX) == ("P", "disputed")
+
+
+def test_decide_agreed_even_if_lexicon_has_case_variant():
+    lex = Lexicon(words={"pアイテム"}, charset=set(), version="t")
+    assert label.decide({"vision": "Pアイテム", "llm": "Pアイテム"}, lex) == ("Pアイテム", "agreed")
+
+
+def test_label_frame_records_full_frame_vision_text():
+    fr = label.label_frame(np.zeros((1280, 720, 3), np.uint8), _meta(), FakeReaders(), LEX, pad=0)
+    by = {b["answers"]["vision_frame"]: b for b in fr["boxes"]}
+    assert set(by) == {"編成", "4,680", ""}
+
+
+def test_redecide_recomputes_status_from_stored_answers(tmp_path):
+    ds, inbox = _dataset(tmp_path)
+
+    class Split(FakeReaders):
+        def read_llm(self, img, boxes):
+            return ["", "4,680", "→編成"]  # 旧规则下也会 agreed？不：→ 去掉后才一致
+
+    label.run(ds, inbox, readers=Split(), lex=LEX, pad=0)
+    p = ds / "core" / "dmm540-r-00001.json"
+    fr = json.loads(p.read_text(encoding="utf-8"))
+    for b in fr["boxes"]:  # 模拟旧规则写下的 disputed
+        if b["answers"]["llm"] == "→編成":
+            b["status"] = "disputed"
+    p.write_text(json.dumps(fr, ensure_ascii=False), encoding="utf-8")
+    label.rebuild_disputed(ds)
+    got = label.redecide(ds, lex=LEX)
+    assert got == {"changed": 1, "disputed": 0}
+    b = next(b for b in json.loads(p.read_text(encoding="utf-8"))["boxes"] if b["answers"]["llm"] == "→編成")
+    assert (b["status"], b["text"]) == ("agreed", "編成")
+    assert json.loads((ds / "disputed.json").read_text(encoding="utf-8")) == []
+
+
+def test_redecide_keeps_human_decisions(tmp_path):
+    ds, inbox = _dataset(tmp_path)
+    label.run(ds, inbox, readers=FakeReaders(), lex=LEX, pad=0)
+    p = ds / "core" / "dmm540-r-00001.json"
+    fr = json.loads(p.read_text(encoding="utf-8"))
+    fr["boxes"][0].update(status="resolved", text="手で直した", reviewed="2026-11-23")
+    p.write_text(json.dumps(fr, ensure_ascii=False), encoding="utf-8")
+    label.redecide(ds, lex=LEX)
+    assert json.loads(p.read_text(encoding="utf-8"))["boxes"][0]["text"] == "手で直した"
+
+
+@pytest.mark.parametrize(
+    "answers, want",
+    [
+        ({"vision": "ろ", "vision_frame": "ろ", "llm": "3", "llm2": "3"}, ("3", "agreed")),  # 两个 LLM 一致
+        ({"vision": "Lst", "vision_frame": "Lst", "llm": "1st", "llm2": "Lst"}, ("Lst", "agreed")),  # Vision + 第二个 LLM
+        ({"vision": "→早送り", "vision_frame": "", "llm": "早送", "llm2": "早送り"}, ("早送り", "agreed")),  # 去图标符号后一致
+        ({"vision": "綿成", "vision_frame": "", "llm": "編成", "llm2": "絹成"}, ("編成", "disputed")),  # 三家各不相同（文字先填词表词）
+        ({"vision": "", "vision_frame": "", "llm": "P", "llm2": ""}, ("P", "disputed")),
+    ],
+)
+def test_decide_with_second_llm(answers, want):
+    assert label.decide(answers, LEX) == want
+
+
+@pytest.mark.parametrize(
+    "answers, want",
+    [
+        ({"vision": "", "vision_frame": "せせせせ", "llm": ""}, ("", "ignored")),  # LLM 说没字、Vision 两次不一致：图标
+        ({"vision": "百", "vision_frame": "旦", "llm": ""}, ("", "ignored")),
+        ({"vision": "体力", "vision_frame": "体力", "llm": ""}, ("体力", "disputed")),  # Vision 两次一致：可能真是字
+        ({"vision": "", "vision_frame": "三", "llm": "", "llm2": "三"}, ("三", "agreed")),
+    ],
+)
+def test_decide_icon_noise(answers, want):
+    assert label.decide(answers, LEX) == want
+
+
+def test_adjudicate_asks_second_llm_only_for_disputed_boxes(tmp_path):
+    ds, inbox = _dataset(tmp_path)
+
+    class Split(FakeReaders):
+        def read_llm(self, img, boxes):
+            return ["", "4,680", "絹成"]
+
+    label.run(ds, inbox, readers=Split(), lex=LEX, pad=0)
+
+    class Second:
+        name = "codex"
+        asked = []
+
+        def read_llm(self, img, boxes):
+            self.asked.append(list(boxes))
+            return ["編成"]
+
+    sec = Second()
+    got = label.adjudicate(ds, sec, lex=LEX)
+    assert sec.asked == [[[300, 1138, 410, 1178]]]  # 只问待定框
+    assert got == {"frames": 1, "changed": 1, "disputed": 0}
+    b = next(b for b in json.loads((ds / "core" / "dmm540-r-00001.json").read_text(encoding="utf-8"))["boxes"] if b["answers"]["llm"] == "絹成")
+    assert (b["status"], b["text"], b["answers"]["llm2"]) == ("agreed", "編成", "編成")
+    assert label.adjudicate(ds, sec, lex=LEX)["frames"] == 0  # 问过的不再问

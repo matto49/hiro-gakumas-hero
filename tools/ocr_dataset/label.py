@@ -81,25 +81,133 @@ def merge_boxes(vision: list[tuple[str, tuple]], rapid: list[tuple[str, tuple]],
 # ---------- 定正确文字 ----------
 
 
+EDGE = "→←↑↓▶◀►◄▷◁)(（）[]【】|｜★・•"  # 读者常把旁边的图标读成这些；比较时只去两端的（横线、+、% 有意义，不去）
+
+
+def _edge(s: str) -> str:
+    return s.strip(EDGE)
+
+
+def _visions(answers: dict) -> list[str]:
+    """Vision 的两次读法（裁图、整帧检测），归一、去空、去重，裁图在前。"""
+    out = []
+    for k in ("vision", "vision_frame"):
+        v = norm(answers.get(k) or "")
+        if v and v not in out:
+            out.append(v)
+    return out
+
+
+def _same(a: str, b: str) -> bool:
+    return a == b or bool(_edge(a)) and _edge(a) == _edge(b)
+
+
+def _clean(a: str, b: str) -> str:
+    """两个算一致的读法里取不带多余图标符号的那个。"""
+    if a == b:
+        return a
+    return a if a == _edge(a) else b
+
+
 def decide(answers: dict, lex: Lexicon) -> tuple[str, str]:
-    """(正确文字, status)。vision / llm 是仅有的两个独立读者，lexicon 只在两方不一致时帮着挑：
-    - 两方归一后一致：词表里没有相近词、或就是词表词 → agreed；词表吸附成了别的词 → disputed（两方可能错得一样）；
-    - 不一致：其中一方正好是词表词、另一方吸附后也落到同一个词 → agreed；
-    - 都没读到字 → ignored；其余 disputed（文字先填最可能的：吸附到的词 > vision > llm）。"""
-    v, l = norm(answers.get("vision") or ""), norm(answers.get("llm") or "")
-    if not v and not l:
+    """(正确文字, status)。独立的读者：Vision（裁图 / 整帧两次读法算同一个读者）、LLM，以及可选的第二个 LLM（llm2，
+    只问前两方不一致的框，和第一个不同源）。「一致」= 归一后相同，或去掉两端图标符号（EDGE）后相同。
+    - 都没读到字 → ignored；
+    - Vision 与 LLM 一致 → agreed（规格：词表里没有这个词也不拦）；
+    - 不一致时：其中一方正好是词表词、另一方吸附后也落到同一个词 → agreed；
+    - 有 llm2 时：三家里任意两家一致 → agreed；
+    - LLM（和 llm2）说没字、Vision 两次读法又不一致 → ignored（图标被读成了乱码）；
+    - 其余 disputed（文字先填最可能的：Vision 吸附到的词 > LLM 吸附到的词 > Vision > LLM）。"""
+    vs, l, l2 = _visions(answers), norm(answers.get("llm") or ""), norm(answers.get("llm2") or "")
+    if not vs and not l and not l2:
         return "", "ignored"
-    if v == l:
-        s = lex.snap(v)
-        return v, "agreed" if s is None or s == v else "disputed"
-    sv, sl = lex.snap(v), lex.snap(l)
-    if v and l and sv is not None and sv == sl and sv in (v, l):
-        return sv, "agreed"
-    return sv or sl or v or l, "disputed"
+    if l:
+        for v in vs:
+            if _same(v, l):
+                return _clean(l, v) if v != l else l, "agreed"
+    sl = lex.snap(l)
+    for v in vs:
+        sv = lex.snap(v)
+        if l and sv is not None and sv == sl and sv in (v, l):
+            return sv, "agreed"
+    if l2:
+        for v in vs:
+            if _same(v, l2):
+                return _clean(l2, v), "agreed"
+        if l and _same(l, l2):
+            return _clean(l, l2), "agreed"
+    crop, frame = norm(answers.get("vision") or ""), norm(answers.get("vision_frame") or "")
+    if not l and not l2 and not (crop and crop == frame):
+        return "", "ignored"
+    v0 = vs[0] if vs else ""
+    return lex.snap(v0) or sl or v0 or l, "disputed"
 
 
 def lexicon_answer(answers: dict, lex: Lexicon) -> str:
-    return lex.snap(answers.get("vision")) or lex.snap(answers.get("llm")) or ""
+    for k in ("vision", "vision_frame", "llm", "llm2"):
+        if s := lex.snap(answers.get(k)):
+            return s
+    return ""
+
+
+def adjudicate(dataset: str | Path, reader, lex: Lexicon | None = None, workers: int = 1, log: Callable[[str], None] = print) -> dict[str, int]:
+    """第二个 LLM 读一遍还待定的框（每帧一次，只拼待定框），答案存进 answers.llm2，再按 decide 重判。问过的框不再问。"""
+    root = Path(dataset)
+    lex = lex or _load_lexicon(root)
+    jobs = []
+    for s in schema.SETS:
+        for js in sorted((root / s).glob("*.json")) if (root / s).is_dir() else []:
+            fr = json.loads(js.read_text(encoding="utf-8"))
+            todo = [b for b in fr.get("boxes", []) if b.get("status") == "disputed" and "llm2" not in (b.get("answers") or {}) and not b.get("reviewed")]
+            if todo:
+                jobs.append((s, js, fr, todo))
+
+    def one(job):
+        s, js, fr, todo = job
+        img = cv2.imread(str(root / s / fr["image"]))
+        return reader.read_llm(img, [b["box"] for b in todo])
+
+    changed = asked = 0
+    with ThreadPoolExecutor(max(1, workers)) as pool:
+        for k, (job, fut) in enumerate([(j, pool.submit(one, j)) for j in jobs], 1):
+            s, js, fr, todo = job
+            try:
+                texts = fut.result()
+            except Exception as e:  # noqa: BLE001
+                log(f"[{k}/{len(jobs)}] {fr['id']} 第二个 LLM 失败：{type(e).__name__}: {e}")
+                continue
+            asked += 1
+            for b, t in zip(todo, texts):
+                b["answers"]["llm2"] = t
+                text, status = decide(b["answers"], lex)
+                if status != b["status"]:
+                    changed += 1
+                b["text"], b["status"], b["ignore"] = text, status, status == "ignored"
+            js.write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
+            log(f"[{k}/{len(jobs)}] {fr['id']}：{len(todo)} 个待定框，还剩 {sum(b['status'] == 'disputed' for b in todo)}")
+    return {"frames": asked, "changed": changed, "disputed": len(rebuild_disputed(root))}
+
+
+def redecide(dataset: str | Path, lex: Lexicon | None = None) -> dict[str, int]:
+    """规则改了以后，用帧里存的各方答案重新定 status / 文字（不重新识别、不问 LLM）；人看过的框（有 reviewed）不动。"""
+    root = Path(dataset)
+    lex = lex or _load_lexicon(root)
+    changed = 0
+    for s in schema.SETS:
+        for js in sorted((root / s).glob("*.json")) if (root / s).is_dir() else []:
+            fr = json.loads(js.read_text(encoding="utf-8"))
+            dirty = False
+            for b in fr.get("boxes", []):
+                if b.get("reviewed") or b.get("status") == "resolved":
+                    continue
+                text, status = decide(b.get("answers") or {}, lex)
+                if (text, status) != (b.get("text"), b.get("status")):
+                    b["text"], b["status"], b["ignore"] = text, status, status == "ignored"
+                    changed += 1
+                    dirty = True
+            if dirty:
+                js.write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
+    return {"changed": changed, "disputed": len(rebuild_disputed(root))}
 
 
 # ---------- 标签 ----------
@@ -200,7 +308,7 @@ class RealReaders:
     def __init__(self, llm_spec: str | None = None, timeout: float = 180, pad: int = PAD):
         from hiro.brain import llm
 
-        self.llm = llm.from_spec(llm_spec, timeout=timeout) if (llm_spec or "").split(":")[0] in ("", "claude", "claude-cli") else llm.from_spec(llm_spec)
+        self.llm = llm.from_spec(llm_spec, timeout=timeout) if (llm_spec or "").split(":")[0] in ("", "claude", "claude-cli", "codex", "codex-cli") else llm.from_spec(llm_spec)
         self.pad = pad
 
     @property
@@ -267,7 +375,7 @@ def label_frame(img, meta: dict, readers, lex: Lexicon, pad: int = PAD, bands=No
         bands = header_bands(img)
     boxes = []
     for i, g in enumerate(groups):
-        answers = {"vision": readers.read_vision(_crop(img, g["box"], pad)), "llm": llm[i], "rapidocr": g["rapidocr"]}
+        answers = {"vision": readers.read_vision(_crop(img, g["box"], pad)), "vision_frame": g["vision"], "llm": llm[i], "rapidocr": g["rapidocr"]}
         answers["lexicon"] = lexicon_answer(answers, lex)
         text, status = decide(answers, lex)
         boxes.append({"id": i, "box": g["box"], "text": text, "status": status, "answers": answers,
