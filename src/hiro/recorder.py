@@ -8,9 +8,10 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from hiro import imgio
+
 import cv2
 from cv2.typing import MatLike
-from hiro import imgio
 
 
 class Recorder:

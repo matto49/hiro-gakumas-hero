@@ -4,11 +4,11 @@
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-import cv2
-import pytest
-
 from hiro.contracts import Action, ActionKind, Decision
 from hiro.produce import hif
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures")
 
@@ -32,7 +32,10 @@ def _fields(rel):
 
 def test_dialogue_choice_read_and_kept_by_observation():
     f = _fields("pages/hajime-dialogue-choice.png")
-    assert [(c["index"], c["text"]) for c in f["choices"]] == [(0, "お祝いをしないといけませんね"), (1, "次の試練が待っていますよ")]
+    assert [(c["index"], c["text"]) for c in f["choices"]] == [
+        (0, "お祝いをしないといけませんね"),
+        (1, "次の試練が待っていますよ"),
+    ]
     assert [c["center"][1] for c in f["choices"]] == pytest.approx([802, 903], abs=10)
     assert f["dialogue_only"] is True and f["complete"] and f["selected"] is None
 
@@ -48,7 +51,12 @@ def _core(monkeypatch, decision, fields):
     core = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
     state = NS(page_fields=fields)
     recorded = []
-    core.s = NS(observe=lambda **k: "obs", state=state, record=lambda obs, **k: recorded.append(k["decision"]), note=lambda m: None)
+    core.s = NS(
+        observe=lambda **k: "obs",
+        state=state,
+        record=lambda obs, **k: recorded.append(k["decision"]),
+        note=lambda m: None,
+    )
     core.deciders = NS(decide=lambda page, st, **k: decision)
     core._note_fallback = lambda page, d: None
     core._act = lambda fn, action, **k: fn()
@@ -63,12 +71,16 @@ def _core(monkeypatch, decision, fields):
 
 
 def _wait():
-    return Decision(Action.ui(ActionKind.WAIT, why="x"), "有选项效果没解析出来", "fallback", 0.1, decider="event_choice")
+    return Decision(
+        Action.ui(ActionKind.WAIT, why="x"), "有选项效果没解析出来", "fallback", 0.1, decider="event_choice"
+    )
 
 
 def test_dialogue_only_wait_picks_last(monkeypatch):
     chosen = []
-    core, recorded, stops = _core(monkeypatch, _wait(), {"choices": [{"index": 0, "text": "a"}, {"index": 1, "text": "b"}], "dialogue_only": True})
+    core, recorded, stops = _core(
+        monkeypatch, _wait(), {"choices": [{"index": 0, "text": "a"}, {"index": 1, "text": "b"}], "dialogue_only": True}
+    )
     core._event_page("EVENT_CHOICE", chosen.append, 2)
     assert chosen == [1] and not stops
     assert recorded[0].action.args["select"] == 1 and "纯台词" in recorded[0].reason
@@ -76,7 +88,11 @@ def test_dialogue_only_wait_picks_last(monkeypatch):
 
 def test_not_dialogue_wait_still_stops(monkeypatch):
     chosen = []
-    core, _, stops = _core(monkeypatch, _wait(), {"choices": [{"index": 0, "text": "a"}, {"index": 1, "text": "b"}], "dialogue_only": False})
+    core, _, stops = _core(
+        monkeypatch,
+        _wait(),
+        {"choices": [{"index": 0, "text": "a"}, {"index": 1, "text": "b"}], "dialogue_only": False},
+    )
     with pytest.raises(RuntimeError):
         core._event_page("EVENT_CHOICE", chosen.append, 2)  # 决策是 Wait、又不是纯台词：照旧停机
     assert stops and not chosen
@@ -86,6 +102,8 @@ def test_decider_choice_respected_on_dialogue(monkeypatch):
     """决策器自己给了选择（3940a9 的全部无效果规则）：照决策器，不改成最后一项。"""
     chosen = []
     d = Decision(Action.event_select(0), "纯台词，选第 1 项", "rule", 0.8, decider="event_choice")
-    core, recorded, _ = _core(monkeypatch, d, {"choices": [{"index": 0, "text": "a"}, {"index": 1, "text": "b"}], "dialogue_only": True})
+    core, recorded, _ = _core(
+        monkeypatch, d, {"choices": [{"index": 0, "text": "a"}, {"index": 1, "text": "b"}], "dialogue_only": True}
+    )
     core._event_page("EVENT_CHOICE", chosen.append, 2)
     assert chosen == [0] and recorded[0] is d

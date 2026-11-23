@@ -651,7 +651,7 @@ class BattleState:
         if profile and "trend" not in observed:
             from hiro.state.knowledge import idol_trend
 
-            try:
+            try:  # noqa: SIM105
                 observed["trend"] = tuple(idol_trend(profile.idol_id)[1])
             except (KeyError, IndexError):
                 pass
@@ -659,7 +659,7 @@ class BattleState:
             # 考试最后 3 回合固定为 流3 → 流2 → 流1（knowledge.IDOL_TREND，wiki「ターン割」；第 4 局本战两轮实机为 Vi → Da → Vo）
             from hiro.state.knowledge import idol_trend
 
-            try:
+            try:  # noqa: SIM105
                 observed["final_turn_permil"] = memory.attr_permil.get(idol_trend(profile.idol_id)[1][0])
             except KeyError:
                 pass

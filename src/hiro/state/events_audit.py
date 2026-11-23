@@ -16,7 +16,14 @@ from pathlib import Path
 
 from hiro.state.events import SUPPORT_SLACK, check_value, make_event, predict
 
-FIELDS = ("produce.params.Vo", "produce.params.Da", "produce.params.Vi", "produce.stamina", "produce.produce_point", "produce.star")
+FIELDS = (
+    "produce.params.Vo",
+    "produce.params.Da",
+    "produce.params.Vi",
+    "produce.stamina",
+    "produce.produce_point",
+    "produce.star",
+)
 OPTION_EVENT = {"training": "LESSON", "class": "STUDY", "outing": "OUTING", "gift": "GIFT", "rest": "REST"}
 
 
@@ -58,11 +65,20 @@ def audit(trace_dirs: list[Path], until: int | None = 6) -> dict:
     rows = []
     for t in trace_dirs:
         steps = _steps(t)
-        acts = [i for i, s in enumerate(steps) if s["state"]["page"]["name"] == "ACTION_SELECT" and (s.get("decision") or {}).get("action", {}).get("kind") == "ProduceNext"]
-        for a, b in zip(acts, acts[1:] + [None]):
+        acts = [
+            i
+            for i, s in enumerate(steps)
+            if s["state"]["page"]["name"] == "ACTION_SELECT"
+            and (s.get("decision") or {}).get("action", {}).get("kind") == "ProduceNext"
+        ]
+        for a, b in zip(acts, acts[1:] + [None]):  # noqa: B007
             s = steps[a]
             prod = dict(s["state"].get("produce") or {})
-            if not prod.get("step") or (until is not None and prod["step"] > until) or prod.get("mode") not in (None, "produce-007"):
+            if (
+                not prod.get("step")
+                or (until is not None and prod["step"] > until)
+                or prod.get("mode") not in (None, "produce-007")
+            ):
                 continue
             prod.setdefault("mode", "produce-007")
             args = s["decision"]["action"]["args"]
@@ -86,7 +102,11 @@ def audit(trace_dirs: list[Path], until: int | None = 6) -> dict:
             drinks = sum(1 for st in between if st["state"]["page"]["name"] == "SELECT_DRINK"
                          and (st.get("decision") or {}).get("action", {}).get("kind") == "ActivateEffect")  # fmt: skip
             preds = predict({"produce": prod}, make_event(kind, ev_args))
-            fields = {k: {kk: vv for kk, vv in vars(v).items() if vv is not None} for k, v in preds[0].fields.items()} if preds else {}
+            fields = (
+                {k: {kk: vv for kk, vv in vars(v).items() if vv is not None} for k, v in preds[0].fields.items()}
+                if preds
+                else {}
+            )
             obs = nxt["state"].get("produce") or {}
             shop = any(st["state"]["page"]["name"] == "CONSULT" for st in between)
             for f in FIELDS:
@@ -97,7 +117,9 @@ def audit(trace_dirs: list[Path], until: int | None = 6) -> dict:
                 if f == "produce.produce_point" and shop:
                     continue
                 if f == "produce.star" and picks:
-                    exp = dict(exp)  # 中间每拿一张卡触发一次ワッペン：+10 × star_permil（倍率未识别时按预测器的区间上下界）
+                    exp = dict(
+                        exp
+                    )  # 中间每拿一张卡触发一次ワッペン：+10 × star_permil（倍率未识别时按预测器的区间上下界）
                     lo = exp.get("value", exp.get("min"))
                     hi = exp.pop("value", None) or exp.get("max")
                     exp["min"], exp["max"], exp["exact"] = lo + picks * 10, hi + picks * 20, False
@@ -129,7 +151,9 @@ def main():
         print(f"  {k}: {v}")
     for r in res["rows"]:
         if r["verdict"] != "consistent":
-            print(f"  ✗ {r['trace']} 第 {r['day']} 天 {r['event']} {r['args']} {r['field']}：期望 {r['expect']} 读数 {r['observed']}")
+            print(
+                f"  ✗ {r['trace']} 第 {r['day']} 天 {r['event']} {r['args']} {r['field']}：期望 {r['expect']} 读数 {r['observed']}"
+            )
     if args.json:
         Path(args.json).write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
 

@@ -2,9 +2,9 @@
 
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.devices import active
+
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -62,7 +62,7 @@ def test_runtime_mode_uses_guarded_device_and_checkpoints():
     assert rt.t == pytest.approx(0.5) and rt.checkpoints == 4 and len(hooks) == 4
     n = 0
     for _ in active.Loop(interval=0.1):
-        n += 1
+        n += 1  # noqa: SIM113
         if n == 3:
             break
     assert rt.checkpoints == 7

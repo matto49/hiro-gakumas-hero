@@ -32,7 +32,11 @@ def test_taps_ok_on_support_event_info_popup():
 
 def test_ignores_other_pages():
     r = _R()
-    grid = [_box("カスタマイズ", 300, 1070, 420, 1096), _box("終了", 630, 1070, 676, 1096), _box("OK", 360, 1145, 406, 1176)]
+    grid = [
+        _box("カスタマイズ", 300, 1070, 420, 1096),
+        _box("終了", 630, 1070, 676, 1096),
+        _box("OK", 360, 1145, 406, 1176),
+    ]
     assert dismiss_info_popup(r, grid) is False  # 没有说明框的文字：不点
     assert dismiss_info_popup(r, POPUP[:3]) is False  # 有文字但没找到 OK：不乱点
     assert r.taps == []

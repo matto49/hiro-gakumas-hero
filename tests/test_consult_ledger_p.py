@@ -36,7 +36,12 @@ def test_failed_service_not_reopened():
 def test_without_p_reading_falls_back_to_shelf():
     d = ProduceDeciders.__new__(ProduceDeciders)
     _visit(d, 480)
-    v = _visit(d, None, {"label": "买 烏龍茶", "cost": 50, "index": 4}, shelf=[{"index": 4, "drink_id": "x", "purchased": True}])
+    v = _visit(
+        d,
+        None,
+        {"label": "买 烏龍茶", "cost": 50, "index": 4},
+        shelf=[{"index": 4, "drink_id": "x", "purchased": True}],
+    )
     assert (v["spent"], v["p"]) == (50, 430)
     v = _visit(d, None, {"label": "买 ホットコーヒー", "cost": 50, "index": 7}, shelf=[])  # 货架读空不算买到
     assert v["spent"] == 50

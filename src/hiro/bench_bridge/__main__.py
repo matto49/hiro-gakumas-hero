@@ -45,7 +45,7 @@ def _hint(e: BaseException) -> str:
     import urllib.error
 
     if isinstance(e, ModuleNotFoundError):
-        return f"缺 Python 模块 {e.name}：确认 .[bench] 装上了（uv pip install -e \".[bench]\"）、考试引擎在 vendor/gakumas-player"
+        return f'缺 Python 模块 {e.name}：确认 .[bench] 装上了（uv pip install -e ".[bench]"）、考试引擎在 vendor/gakumas-player'
     if isinstance(e, (urllib.error.URLError, ConnectionError, TimeoutError)):
         return "下载失败：检查网络 / 代理（HTTPS_PROXY），或手动把模型放进 ~/.cache/hiro/bench（HIRO_BENCH_CACHE）"
     if isinstance(e, ValueError) and "sha256" in str(e).lower():

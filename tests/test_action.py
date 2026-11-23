@@ -3,11 +3,11 @@
 import json
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision.action import read_action_select
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "action"
 TRUTH = json.loads((FIX / "truth.json").read_text(encoding="utf-8"))

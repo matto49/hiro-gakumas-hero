@@ -9,11 +9,13 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
 
-@pytest.mark.lowres_sample("开始确认页样例 start-confirm-q16 是 540x960 截图；DMM 实机同一页（start-confirm-dmm1，1081x1921）在 DMM 回归集里两种 OCR 都过")
+@pytest.mark.lowres_sample(
+    "开始确认页样例 start-confirm-q16 是 540x960 截图；DMM 实机同一页（start-confirm-dmm1，1081x1921）在 DMM 回归集里两种 OCR 都过"
+)
 def test_parse_memory_real_frame():
-    from play_game import parse_memory
-
     from hiro.produce.ops import ocr_boxes
+
+    from play_game import parse_memory
 
     img = cv2.resize(cv2.imread(str(Path(__file__).parent / "fixtures/start-confirm-q16.png")), (720, 1280))
     assert parse_memory(ocr_boxes(img)) == (1670, 1828, 1011)
@@ -22,11 +24,10 @@ def test_parse_memory_real_frame():
 def test_parse_memory_img_strips_attr_icons():
     """DMM 版（Windows，RapidOCR）：属性图标读成数字 91459 / と2336 / 89865，旧读法只认出一个数、本战没开。
     数字框左端有彩色图标就裁掉再读；MuMu 第十六局帧在 RapidOCR 下也靠这一步读出来。"""
-    import pytest
-
-    from play_game import parse_memory_img
-
     from hiro.produce.ops import ocr_boxes
+
+    import pytest
+    from play_game import parse_memory_img
 
     for name, want in (("start-confirm-dmm1.png", (1459, 2336, 865)), ("start-confirm-q16.png", (1670, 1828, 1011))):
         f = Path(__file__).parent / "fixtures" / name
@@ -38,7 +39,6 @@ def test_parse_memory_img_strips_attr_icons():
 
 def test_icon_right_edge_synthetic():
     import numpy as np
-
     from play_game import icon_right_edge
 
     img = np.full((60, 200, 3), 40, np.uint8)

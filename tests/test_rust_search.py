@@ -30,9 +30,9 @@ def rs():
 
 @pytest.fixture()
 def rx(rs):
-    from gakumas_exam.native_battle import maybe_native
-
     from hiro.sim import interval as iv
+
+    from gakumas_exam.native_battle import maybe_native
 
     env = maybe_native(iv._env(iv.R2Setup(deck=DECK, drinks=[], hp=20, max_hp=33, permil=PERMIL, star=None), 7))
     if not hasattr(env, "rx"):
@@ -42,7 +42,15 @@ def rx(rs):
 
 
 def _visible(x):
-    return (x.zone("hand"), sorted(x.zone("grave")), sorted(x.zone("lost")), x.score, x.stamina, x.current_turn, x.drinks)
+    return (
+        x.zone("hand"),
+        sorted(x.zone("grave")),
+        sorted(x.zone("lost")),
+        x.score,
+        x.stamina,
+        x.current_turn,
+        x.drinks,
+    )
 
 
 def test_sample_world_keeps_visible_and_reshuffles_hidden(rs, rx):
@@ -54,7 +62,9 @@ def test_sample_world_keeps_visible_and_reshuffles_hidden(rs, rx):
     assert Counter(da) == Counter(db) == Counter(d0) and da != db  # 同一批牌、顺序不同
     t0 = rx.turn_types
     for t in (a.turn_types, b.turn_types):
-        assert [t[i] for i in range(len(t)) if i not in free] == [t0[i] for i in range(len(t0)) if i not in free]  # 看得到的回合不动
+        assert [t[i] for i in range(len(t)) if i not in free] == [
+            t0[i] for i in range(len(t0)) if i not in free
+        ]  # 看得到的回合不动
         assert Counter(t[i] for i in free) == Counter(t0[i] for i in free)  # 配额不变
     assert a.rng_state != b.rng_state
     a.random_rollout(5)
@@ -85,7 +95,7 @@ def test_drinks_setter_for_rebuild(rs, rx):
 
 def test_set_card_upgrade_adjusts_support_part(rs, rx):
     g = rx.zone("hand")[0]
-    cid, up, _ = rx.card_info(g)
+    _cid, up, _ = rx.card_info(g)
     assert rx.set_card_upgrade(g, up + 1) and rx.card_info(g)[1] == up + 1
     assert rx.set_card_upgrade(g, up) and rx.card_info(g)[1] == up
     assert not rx.set_card_upgrade(g, up)  # 没变化
@@ -93,7 +103,7 @@ def test_set_card_upgrade_adjusts_support_part(rs, rx):
 
 def test_objective_stars_by_rivals(rs, rx):
     """三星目标（偶像之路）：给了对手分数，每个世界返回终局分和星；名次 = 1 + 分数不超过对手的个数。"""
-    r = rs.search(rx, 0, [], worlds=2, seconds=0.3, threads=2, seed=5, rivals=[10 ** 12, 1])
+    r = rs.search(rx, 0, [], worlds=2, seconds=0.3, threads=2, seed=5, rivals=[10**12, 1])
     for w in r["worlds"]:
         raw, stars = w[4], w[5]
         assert stars == 2 and raw > 1  # 赢不了 10¹² 那个、赢得了 1 分那个：第 2 名 → ★2
@@ -105,9 +115,9 @@ def test_objective_pass_rank(rs, rx):
     """过关名次（初前 3、N.I.A 第 1）：名次在线外一律 0 档。N.I.A 第 2 名不算过。"""
     if "pass_rank" not in (rs.search.__text_signature__ or ""):
         pytest.skip("Rust 后端没有 pass_rank")
-    r = rs.search(rx, 0, [], worlds=2, seconds=0.3, threads=2, seed=5, rivals=[10 ** 12, 1], pass_rank=1)
+    r = rs.search(rx, 0, [], worlds=2, seconds=0.3, threads=2, seed=5, rivals=[10**12, 1], pass_rank=1)
     assert all(w[5] == 0 for w in r["worlds"])  # 第 2 名、要第 1：没过
-    r = rs.search(rx, 0, [], worlds=2, seconds=0.3, threads=2, seed=5, rivals=[10 ** 12, 1], pass_rank=3)
+    r = rs.search(rx, 0, [], worlds=2, seconds=0.3, threads=2, seed=5, rivals=[10**12, 1], pass_rank=3)
     assert all(w[5] == 2 for w in r["worlds"])  # 第 2 名、前 3 就过：照旧 ★2
 
 
@@ -118,14 +128,14 @@ def test_objective_score_cap_and_lesson(rs, rx):
     out = rs.plan_many([rx.clone()], seconds=0.2, threads=1, score_cap=5)
     assert out[0][0] == 5 and out[0][1] > 5  # 目标值封顶在 5，原始分照实
     out = rs.plan_many([rx.clone()], seconds=0.2, threads=1, clear_score=1, score_cap=5)
-    assert out[0][0] == 10 ** 10 + 5  # 过了合格线：1 档 + 封顶分
-    out = rs.plan_many([rx.clone()], seconds=0.2, threads=1, clear_score=10 ** 12)
-    assert out[0][0] < 10 ** 10  # 到不了合格线：0 档
+    assert out[0][0] == 10**10 + 5  # 过了合格线：1 档 + 封顶分
+    out = rs.plan_many([rx.clone()], seconds=0.2, threads=1, clear_score=10**12)
+    assert out[0][0] < 10**10  # 到不了合格线：0 档
 
 
 def test_plan_many_returns_best_line(rs, rx):
     out = rs.plan_many([rx.clone(), rx.clone()], seconds=0.2, threads=2, rivals=[1])
-    assert len(out) == 2 and all(v >= 3 * 10 ** 10 and raw > 1 and st == 3 for v, raw, st in out)
+    assert len(out) == 2 and all(v >= 3 * 10**10 and raw > 1 and st == 3 for v, raw, st in out)
 
 
 def test_new_card_for_generated_cards(rs, rx):

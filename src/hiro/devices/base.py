@@ -62,7 +62,10 @@ def logical_size(width: int, height: int) -> tuple[int, int]:
     return LANDSCAPE if width > height else PORTRAIT
 
 
-LANDSCAPE_CROP_RATIO = (1.5, 1.7)  # 横屏宽高比落在这里（Mac 全屏 16:10：PlayCover 横屏 LIVE 全屏后截到 2940x1838）：居中裁成 16:9
+LANDSCAPE_CROP_RATIO = (
+    1.5,
+    1.7,
+)  # 横屏宽高比落在这里（Mac 全屏 16:10：PlayCover 横屏 LIVE 全屏后截到 2940x1838）：居中裁成 16:9
 
 
 def crop_box(width: int, height: int) -> tuple[int, int, int, int] | None:
@@ -117,7 +120,9 @@ class LogicalScreen:
 
     def __init__(self) -> None:
         self.native: tuple[int, int] | None = None  # 最近一张原生截图的 (宽, 高)
-        self.crop: tuple[int, int, int, int] | None = None  # 原生截图里用的那一块 (x0, y0, w, h)；横屏 16:10 时居中裁 16:9
+        self.crop: tuple[int, int, int, int] | None = (
+            None  # 原生截图里用的那一块 (x0, y0, w, h)；横屏 16:10 时居中裁 16:9
+        )
 
     @property
     def orientation(self) -> str:

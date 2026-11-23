@@ -1,6 +1,6 @@
 """对数据集中所有 HIF 考试帧跑手牌识别，统计识别率与耗时，导出卡面对照图供人工核对。
 
-    PYTHONPATH=src .venv/bin/python tools/eval_hand.py datasets/<目录>
+PYTHONPATH=src .venv/bin/python tools/eval_hand.py datasets/<目录>
 """
 
 import argparse
@@ -9,12 +9,12 @@ import time
 from collections import Counter
 from pathlib import Path
 
-import cv2
-import numpy as np
-
 import hiro  # noqa: F401
 from hiro.vision.hif import read_hand
 from hiro.vision.offline import load
+
+import cv2
+import numpy as np
 
 
 def main():
@@ -40,11 +40,19 @@ def main():
                 label = np.full((24, 57, 3), 255, np.uint8)
                 cv2.putText(label, f"{c['art_score']:.2f}", (2, 17), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 0), 1)
                 tiles.append(np.vstack([tile, label]))
-    summary = {"frames": len(frames), "cards": total, "unrecognized": missing,
-               "ms_median": round(sorted(ms)[len(ms) // 2], 1) if ms else None, "names": dict(names.most_common())}
+    summary = {
+        "frames": len(frames),
+        "cards": total,
+        "unrecognized": missing,
+        "ms_median": round(sorted(ms)[len(ms) // 2], 1) if ms else None,
+        "names": dict(names.most_common()),
+    }
     print(json.dumps(summary, ensure_ascii=False, indent=1))
     if tiles:
-        rows = [np.hstack(tiles[i : i + 20] + [np.zeros_like(tiles[0])] * (20 - len(tiles[i : i + 20]))) for i in range(0, len(tiles), 20)]
+        rows = [
+            np.hstack(tiles[i : i + 20] + [np.zeros_like(tiles[0])] * (20 - len(tiles[i : i + 20])))
+            for i in range(0, len(tiles), 20)
+        ]
         cv2.imwrite(str(root / "hand_tiles.png"), np.vstack(rows))
 
 

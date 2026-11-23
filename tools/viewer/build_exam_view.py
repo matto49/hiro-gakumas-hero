@@ -153,7 +153,9 @@ def attach_blunders(data: dict, report: dict) -> None:
                 "seg": (f.get("segment") or "")[len(base):] or "原段", "at": list(loc) if loc else None}  # fmt: skip
         items.append(item)
         if loc:
-            data["exams"][loc[0]]["steps"][loc[1]]["blunders"].append({k: item[k] for k in ("category", "kind", "label", "detail")})
+            data["exams"][loc[0]]["steps"][loc[1]]["blunders"].append(
+                {k: item[k] for k in ("category", "kind", "label", "detail")}
+            )
     counts = [{"category": c, "kind": k, "label": label, "n": n} for c, kinds in (report.get("kinds") or {}).items()
               for k, label in kinds.items() if (n := (report.get("counts") or {}).get(c, {}).get(k))]  # fmt: skip
     data["blunders"] = {"name": report.get("name"), "total": len(items), "counts": counts, "items": items}
@@ -163,7 +165,7 @@ def build(base: str, traces: Path) -> dict:
     exams: list[dict] = []
     cur: dict | None = None
     prev_rem = None
-    pending_result: dict | None = None
+    pending_result: dict | None = None  # noqa: F841
     thumbs: dict = {}
     for seg in _segments(traces, base):
         for line in (seg / "steps.jsonl").open(encoding="utf-8"):
@@ -197,7 +199,11 @@ def build(base: str, traces: Path) -> dict:
                 continue
             label = (st.get("exam_session") or {}).get("label") or "exam"
             rem = ex.get("remaining_turns")
-            new = cur is None or cur["label"] != label or (rem is not None and prev_rem is not None and rem > prev_rem + 1)
+            new = (
+                cur is None
+                or cur["label"] != label
+                or (rem is not None and prev_rem is not None and rem > prev_rem + 1)
+            )
             if new:
                 attempt = 1 + sum(1 for e in exams if e["label"] == label)
                 cur = {"label": label, "attempt": attempt, "steps": [], "result": None}
@@ -238,7 +244,9 @@ def build(base: str, traces: Path) -> dict:
     for e in exams:
         e["turns"] = _turns(e["steps"])
         last = e["steps"][-1] if e["steps"] else {}
-        e["final_score"] = (e["result"] or {}).get("round_score") or (e["result"] or {}).get("score") or last.get("score")
+        e["final_score"] = (
+            (e["result"] or {}).get("round_score") or (e["result"] or {}).get("score") or last.get("score")
+        )
     return {"run": base, "generated": time.strftime("%Y-%m-%d %H:%M"), "exams": [e for e in exams if e["steps"]]}
 
 

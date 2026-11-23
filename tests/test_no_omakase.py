@@ -3,10 +3,10 @@
 
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro import kaa_env
 from hiro.loop import kaa_patches
+
+import pytest
 
 
 def _reload_env(monkeypatch, **env):
@@ -48,18 +48,21 @@ def test_rent_step2_refuses_omakase_unless_explicit(monkeypatch):
 
 
 def test_default_rental_pick_uses_main_attr(monkeypatch):
+    from hiro import kaa_env
     from hiro.produce import rental
 
-    from hiro import kaa_env
-
     got, scorers = [], []
-    monkeypatch.setattr(rental, "pick_rental", lambda attr, scorer=None, **k: got.append(attr) or scorers.append(scorer) or True)
+    monkeypatch.setattr(
+        rental, "pick_rental", lambda attr, scorer=None, **k: got.append(attr) or scorers.append(scorer) or True
+    )
     monkeypatch.setattr(kaa_env, "ACTIVE_PLAN", None)
     monkeypatch.setattr(kaa_patches, "RENTAL_ATTR", "Vi")
     assert kaa_patches._default_rental_pick() and got == ["Vi"] and scorers == [None]  # 没有方案：主属性、等级最高
     monkeypatch.setattr(kaa_patches, "RENTAL_ATTR", None)
     assert kaa_patches._default_rental_pick() and got[-1] == rental.WANT_ATTR
-    monkeypatch.setattr(kaa_env, "ACTIVE_PLAN", {"support": {"own": [{"support_card_id": "s_card-3-0099", "level": 60}]}, "idol": {}})
+    monkeypatch.setattr(
+        kaa_env, "ACTIVE_PLAN", {"support": {"own": [{"support_card_id": "s_card-3-0099", "level": 60}]}, "idol": {}}
+    )
     assert kaa_patches._default_rental_pick() and callable(scorers[-1])  # 有方案：按编成价值打分
 
 
@@ -72,10 +75,12 @@ def _fake_templates(monkeypatch, next_enabled: bool):
 
 
 def test_rent_step2_stops_when_rental_slot_empty(monkeypatch):
-    import sys
+    import sys  # noqa: F401
 
     _fake_templates(monkeypatch, False)
-    monkeypatch.setattr(kaa_patches, "select_set", lambda n: None)  # 翻编成号（hiro.produce.prep_steps）不在这条用例里测
+    monkeypatch.setattr(
+        kaa_patches, "select_set", lambda n: None
+    )  # 翻编成号（hiro.produce.prep_steps）不在这条用例里测
     monkeypatch.setattr(kaa_patches, "device", NS(screenshot=lambda: None), raising=False)
     import kotonebot
 
@@ -89,7 +94,9 @@ def test_rent_step2_passes_when_set_full(monkeypatch):
     import kotonebot
 
     _fake_templates(monkeypatch, True)
-    monkeypatch.setattr(kaa_patches, "select_set", lambda n: None)  # 翻编成号（hiro.produce.prep_steps）不在这条用例里测
+    monkeypatch.setattr(
+        kaa_patches, "select_set", lambda n: None
+    )  # 翻编成号（hiro.produce.prep_steps）不在这条用例里测
     monkeypatch.setattr(kotonebot, "device", NS(screenshot=lambda: None))
     assert kaa_patches._rent_step2(lambda **k: True)(set_number=1, auto_set=False) is True
 
@@ -111,14 +118,16 @@ def test_best_row_excludes_plan_mismatch():
     assert best_row(rows, exclude={"なぜこんなところにッ！？"})["card"]["name"] == "いつまでも続けばいいのに"
 
 
-@pytest.mark.lowres_sample("租借页样例 step2-rental-mismatch 是 540x960 截图；DMM 租借页待编成库存扫描（任务单第 6 步）取实机帧补进回归集")
+@pytest.mark.lowres_sample(
+    "租借页样例 step2-rental-mismatch 是 540x960 截图；DMM 租借页待编成库存扫描（任务单第 6 步）取实机帧补进回归集"
+)
 def test_rental_mismatch_reads_real_frame(monkeypatch):
     """第十七局实机帧：租借格（右下）标「プラン不一致」。"""
     from pathlib import Path
 
-    import cv2
-
     from hiro.produce import rental
+
+    import cv2
 
     img = cv2.resize(cv2.imread(str(Path(__file__).parent / "fixtures/support/step2-rental-mismatch.png")), (720, 1280))
     monkeypatch.setattr(rental, "device", NS(screenshot=lambda: img))

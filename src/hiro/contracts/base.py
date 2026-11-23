@@ -183,7 +183,9 @@ def build(cls, d: dict, path: str = "$"):
     names = {f.name for f in dataclasses.fields(cls)}
     unknown = set(d) - names
     if unknown:
-        raise SchemaError(f"{path}: {cls.__name__} 未知字段 {sorted(unknown)}（契约字段只增不改名，改名须同步 observe.py 与测试）")
+        raise SchemaError(
+            f"{path}: {cls.__name__} 未知字段 {sorted(unknown)}（契约字段只增不改名，改名须同步 observe.py 与测试）"
+        )
     kwargs = {k: _from_jsonable(hints[k], v, f"{path}.{k}") for k, v in d.items()}
     return cls(**kwargs)
 

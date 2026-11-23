@@ -19,7 +19,17 @@ PRODUCE_PAGES = {
     "INITIAL_CHOICE", "EVENT_CHOICE",  # 事件选项页：随机事件 / 开局二选一，几乎在任何行动之后都可能出现，当枢纽
 }  # fmt: skip
 EXAM_PAGES = {"HIF_EXAM", "HIF_EXAM_RESULT"}
-HUB = {"IDLE", "commu", "DIALOG", "MENU", "PRODUCE_LOG", "DELETE_RESULT", "CUSTOMIZE_RESULT", "INITIAL_CHOICE", "EVENT_CHOICE"}  # PRODUCE_LOG：行动记录覆盖层（底栏文档图标），点 ✕ 关闭  # 任何培育页面都可能经过：剧情、弹窗之间的空档
+HUB = {
+    "IDLE",
+    "commu",
+    "DIALOG",
+    "MENU",
+    "PRODUCE_LOG",
+    "DELETE_RESULT",
+    "CUSTOMIZE_RESULT",
+    "INITIAL_CHOICE",
+    "EVENT_CHOICE",
+}  # PRODUCE_LOG：行动记录覆盖层（底栏文档图标），点 ✕ 关闭  # 任何培育页面都可能经过：剧情、弹窗之间的空档
 WEAK = {"IDLE"}  # 「在培育里但没认出具体页面」：弹窗选中项时 KAA 也会判成 IDLE，要连续多帧才离开当前页面
 SELECTS = {"SELECT_CARD", "SELECT_DRINK", "SELECT_PITEM"}
 CARD_OPS = {"SKILL_CARD_ENHANCE", "SKILL_CARD_REMOVAL", "SKILL_CARD_CHANGE_1", "SKILL_CARD_CHANGE_2"}
@@ -47,7 +57,12 @@ _NEXT: dict[str, set[str]] = {
 DECK_LIST_FROM = {"ACTION_SELECT", "SELECT_CARD", "SELECT_DRINK", "CONSULT", "STUDY", "OUTING", "HIF_EXAM"}
 _NEXT["DECK_LIST"] = set(DECK_LIST_FROM)
 for _p in SELECTS:
-    _NEXT[_p] = {"ACTION_SELECT", "STUDY", "OUTING", "HIF_ROUND_INTERVAL", "HIF_EXAM", "PRODUCE_END", "OUTING_STAMINA_MAX"} | SELECTS | CARD_OPS | DRINK_FULL
+    _NEXT[_p] = (
+        {"ACTION_SELECT", "STUDY", "OUTING", "HIF_ROUND_INTERVAL", "HIF_EXAM", "PRODUCE_END", "OUTING_STAMINA_MAX"}
+        | SELECTS
+        | CARD_OPS
+        | DRINK_FULL
+    )
 for _p in DECK_LIST_FROM:
     _NEXT.setdefault(_p, set()).add("DECK_LIST")
 
@@ -85,13 +100,17 @@ _NEXT["HIF_EXAM_RESULT"].add("PRODUCE_END")
 _NEXT["GIFT"] = {"ACTION_SELECT", "ACQUIRE"} | SELECTS | DRINK_FULL
 _NEXT.setdefault("ACTION_SELECT", set()).add("GIFT")
 # 礼物箱里有几个袋子时，选完一个袋子的三选一会回到礼物箱再开下一个：GIFT → SELECT_DRINK → GIFT → SELECT_CARD
-#（DMM 实机三次都是这个顺序，SELECT_DRINK → GIFT 不在图里，每次记一次 page_misjudged）
+# （DMM 实机三次都是这个顺序，SELECT_DRINK → GIFT 不在图里，每次记一次 page_misjudged）
 for _p in SELECTS:
     _NEXT.setdefault(_p, set()).add("GIFT")
 for _p in CARD_OPS:
     _NEXT[_p] = {"CONSULT", "ACTION_SELECT", "HIF_ROUND_INTERVAL", "STUDY", "OUTING"} | SELECTS | CARD_OPS
 for _p in DRINK_FULL:
-    _NEXT[_p] = {"CONSULT", "ACTION_SELECT", "HIF_ROUND_INTERVAL", "OUTING", "PRACTICE", "EXAM", "HIF_EXAM_RESULT"} | SELECTS | DRINK_FULL
+    _NEXT[_p] = (
+        {"CONSULT", "ACTION_SELECT", "HIF_ROUND_INTERVAL", "OUTING", "PRACTICE", "EXAM", "HIF_EXAM_RESULT"}
+        | SELECTS
+        | DRINK_FULL
+    )
 
 ALL_PAGES = PRODUCE_PAGES | {"home", "commu", "unknown"}
 

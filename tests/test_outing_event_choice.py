@@ -5,10 +5,10 @@ import os
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.produce import hif
 from hiro.vision.ocr import Box, Text
+
+import pytest
 
 
 def T(text, x, y):
@@ -31,7 +31,12 @@ def _core(monkeypatch, texts):
 
 
 def test_outing_stamina_max_continues_with_select(monkeypatch):
-    texts = [T("体力が最大なので回復効果は発動しません。", 295, 1021), T("✕キャンセル", 211, 1161), T("く", 420, 1159), T("選択する", 512, 1160)]
+    texts = [
+        T("体力が最大なので回復効果は発動しません。", 295, 1021),
+        T("✕キャンセル", 211, 1161),
+        T("く", 420, 1159),
+        T("選択する", 512, 1160),
+    ]
     core, clicks, notes = _core(monkeypatch, texts)
     core.on_outing_stamina_max()
     assert clicks == [(512, 1160)] and "体力已满" in notes[0]
@@ -46,12 +51,16 @@ def test_outing_stamina_max_without_button_stops(monkeypatch):
 
 def test_outing_stamina_max_real_frame_classified_and_button_read():
     """KAA 的样例帧（in_produce/screenshot_outing_2.png）：判页 OUTING_STAMINA_MAX，「選択する」在底部右侧。"""
-    import cv2
-
     from hiro.vision.classify import classify
     from hiro.vision.ocr import screen_texts
 
-    path = Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures")) / "pages" / "outing-stamina-max-kaa.png"
+    import cv2
+
+    path = (
+        Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures"))
+        / "pages"
+        / "outing-stamina-max-kaa.png"
+    )
     if not path.exists():
         pytest.skip("需要样例帧 pages/outing-stamina-max-kaa.png")
     img = cv2.resize(cv2.imread(str(path)), (720, 1280))

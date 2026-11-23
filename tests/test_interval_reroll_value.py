@@ -3,8 +3,6 @@
 刷出 ブースト 就买；空位满了 / P 到了需要量 / 估值不划算就停。动作名和执行 23e6965 对齐。"""
 
 import copy
-
-import pytest
 import json
 from pathlib import Path
 
@@ -14,8 +12,17 @@ from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import ActionKind, GameState
 from hiro.sim import interval as iv
 
-FIX = json.loads((Path(__file__).parent / "fixtures" / "q16_resource.json").read_text(encoding="utf-8"))["main17_interval"]
-GOOD = {"pdrink_02-3-010": 30000, "pdrink_00-2-008": 25000, "pdrink_00-2-010": 20000, "pdrink_00-3-001": 15000}  # 复制 / 爆发 / 抽牌 / 加行动
+import pytest
+
+FIX = json.loads((Path(__file__).parent / "fixtures" / "q16_resource.json").read_text(encoding="utf-8"))[
+    "main17_interval"
+]
+GOOD = {
+    "pdrink_02-3-010": 30000,
+    "pdrink_00-2-008": 25000,
+    "pdrink_00-2-010": 20000,
+    "pdrink_00-3-001": 15000,
+}  # 复制 / 爆发 / 抽牌 / 加行动
 
 
 @pytest.fixture(autouse=True)
@@ -42,7 +49,9 @@ def _state(shelf, hp, p):
 def test_q17_interval_rerolls_for_r2_drinks(monkeypatch):
     monkeypatch.setattr(iv, "plan_tiered", _plan)
     monkeypatch.setattr(iv, "drink_gains", _gains)
-    monkeypatch.setattr(iv, "CONTEXT", {"deck": FIX["finals_context"]["deck"], "permil": FIX["finals_context"]["permil"], "drinks": []})
+    monkeypatch.setattr(
+        iv, "CONTEXT", {"deck": FIX["finals_context"]["deck"], "permil": FIX["finals_context"]["permil"], "drinks": []}
+    )
     shelf = copy.deepcopy(FIX["page_fields"]["interval"])
     dec = ProduceDeciders(CAMPUS_HIRO, None)
     d = dec.decide("HIF_ROUND_INTERVAL", _state(shelf, 24, 580))
@@ -65,7 +74,9 @@ def test_q17_interval_rerolls_for_r2_drinks(monkeypatch):
 def test_reroll_stops_when_failed_or_p_short(monkeypatch):
     monkeypatch.setattr(iv, "plan_tiered", _plan)
     monkeypatch.setattr(iv, "drink_gains", _gains)
-    monkeypatch.setattr(iv, "CONTEXT", {"deck": FIX["finals_context"]["deck"], "permil": FIX["finals_context"]["permil"], "drinks": []})
+    monkeypatch.setattr(
+        iv, "CONTEXT", {"deck": FIX["finals_context"]["deck"], "permil": FIX["finals_context"]["permil"], "drinks": []}
+    )
     shelf = copy.deepcopy(FIX["page_fields"]["interval"])
     shelf["drinks"][1].update(purchased=True, drink_id=None, name=None)
     dec = ProduceDeciders(CAMPUS_HIRO, None)
@@ -90,7 +101,9 @@ def test_q19_drinks_before_upgrade(monkeypatch):
     不刷 → 强化 → 剩 44P，R2 只带 2 瓶。现在先刷新找第 3 瓶，强化只用剩下的钱。"""
     monkeypatch.setattr(iv, "plan_tiered", _plan)
     monkeypatch.setattr(iv, "drink_gains", _gains)
-    monkeypatch.setattr(iv, "CONTEXT", {"deck": FIX["finals_context"]["deck"], "permil": FIX["finals_context"]["permil"], "drinks": []})
+    monkeypatch.setattr(
+        iv, "CONTEXT", {"deck": FIX["finals_context"]["deck"], "permil": FIX["finals_context"]["permil"], "drinks": []}
+    )
     shelf = copy.deepcopy(FIX["page_fields"]["interval"])
     shelf["drinks"][1].update(purchased=True, drink_id=None, name=None)
     dec = ProduceDeciders(CAMPUS_HIRO, None)
@@ -102,7 +115,9 @@ def test_q19_drinks_before_upgrade(monkeypatch):
 def test_reroll_value_math():
     g = _gains()
     v, picks = iv.shelf_value([(6, "pdrink_02-2-006", 75), (7, "pdrink_00-3-001", 100)], g, 2, 300)
-    assert picks == [7] and v == 15000 - iv.SPARE_P_VALUE * 100  # ハーブティー 增益不显著，不买；ホエイ 净值扣余 P 机会成本（3a4615f）
+    assert (
+        picks == [7] and v == 15000 - iv.SPARE_P_VALUE * 100
+    )  # ハーブティー 增益不显著，不买；ホエイ 净值扣余 P 机会成本（3a4615f）
     r = iv.reroll_ev(g, 2, 300, 10, 0.0, n=2000)
     assert r["ev"] > 0 and 0 < r["p_good"] < 1
     assert iv.reroll_ev(g, 0, 300, 10, 0.0)["ev"] == float("-inf")  # 没空位
@@ -116,7 +131,9 @@ def test_q20_keep_last_slot_for_better_drink(monkeypatch):
     gains["pdrink_02-1-006"] = (7815, 2777)  # おしゃれハーブティー（第二十局估值）
     monkeypatch.setattr(iv, "plan_tiered", _plan)
     monkeypatch.setattr(iv, "drink_gains", lambda *a, **k: gains)
-    monkeypatch.setattr(iv, "CONTEXT", {"deck": FIX["finals_context"]["deck"], "permil": FIX["finals_context"]["permil"], "drinks": []})
+    monkeypatch.setattr(
+        iv, "CONTEXT", {"deck": FIX["finals_context"]["deck"], "permil": FIX["finals_context"]["permil"], "drinks": []}
+    )
     shelf = copy.deepcopy(FIX["page_fields"]["interval"])
     dec = ProduceDeciders(CAMPUS_HIRO, None)
 
@@ -133,7 +150,9 @@ def test_q20_keep_last_slot_for_better_drink(monkeypatch):
     weak["drinks"] = [{"index": 6, "price": 75, "purchased": False, "drink_id": "pdrink_00-1-004", "name": "フレッシュビネガー"},
                       {"index": 7, "price": 75, "purchased": False, "drink_id": "pdrink_02-1-006", "name": "おしゃれハーブティー"}]  # fmt: skip
     d = dec.decide("HIF_ROUND_INTERVAL", st(weak, 470))
-    assert d.action.kind is ActionKind.REROLL and "继续刷新的价值" in d.reason, d.reason  # 弱饮料不占最后一格（第二十五局起按栏位机会成本 + 社区先验）
+    assert d.action.kind is ActionKind.REROLL and "继续刷新的价值" in d.reason, (
+        d.reason
+    )  # 弱饮料不占最后一格（第二十五局起按栏位机会成本 + 社区先验）
     strong = copy.deepcopy(weak)
     strong["drinks"] = [{"index": 6, "price": 75, "purchased": False, "drink_id": "pdrink_00-2-008", "name": "ブーストエキス"},
                         {"index": 7, "price": 75, "purchased": False, "drink_id": "pdrink_02-1-006", "name": "おしゃれハーブティー"}]  # fmt: skip
@@ -161,7 +180,9 @@ def test_gains_failure_still_buys_plan_drinks(monkeypatch):
     monkeypatch.setattr(iv, "plan_tiered", _plan)
     monkeypatch.setattr(iv, "drink_gains", boom)
     monkeypatch.setattr(iv, "take_gains", lambda setup: None)
-    monkeypatch.setattr(iv, "CONTEXT", {"deck": FIX["finals_context"]["deck"], "permil": FIX["finals_context"]["permil"], "drinks": []})
+    monkeypatch.setattr(
+        iv, "CONTEXT", {"deck": FIX["finals_context"]["deck"], "permil": FIX["finals_context"]["permil"], "drinks": []}
+    )
     shelf = copy.deepcopy(FIX["page_fields"]["interval"])
     dec = ProduceDeciders(CAMPUS_HIRO, None)
     d = dec.decide("HIF_ROUND_INTERVAL", _state(shelf, 24, 580))

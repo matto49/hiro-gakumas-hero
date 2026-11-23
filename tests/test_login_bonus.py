@@ -5,30 +5,31 @@ import pytest
 
 pytest.importorskip("kaa")  # 操作层：要装 KAA / kotonebot（pip install -e ".[play]"）
 
+import importlib.util as _iu
 from pathlib import Path
+from pathlib import Path as _P
 from types import SimpleNamespace as NS
-
-import cv2
 
 from hiro.loop.resume import REWARD_TAP, reward_tap
 from hiro.produce.ops import ocr_boxes
 
-import importlib.util as _iu
-from pathlib import Path as _P
+import cv2
 
 
 def _real(*rel):
     """用实机截图的用例：截图放在 tests/fixtures/…（开源仓库不带，用自己的截图），识别层（hiro.vision.ocr）也要装。"""
-    have = all((_P(__file__).parent / "fixtures" / r).exists() for r in rel) and _iu.find_spec("hiro.vision.ocr") is not None
+    have = (
+        all((_P(__file__).parent / "fixtures" / r).exists() for r in rel)
+        and _iu.find_spec("hiro.vision.ocr") is not None
+    )
     return pytest.mark.skipif(not have, reason="需要实机截图 tests/fixtures/" + ", ".join(rel) + " 和识别层")
-
 
 
 def _boxes(pairs):
     return [NS(text=t, rect=NS(center=NS(x=(b[0] + b[2]) / 2, y=(b[1] + b[3]) / 2))) for t, b in pairs]
 
 
-@_real('home/g26-login-bonus.png')
+@_real("home/g26-login-bonus.png")
 def test_real_login_bonus_frame_taps_bottom_blank():
     img = cv2.imread(str(Path(__file__).parent / "fixtures/home/g26-login-bonus.png"))
     boxes = _boxes([(t, b) for t, _, b in ocr_boxes(img)])
@@ -36,13 +37,17 @@ def test_real_login_bonus_frame_taps_bottom_blank():
 
 
 def test_purchase_or_jewel_never_tapped():
-    assert reward_tap(_boxes([("ガシャチケット", (216, 763, 504, 787)), ("ジュエル購入", (200, 900, 500, 930))])) is None
+    assert (
+        reward_tap(_boxes([("ガシャチケット", (216, 763, 504, 787)), ("ジュエル購入", (200, 900, 500, 930))])) is None
+    )
     assert reward_tap(_boxes([("有償ジュエル 獲得", (200, 700, 500, 730))])) is None
 
 
 def test_text_near_bottom_tap_is_left_alone():
     """底部那块有文字（可能是按钮）时不点，交回原来的流程。"""
-    assert reward_tap(_boxes([("ログインボーナス", (200, 100, 500, 140)), ("受け取る", (300, 1160, 420, 1200))])) is None
+    assert (
+        reward_tap(_boxes([("ログインボーナス", (200, 100, 500, 140)), ("受け取る", (300, 1160, 420, 1200))])) is None
+    )
 
 
 def test_not_reward_screen():

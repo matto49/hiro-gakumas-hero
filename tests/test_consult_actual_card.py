@@ -3,12 +3,16 @@
 
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.contracts import Action, ActionKind, Decision, GameState
 from hiro.loop.events import events_from_step
 
-DECK = [{"card_id": "p_card-02-men-0_001"}, {"card_id": "p_card-02-men-0_002"}, {"card_id": "p_card-00-men-0_003", "upgrade": 0}]
+import pytest
+
+DECK = [
+    {"card_id": "p_card-02-men-0_001"},
+    {"card_id": "p_card-02-men-0_002"},
+    {"card_id": "p_card-00-men-0_003", "upgrade": 0},
+]
 SLEEPY = "p_card-00-acc-0_002"
 
 
@@ -16,7 +20,14 @@ def test_delete_event_prefers_actual_card_id():
     args = {"service": "delete", "card_index": 2}
     ev = events_from_step("CONSULT", {"kind": "ShopBuy", "args": args}, True, {}, {"deck": DECK}, seq=1)
     assert ev[0].args["card_id"] == "p_card-00-men-0_003"
-    ev = events_from_step("CONSULT", {"kind": "ShopBuy", "args": {**args, "card_id": SLEEPY, "upgrade": 0}}, True, {}, {"deck": DECK}, seq=1)
+    ev = events_from_step(
+        "CONSULT",
+        {"kind": "ShopBuy", "args": {**args, "card_id": SLEEPY, "upgrade": 0}},
+        True,
+        {},
+        {"deck": DECK},
+        seq=1,
+    )
     assert (ev[0].kind, ev[0].args["card_id"]) == ("CARD_DELETE", SLEEPY)
 
 

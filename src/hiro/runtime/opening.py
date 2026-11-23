@@ -33,7 +33,9 @@ START_SKIP_S = 5.0  # 点开始后这么久内一直找「跳过交流」单选�
 
 LOGOS = ("Produce.LogoHajime", "Produce.LogoNia", "Produce.LogoHif")
 MODE_BUTTON = {"qualify": "Produce.ButtonHifQualify", "main": "Produce.ButtonHifMain"}
-DISCARD = "游戏提示「プロデュースデータの破棄」：其他端末有进行中的培育。已点「キャンセル」，不自动新开；是否破弃由用户决定"
+DISCARD = (
+    "游戏提示「プロデュースデータの破棄」：其他端末有进行中的培育。已点「キャンセル」，不自动新开；是否破弃由用户决定"
+)
 
 
 def _ocr(img):
@@ -70,7 +72,6 @@ FLIP_WAIT_S = 4.0  # 点了左右箭头后等画面换到别的剧本；这么�
 def select_scenario(rt, logo: str, timeout: float = LOGO_TIMEOUT) -> None:
     """剧本选择页翻到 logo：认出当前是哪个剧本，按顺序往前 / 往后点一下箭头，等画面换到别的剧本再决定下一下。
     原来每拍都点（N.I.A 采样第一次实机 11-17：翻页动画中认不出 logo 又连着点，来回翻，30 秒停在 H.I.F）。"""
-    from hiro.vision.ui_templates import point
 
     state = {"at": None, "from": None}
 
@@ -184,7 +185,9 @@ def start(rt, timeout: float = 20.0) -> None:
     t0 = rt.clock()
     while rt.clock() - t0 < START_SKIP_S:
         f, done = rt.tick()
-        if done is None and nav.find(f, "Produce.Step4.ButtonProduceStart") is None:  # 第 4 步页还在时不点（「決定」会误命中开始按钮一带）
+        if (
+            done is None and nav.find(f, "Produce.Step4.ButtonProduceStart") is None
+        ):  # 第 4 步页还在时不点（「決定」会误命中开始按钮一带）
             for name in ("Produce.RadioTextSkipCommu", "Common.ButtonConfirmNoIcon"):
                 if (m := nav.find(f, name)) is not None:
                     nav.tap_match(rt, m)
@@ -251,7 +254,10 @@ def select_idol(rt, skin_id: str) -> None:
             rt.sleep(0.3)
             nav.tap_match(rt, m)
             state["picked"], state["last"] = True, rt.clock()
-        elif nav.find(f, "Produce.IdolOverview.ButtonConfirm") is not None and rt.clock() - state["last"] >= CONFIRM_RETAP_S:
+        elif (
+            nav.find(f, "Produce.IdolOverview.ButtonConfirm") is not None
+            and rt.clock() - state["last"] >= CONFIRM_RETAP_S
+        ):
             nav.tap_match(rt, m)  # 一览还在：「決定」没点上，只补点「決定」
             state["last"] = rt.clock()
         return None
@@ -278,7 +284,9 @@ def _selected_settled(rt, f, skin_id: str) -> bool:
 
 def step1(rt, skin_id: str) -> None:
     """第 1 步：目标偶像没选上就去一览里选（最多 IDOL_TRIES 次），然后点「次へ」到第 2 步。"""
-    f = rt.drive(lambda f: f if nav.find(f, "Produce.TextStepIndicator1") is not None else None, STEP_TIMEOUT, "等第 1 步")
+    f = rt.drive(
+        lambda f: f if nav.find(f, "Produce.TextStepIndicator1") is not None else None, STEP_TIMEOUT, "等第 1 步"
+    )
     for _ in range(IDOL_TRIES):
         if _selected_settled(rt, f, skin_id):
             break
@@ -289,7 +297,10 @@ def step1(rt, skin_id: str) -> None:
         raise ResumeBlocked(f"选了 {IDOL_TRIES} 次，第 1 步选中的仍不是 {skin_id}")
 
     def next_step(f):
-        if nav.find(f, "Produce.TextStepIndicator2") is not None or nav.find(f, "Produce.TextStepIndicator4Or2") is not None:
+        if (
+            nav.find(f, "Produce.TextStepIndicator2") is not None
+            or nav.find(f, "Produce.TextStepIndicator4Or2") is not None
+        ):
             return True
         _tap_step1_next(rt, f)
         return None
@@ -320,21 +331,31 @@ def _next_enabled(f, name: str):
     return find_enabled(name, f.img)
 
 
-def step2(rt, *, set_no: int | None, plan: dict | None = None, rental_attr: str | None = None, main_attr: str | None = None) -> None:
+def step2(
+    rt, *, set_no: int | None, plan: dict | None = None, rental_attr: str | None = None, main_attr: str | None = None
+) -> None:
     """第 2 步：翻到支援卡编成 set_no → 按方案自动改（HIRO_FORMATION_AUTOFIX=1）→ 核对 → 租借格空着就挑一张租借 → 次へ。
     编成号翻不到 / 核对不过 / 挑不到租借 都停（FormationMismatch / ResumeBlocked），不交给おまかせ。"""
     from hiro.produce import formation_steps, prep_steps
     from hiro.produce.formation_writer import Device as WriterDevice
 
-    rt.drive(lambda f: True if nav.find(f, "Produce.TextStepIndicator2") is not None else None, STEP_TIMEOUT, "等第 2 步")
+    rt.drive(
+        lambda f: True if nav.find(f, "Produce.TextStepIndicator2") is not None else None, STEP_TIMEOUT, "等第 2 步"
+    )
     if set_no is None:
         raise ResumeBlocked("没有支援卡编成号（HIRO_SUPPORT_SET / 开局编成方案），不开局")
-    if not prep_steps.select_set(set_no, shoot=lambda: rt.screen.shot().img, tap=rt.device.tap, sleep=rt.sleep, clock=rt.clock):
+    if not prep_steps.select_set(
+        set_no, shoot=lambda: rt.screen.shot().img, tap=rt.device.tap, sleep=rt.sleep, clock=rt.clock
+    ):
         raise ResumeBlocked(f"支援卡编成翻不到 {set_no} 号")
     dev = _RentalDevice(rt)
-    formation_steps.autofix_support(WriterDevice(shoot=dev.screenshot, click=dev.click, swipe=dev.swipe, sleep=rt.sleep), plan)
-    formation_steps.check_support(rt.screen.shot().img, plan, set_no, shoot=lambda: rt.screen.shot().img, sleep=rt.sleep)
-    if _next_enabled(rt.screen.shot(), "Produce.Step2.ButtonNext") is None:
+    formation_steps.autofix_support(
+        WriterDevice(shoot=dev.screenshot, click=dev.click, swipe=dev.swipe, sleep=rt.sleep), plan
+    )
+    formation_steps.check_support(
+        rt.screen.shot().img, plan, set_no, shoot=lambda: rt.screen.shot().img, sleep=rt.sleep
+    )
+    if _next_enabled(rt.screen.shot(), "Produce.Step2.ButtonNext") is None:  # noqa: SIM102
         # 租借（hiro.produce.rental）走「当前设备」门面 hiro.devices.active（平台模块 feat_matto_handlers）：run_hif 在新主循环里
         # active.use(rt) 后它点的就是带拦截的 rt.device
         if not formation_steps.rental_pick(plan, rental_attr, main_attr):
@@ -359,12 +380,18 @@ def step3(rt, *, set_no: int | None, plan: dict | None = None) -> None:
     → 次へ（中途「有可用租借次数」提示点确认），到第 4 步。"""
     from hiro.produce import formation_steps, prep_steps
 
-    rt.drive(lambda f: True if nav.find(f, "Produce.TextStepIndicator3") is not None else None, STEP_TIMEOUT, "等第 3 步")
+    rt.drive(
+        lambda f: True if nav.find(f, "Produce.TextStepIndicator3") is not None else None, STEP_TIMEOUT, "等第 3 步"
+    )
     if set_no is None:
         raise ResumeBlocked("没有回忆编成号（HIRO_MEMORY_SET / 开局编成方案），不开局")
-    if not prep_steps.select_set(set_no, shoot=lambda: rt.screen.shot().img, tap=rt.device.tap, sleep=rt.sleep, clock=rt.clock):
+    if not prep_steps.select_set(
+        set_no, shoot=lambda: rt.screen.shot().img, tap=rt.device.tap, sleep=rt.sleep, clock=rt.clock
+    ):
         raise ResumeBlocked(f"回忆编成翻不到 {set_no} 号")
-    formation_steps.check_memory_set(rt.screen.shot().img, plan, set_no, shoot=lambda: rt.screen.shot().img, sleep=rt.sleep)
+    formation_steps.check_memory_set(
+        rt.screen.shot().img, plan, set_no, shoot=lambda: rt.screen.shot().img, sleep=rt.sleep
+    )
 
     want = len(((plan or {}).get("memory") or {}).get("chosen") or [])
 
@@ -375,12 +402,16 @@ def step3(rt, *, set_no: int | None, plan: dict | None = None) -> None:
             # 「メモリー編成確認」：有回忆格空着。方案本来就不到 4 份（空格是有意的）才点「完了する」；
             # 方案要 4 份（或没有方案）却空着：点キャンセル，停下（账号 2 11-16：原来没处理，卡在这个框）
             if 0 < want < 4:
-                if (b := next((t for t in f.texts if "完了する" in t.text and t.rect.center.y > 1080), None)) is not None:
+                if (
+                    b := next((t for t in f.texts if "完了する" in t.text and t.rect.center.y > 1080), None)
+                ) is not None:
                     rt.device.tap(*b.rect.center)
                 return None
             if (b := next((t for t in f.texts if "キャンセル" in t.text and t.rect.center.y > 1080), None)) is not None:
                 rt.device.tap(*b.rect.center)
-            raise ResumeBlocked(f"第 3 步回忆格有空的（方案要 {want or '?'} 份），游戏问「このまま編成を完了」：点了キャンセル，不开局")
+            raise ResumeBlocked(
+                f"第 3 步回忆格有空的（方案要 {want or '?'} 份），游戏问「このまま編成を完了」：点了キャンセル，不开局"
+            )
         if nav.find(f, "Produce.TextRentAvailable") is not None:
             if (m := nav.find(f, "Produce.RentAvailableConfirmButton")) is not None:
                 nav.tap_match(rt, m)
@@ -405,7 +436,9 @@ def _set_checkbox(rt, name: str, want: bool) -> None:
 
 def step4(rt, *, note_boost: bool = False, pt_boost: bool = False) -> None:
     """第 4 步（本战是「2.開始確認」）：按设置勾 / 不勾两个加成（同 KAA step4）。"""
-    rt.drive(lambda f: True if nav.find(f, "Produce.TextStepIndicator4Or2") is not None else None, STEP_TIMEOUT, "等第 4 步")
+    rt.drive(
+        lambda f: True if nav.find(f, "Produce.TextStepIndicator4Or2") is not None else None, STEP_TIMEOUT, "等第 4 步"
+    )
     _set_checkbox(rt, "Produce.Step4.CheckboxNoteBoost", note_boost)
     _set_checkbox(rt, "Produce.Step4.CheckboxPtBoost", pt_boost)
 
@@ -421,7 +454,9 @@ def check_main_memory(rt, expect: tuple[str, ...]) -> None:
     if missing:
         memory_select.select_memory(expect, shoot=shoot, click=rt.device.tap, sleep=rt.sleep,
                                     swipe=lambda x1, y1, x2, y2, d=0.3: rt.device.swipe(x1, y1, x2, y2, duration=d))  # fmt: skip
-        missing = memory_select.memory_missing_on_page(expect, shoot=shoot, sleep=rt.sleep)  # 已选中的那份不在「変更」列表里，关掉列表后再核
+        missing = memory_select.memory_missing_on_page(
+            expect, shoot=shoot, sleep=rt.sleep
+        )  # 已选中的那份不在「変更」列表里，关掉列表后再核
     if missing:
         raise memory_select.MemoryMismatch(f"选拔回忆不符：页面上找不到 {missing}")
     logger.info("本战开局：选拔回忆核对通过（%s）", "/".join(expect))
@@ -439,6 +474,7 @@ def prepare(rt, mode: str, *, idol: str, support_set: int | None = None, memory_
         step2(rt, set_no=support_set, plan=plan, rental_attr=rental_attr, main_attr=main_attr)
         step3(rt, set_no=memory_set, plan=plan)
     else:
+
         def to_confirm(f):
             if _finals_start(f):
                 return "finals_start"

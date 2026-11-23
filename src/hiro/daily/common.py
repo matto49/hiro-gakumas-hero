@@ -9,11 +9,11 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 
-import numpy as np
-
 from hiro.daily_guard import classify_popup
 from hiro.vision.ocr import Box
 from hiro.vision.ui_templates import normalize, primary_button_enabled
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 

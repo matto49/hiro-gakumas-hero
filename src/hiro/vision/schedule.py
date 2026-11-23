@@ -32,6 +32,8 @@ def panel_open(img: np.ndarray) -> bool:
         return False
     hsv = cv2.cvtColor(img[300:1100, 40:680], cv2.COLOR_BGR2HSV)
     return float(((hsv[..., 2] > 230) & (hsv[..., 1] < 25)).mean()) >= PANEL_WHITE_MIN
+
+
 PERMIL_X = ((60, 260), (260, 460), (460, 660))  # Vo / Da / Vi 三格（图标 + 数字，从左到右固定顺序）
 
 
@@ -94,10 +96,18 @@ def read_schedule_panel(img: np.ndarray, texts=None) -> dict | None:
             attr = next((a for w, a in ATTR_WORDS if w in word), None)
         rows[off] = attr
     effects: dict[int, str] = {}
-    for k, (off, y) in enumerate(labels):  # 回合效果（gimmick）：行标签下面、下一行标签上面的文字（最終「1ターン後」下面的「やる気+5」）
+    for k, (off, y) in enumerate(
+        labels
+    ):  # 回合效果（gimmick）：行标签下面、下一行标签上面的文字（最終「1ターン後」下面的「やる気+5」）
         y_end = labels[k + 1][1] - 15 if k + 1 < len(labels) else min(y + EFFECT_MAX_H, EFFECT_Y_MAX)
-        boxes = sorted((yy, x, s) for s, x, yy in tx if x > 150 and y + 30 <= yy <= y_end and not any(w in s for w, _ in ATTR_WORDS))
-        lines: list[list[tuple[int, str]]] = []  # 同一行（y 差 ≤ 12）的字按 x 排：「元気が18以上の場合、」「やる気+8」只差 2 像素
+        boxes = sorted(
+            (yy, x, s)
+            for s, x, yy in tx
+            if x > 150 and y + 30 <= yy <= y_end and not any(w in s for w, _ in ATTR_WORDS)
+        )
+        lines: list[
+            list[tuple[int, str]]
+        ] = []  # 同一行（y 差 ≤ 12）的字按 x 排：「元気が18以上の場合、」「やる気+8」只差 2 像素
         last_y = None
         for yy, x, txt in boxes:
             if last_y is None or yy - last_y > 12:
@@ -114,7 +124,9 @@ def read_schedule_panel(img: np.ndarray, texts=None) -> dict | None:
             permil[a] = num * 10
     # 过线条件一行（「3位以上で中間試験突破」「3位以上またはスコア1700以上で中間試験突破」；N.I.A「…オーディション突破」）：
     # 先认带「突破」的那行，没有再退回「以上 + 位」。原文写进 pass_text（8a3a1e7 11-18：场次按原文关键词认中間 / 最終 / 1次 / 2次）
-    cond = next((s for s, _, _ in tx if "突破" in s), "") or next((s for s, _, _ in tx if "以上" in s and "位" in s), "")
+    cond = next((s for s, _, _ in tx if "突破" in s), "") or next(
+        (s for s, _, _ in tx if "以上" in s and "位" in s), ""
+    )
     rank = re.search(r"(\d{1,2})位(?:以上|以内|で)", cond)
     score = re.search(r"スコア(\d[\d,]*)以上", cond)
     return {

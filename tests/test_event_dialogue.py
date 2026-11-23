@@ -45,10 +45,10 @@ def test_rules():
 
 def test_advance_taps_dialogue_box(monkeypatch):
     """主循环 advance（play.advance）和 N.I.A 采样的 advance 都按 _quick 的 tap 点台词框。"""
-    import numpy as np
-
     from hiro.runtime import play
     from hiro.vision.classify import PageHit
+
+    import numpy as np
 
     taps = []
     rt = NS(device=NS(tap=lambda x, y: taps.append((x, y))), _quick_wait=None)

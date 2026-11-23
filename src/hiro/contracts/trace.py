@@ -10,11 +10,13 @@
 
 import json
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
+from hiro import imgio
 from hiro.contracts.base import VERSION, Contract
 from hiro.contracts.decision import Decision
 from hiro.contracts.events import Check, Event, Prediction
@@ -22,7 +24,6 @@ from hiro.contracts.execution import ExecutionResult
 from hiro.contracts.game_state import GameState
 from hiro.contracts.observation import Observation
 from hiro.contracts.preview import Preview
-from hiro import imgio
 
 TRACES = Path("traces")
 
@@ -38,7 +39,9 @@ class Step(Contract):
     decision: Decision | None = None
     previews: list[Preview] = field(default_factory=list)
     execution: ExecutionResult | None = None
-    observations_before: list[Observation] = field(default_factory=list)  # 上一步之后、决策点之前并入状态的其他观测（页面帧等），按时间序
+    observations_before: list[Observation] = field(
+        default_factory=list
+    )  # 上一步之后、决策点之前并入状态的其他观测（页面帧等），按时间序
     observations_after: list[Observation] = field(default_factory=list)  # 决策点之后并入状态的观测（存档、执行校验帧）
     notes: list[str] = field(default_factory=list)  # 故障恢复、冲突等说明
     timings_ms: dict[str, float] = field(default_factory=dict)  # observe / reduce / decide / act / total
@@ -63,7 +66,11 @@ class TraceWriter:
             old = json.loads(run.read_text(encoding="utf-8")) if run.exists() else None
         except (OSError, ValueError):
             old = None
-        data = this if old is None else {**old, "segments": [*old.get("segments", []), {**this, "first_seq": self.seq + 1}]}
+        data = (
+            this
+            if old is None
+            else {**old, "segments": [*old.get("segments", []), {**this, "first_seq": self.seq + 1}]}
+        )
         run.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
 
     def next_seq(self) -> int:

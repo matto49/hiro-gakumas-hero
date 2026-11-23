@@ -5,14 +5,14 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision.extract import extract
 from hiro.vision.observe import observation
 from hiro.vision.offline import load
 from hiro.vision.scene import classify_current
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures")
 
@@ -90,7 +90,11 @@ def test_pdrink_max_rows():
 
     r = read_pdrink_max(cv2.imread(str(FIX / "pages" / "pdrink_max-kaa.png")))
     assert r["incoming"]["name"] == "初星水"
-    assert [(h["index"], h["name"]) for h in r["held"]] == [(0, "アイスコーヒー"), (1, "リカバリドリンク"), (2, "烏龍茶")]
+    assert [(h["index"], h["name"]) for h in r["held"]] == [
+        (0, "アイスコーヒー"),
+        (1, "リカバリドリンク"),
+        (2, "烏龍茶"),
+    ]
     assert r["select_left"] == 0
     obs = observation(1, 0.0, "PDRINK_MAX", r)
     assert obs.problems(strict=True) == [] and obs.fields["incoming"]["drink_id"] == "pdrink_00-1-001"
@@ -107,7 +111,10 @@ def test_pdrink_max_two_incoming():
     assert r["incoming"]["name"] == "初星ホエイプロテイン" and r["select_left"] == 1
     assert [h["name"] for h in r["held"]] == ["初星スペシャル青汁", "初星水"]
     obs = observation(1, 0.0, "PDRINK_MAX", r)
-    assert obs.problems(strict=True) == [] and [d["name"] for d in obs.fields["incomings"]] == ["特製ハツボシエキス", "初星ホエイプロテイン"]
+    assert obs.problems(strict=True) == [] and [d["name"] for d in obs.fields["incomings"]] == [
+        "特製ハツボシエキス",
+        "初星ホエイプロテイン",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -220,7 +227,10 @@ def test_select_drink_held_when_full(rel, full, held):
     f = obs.fields
     assert f["full"] is full and [d["name"] for d in f["held"]] == held
     assert [d["index"] for d in f["held"]] == list(range(len(held)))
-    assert set(f["held"][0]) == {"index", "drink_id", "name", "center", "method"} and f["held"][0]["center"][1] in (1200, 1213)
+    assert set(f["held"][0]) == {"index", "drink_id", "name", "center", "method"} and f["held"][0]["center"][1] in (
+        1200,
+        1213,
+    )
     assert all(d["drink_id"] for d in f["held"])
 
 
@@ -250,7 +260,9 @@ def test_produce_log_not_select_pitem():
     assert _page("select_pitem/e2-unselected.jpg")[0] == "SELECT_PITEM"
 
 
-@pytest.mark.parametrize(("name", "complete"), [("consult-q12-00231", True), ("consult-q12-00232", False), ("consult-q12-00234", False)])
+@pytest.mark.parametrize(
+    ("name", "complete"), [("consult-q12-00231", True), ("consult-q12-00232", False), ("consult-q12-00234", False)]
+)
 def test_consult_shelf_covered(name, complete):
     """第十二局第 12 天相談：#234 支援卡效果横幅盖住第一行、#232 强化结果演出盖住货架，说明行仍在 → 以前判完整，
     第 0 格读出幻影「アイドル宣言 4P」，决策去买、执行连失败 2 次。现在没买过的格子 ≥2 格读不出就不完整（shelf 给 None）。
@@ -284,7 +296,14 @@ def test_retry_confirm_dialog():
     f = page_fields("DIALOG", cv2.imread(str(FIX / "pages" / "dialog-retry-confirm-main20.jpg")))
     c = f["confirm"]
     assert f["kind"] == "retry_confirm" and f["danger"] is False
-    assert (c["free"], c["jewel"], c["tickets_before"], c["tickets_after"], c["left"], c["total"]) == (True, False, 267, 267, 3, 3)
+    assert (c["free"], c["jewel"], c["tickets_before"], c["tickets_after"], c["left"], c["total"]) == (
+        True,
+        False,
+        267,
+        267,
+        3,
+        3,
+    )
     assert abs(c["ok"][0] - 500) <= 25 and abs(c["cancel"][0] - 215) <= 25 and abs(c["ok"][1] - 1160) <= 20
 
 

@@ -22,7 +22,7 @@ def note_exam(label: str, *, deck=None, drinks=None, permil=None, max_hp=None, t
     if max_hp:
         CONTEXT["max_hp"] = int(max_hp)
     if trace_dir is not None:
-        try:
+        try:  # noqa: SIM105
             (Path(trace_dir) / CONTEXT_FILE).write_text(json.dumps(CONTEXT, ensure_ascii=False), encoding="utf-8")
         except OSError:
             pass
@@ -44,7 +44,7 @@ def _notify_sim(label: str, permil, trace_dir) -> None:
 
 
 def load_context(trace_dir) -> dict:
-    try:
+    try:  # noqa: SIM105
         CONTEXT.update(json.loads((Path(trace_dir) / CONTEXT_FILE).read_text(encoding="utf-8")))
     except (OSError, ValueError):
         pass

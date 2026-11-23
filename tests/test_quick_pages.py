@@ -5,11 +5,11 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision.quick import quick_page, split_card_names
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures")
 
@@ -39,8 +39,14 @@ def test_quick_pages(rel, page, tap, dispatch):
 def test_bubble_events():
     """气泡文字：考试后自动处理基础卡 → DELETE_RESULT（事件 CARD_DELETE），卡名里的「と」按主数据切开。"""
     q = _q("quick/auto-delete-q17-159.jpg")
-    assert [(c["name"], c["upgrade"]) for c in q["fields"]["cards"]] == [("アイコンタクトの基本", 0), ("距離感の基本", 1)]
-    assert [c["name"] for c in split_card_names("ありがとうの言葉と距離感の基本")] == ["ありがとうの言葉", "距離感の基本"]
+    assert [(c["name"], c["upgrade"]) for c in q["fields"]["cards"]] == [
+        ("アイコンタクトの基本", 0),
+        ("距離感の基本", 1),
+    ]
+    assert [c["name"] for c in split_card_names("ありがとうの言葉と距離感の基本")] == [
+        "ありがとうの言葉",
+        "距離感の基本",
+    ]
     assert _q("pages/upgrade_result.jpg")["page"] == "UPGRADE_RESULT"
     assert _q("guidance/q10-after-exec.jpg")["page"] == "CUSTOMIZE_RESULT"
 
@@ -93,8 +99,15 @@ def test_controller_quick_tap(monkeypatch):
 
     img = cv2.imread(str(FIX / "quick/gift-q15-18.jpg"))
     clicks, observed = [], []
-    monkeypatch.setitem(sys.modules, "kotonebot", NS(device=NS(click=lambda *a: clicks.append(a), screenshot=lambda: img)))
-    session = NS(debug_recog=False, state=NS(page=NS(name="ACTION_SELECT")), observe=lambda **kw: observed.append(kw["scene"]), record=lambda: None)
+    monkeypatch.setitem(
+        sys.modules, "kotonebot", NS(device=NS(click=lambda *a: clicks.append(a), screenshot=lambda: img))
+    )
+    session = NS(
+        debug_recog=False,
+        state=NS(page=NS(name="ACTION_SELECT")),
+        observe=lambda **kw: observed.append(kw["scene"]),
+        record=lambda: None,
+    )
     monkeypatch.setattr(HiroController, "session", session)
     c = HiroController.__new__(HiroController)
     assert c._quick_page() == "handled" and observed == ["GIFT"] and len(clicks) == 1
@@ -111,7 +124,9 @@ def test_battle_drinks_unknown_or_empty_slots_give_nothing(monkeypatch):
     empty = [{"slot": i, "state": "empty", "asset": None, "center": [62 + 85 * i, 1200]} for i in range(4)]
     monkeypatch.setattr("hiro.vision.items.read_drink_slots", lambda img, cache=None: empty)
     assert battle._drinks(None) == []
-    monkeypatch.setattr("hiro.vision.items.read_drink_slots", lambda img, cache=None: [dict(empty[0], state="unknown")] + empty[1:])
+    monkeypatch.setattr(
+        "hiro.vision.items.read_drink_slots", lambda img, cache=None: [dict(empty[0], state="unknown")] + empty[1:]
+    )
     assert battle._drinks(None) == []
 
 
@@ -139,7 +154,9 @@ def test_controller_briefing_read_then_tap(monkeypatch):
 
     frames = {"img": cv2.imread(str(FIX / "quick/exam-bonus-q17-121.jpg"))}
     clicks, observed, now = [], [], [0.0]
-    monkeypatch.setitem(sys.modules, "kotonebot", NS(device=NS(click=lambda *a: clicks.append(a), screenshot=lambda: frames["img"])))
+    monkeypatch.setitem(
+        sys.modules, "kotonebot", NS(device=NS(click=lambda *a: clicks.append(a), screenshot=lambda: frames["img"]))
+    )
     monkeypatch.setattr(C.time, "sleep", lambda s: None)
     monkeypatch.setattr(C.time, "monotonic", lambda: now[0])
     session = NS(debug_recog=False, state=NS(page=NS(name="ACTION_SELECT")), record=lambda: None,
@@ -196,7 +213,14 @@ def test_fallback_page_not_on_decision_pages():
     from hiro.vision.quick import fallback_page
 
     hits = []
-    for pat in ("scenes/*.jpg", "select_card/*.jpg", "hif_hud/*.jpg", "shop/consult*.jpg", "pages/dialog-*.jpg", "finals/*.jpg"):
+    for pat in (
+        "scenes/*.jpg",
+        "select_card/*.jpg",
+        "hif_hud/*.jpg",
+        "shop/consult*.jpg",
+        "pages/dialog-*.jpg",
+        "finals/*.jpg",
+    ):
         for f in sorted(glob.glob(str(FIX / pat))):
             img = cv2.imread(f)
             if img is None or img.shape[:2] != (1280, 720):
@@ -236,7 +260,9 @@ def test_pitem_note(rel):
     assert (q["page"], q["fields"].get("kind"), q["tap"]) == ("TRANSITION", "pitem_note", (360, 250))
 
 
-@pytest.mark.parametrize("rel", ["quick/not-gift-drink-popup-q21-47.jpg", "quick/not-gift-drink-popup-note-q21r3-4.jpg"])
+@pytest.mark.parametrize(
+    "rel", ["quick/not-gift-drink-popup-q21-47.jpg", "quick/not-gift-drink-popup-note-q21r3-4.jpg"]
+)
 def test_drink_popup_not_gift(rel):
     """差し入れ 选饮料弹窗（浅灰底 + 底部「受け取る」）：原来被认成 GIFT、点了「受け取る」(360,1077)，没经过决策就收下饮料。
     现在不碰（第二张还叠着 P 道具效果说明浮条，也不点），交给原来的选饮料流程。"""

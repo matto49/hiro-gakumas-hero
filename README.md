@@ -146,6 +146,8 @@ scripts/setup.sh                                        # 装依赖、生成 KAA
 PYTHONPATH=src .venv/bin/python -m pytest -q            # 没有截图样例时，读截图的用例会跳过
 ```
 
+开发时的代码检查、格式、类型检查和 CI 见 [docs/development.md](docs/development.md)。
+
 1. **素材**：公开游戏数据由 `setup.sh` 下载，识别用的图标、卡面、字体随仓库（`assets/pack/`），不用再准备。
    客户端更新出新界面、新图标时，用自己的截图跑 `tools/assets/capture_icons.py` 补。详见 [docs/assets.md](docs/assets.md)。
 2. **打一局**（游戏停在首页，已编好支援卡 / 回忆编成）：
@@ -239,7 +241,7 @@ open /tmp/hiro-view/demo-run.html
 | `docs/` | 契约、状态机、素材与退路、社区打法（H.I.F `hif-playbook.md`，初 / N.I.A `hajime-playbook.md`、`nia-playbook.md`、`hajime-nia-mechanics.md`） |
 | `vendor/gakumas-player` | 考试引擎 `gakumas_exam`、Rust 版 `gakumas_exam_rs`（含世界采样和 GNRPA 搜索）、培育公式 `gakumas_produce`（含初 / N.I.A 的日程和评价公式）；主数据由 `vendor/gakumas-player/scripts/fetch_master.py` 下载（setup 会跑），不进仓库 |
 | `vendor/kaa` | KAA（kotones-auto-assistant），子模块，固定版本 |
-| `.github/workflows/` | 测试；考试引擎 Rust 预编译包（Windows / macOS / Linux，发到 Release） |
+| `.github/workflows/` | 测试（带覆盖率）、代码检查 + 格式 + 类型检查（`lint.yml`）；考试引擎 Rust 预编译包（Windows / macOS / Linux，发到 Release） |
 
 ## 致谢与许可
 

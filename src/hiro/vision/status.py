@@ -13,16 +13,15 @@ import json
 import re
 from functools import lru_cache
 
+from hiro import master
+from hiro.vision import assets, layout
+from hiro.vision.digits import read_dddd, read_leading_int
+from hiro.vision.ocr import ocr
+from hiro.vision.region_cache import RegionCache, cached
+
 import cv2
 import numpy as np
 from cv2.typing import MatLike
-from hiro import master
-
-from hiro.vision import assets
-from hiro.vision.region_cache import RegionCache, cached
-from hiro.vision import layout
-from hiro.vision.digits import read_dddd, read_leading_int
-from hiro.vision.ocr import ocr
 
 ICON_PREFIX = "img_general_icon_exam-effect_"
 _FIRST_SLOT = "BuffListRoot/BuffList/ExamMainBuffView"
@@ -35,7 +34,13 @@ BLUE = ((95, 120, 150), (110, 255, 255))
 RED_MIN_RATIO = 0.15  # 槽内红底像素占比：低下状态（デバフ，如 消費体力増加）实测 0.26–0.29，蓝底状态 / 卡牌效果为 0
 # 红底（低下状态）图标的字形和蓝底的「减少」那一个几乎一样，图库里也没有单独的「増加」图标：按底色翻过来（偶像之路 g5c 11-17：
 # 红心「消費体力増加」被认成「消費体力減少」0 或「ダークヒーローの誕生」N ターン，引擎因此少算一倍体力消耗）
-DEBUFF_FLIP = {"examstaminaconsumptiondown": ("examstaminaconsumptionadd", "ProduceExamEffectType_ExamStaminaConsumptionAdd", "消費体力増加")}
+DEBUFF_FLIP = {
+    "examstaminaconsumptiondown": (
+        "examstaminaconsumptionadd",
+        "ProduceExamEffectType_ExamStaminaConsumptionAdd",
+        "消費体力増加",
+    )
+}
 # 字形只差一个小角标的图标对：整体相关分差只有 0.04（g5c #19 背景发亮时还会排反），按两张模板「不一样的像素」再比一次
 # （消費体力減少 / 増加 的「%」和 体力回復無効 的「×」）
 CONFUSABLE = (("examstaminaconsumptiondown", "examstaminarecoverrestriction"),)
@@ -82,7 +87,9 @@ def _icon_index() -> tuple[dict, dict[str, list[np.ndarray]]]:
             meta.setdefault(seen[digest], {}).setdefault("aliases", []).append(key)
             continue
         seen[digest] = key
-        templates[key] = [cv2.resize(alpha, (s, s), interpolation=cv2.INTER_AREA).astype(np.float32) for s in GLYPH_SIZES]
+        templates[key] = [
+            cv2.resize(alpha, (s, s), interpolation=cv2.INTER_AREA).astype(np.float32) for s in GLYPH_SIZES
+        ]
     return meta, templates
 
 
@@ -301,7 +308,9 @@ def _read_slot(img: MatLike, k: int, *, faint: bool = False) -> dict:
     blue = cv2.inRange(hsv, *BLUE)
     red = float(_red_mask(hsv).mean())
     blue_ratio = np.count_nonzero(blue) / blue.size
-    red_top = _split_pair(patch, match_status_icon(patch)) if blue_ratio < BLUE_MIN_RATIO and red >= RED_MIN_RATIO else None
+    red_top = (
+        _split_pair(patch, match_status_icon(patch)) if blue_ratio < BLUE_MIN_RATIO and red >= RED_MIN_RATIO else None
+    )
     if red_top and _accepted(meta, red_top):
         # 红底：低下状态（デバフ）。字形和蓝底那一个一样的按 DEBUFF_FLIP 翻成「増加」那一种
         score, key = red_top[0]
@@ -316,7 +325,13 @@ def _read_slot(img: MatLike, k: int, *, faint: bool = False) -> dict:
         top = _split_pair(patch, match_status_icon(patch))
         score, key = top[0]
         if not _accepted(meta, top):
-            entry = {"slot": k, "kind": "status", "key": None, "score": round(score, 3), "candidates": [c for _, c in top]}
+            entry = {
+                "slot": k,
+                "kind": "status",
+                "key": None,
+                "score": round(score, 3),
+                "candidates": [c for _, c in top],
+            }
         else:
             info = meta.get(key, {})
             entry = {"slot": k, "kind": "status", "key": key, "type": info.get("type"), "name": info.get("name"),

@@ -17,10 +17,9 @@
 from __future__ import annotations
 
 import json
-
 import logging
-from dataclasses import dataclass, field
-from typing import Callable
+from collections.abc import Callable
+from dataclasses import dataclass, field  # noqa: F401
 
 from hiro.devices.active import sleep as _sleep
 
@@ -62,7 +61,7 @@ class Device:
 
     def snap(self, img, tag: str) -> None:
         if self.calib is not None and img is not None:
-            try:
+            try:  # noqa: SIM105
                 self.calib(img, tag)
             except Exception:  # noqa: BLE001  存帧失败不影响流程
                 pass
@@ -107,7 +106,9 @@ def _list_to_top(dev: Device, read_list) -> dict:
 
 def find_support_tile(cards: list[dict], target: str) -> dict | None:
     """一屏列表读数里找目标卡（完整显示、不被盖住的那张）。"""
-    return next((c for c in cards if c.get("support_card_id") == target and not c.get("partial") and c.get("center")), None)
+    return next(
+        (c for c in cards if c.get("support_card_id") == target and not c.get("partial") and c.get("center")), None
+    )
 
 
 def pick_support(dev: Device, target: str, *, read_list) -> None:
@@ -184,7 +185,12 @@ def fix_support(dev: Device, plan: dict, *, read_formation, read_list, view: str
     done = []
     for slot, target in moves:
         tile = page["slots"][slot]
-        logger.info("编成修正：支援卡第 %d 格 %s → %s", slot + 1, tile.get("name") or tile.get("support_card_id") or "认不出", target)
+        logger.info(
+            "编成修正：支援卡第 %d 格 %s → %s",
+            slot + 1,
+            tile.get("name") or tile.get("support_card_id") or "认不出",
+            target,
+        )
         dev.click(*tile["center"])
         dev.sleep(1.5)
         pick_support(dev, target, read_list=read_list)
@@ -205,7 +211,9 @@ def fix_support(dev: Device, plan: dict, *, read_formation, read_list, view: str
 # 第 3 步四格回忆的插图（点开进回忆选择页）：720x1280，顺序 左上、右上、左下、右下（11-04 实机帧；技能卡小图标在其右侧）
 STEP3_SLOTS = ((152, 770), (478, 770), (152, 901), (478, 901))
 SEARCH_ROWS = 8  # 目标行上下各找几行（库存行号可能偏：扫描漏行 / 重扫后列表变了，11-16 账号 2 偏了十几行）
-ABILITY_SIMILAR = 0.85  # 能力文字（OCR 原文）相似度达到这个就算同一份；卡 / 强化 / 时机一致但能力不像的，整窗口找完没有更好的才用
+ABILITY_SIMILAR = (
+    0.85  # 能力文字（OCR 原文）相似度达到这个就算同一份；卡 / 强化 / 时机一致但能力不像的，整窗口找完没有更好的才用
+)
 PICKER_OPEN_TRIES = 4  # 点回忆格后最多看几次选择页开没开（每次 1.5 秒，中途再点一次）
 PICKER_DECIDE = (497, 1157)
 
@@ -270,7 +278,11 @@ def pick_memory(picker, target: dict, *, decide=PICKER_DECIDE) -> None:
         return False
 
     def strong(key: str) -> bool:
-        return key == target["key"] or (want_core is not None and _core(key) == want_core and _similar(_abilities_text(key), want_ab) >= ABILITY_SIMILAR)
+        return key == target["key"] or (
+            want_core is not None
+            and _core(key) == want_core
+            and _similar(_abilities_text(key), want_ab) >= ABILITY_SIMILAR
+        )
 
     if walk(strong):
         return
@@ -278,7 +290,9 @@ def pick_memory(picker, target: dict, *, decide=PICKER_DECIDE) -> None:
         logger.warning("回忆选择页：第 %d 行附近没有能力文字也对得上的，选了第一份卡 / 强化 / 时机一致的", row)
         return
     picker.cancel()
-    raise FormationWriteError(f"回忆选择页第 {row} 行上下 {SEARCH_ROWS} 行里没找到方案里的回忆（试了 {tried} 格），库存可能过期，请重扫")
+    raise FormationWriteError(
+        f"回忆选择页第 {row} 行上下 {SEARCH_ROWS} 行里没找到方案里的回忆（试了 {tried} 格），库存可能过期，请重扫"
+    )
 
 
 def fix_memory(dev: Device, plan: dict, *, read_icons, make_picker, slots=STEP3_SLOTS) -> list[dict]:
@@ -305,7 +319,9 @@ def fix_memory(dev: Device, plan: dict, *, read_icons, make_picker, slots=STEP3_
         from hiro.produce.memory_picker import picker_open
 
         picker, opened = make_picker(), False
-        for attempt in range(PICKER_OPEN_TRIES):  # 页面打开有时慢（11-16 Mac 实机：1.5 秒后还没开 → 不开局）：多等、没开再点一次
+        for attempt in range(
+            PICKER_OPEN_TRIES
+        ):  # 页面打开有时慢（11-16 Mac 实机：1.5 秒后还没开 → 不开局）：多等、没开再点一次
             if attempt == 0 or attempt == PICKER_OPEN_TRIES // 2:
                 dev.click(*slots[slot])
             dev.sleep(1.5)
@@ -319,7 +335,9 @@ def fix_memory(dev: Device, plan: dict, *, read_icons, make_picker, slots=STEP3_
         try:
             pick_memory(picker, targets[key])
         except PickerClosed as e:  # 找的途中选择页关了（点成了「決定」）：这一格可能被换成了别的回忆，停下交给人
-            raise FormationWriteError(f"回忆第 {slot + 1} 格：找方案里的回忆时选择页关了，这一格可能被换成了别的回忆：{e}") from e
+            raise FormationWriteError(
+                f"回忆第 {slot + 1} 格：找方案里的回忆时选择页关了，这一格可能被换成了别的回忆：{e}"
+            ) from e
         img = None
         for _ in range(10):
             img = dev.shoot()

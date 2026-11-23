@@ -83,9 +83,19 @@ LAYER_KIND = {  # 每层 [种类, 数值, 剩余回合]
 # lesson_buff_multiple 0.05 / 0.25、lesson_parameter_multiple 0.1 / 0.3 这类是小数；enthusiastic_add（熱意獲得量増加）是绝对量
 # （GKMS 6 / 16 / 22…，主数据 effectValue1 = 1 / 2 / 3），不能除；enthusiastic_gain_permil 原样千分比（100 / 1000 / 3000）。
 # full_power_point_add：主数据是千分比（250 / 400 / 500），这里写成小数；GKMS 记录里只见过 0.0（像是读错了槽），先不跟。
-PERMIL_KINDS = {"lesson_parameter_multiple", "lesson_parameter_multiple_down", "lesson_buff_multiple", "review_multiple",
-                "full_power_lesson_multiple_add", "concentration_lesson_multiple_add", "lesson_buff_gain_multiple",
-                "parameter_buff_gain_multiple", "aggressive_gain_multiple", "review_gain_multiple", "full_power_point_add"}
+PERMIL_KINDS = {
+    "lesson_parameter_multiple",
+    "lesson_parameter_multiple_down",
+    "lesson_buff_multiple",
+    "review_multiple",
+    "full_power_lesson_multiple_add",
+    "concentration_lesson_multiple_add",
+    "lesson_buff_gain_multiple",
+    "parameter_buff_gain_multiple",
+    "aggressive_gain_multiple",
+    "review_gain_multiple",
+    "full_power_point_add",
+}
 
 
 def _turns(s: dict) -> int:
@@ -138,7 +148,9 @@ def statuses(state: dict) -> list:
 
 def _extra_actions(st: dict) -> int:
     """追加行动（PlayableValueAddStatusEffect）：画面上的「还能出几张」包含它。"""
-    return sum(int(s.get("value") or 0) for s in st.get("effects") or () if s.get("cls") == "PlayableValueAddStatusEffect")
+    return sum(
+        int(s.get("value") or 0) for s in st.get("effects") or () if s.get("cls") == "PlayableValueAddStatusEffect"
+    )
 
 
 def enchants(state: dict) -> list:
@@ -150,7 +162,13 @@ def enchants(state: dict) -> list:
         left = int(trig.get("limit_count", -1))
         if left == 0:
             continue  # 次数用完：图标消失
-        out.append([trig.get("enchant_id") or (trig.get("trigger") or {}).get("id") or "", INF if left < 0 else left, _turns(s)])
+        out.append(
+            [
+                trig.get("enchant_id") or (trig.get("trigger") or {}).get("id") or "",
+                INF if left < 0 else left,
+                _turns(s),
+            ]
+        )
     return out
 
 
@@ -203,7 +221,7 @@ def from_engine(state: dict, exam: dict, legal: Iterable, *, customize_ids=None,
     def zone(name):
         return sorted((card_spec(cards[i], customize_ids) for i in zones.get(name) or ()), key=_sort_key)
 
-    permil = dict((int(k), int(v)) for k, v in state.get("bonus_permil") or ())
+    permil = {int(k): int(v) for k, v in state.get("bonus_permil") or ()}
     st = state.get("status") or {}
     stance = STANCES.get(int(st.get("idol_type") or 0))
     turn = int(state.get("current_turn") or 1)
@@ -211,19 +229,33 @@ def from_engine(state: dict, exam: dict, legal: Iterable, *, customize_ids=None,
     log = state.get("play_log") or []
     return {
         "v": SCHEMA,
-        "exam": {**{k: exam.get(k) for k in ("produce", "step", "plan", "idol")}, "turn": turn,
-                 "limit": int(state.get("limit_turn") or 0) + int(state.get("extra_turn") or 0),
-                 "types": [int(t) for t in state.get("turn_types") or ()],
-                 "permil": [permil.get(k, 0) for k in (1, 2, 3)], "crit": list(exam.get("crit") or [0, 0, 0])},
-        "num": {"score": int(state.get("score") or 0), "stamina": int(state.get("stamina") or 0),
-                "max_stamina": int(state.get("max_stamina") or 0), "block": int(state.get("block") or 0),
-                "playable": int(state.get("remaining_actions") or 0) + _extra_actions(st), "plays": plays},
+        "exam": {
+            **{k: exam.get(k) for k in ("produce", "step", "plan", "idol")},
+            "turn": turn,
+            "limit": int(state.get("limit_turn") or 0) + int(state.get("extra_turn") or 0),
+            "types": [int(t) for t in state.get("turn_types") or ()],
+            "permil": [permil.get(k, 0) for k in (1, 2, 3)],
+            "crit": list(exam.get("crit") or [0, 0, 0]),
+        },
+        "num": {
+            "score": int(state.get("score") or 0),
+            "stamina": int(state.get("stamina") or 0),
+            "max_stamina": int(state.get("max_stamina") or 0),
+            "block": int(state.get("block") or 0),
+            "playable": int(state.get("remaining_actions") or 0) + _extra_actions(st),
+            "plays": plays,
+        },
         "stance": [stance, int(st.get("idol_step") or 0) if stance else 0],
         "status": statuses(state),
         "ench": enchants(state),
         "hand": [card_spec(cards[i], customize_ids, k in playable) for k, i in enumerate(zones.get("hand") or ())],
-        "deck": zone("deck"), "grave": zone("grave"), "hold": zone("hold"), "lost": zone("lost"),
-        "played": list(played) if played else [card_spec(cards[i], customize_ids) for i in (log[-plays:] if plays else [])],
+        "deck": zone("deck"),
+        "grave": zone("grave"),
+        "hold": zone("hold"),
+        "lost": zone("lost"),
+        "played": list(played)
+        if played
+        else [card_spec(cards[i], customize_ids) for i in (log[-plays:] if plays else [])],
         "drinks": list(state.get("drinks") or ()),
         "legal": legal,
     }

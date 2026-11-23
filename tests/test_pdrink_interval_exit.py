@@ -37,7 +37,9 @@ def test_skip_incoming_checks_box_then_leaves(monkeypatch):
     lit = {"InProduce.TextPDrinkMax": (360, 300), "lit": (500, 1160)}
     taps = _rig(monkeypatch, drink_swap, [dim], lambda n: lit if n == 1 else {})
     monkeypatch.setattr(ut, "checkbox_checked", lambda img, m: False)
-    monkeypatch.setattr(ut, "find_enabled", lambda name, img: NS(rect=Box(500, 1160, 501, 1161)) if "lit" in img else None)
+    monkeypatch.setattr(
+        ut, "find_enabled", lambda name, img: NS(rect=Box(500, 1160, 501, 1161)) if "lit" in img else None
+    )
     assert drink_swap.skip_incoming(sleep_s=lambda s: None) is True
     assert taps == [(250, 1000), (500, 1160)]  # 先勾没勾的框，再点亮了的「離れる」
 
@@ -61,7 +63,6 @@ def test_end_interval_times_out(monkeypatch):
     monkeypatch.setattr(interval_exit, "sleep", lambda s: t.__setitem__("now", t["now"] + s))
     assert interval_exit.end_interval(timeout=3, clock=lambda: t["now"]) is False
     assert set(taps) == {interval_exit.BLANK_TAP}
-
 
 
 def _real(name):

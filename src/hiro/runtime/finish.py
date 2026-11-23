@@ -49,14 +49,19 @@ def resume_produce(rt, timeout: float = RESUME_TIMEOUT) -> str:
             return "resumed"
         if not home:
             texts = [t.text for t in f.texts]
-            if any(h in t for t in texts for h in comm_error.TITLE_HINTS):
+            if any(h in t for t in texts for h in comm_error.TITLE_HINTS):  # noqa: SIM102
                 # 通信エラー（E209 资源下载失败等）：只点リトライ。11-19 账号 2：续跑入口没认这个框，判 unknown 9 秒后把
                 # 「X タイトルへ」上的 X 当成关闭图标点了，游戏回标题（违反「通信错误不点タイトルへ」）
                 if comm_error.handle(f.boxes, rt.device.tap, sleep=rt.sleep) is not None:
                     state["unknown_since"] = None
                     return None
             q = quick_page(f.img)
-            if q and q.get("page") == "TRANSITION" and (q.get("fields") or {}).get("kind") == "login_bonus" and q.get("tap"):
+            if (
+                q
+                and q.get("page") == "TRANSITION"
+                and (q.get("fields") or {}).get("kind") == "login_bonus"
+                and q.get("tap")
+            ):
                 rt.device.tap(*q["tap"])  # 活动登录奖励（培育外）：翻掉再说
                 return None
             hit = classify_scene(f.img)
@@ -115,7 +120,9 @@ def finish_produce_end(rt, *, go_home: bool = False, timeout: float = FINISH_TIM
         texts = _texts(f)
         if go_home and rr.is_home_move_confirm(texts):
             ok = next((b for b in f.texts if "OK" in b.text.upper() and b.rect.center.y > 1000), None)
-            rt.device.tap(*(ok.rect.center if ok is not None else (500, 1160)))  # ホーム移動確認：OK 只是回首页，回忆保留
+            rt.device.tap(
+                *(ok.rect.center if ok is not None else (500, 1160))
+            )  # ホーム移動確認：OK 只是回首页，回忆保留
             return None
         if any("開始確認" in s or "本戦へ" in s for s in texts):
             if not go_home:

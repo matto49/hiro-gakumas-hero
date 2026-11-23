@@ -43,9 +43,10 @@ class _Dev:
 
 
 def _run_check(monkeypatch, boxes):
-    import check_settings as cs
     import hiro.tool_device
     import hiro.vision.ocr
+
+    import check_settings as cs
 
     dev = _Dev()
     monkeypatch.setattr(hiro.tool_device, "open_tool_device", lambda: dev)

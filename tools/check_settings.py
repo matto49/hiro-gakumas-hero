@@ -107,16 +107,16 @@ def check(save_dir: Path | None = None) -> dict[str, str | None]:
     """只读：菜单 → 設定 → プロデュース 页签，每一步按 OCR 找到再点、确认到了再走下一步（第三十三局：
     按固定坐标点「設定」没进去，两张截图都还是菜单，读成全 None，被当成「设置被重置」）。"""
     sys.path.insert(0, str(ROOT / "src"))
-    import cv2
-
     from hiro.tool_device import open_tool_device
     from hiro.vision.ocr import ocr_boxes as _ocr
+
+    import cv2
 
     def ocr_boxes(img):
         return _ocr(img, scale=1.5)  # 和 hiro.produce.ops.ocr_boxes 一样（那个模块要 import kotonebot）
 
     d = open_tool_device()
-    found: dict[str, str | None] = {k: None for k in WANT}
+    found: dict[str, str | None] = dict.fromkeys(WANT)
 
     def save(img, name):
         if save_dir is not None and img is not None:
@@ -158,9 +158,28 @@ def check(save_dir: Path | None = None) -> dict[str, str | None]:
     return found
 
 
-if __name__ == "__main__":
+def main(argv: list[str] | None = None) -> int:
+    """打印每项状态；--json <文件> 另写一份给控制台入库（{items, verdict, ok}）。有 OFF / 读不到时退出码 1。"""
+    import argparse
+    import json
+
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--json", default=None)
+    a = ap.parse_args(argv)
     res = check(ROOT / "reports/live/settings")
     for k, v in res.items():
         print(f"{k}: {v}")
     print(verdict(res))
-    sys.exit(0 if all(v == "ON" for v in res.values()) else 1)
+    ok = all(v == "ON" for v in res.values())
+    if a.json:
+        out = Path(a.json)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        items = {k: v for k, v in res.items() if not k.startswith("_")}
+        out.write_text(
+            json.dumps({"items": items, "verdict": verdict(res), "ok": ok}, ensure_ascii=False), encoding="utf-8"
+        )
+    return 0 if ok else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

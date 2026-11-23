@@ -21,14 +21,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from hiro.vision.card_icon_render import SPRITES  # noqa: E402
 
-DEFAULT_CLIENT = Path.home() / "Library/Containers/io.playcover.PlayCover/Applications/jp.co.bandainamcoent.BNEI0421.app/Data/data.unity3d"
+DEFAULT_CLIENT = (
+    Path.home()
+    / "Library/Containers/io.playcover.PlayCover/Applications/jp.co.bandainamcoent.BNEI0421.app/Data/data.unity3d"
+)
 UNITY_VERSION = "6000.0.77f1"  # 客户端资源里的版本号被抹掉时用它
 
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--client", default=str(DEFAULT_CLIENT))
-    ap.add_argument("--out", default=str(Path(os.environ.get("HIRO_USER_ASSETS") or "resources/user_assets") / "sprites"))
+    ap.add_argument(
+        "--out", default=str(Path(os.environ.get("HIRO_USER_ASSETS") or "resources/user_assets") / "sprites")
+    )
     args = ap.parse_args(argv)
     try:
         import UnityPy

@@ -1,9 +1,9 @@
 """客户端布局 + 截图校准：游戏更新改了界面结构时应在这里报错，而不是悄悄用错坐标。"""
 
 import hiro  # noqa: F401
-import pytest
-
 from hiro.vision import layout
+
+import pytest
 
 
 def test_calibrated_nodes_resolve():

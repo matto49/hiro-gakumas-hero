@@ -72,7 +72,9 @@ def produce_observation(action: dict) -> dict:
         "produce_point": action.get("p_points"),
         "params": _attrs(action.get("params")),
         # 画面上的成长率是加成部分（41.3%），协议字段是合计千分比（1413）
-        "growth_permil": _attrs({k: round(1000 + v * 10) for k, v in growth.items() if v is not None}) if len(growth) == 3 else None,
+        "growth_permil": _attrs({k: round(1000 + v * 10) for k, v in growth.items() if v is not None})
+        if len(growth) == 3
+        else None,
         "star": action.get("star"),
         "param_cap": caps.pop() if len(caps) == 1 else None,
         "advice": action.get("advice"),
@@ -95,7 +97,9 @@ def produce_observation(action: dict) -> dict:
     if action.get("exam_next"):
         obs["exam_next"] = action["exam_next"]
         if action.get("weeks_left") is not None:
-            obs["weeks_left"] = action["weeks_left"]  # reduce 按 produce.mode 换算成 step（hiro.state.modes.step_from_header）
+            obs["weeks_left"] = action[
+                "weeks_left"
+            ]  # reduce 按 produce.mode 换算成 step（hiro.state.modes.step_from_header）
     obs["complete"] = bool(action.get("complete"))
     return obs
 
@@ -159,9 +163,20 @@ def _select_drink_observation(fields: dict) -> dict:
     cands = []
     for o in fields.get("options") or []:
         drink = master.drink_by_asset(o["asset_id"]) if o.get("asset_id") else None
-        cands.append({"slot": o.get("slot"), "drink_id": drink.id if drink else None, "name": o.get("name"), "score": o.get("score")})
+        cands.append(
+            {
+                "slot": o.get("slot"),
+                "drink_id": drink.id if drink else None,
+                "name": o.get("name"),
+                "score": o.get("score"),
+            }
+        )
     # held：底栏已有饮料（饮料满时先丢一瓶再领：点 held[i].center → 捨てる）；full：「Pドリンク所持上限」
-    held = [{k: d.get(k) for k in ("index", "drink_id", "name", "center", "method")} for d in fields["held"]] if "held" in fields else None
+    held = (
+        [{k: d.get(k) for k in ("index", "drink_id", "name", "center", "method")} for d in fields["held"]]
+        if "held" in fields
+        else None
+    )
     return {"candidates": cands, "held": held, "full": fields.get("full")}
 
 
@@ -188,18 +203,38 @@ def statuses_observation(entries: list[dict] | None) -> list[dict]:
     out = []
     for e in entries or []:
         if e.get("kind") == "enchant":
-            out.append({"type": None, "name": e.get("name"), "value": e.get("value"), "unit": UNIT.get(e.get("unit"), "none")})
+            out.append(
+                {"type": None, "name": e.get("name"), "value": e.get("value"), "unit": UNIT.get(e.get("unit"), "none")}
+            )
             continue
         key = e.get("key")
         etype = e.get("type") or (_effect_types().get(key) if key else None)
-        out.append({"type": etype, "name": e.get("name") or key, "value": e.get("value"), "unit": UNIT.get(e.get("unit"), "stack")})
+        out.append(
+            {
+                "type": etype,
+                "name": e.get("name") or key,
+                "value": e.get("value"),
+                "unit": UNIT.get(e.get("unit"), "stack"),
+            }
+        )
     return out
 
 
 def _hif_exam_observation(fields: dict) -> dict:
     obs = _jsonable_battle(battle_observation(fields))
-    for k in ("deck_count", "pitem_charges", "rank_line", "participants", "pitems", "unrecognized_cards", "npc_scores", "my_rank_index",
-              "drink_slots", "finals", "finals_round"):
+    for k in (
+        "deck_count",
+        "pitem_charges",
+        "rank_line",
+        "participants",
+        "pitems",
+        "unrecognized_cards",
+        "npc_scores",
+        "my_rank_index",
+        "drink_slots",
+        "finals",
+        "finals_round",
+    ):
         obs[k] = fields.get(k)
     if fields.get("hand_layout") in UNSTABLE_LAYOUT:
         obs["hand"] = None  # 手牌不在稳定布局（有卡被抬起 / 动画中）：读到的几张不是完整手牌，不冒充
@@ -222,7 +257,13 @@ UNSTABLE_LAYOUT = {"partial": "有一张手牌被选中抬起或正在打出，�
                    "overlay": "过场白光叠在手牌上（スキルカードサポート 等），可打 / 不可打判不准"}  # fmt: skip
 
 # 容器字段 → 识别原始结果里的来源键（缺键时契约字段为 None；键在但为空才是空容器）
-RAW_KEY = {"hand": "hand", "drinks": "drinks", "buffs": "statuses", "statuses": "statuses", "drink_slots": "drink_slots"}
+RAW_KEY = {
+    "hand": "hand",
+    "drinks": "drinks",
+    "buffs": "statuses",
+    "statuses": "statuses",
+    "drink_slots": "drink_slots",
+}
 
 
 def _hif_result_observation(fields: dict) -> dict:
@@ -241,7 +282,11 @@ def _event_observation(fields: dict) -> dict:
 
 def _select_pitem_observation(fields: dict) -> dict:
     """read_pitem_select → 三个背包（选之前看不到道具，只有颜色）与选中态。"""
-    return {"pitems": fields.get("options"), "selected": fields.get("selected"), "confirm_enabled": fields.get("confirm_enabled")}
+    return {
+        "pitems": fields.get("options"),
+        "selected": fields.get("selected"),
+        "confirm_enabled": fields.get("confirm_enabled"),
+    }
 
 
 def _start_confirm_observation(fields: dict) -> dict:
@@ -258,14 +303,26 @@ def _consult_observation(fields: dict) -> dict:
     shelf = fields.get("shelf") if fields.get("complete") is not False else None
     capacity = fields.get("drink_capacity")
     if fields.get("drinks_full") and fields.get("drinks") is not None:
-        capacity = len(fields["drinks"])  # 游戏说饮料栏满了：容量就是现在持有的瓶数（底栏读数从不把账号 2 的 3 格读成 4，这个值会留着）
+        capacity = len(
+            fields["drinks"]
+        )  # 游戏说饮料栏满了：容量就是现在持有的瓶数（底栏读数从不把账号 2 的 3 格读成 4，这个值会留着）
     return {"shelf": shelf, "services": fields.get("services"), "rerolls_left": fields.get("rerolls_left"),
             "complete": fields.get("complete"), "drinks": fields.get("drinks"), "drink_capacity": capacity,
             "drinks_full": fields.get("drinks_full") or None,
             "stamina": fields.get("stamina"), "max_stamina": fields.get("max_stamina"), "produce_point": fields.get("produce_point")}  # fmt: skip
 
 
-DECK_CARD_KEYS = ("index", "row", "col", "card_id", "name", "upgrade", "customized", "center", "dimmed")  # dimmed：压暗（强化对话框里 = 不能再强化）
+DECK_CARD_KEYS = (
+    "index",
+    "row",
+    "col",
+    "card_id",
+    "name",
+    "upgrade",
+    "customized",
+    "center",
+    "dimmed",
+)  # dimmed：压暗（强化对话框里 = 不能再强化）
 DECK_MERGED_KEYS = ("deck_index", "screen")  # 多屏拼接的整副才有：全局序号、来自第几屏
 
 
@@ -292,7 +349,9 @@ def _card_dialog_observation(fields: dict) -> dict:
     if "cancelable" in fields:
         out["cancelable"] = fields["cancelable"]  # D42：False = 必选（没有キャンセル），None = 按钮行没读到
     if "upgradable" in fields:
-        out["upgradable"] = fields["upgradable"]  # 强化对话框：选中的卡能不能强化（详情框「強化できません / これ以上強化不可能」→ False）
+        out["upgradable"] = fields[
+            "upgradable"
+        ]  # 强化对话框：选中的卡能不能强化（详情框「強化できません / これ以上強化不可能」→ False）
     for k in ("deck_complete", "deck_screens"):
         if k in fields:
             out[k] = fields[k]  # 执行侧滑动读整副后（merge_dialog_screens）：cards 换成整副，complete / 屏数一起给
@@ -304,7 +363,20 @@ def _special_guidance_observation(fields: dict) -> dict:
     customized, available, center, customizations[{id, item_index, price, available, source}]}]（选卡画面；选中那张的定制项来自画面 source=screen，
     其余按主数据 source=master）、selected、selected_card、menu{items[{item_index, id, name, price, left, maxed, available, selected, center}], total_left}、
     cards_left、scrollable / at_top / complete。agree 保留（恒为 None）。"""
-    keys = ("view", "cards", "selected", "selected_card", "menu", "cards_left", "scrollable", "at_top", "complete", "produce_point", "stamina", "max_stamina")
+    keys = (
+        "view",
+        "cards",
+        "selected",
+        "selected_card",
+        "menu",
+        "cards_left",
+        "scrollable",
+        "at_top",
+        "complete",
+        "produce_point",
+        "stamina",
+        "max_stamina",
+    )
     out = {k: fields.get(k) for k in keys}
     if out["menu"]:
         out["menu"] = {k: v for k, v in out["menu"].items() if k != "y"}
@@ -319,7 +391,10 @@ def _pdrink_max_observation(fields: dict) -> dict:
     格式见 docs/llm-context.md「PDRINK_MAX」；认不出的瓶 drink_id / name 为 None。"""
     keep = ("index", "drink_id", "name", "y", "center", "method")
     # partial / candidates：最后一行被视口切掉时才有（D41，见 items.read_pdrink_max）
-    held = [{**{k: d.get(k) for k in keep}, **{k: d[k] for k in ("partial", "candidates") if k in d}} for d in fields.get("held") or []]
+    held = [
+        {**{k: d.get(k) for k in keep}, **{k: d[k] for k in ("partial", "candidates") if k in d}}
+        for d in fields.get("held") or []
+    ]
     inc = fields.get("incoming")
     return {"held": held if "held" in fields else None, "incoming": {k: inc.get(k) for k in keep} if inc else None,
             "incomings": [{k: d.get(k) for k in keep} for d in fields.get("incomings") or []] if "incomings" in fields else None,
@@ -327,7 +402,49 @@ def _pdrink_max_observation(fields: dict) -> dict:
 
 
 # 页面地图（hiro.vision.pages，docs/pages-hif.md）：识别字段原样透传，只取登记过的键
-MAP_PAGE_KEYS = {'DIALOG': ('kind', 'title', 'danger', 'confirm'), 'ACQUIRE': ('kind', 'card_id', 'drink_id', 'pitem_id', 'pitem_ids', 'name', 'upgrade', 'agree', 'memory_effect'), 'STAR_GAIN': ('gain', 'star', 'star_shown'), 'HIF_EXAM_BRIEFING': ('exam_no', 'rank_line', 'participants', 'star', 'star_ok', 'params', 'multiplier_pct', 'complete', 'finals'), 'PITEM_CUSTOMIZE': (), 'PITEM_CUSTOMIZE_DONE': (), 'MENU': ('kind',), 'UPGRADE_RESULT': ('name', 'card_id', 'upgrade'), 'TRANSITION': ('kind',), 'GIFT': ('bag',), 'PRODUCE_LOG': ('close',), 'CUSTOMIZE_RESULT': ('name', 'card_id', 'upgrade'), 'DELETE_RESULT': ('cards', 'text'), 'HIF_FINALS_START': ('selected_memory', 'qualify_memories'), 'HIF_FINALS_RANKING': ('kind', 'score', 'round_score', 'entries', 'next', 'my_score', 'rank', 'finals_round', 'round_result', 'retry', 'my_gain', 'final', 'outcome', 'passed'), 'HIF_ROUND_INTERVAL': ('stamina', 'max_stamina', 'produce_point', 'interval', 'complete', 'dialog')}
+MAP_PAGE_KEYS = {
+    "DIALOG": ("kind", "title", "danger", "confirm"),
+    "ACQUIRE": ("kind", "card_id", "drink_id", "pitem_id", "pitem_ids", "name", "upgrade", "agree", "memory_effect"),
+    "STAR_GAIN": ("gain", "star", "star_shown"),
+    "HIF_EXAM_BRIEFING": (
+        "exam_no",
+        "rank_line",
+        "participants",
+        "star",
+        "star_ok",
+        "params",
+        "multiplier_pct",
+        "complete",
+        "finals",
+    ),
+    "PITEM_CUSTOMIZE": (),
+    "PITEM_CUSTOMIZE_DONE": (),
+    "MENU": ("kind",),
+    "UPGRADE_RESULT": ("name", "card_id", "upgrade"),
+    "TRANSITION": ("kind",),
+    "GIFT": ("bag",),
+    "PRODUCE_LOG": ("close",),
+    "CUSTOMIZE_RESULT": ("name", "card_id", "upgrade"),
+    "DELETE_RESULT": ("cards", "text"),
+    "HIF_FINALS_START": ("selected_memory", "qualify_memories"),
+    "HIF_FINALS_RANKING": (
+        "kind",
+        "score",
+        "round_score",
+        "entries",
+        "next",
+        "my_score",
+        "rank",
+        "finals_round",
+        "round_result",
+        "retry",
+        "my_gain",
+        "final",
+        "outcome",
+        "passed",
+    ),
+    "HIF_ROUND_INTERVAL": ("stamina", "max_stamina", "produce_point", "interval", "complete", "dialog"),
+}
 
 
 def _map_page_adapter(page: str):
@@ -430,12 +547,16 @@ def _hif_exam_confidence(raw: dict, fields: dict) -> dict[str, tuple[float | Non
         if partial:
             notes.append(f"槽位 {','.join(partial)} 的徽章读不全（被下一张卡盖住或有字认不出），badge_score 为 None")
         # 卡置信度：卡面与卡名一致 1.0；以卡名为准 0.9（前缀命中 0.7）；只看卡面为相关分；没认出 0。旧数据没有 confidence 键时沿用旧算法
-        conf = _min(c["confidence"] if "confidence" in c else (1.0 if c.get("source") == "name" else c.get("art_score")) for c in hand)
+        conf = _min(
+            c["confidence"] if "confidence" in c else (1.0 if c.get("source") == "name" else c.get("art_score"))
+            for c in hand
+        )
         out["hand"] = (conf, "；".join(notes) or None)
     votes = raw.get("multiplier_votes")
     if votes and votes[0] != votes[1]:
-        note = (f"倍率两种读法不一致 {votes}（OCR / ddddocr，回合转盘箭头盖住首位），"
-                + ("取该属性上次一致的读数" if raw.get("multiplier_pct") is not None else "不给"))
+        note = f"倍率两种读法不一致 {votes}（OCR / ddddocr，回合转盘箭头盖住首位），" + (
+            "取该属性上次一致的读数" if raw.get("multiplier_pct") is not None else "不给"
+        )
         conf = 0.7 if raw.get("multiplier_pct") is not None else None
         out["multiplier_pct"] = out["multiplier_permil"] = (conf, note)
     if raw.get("hand_layout") in UNSTABLE_LAYOUT:
@@ -478,7 +599,10 @@ def _hif_result_confidence(raw: dict, fields: dict) -> dict:
     votes = raw.get("my_score_votes")
     if votes:
         agree = sum(1 for v in votes if v is not None and v == str(fields.get("score")))
-        out["score"] = (round(agree / 3, 2), None if agree == 3 else f"三次读数 {votes}（名单 OCR / 单格放大 OCR / ddddocr），取多数")
+        out["score"] = (
+            round(agree / 3, 2),
+            None if agree == 3 else f"三次读数 {votes}（名单 OCR / 单格放大 OCR / ddddocr），取多数",
+        )
     return out
 
 
@@ -488,7 +612,13 @@ def _consult_confidence(raw: dict, fields: dict) -> dict:
     return {}
 
 
-FIELD_CONFIDENCE = {"CONSULT": _consult_confidence, "HIF_EXAM_RESULT": _hif_result_confidence, "HIF_EXAM": _hif_exam_confidence, "SELECT_DRINK": _select_drink_confidence, "DECK_LIST": _deck_list_confidence}
+FIELD_CONFIDENCE = {
+    "CONSULT": _consult_confidence,
+    "HIF_EXAM_RESULT": _hif_result_confidence,
+    "HIF_EXAM": _hif_exam_confidence,
+    "SELECT_DRINK": _select_drink_confidence,
+    "DECK_LIST": _deck_list_confidence,
+}
 
 
 FIELD_META_FNS: dict = {}

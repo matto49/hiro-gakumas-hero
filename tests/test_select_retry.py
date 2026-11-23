@@ -3,14 +3,17 @@
 
 from types import SimpleNamespace as NS
 
-import pytest
-
 import hiro.produce.hif as hif
-from hiro.produce import ops
 from hiro.contracts import Action, ActionKind, Decision, ExecutionResult, GameState
+from hiro.produce import ops
 from hiro.produce.hif import HiroHifStrategy, UnhandledPage
 
-CANDS = [{"index": i, "drink_id": f"d{i}", "name": n} for i, n in enumerate(("ブーストエキス", "ミックススムージー", "センブリソーダ"))]
+import pytest
+
+CANDS = [
+    {"index": i, "drink_id": f"d{i}", "name": n}
+    for i, n in enumerate(("ブーストエキス", "ミックススムージー", "センブリソーダ"))
+]
 
 
 class Session:
@@ -105,12 +108,18 @@ def _pdrink(monkeypatch, decisions):
     it = iter(decisions)
     st.deciders = NS(decide=lambda page, state, **kw: next(it))
     kaa = []
-    monkeypatch.setattr("hiro.produce.drink_swap.skip_incoming", lambda **k: kaa.append("leave") or True)  # 不要新饮料：点離れる
+    monkeypatch.setattr(
+        "hiro.produce.drink_swap.skip_incoming", lambda **k: kaa.append("leave") or True
+    )  # 不要新饮料：点離れる
     return st, kaa
 
 
-WAIT = Decision(Action.ui(ActionKind.WAIT, why="决策器异常 TypeError"), "PDRINK_MAX 没有可用的兜底模板", "fallback", 0.1)
-KEEP = Decision(Action(ActionKind.DISCARD_DRINK, {"discard": [], "receive": False}), "新饮料不比持有的强：不收", "rule", 0.8)
+WAIT = Decision(
+    Action.ui(ActionKind.WAIT, why="决策器异常 TypeError"), "PDRINK_MAX 没有可用的兜底模板", "fallback", 0.1
+)
+KEEP = Decision(
+    Action(ActionKind.DISCARD_DRINK, {"discard": [], "receive": False}), "新饮料不比持有的强：不收", "rule", 0.8
+)
 
 
 def test_pdrink_decider_error_retried_then_explicit_keep(monkeypatch):

@@ -30,7 +30,7 @@ SKIP_KEYS = {"score", "margin", "y", "method", "confidence", "box", "upgrade_red
 def stable(value, depth: int = 0, key: str = "", item: bool = False):
     """extract 结果 → 只留稳定项（递归）。None 表示这一项不断言。ID（键名 id / asset / *_id）不论长短都留。
     列表里的元素（卡 / 饮料 / 选项）只留 ITEM_KEYS 和数值 / 布尔；具名的子字典（services、params…）整个留（去掉 SKIP_KEYS）。"""
-    if isinstance(value, bool) or isinstance(value, int) or value is None:
+    if isinstance(value, (bool, int)) or value is None:
         return value
     if isinstance(value, float):
         return round(value, 3)
@@ -39,7 +39,9 @@ def stable(value, depth: int = 0, key: str = "", item: bool = False):
     if isinstance(value, dict):
         out = {}
         for k, v in value.items():
-            if k in SKIP_KEYS or (item and k not in ITEM_KEYS and not k.endswith("_id") and not isinstance(v, (int, bool))):
+            if k in SKIP_KEYS or (
+                item and k not in ITEM_KEYS and not k.endswith("_id") and not isinstance(v, (int, bool))
+            ):
                 continue
             s = stable(v, depth + 1, k)
             if s is not None and s != {} and s != []:
@@ -65,13 +67,13 @@ def diff(want, got, path: str = "") -> list[str]:
 
 def read(path: Path, page: str | None = None) -> dict:
     """一帧 → {quick, quick_fields, tap, scene, fields}。page：这一帧的真实页面（取字段用哪个提取器）；不给就用 scene。"""
-    import cv2
-
     from hiro.context import ensure_offline_context
     from hiro.vision.extract import extract
     from hiro.vision.offline import load
     from hiro.vision.quick import quick_page
     from hiro.vision.scene import classify_current
+
+    import cv2
 
     ensure_offline_context()
     raw = cv2.imread(str(path))
@@ -80,8 +82,13 @@ def read(path: Path, page: str | None = None) -> dict:
     scene = classify_current().scene
     fields, _ = extract(page or scene, img)
     tap = q.get("tap")
-    return {"quick": q.get("page"), "quick_fields": stable(q.get("fields")) or None, "tap": list(tap) if isinstance(tap, (list, tuple)) else tap,
-            "scene": scene, "fields": stable(fields) if fields else None}
+    return {
+        "quick": q.get("page"),
+        "quick_fields": stable(q.get("fields")) or None,
+        "tap": list(tap) if isinstance(tap, (list, tuple)) else tap,
+        "scene": scene,
+        "fields": stable(fields) if fields else None,
+    }
 
 
 def _load() -> list[dict]:
@@ -125,7 +132,10 @@ def main() -> None:
     f.add_argument("--note", default="")
     f.add_argument("--page", help="真实页面（scene 认不出 / 交给 KAA 的页面，如 STUDY）")
     f.add_argument("--no-scene", action="store_true", help="不断言 classify_current（这页不归它管）")
-    g = sub.add_parser("regen", help="按当前识别重写清单里的读数（保留 note / page / 是否断言 scene / xfail_on）；核对过的期望会被覆盖，慎用")
+    g = sub.add_parser(
+        "regen",
+        help="按当前识别重写清单里的读数（保留 note / page / 是否断言 scene / xfail_on）；核对过的期望会被覆盖，慎用",
+    )
     g.add_argument("names", nargs="*")
     s = sub.add_parser("show")
     s.add_argument("name")

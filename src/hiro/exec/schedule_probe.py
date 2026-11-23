@@ -11,16 +11,15 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import time
 from collections.abc import Callable
 
-import numpy as np
-
-import logging
-
 from hiro.devices.active import sleep as _sleep
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -107,12 +106,21 @@ def probe(
     # 读数全 None，还在出牌区下面点了 ✕ 的位置）
     opened, img = _wait(panel_open, OPEN_WAIT, shoot, clock, sleep)
     t_open = clock()
-    img = _settle(shoot, sleep, clock)  # 面板入场动画：等停稳再读（原来固定 0.5 秒，最終那次第一屏「現在のターン」没读到）
+    img = _settle(
+        shoot, sleep, clock
+    )  # 面板入场动画：等停稳再读（原来固定 0.5 秒，最終那次第一屏「現在のターン」没读到）
     boxes = ocr_boxes(img)
     texts = [t for t, _, _ in boxes]
     if log:
         log("exam_schedule_probe_open", image=img, exam=exam, opened=opened, texts=texts)
-    out = {"opened": opened, "closed": None, "close_by": None, "open_ms": round((t_open - t0) * 1000), "texts": texts, "panel": None}
+    out = {
+        "opened": opened,
+        "closed": None,
+        "close_by": None,
+        "open_ms": round((t_open - t0) * 1000),
+        "texts": texts,
+        "panel": None,
+    }
     panels = []
     if opened and read_panel is not None:
         panels = _read_panels(img, read_panel, swipe, total_turns, shoot, sleep, log, exam, clock)
@@ -128,7 +136,9 @@ def probe(
         out.update(closed=True, close_by="not_opened", close_ms=0, total_ms=round((clock() - t0) * 1000))
         _report(out, exam, note)
         return out
-    _settle(shoot, sleep, clock)  # 滑过以后面板还在惯性滚动：这时点 ✕ 只会让滚动停下（初 PRO 最終 11-18：2 种关法都没关上）
+    _settle(
+        shoot, sleep, clock
+    )  # 滑过以后面板还在惯性滚动：这时点 ✕ 只会让滚动停下（初 PRO 最終 11-18：2 种关法都没关上）
     # 面板底部中间的圆形 ✕（实拍 (360,1160)；OCR 读成「X」）。点两次：第一下万一只是停住了滚动
     attempts = [("close_x", CLOSE_X), ("close_x", CLOSE_X)]
     hit = find_text(boxes, CLOSE_TEXTS)
@@ -250,7 +260,11 @@ def apply_panel(panel: dict | None, session, memory) -> None:
         st.sources["exam.turn_effects"] = Source("screen", seq)
     if panel.get("pass_rank") is not None or panel.get("pass_score") is not None or panel.get("pass_text"):
         # stage = 过线条件原文（「3位以上で中間試験突破」/ N.I.A「…オーディション突破」），8a3a1e7 按关键词认场次（11-18）
-        ex["pass_line"] = {"rank": panel.get("pass_rank"), "score": panel.get("pass_score"), "stage": panel.get("pass_text")}
+        ex["pass_line"] = {
+            "rank": panel.get("pass_rank"),
+            "score": panel.get("pass_score"),
+            "stage": panel.get("pass_text"),
+        }
         st.sources["exam.pass_line"] = Source("screen", seq)
     st.exam = ex
 

@@ -29,7 +29,11 @@ def check_support(img, plan: dict | None, set_no=None, *, shoot=None, sleep=None
         read = read_support_formation(img)
         prev = None
         for _ in range(SUPPORT_SETTLE_READS if shoot is not None else 0):
-            ids = [s.get("support_card_id") for s in (read or {}).get("slots") or []] if (read or {}).get("view") == "step2" else None
+            ids = (
+                [s.get("support_card_id") for s in (read or {}).get("slots") or []]
+                if (read or {}).get("view") == "step2"
+                else None
+            )
             if ids is not None and (all(ids) or ids == prev):
                 break
             prev = ids
@@ -82,7 +86,10 @@ def rental_pick(plan: dict | None, attr: str | None, main_attr: str | None = Non
     from hiro.produce import rental
 
     plan = plan or {}
-    own = [{"support_card_id": o["support_card_id"], "level": o.get("level")} for o in (plan.get("support") or {}).get("own") or []]
+    own = [
+        {"support_card_id": o["support_card_id"], "level": o.get("level")}
+        for o in (plan.get("support") or {}).get("own") or []
+    ]
     scorer = None
     if own:
         from hiro.brain.support_select import rental_scorer
@@ -111,7 +118,9 @@ def memory_card_problems(img, plan: dict) -> tuple[list[str], list[str]]:
 
 
 # 开局第 3 步只核对、不写回忆（协调 11-17：第 3 步选择页只露约 3 行、排序也和菜单不同，按库存行号找不准）
-MEMORY_MENU_HINT = "回忆请在编成菜单里写：PYTHONPATH=src python tools/write_formation.py --mode <hajime|nia|hif> --what memory"
+MEMORY_MENU_HINT = (
+    "回忆请在编成菜单里写：PYTHONPATH=src python tools/write_formation.py --mode <hajime|nia|hif> --what memory"
+)
 
 
 STEP3_SETTLE_READS, STEP3_SETTLE_GAP_S = 8, 0.5
@@ -154,7 +163,9 @@ def check_memory_set(img, plan: dict | None, set_no=None, *, shoot=None, sleep=N
     from hiro.vision.ocr import screen_texts
 
     try:
-        problems, warnings = check_memory_step3(memory_set_number([(t.text, tuple(t.rect)) for t in screen_texts(img)]), plan)
+        problems, warnings = check_memory_step3(
+            memory_set_number([(t.text, tuple(t.rect)) for t in screen_texts(img)]), plan
+        )
     except Exception as e:  # noqa: BLE001
         logger.warning("回忆编成核对失败（不拦开局）：%s", e)
         return

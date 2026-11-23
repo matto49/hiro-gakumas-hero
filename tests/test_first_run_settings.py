@@ -13,7 +13,9 @@ def _box(text, x, y):
 
 def _fake(monkeypatch, clicks, boxes):
     """controller 里 from kotonebot import device（函数内导入）+ 模块级 screen_texts。"""
-    monkeypatch.setitem(sys.modules, "kotonebot", NS(device=NS(click=lambda *r: clicks.append(r), screenshot=lambda: None)))
+    monkeypatch.setitem(
+        sys.modules, "kotonebot", NS(device=NS(click=lambda *r: clicks.append(r), screenshot=lambda: None))
+    )
     monkeypatch.setattr("hiro.loop.controller.screen_texts", lambda *a, **k: boxes)
 
 
@@ -36,7 +38,13 @@ def test_other_pages_untouched(monkeypatch):
 
 
 def test_commu_skip(monkeypatch):
-    boxes = [_box("プロデュースコミュ", 20, 40), _box("あさり先生", 60, 900), _box("SKIP", 220, 1200), _box("ログ", 360, 1200), _box("早送り", 640, 1200)]
+    boxes = [
+        _box("プロデュースコミュ", 20, 40),
+        _box("あさり先生", 60, 900),
+        _box("SKIP", 220, 1200),
+        _box("ログ", 360, 1200),
+        _box("早送り", 640, 1200),
+    ]
     clicks = []
     _fake(monkeypatch, clicks, boxes)
     c = HiroController.__new__(HiroController)
@@ -45,7 +53,12 @@ def test_commu_skip(monkeypatch):
     c._texts = ["審査基準", "SKIP"]
     assert not c._skip_commu()
     # 支援事件剧情：没有「プロデュースコミュ」标题、SKIP 读成 MSkIP
-    boxes2 = [_box("そろそろ焼けたかな?", 60, 100), _box("MSkIP", 222, 1198), _box("レDAuT0", 500, 1200), _box("恥早送り", 640, 1200)]
+    boxes2 = [
+        _box("そろそろ焼けたかな?", 60, 100),
+        _box("MSkIP", 222, 1198),
+        _box("レDAuT0", 500, 1200),
+        _box("恥早送り", 640, 1200),
+    ]
     _fake(monkeypatch, clicks, boxes2)
     c._texts = [b.text for b in boxes2]
     assert c._skip_commu() and clicks[-1] == (222, 1198)
@@ -64,6 +77,7 @@ def test_commu_skip_needs_real_skip_box(monkeypatch):
 def test_drink_detail_outside_exam_cancels(monkeypatch):
     """q14：考试外误开「Pドリンク詳細」，只点キャンセル，不点使う。"""
     import hiro.exec.exam  # noqa: F401  先导入真模块，再替换 kotonebot
+
     boxes = [_box("Pドリンク詳細", 60, 860), _box("レッスン・試験・オーディション以外では使用できません", 80, 640),
              _box("キャンセル", 200, 1160), _box("使う", 500, 1160)]  # fmt: skip
     clicks = []
@@ -73,14 +87,18 @@ def test_drink_detail_outside_exam_cancels(monkeypatch):
 
 
 def test_skip_confirm_unread_commu(monkeypatch):
-    boxes = [_box("スキップ確認", 100, 700), _box("未読のコミュです", 120, 800), _box("✕キャンセル", 113, 1140), _box("決定", 486, 1144)]
+    boxes = [
+        _box("スキップ確認", 100, 700),
+        _box("未読のコミュです", 120, 800),
+        _box("✕キャンセル", 113, 1140),
+        _box("決定", 486, 1144),
+    ]
     clicks = []
     _fake(monkeypatch, clicks, boxes)
     monkeypatch.setattr("hiro.loop.controller.time.sleep", lambda s: None)
     c = HiroController.__new__(HiroController)
     c._texts = [b.text for b in boxes]
     assert c._first_run_settings() and clicks == [(486, 1144)]
-
 
 
 def test_commu_skip_rechecks_fresh_frame(monkeypatch):

@@ -12,11 +12,11 @@ HUD、状态栏、分数等数字是 Campus-Alphanumeric-SemiBold（客户端 da
 import re
 from functools import cache
 
+from hiro.vision import assets
+
 import cv2
 import numpy as np
 from cv2.typing import MatLike
-
-from hiro.vision import assets
 
 FONT = "Campus-Alphanumeric-SemiBold.ttf"
 CHARS = "0123456789%"
@@ -94,7 +94,9 @@ def _read_glyphs(img: MatLike, box: tuple[int, int, int, int], *, align: bool = 
     return text, uncertain, info
 
 
-def _read_glyphs_at(img: MatLike, box: tuple[int, int, int, int], *, align: bool = False, dark_v: int = DARK_V) -> tuple[str, bool, dict | None]:
+def _read_glyphs_at(
+    img: MatLike, box: tuple[int, int, int, int], *, align: bool = False, dark_v: int = DARK_V
+) -> tuple[str, bool, dict | None]:
     """read_text 的实现；另返回所取那组字形的信息 {span: (x1, y1, x2, y2) 原图坐标, glyphs: 字形个数, occluded: 是否疑似漏字}。
     没有数字字体（开源默认素材）时照常按描边切出字形、给出 span 和字形个数，只是每个字都记为没认出（整串「不确定」），
     由调用方交给 ddddocr；read_score 用字形个数核对 OCR 的位数。"""
@@ -133,7 +135,15 @@ def _read_glyphs_at(img: MatLike, box: tuple[int, int, int, int], *, align: bool
     tallest = max(b[4] for b in boxes)
     boxes = [b for b in boxes if b[4] >= tallest * MIN_HEIGHT_RATIO]
     # 最左一个整高白块的左缘（无字体时裁 OCR 框的左边用）：不分组，描边被闪光盖住 / 压在角标上的白字（rejected）也算
-    left = x1 + min(stats[i][cv2.CC_STAT_LEFT] for i in comps + rejected if stats[i][cv2.CC_STAT_HEIGHT] >= tallest * MIN_HEIGHT_RATIO) // scale
+    left = (
+        x1
+        + min(
+            stats[i][cv2.CC_STAT_LEFT]
+            for i in comps + rejected
+            if stats[i][cv2.CC_STAT_HEIGHT] >= tallest * MIN_HEIGHT_RATIO
+        )
+        // scale
+    )
     # 扩边会带进相邻数字：按水平间距分组（同一个数内字距远小于字高），取与原框重叠最多的一组
     groups, last_right = [], None
     for b in boxes:
@@ -149,8 +159,12 @@ def _read_glyphs_at(img: MatLike, box: tuple[int, int, int, int], *, align: bool
     group = max(groups, key=overlap)
     gx1, gy1 = min(b[1] for b in group), min(b[2] for b in group)
     gx2, gy2 = max(b[1] + b[3] for b in group), max(b[2] + b[4] for b in group)
-    info = {"span": (x1 + gx1 // scale, y1 + gy1 // scale, x1 + -(-gx2 // scale), y1 + -(-gy2 // scale)), "glyphs": len(group), "occluded": False,
-            "left": left}
+    info = {
+        "span": (x1 + gx1 // scale, y1 + gy1 // scale, x1 + -(-gx2 // scale), y1 + -(-gy2 // scale)),
+        "glyphs": len(group),
+        "occluded": False,
+        "left": left,
+    }
     info["parts"] = []
     for i, x, y, w, h in group:
         glyph = _scale(labels[y : y + h, x : x + w] == i)
@@ -280,7 +294,9 @@ def read_leading_int(img: MatLike, box: tuple[int, int, int, int]) -> tuple[int 
         if 0.75 * height <= ch <= 1.35 * height and (near_left or last - 2 <= x <= last + height):
             return None, None
     value = int("".join(digits))
-    rings = [i for i in comps if stats[i][3] <= height * PERCENT_RING_MAX and last - 2 <= stats[i][0] <= last + height * 0.6]
+    rings = [
+        i for i in comps if stats[i][3] <= height * PERCENT_RING_MAX and last - 2 <= stats[i][0] <= last + height * 0.6
+    ]
     if any(best(i)[1] == "0" and best(i)[0] >= MIN_SCORE for i in rings):
         return value, "%"
     return value, ("text" if tall[k:] else None)
@@ -311,10 +327,17 @@ def read_white_digits(img: MatLike, box: tuple[int, int, int, int]) -> int | Non
         return None
     tallest = max(range(1, n), key=lambda i: stats[i][cv2.CC_STAT_HEIGHT])
     th, ty = stats[tallest][cv2.CC_STAT_HEIGHT], stats[tallest][cv2.CC_STAT_TOP]
-    keep = [i for i in range(1, n) if stats[i][cv2.CC_STAT_HEIGHT] >= th * WHITE_DIGIT_H and abs(stats[i][cv2.CC_STAT_TOP] - ty) <= th * WHITE_DIGIT_TOP]
+    keep = [
+        i
+        for i in range(1, n)
+        if stats[i][cv2.CC_STAT_HEIGHT] >= th * WHITE_DIGIT_H
+        and abs(stats[i][cv2.CC_STAT_TOP] - ty) <= th * WHITE_DIGIT_TOP
+    ]
     out = np.zeros_like(crop)
     out[np.isin(labels, keep)] = 255
-    text = (_dddd().classification(cv2.imencode(".png", cv2.resize(out, None, fx=2, fy=2))[1].tobytes()) or "").translate(DDDD_FIX)
+    text = (
+        _dddd().classification(cv2.imencode(".png", cv2.resize(out, None, fx=2, fy=2))[1].tobytes()) or ""
+    ).translate(DDDD_FIX)
     m = re.search(r"\d+", text)
     return int(m.group()) if m else None
 
@@ -410,21 +433,34 @@ def read_score(img: MatLike, box: tuple[int, int, int, int]) -> tuple[int | None
     if info is None:
         return None, {"method": None, "confidence": None, "note": "没有找到数字字形"}
     x1, y1, x2, y2 = info["span"]
-    span = (max(0, x1 - SPAN_PAD), max(0, y1 - SPAN_PAD), min(img.shape[1], x2 + SPAN_PAD), min(img.shape[0], y2 + SPAN_PAD))
+    span = (
+        max(0, x1 - SPAN_PAD),
+        max(0, y1 - SPAN_PAD),
+        min(img.shape[1], x2 + SPAN_PAD),
+        min(img.shape[0], y2 + SPAN_PAD),
+    )
     if not _templates():
         return _score_without_font(img, span, info)
     value = read_dddd(img, span)
     font = re.sub(r"\D", "", text)
     noise = sum(1 for _, score, *_ in info["parts"] if score < MIN_SCORE)
     if value is None:
-        return None, {"method": None, "confidence": None, "note": f"字体比对不确定（认出 {font or '无'}），OCR 也读不出"}
+        return None, {
+            "method": None,
+            "confidence": None,
+            "note": f"字体比对不确定（认出 {font or '无'}），OCR 也读不出",
+        }
     ocr_text = str(value)
     if ocr_text == font:
         return value, {"method": "dddd", "confidence": 0.8 if noise else 0.9, "note": "字体比对与 OCR 一致"}
     extra = len(ocr_text) - len(font)
     if 0 < extra <= noise + (1 if info["occluded"] else 0) and _subsequence(font, ocr_text):
         return value, {"method": "dddd", "confidence": 0.6, "note": f"字体只认出 {font or '无'}，OCR 补出 {ocr_text}"}
-    return None, {"method": None, "confidence": None, "note": f"字体认出 {font or '无'}、OCR 读到 {ocr_text}，对不上，丢弃"}
+    return None, {
+        "method": None,
+        "confidence": None,
+        "note": f"字体认出 {font or '无'}、OCR 读到 {ocr_text}，对不上，丢弃",
+    }
 
 
 def _full_glyphs(parts: list[tuple]) -> int:

@@ -131,7 +131,9 @@ def _quick_tap(rt, q: dict, now: float) -> bool:
 
     if q.get("tap") is not None:
         rt._quick_wait = None
-        skip = q["page"] == "commu" and not (q.get("fields") or {}).get("kind")  # 剧情底栏 SKIP（事件台词框 event_dialogue 点的是台词框，不管）
+        skip = q["page"] == "commu" and not (q.get("fields") or {}).get(
+            "kind"
+        )  # 剧情底栏 SKIP（事件台词框 event_dialogue 点的是台词框，不管）
         if skip and not _commu_tap_ok(rt):
             return False
         rt.device.tap(*q["tap"])
@@ -139,7 +141,12 @@ def _quick_tap(rt, q: dict, now: float) -> bool:
             rt._commu_tap_at = _clock(rt)
         if q["page"] == "commu":
             _flag_deck_after_commu(rt)
-        logger.info("快速判页 %s %s：点 %s", q["page"], (q.get("fields") or {}).get("text") or (q.get("fields") or {}).get("name") or "", q["tap"])
+        logger.info(
+            "快速判页 %s %s：点 %s",
+            q["page"],
+            (q.get("fields") or {}).get("text") or (q.get("fields") or {}).get("name") or "",
+            q["tap"],
+        )
         return True
     kind = (q.get("fields") or {}).get("kind")
     key = (q["page"], kind)
@@ -171,7 +178,11 @@ def fit_dmm_window(device, session) -> str | None:
         return f"DMM 窗口尺寸检查没过：{e}"
     device.screenshot()  # 改完重截一张，LogicalScreen 记下新的原生尺寸
     native = getattr(getattr(device, "screen", None), "native", None)
-    note = f"DMM 游戏客户区 {before[0]}x{before[1]}" + (f" → {after[0]}x{after[1]}" if after != before else "") + f"（截图原生 {native}）"
+    note = (
+        f"DMM 游戏客户区 {before[0]}x{before[1]}"
+        + (f" → {after[0]}x{after[1]}" if after != before else "")
+        + f"（截图原生 {native}）"
+    )
     logger.info("%s", note)
     session.note(note)
     if native is not None and tuple(native) != tuple(after):
@@ -206,7 +217,9 @@ def recover_date_change(rt, session) -> None:
     from hiro.vision.classify import classify
 
     session.recover("date_change", "游戏日切换「日付変更」：回标题再进首页")
-    ok = recover_to_home(lambda: rt.screen.shot().img, rt.device.tap, ocr_boxes, lambda img: classify(img).name == "home")
+    ok = recover_to_home(
+        lambda: rt.screen.shot().img, rt.device.tap, ocr_boxes, lambda img: classify(img).name == "home"
+    )
     if not ok:
         raise ResumeBlocked("日切换后没回到首页，停机")
 
@@ -231,7 +244,7 @@ def run(args, session) -> int:
         print(err)
         device.close()
         return 3
-    core, rt = build(args, session, device)
+    _core, rt = build(args, session, device)
     active.use(rt)
     started = args.command != "new"  # resume：本来就在培育里
     try:

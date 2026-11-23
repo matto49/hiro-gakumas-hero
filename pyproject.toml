@@ -10,8 +10,12 @@ requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later; KAA 派生的文件为 GPL-3.0（见 LICENSE.GPL-3.0）" }
 dependencies = ["numpy", "opencv-python-headless"]
 
+[project.scripts]
+hiro = "hiro.cli.main:main"
+
 [project.optional-dependencies]
-dev = ["pytest"]
+# 开发：测试、代码检查、格式化、类型检查、提交前钩子（版本钉住，CI 和本机一致）
+dev = ["pytest", "pytest-cov", "ruff==0.17.6", "basedpyright==1.39.10", "pre-commit"]
 # 实机游玩：操作层 / 识别层基于 KAA（kotones-auto-assistant，GPL-3.0），以 git 子模块 vendor/kaa 固定版本引入
 play = ["ksaa", "pyyaml", "ddddocr==1.6.1", "faiss-cpu>=1.14.3"]  # ddddocr：HUD 数字的退路读法（hiro.vision.digits）  # faiss：卡面图库（hiro.vision.card_db）  # pyyaml：只在构建模拟器主数据时用（vendor/gakumas-player/scripts/fetch_master.py）
 # 考试出牌用 gakumas-bench 的开源算法（缺省 UINet，hiro.bench_bridge）：都按固定提交装；没装时考试出牌退回社区规则
@@ -37,6 +41,38 @@ hiro = ["vision/*.json", "vision/templates/*.png", "defaults/*.json"]
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+extend-exclude = ["vendor"]
+
+[tool.ruff.lint]
+# 显式列出规则，不随 ruff 版本的缺省集合变：pycodestyle / pyflakes / isort / bugbear / comprehensions / pyupgrade / simplify / ruff 自己的
+select = ["E", "W", "F", "I", "B", "C4", "UP", "SIM", "RUF", "PIE"]
+ignore = [
+    "E501",    # 行宽交给格式化；长字符串、中文注释不强拆
+    "RUF001",  # 字符串里的全角标点、日文字符是有意的（游戏文字）
+    "RUF002",  # 同上（文档字符串）
+    "RUF003",  # 同上（注释）
+    "RUF100",  # 不删「用不上的 noqa」：代码里有针对 BLE001 / S310 等的 noqa，后面常跟着为什么这么写的说明
+    "SIM108",  # 三元表达式不强制
+    "B905",    # zip 加 strict=True 会改运行时行为（长度不一致直接抛错），不批量改
+    "RUF005",  # 列表拼接写法，纯风格
+]
+# 「没用到的导入」不自动删：有的是给别处转出口（kaa_patches.FormationMismatch），有的靠导入的副作用（hiro 兼容层、hiro.sim 引擎路径）
+unfixable = ["F401"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["hiro"]
+# hiro 排在第三方包前面：`import hiro`（兼容层）要先于 kaa / kotonebot，`import hiro.sim`（引擎路径）要先于 gakumas_exam 等
+section-order = ["future", "standard-library", "first-party", "third-party", "local-folder"]
+
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.basedpyright]
+# 类型检查（basedpyright = pyright 加基线功能）。现有错误记在 .basedpyright/baseline.json，CI 只拦新增的；
+# 修掉旧错误后跑 `basedpyright --writebaseline` 更新基线。分析环境以 CI 为准：只装 `.[dev]`、Linux、Python 3.10
+include = ["src"]
+exclude = ["vendor", "**/__pycache__"]
+pythonVersion = "3.10"
+pythonPlatform = "Linux"
+typeCheckingMode = "standard"

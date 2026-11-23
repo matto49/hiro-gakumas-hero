@@ -5,6 +5,7 @@ KAA（ksaa）把 onnxruntime 钉在 ~=1.14.0，读不了 IR 10 / opset 20 的原
 独立脚本，只依赖 onnx / numpy，在隔离环境里跑，不装进 hiro 的环境：
     uv run --isolated --no-project --with onnx --with numpy python convert_model.py 原模型.onnx 输出.onnx
 """
+
 import sys
 
 import numpy as np
@@ -27,11 +28,13 @@ for node in g.node:
         x, y = node.input[0], node.output[0]
         p = f"gelu{n}_"
         n += 1
-        nodes += [helper.make_node("Mul", [x, "gelu_c_isqrt2"], [p + "s"]),
-                  helper.make_node("Erf", [p + "s"], [p + "e"]),
-                  helper.make_node("Add", [p + "e", "gelu_c_one"], [p + "a"]),
-                  helper.make_node("Mul", [x, p + "a"], [p + "m"]),
-                  helper.make_node("Mul", [p + "m", "gelu_c_half"], [y])]
+        nodes += [
+            helper.make_node("Mul", [x, "gelu_c_isqrt2"], [p + "s"]),
+            helper.make_node("Erf", [p + "s"], [p + "e"]),
+            helper.make_node("Add", [p + "e", "gelu_c_one"], [p + "a"]),
+            helper.make_node("Mul", [x, p + "a"], [p + "m"]),
+            helper.make_node("Mul", [p + "m", "gelu_c_half"], [y]),
+        ]
     else:
         nodes.append(node)
 del g.node[:]

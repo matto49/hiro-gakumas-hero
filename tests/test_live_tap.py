@@ -3,10 +3,10 @@ d88829f 后横屏帧只处理窗口、不点，停在这页约 5 分钟（看门
 
 from pathlib import Path
 
-import cv2
-
 from hiro.loop.controller import live_start_tap
 from hiro.produce.ops import ocr_boxes
+
+import cv2
 
 FIX = Path(__file__).parent / "fixtures/live"
 

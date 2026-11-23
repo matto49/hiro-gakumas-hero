@@ -4,11 +4,11 @@
 
 from types import SimpleNamespace as NS
 
-import pytest
-from test_shop_exec import FakeConsult, frame
-
 from hiro.contracts import Action, ActionKind, Decision, GameState, TraceWriter
 from hiro.produce import shop
+
+import pytest
+from test_shop_exec import FakeConsult, frame
 
 
 def _session(tmp_path, img):
@@ -19,11 +19,15 @@ def _session(tmp_path, img):
     return Session(TraceWriter(root=tmp_path, name="guard"), shoot=lambda: img)
 
 
-@pytest.mark.parametrize("name, page", [("exam_loading", "TRANSITION"), ("consult_end_scene", None), ("reroll_left1", None)])
+@pytest.mark.parametrize(
+    "name, page", [("exam_loading", "TRANSITION"), ("consult_end_scene", None), ("reroll_left1", None)]
+)
 def test_left_page_reclassifies_only_when_fields_missing(tmp_path, name, page):
     s = _session(tmp_path, frame(name))
     obs = s.observe(scene="CONSULT")
-    assert (obs.fields.get("shelf") is None) is (name != "reroll_left1")  # 货架不完整（加载页 / 人物画面）给 None，不给幻影格子
+    assert (obs.fields.get("shelf") is None) is (
+        name != "reroll_left1"
+    )  # 货架不完整（加载页 / 人物画面）给 None，不给幻影格子
     assert s.left_page("CONSULT", obs, ("shelf",)) == page
 
 
@@ -38,11 +42,17 @@ def _consult(monkeypatch, left_page, shelf=None):
               recover=lambda *a, **k: None)  # fmt: skip
     h = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
     h.s = sess
-    h.deciders = NS(decide=lambda page, st: decided.append(page) or Decision(Action(ActionKind.SHOP_BUY, {"index": 7}), "买", "rule", 0.9))
+    h.deciders = NS(
+        decide=lambda page, st: (
+            decided.append(page) or Decision(Action(ActionKind.SHOP_BUY, {"index": 7}), "买", "rule", 0.9)
+        )
+    )
     h._consult_open_dialog = lambda d, done: d
     h._choose_dialog_card, h._deck_size = None, lambda: None
     monkeypatch.setattr(hif, "sleep", lambda s: None)
-    monkeypatch.setattr("hiro.produce.shop.execute_shop", lambda a, *x, **k: calls.append(a.kind) or NS(ok=True, error=None))
+    monkeypatch.setattr(
+        "hiro.produce.shop.execute_shop", lambda a, *x, **k: calls.append(a.kind) or NS(ok=True, error=None)
+    )
     h.on_consult(None)
     return calls, decided
 

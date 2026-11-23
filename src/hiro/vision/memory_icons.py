@@ -131,7 +131,16 @@ def read_icon(icon: MatLike, expect: list[str] | None = None) -> dict:
     r = rank_cards(icon)
     m = method()
     if not r:
-        return {"card": None, "score": None, "asset": None, "second": None, "margin": None, "method": m, "known": False, "expect_scores": {}}
+        return {
+            "card": None,
+            "score": None,
+            "asset": None,
+            "second": None,
+            "margin": None,
+            "method": m,
+            "known": False,
+            "expect_scores": {},
+        }
     unknown_line, margin_line = THRESHOLDS[m]
     top = r[0]
     margin = r[1][1] - top[1] if len(r) > 1 else 0.0
@@ -144,13 +153,17 @@ def read_icon(icon: MatLike, expect: list[str] | None = None) -> dict:
     return out
 
 
-EMPTY_STD = 20.0  # 第 3 步空格（「+」，没编回忆）图标区灰度标准差 12.9–15.1；有图标 32–69（账号 2 11-16 第 120 / 132 号帧）
+EMPTY_STD = (
+    20.0  # 第 3 步空格（「+」，没编回忆）图标区灰度标准差 12.9–15.1；有图标 32–69（账号 2 11-16 第 120 / 132 号帧）
+)
 PLAN_RED_MIN = 0.3  # 图标上方「プラン不一致」红标签的红色比例：有标签 0.50，没有 0
-PLAN_BOOST = 1.3  # プラン不一致 的卡图被压暗：饱和度、亮度各乘这个再认（魅惑の視線：原样 25.1 认成别的，提亮后 13.1、领先 4.6）
+PLAN_BOOST = (
+    1.3  # プラン不一致 的卡图被压暗：饱和度、亮度各乘这个再认（魅惑の視線：原样 25.1 认成别的，提亮后 13.1、领先 4.6）
+)
 
 
 def _plan_mismatch(img: MatLike, box) -> bool:
-    x1, y1, x2, y2 = box
+    x1, y1, x2, _y2 = box
     hsv = cv2.cvtColor(img[max(0, y1 - 40) : y1 - 4, max(0, x1 - 10) : x2 + 20], cv2.COLOR_BGR2HSV)
     red = ((hsv[..., 0] <= 8) | (hsv[..., 0] >= 170)) & (hsv[..., 1] >= 120) & (hsv[..., 2] >= 180)
     return float(red.mean()) >= PLAN_RED_MIN

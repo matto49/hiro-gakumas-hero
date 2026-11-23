@@ -30,7 +30,9 @@ def tap_next(rt, frame) -> bool:
     连点被 BLOCK_WORDS 里的「次へ」拦住，180 秒停机）。点之前重新截图核对这行字还在。"""
     from hiro.loop.advance import BLOCK_WORDS
 
-    btn = next((t for t in frame.texts if TAP_NEXT in t.text.replace(" ", "") and t.rect.center.y > TAP_NEXT_MIN_Y), None)
+    btn = next(
+        (t for t in frame.texts if TAP_NEXT in t.text.replace(" ", "") and t.rect.center.y > TAP_NEXT_MIN_Y), None
+    )
     if btn is None:
         return False
     others = [t.text.replace(" ", "") for t in frame.texts if t is not btn]
@@ -41,7 +43,10 @@ def tap_next(rt, frame) -> bool:
     last = getattr(rt, "_tap_next_at", None)
     if now is not None and last is not None and now - last < TAP_NEXT_GAP_S:
         return True  # 刚点过，等翻页（算处理了，不交给后面的连点）
-    if not any(TAP_NEXT in b.text.replace(" ", "") and b.rect.center.y > TAP_NEXT_MIN_Y for b in screen_texts(rt.screen.shot().img)):
+    if not any(
+        TAP_NEXT in b.text.replace(" ", "") and b.rect.center.y > TAP_NEXT_MIN_Y
+        for b in screen_texts(rt.screen.shot().img)
+    ):
         return False
     rt.device.tap(*btn.rect.center)
     rt._tap_next_at = now
@@ -76,7 +81,9 @@ def live_start(rt, frame) -> bool:
 def commu_skip(rt, frame) -> bool:
     """培育剧情逐句播放（底栏有「早送り」+ ログ / AUTO / SKIP）：点认出来的 SKIP（左下、y > 1120）。点之前重新截图核对。"""
     texts = [t.text for t in frame.texts]
-    if not any("早送" in t for t in texts) or not any("ログ" in t or "AUT" in t.upper() or "SKI" in t.upper() for t in texts):
+    if not any("早送" in t for t in texts) or not any(
+        "ログ" in t or "AUT" in t.upper() or "SKI" in t.upper() for t in texts
+    ):
         return False
     fresh = screen_texts(rt.screen.shot().img)
     if not any("早送" in b.text for b in fresh):

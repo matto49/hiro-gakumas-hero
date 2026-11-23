@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-import pytest
-
 from hiro.defaults.assets import PublicAssetSource
+
+import pytest
 
 PACK = Path(__file__).resolve().parents[1] / "assets" / "pack"
 

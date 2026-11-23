@@ -5,12 +5,12 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision.digits import read_number
 from hiro.vision.hif import BOX_GENKI, read_hif_hud
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "genki"
 
@@ -39,7 +39,9 @@ def test_genki_lost_head_invariant():
     s.page.name = "HIF_EXAM"
     s.exam = {"genki": 1283, "remaining_turns": 3}
     obs = Observation(seq=2, t=0.0, page=PageObs("HIF_EXAM", "produce"), fields={"genki": 283, "remaining_turns": 2})
-    assert [(c.field, c.verdict, c.rule) for c in check_invariants(s, obs)] == [("exam.genki", "read_error", "digit_count")]
+    assert [(c.field, c.verdict, c.rule) for c in check_invariants(s, obs)] == [
+        ("exam.genki", "read_error", "digit_count")
+    ]
     ok = Observation(seq=2, t=0.0, page=PageObs("HIF_EXAM", "produce"), fields={"genki": 1100, "remaining_turns": 2})
     assert check_invariants(s, ok) == []
 
@@ -62,7 +64,10 @@ def _canvas(p, x, y):
     return img
 
 
-@pytest.mark.parametrize(("p", "x", "y", "genki"), list(_dmm_cases()) or [pytest.param(None, 0, 0, 0, marks=pytest.mark.skip("没有 DMM 元気样例"))])
+@pytest.mark.parametrize(
+    ("p", "x", "y", "genki"),
+    list(_dmm_cases()) or [pytest.param(None, 0, 0, 0, marks=pytest.mark.skip("没有 DMM 元気样例"))],
+)
 def test_genki_dmm_ignores_hp_bar_cap(p, x, y, genki):
     """DMM mainverify2（11-17，1080x1920 窗口缩到 720 宽）：字体比对认不出元気角标，退回 ddddocr 读整个放宽框，
     左边体力条没满时的深灰圆头读成「1」：元気 0 → 10（9 帧）、100 → 2100、20 → 120、700 → 5700。引擎按 10 重建，

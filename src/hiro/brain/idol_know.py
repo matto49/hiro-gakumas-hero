@@ -18,7 +18,7 @@ TIER_OF_WEIGHT = {100: "必拿", 90: "S", 75: "A", 60: "B"}
 
 def _mode_diff(mode_id: str | None) -> tuple[str | None, str | None]:
     """produce-00x → (攻略的 mode, difficulty)。初 / N.I.A 之外返回 (None, None)：H.I.F 这次不接攻略。"""
-    from hiro.state.modes import HAJIME, NIA, MODES
+    from hiro.state.modes import HAJIME, MODES, NIA
 
     m = MODES.get(mode_id or "")
     if m is None or m.family not in (HAJIME, NIA):
@@ -54,7 +54,7 @@ class CardKnow:
         if f.get("weight") is not None:
             return int(f["weight"])
         share = (f.get("stat") or {}).get("share")
-        return int(round(float(share) * 100)) if share is not None else 0
+        return int(round(float(share) * 100)) if share is not None else 0  # noqa: RUF046
 
     def strong(self, cid: str) -> bool:
         return self.weight(cid) >= STRONG

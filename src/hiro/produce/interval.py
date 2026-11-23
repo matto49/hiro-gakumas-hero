@@ -18,18 +18,23 @@
 没有实机帧的步骤都存帧到 ops.CALIB_DIR（open / pick / confirm / back / end）。所有等待按时间封顶。
 """
 
+import logging
 import re
 import time
 from collections.abc import Callable
-
-import numpy as np
-import logging
-from hiro.devices.active import device, sleep as _sleep
+from typing import TYPE_CHECKING
 
 from hiro.contracts import Action, ActionKind, ExecutionResult
+from hiro.devices.active import device
+from hiro.devices.active import sleep as _sleep
 from hiro.produce import shop
 from hiro.produce.ops import Run, find_text, orange_lit
 from hiro.produce.special_guidance import grid_center
+
+import numpy as np
+
+if TYPE_CHECKING:
+    from hiro.contracts.decision import Decision
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +57,10 @@ UPGRADE_CONFIRM = ("強化する", "強化", "決定", "はい", "OK")
 UPGRADE_DONE = ("強化しました",)
 DIALOG_BUTTONS = (360, 1080, 720, 1240)
 
-TITLE_TEXT, TITLE_REGION = ("インターバル",), (30, 25, 200, 70)  # 左上角页面标题：进入动画、退出淡出时都在，ラウンド2 转场里没有
+TITLE_TEXT, TITLE_REGION = (
+    ("インターバル",),
+    (30, 25, 200, 70),
+)  # 左上角页面标题：进入动画、退出淡出时都在，ラウンド2 转场里没有
 ENTER_TIMEOUT = 8.0  # 进入轮间时笔记本翻开的动画（第四局 frames/00037）
 LEAVE_TIMEOUT = 10.0  # 「本戦へ」后轮间画面淡出
 DIALOG_TIMEOUT = 3.0
@@ -70,7 +78,7 @@ def read_hp(img: np.ndarray, ocr) -> tuple[int, int] | None:
     misread = False
     for t, _, (x1, y1, x2, y2) in ocr(img):
         cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-        if HP_BAND[0] <= cx <= HP_BAND[2] and HP_BAND[1] <= cy <= HP_BAND[3]:
+        if HP_BAND[0] <= cx <= HP_BAND[2] and HP_BAND[1] <= cy <= HP_BAND[3]:  # noqa: SIM102
             if m := re.search(r"(\d+)/(\d+)", t.replace(" ", "").translate(DIGIT_FIX)):
                 hp, mx = int(m.group(1)), int(m.group(2))
                 if 0 < mx <= 99 and hp <= mx:
@@ -149,7 +157,11 @@ def _dialog_amount(boxes) -> int | None:
     """确认框上方的「+N」（本次回复量）。"""
     x1, y1, x2, y2 = RECOVER_AMOUNT_BAND
     for t, _, (a, b, c, d) in boxes:
-        if x1 <= (a + c) // 2 <= x2 and y1 <= (b + d) // 2 <= y2 and (m := re.fullmatch(r"[+＋](\d+)", t.replace(" ", "").translate(DIGIT_FIX))):
+        if (
+            x1 <= (a + c) // 2 <= x2
+            and y1 <= (b + d) // 2 <= y2
+            and (m := re.fullmatch(r"[+＋](\d+)", t.replace(" ", "").translate(DIGIT_FIX)))
+        ):
             return int(m.group(1))
     return None
 
@@ -221,11 +233,27 @@ def _recover(r: Run, info: dict | None, target_hp: int | None = None) -> Executi
         return r.result(False, f"点「回復」后 {SETTLE_TIMEOUT:.0f}s 内体力没增加、P 点也没减少（体力 {hp0}，P {p0}）",
                         page_after=PAGE if shop.consult_idle(img) else None)  # fmt: skip
     hp, p = read_hp(img, r.ocr), shop.read_p(img, r.ocr)
-    logger.info("轮间：回复体力 %s → %s（%d 格，确认框读到 +%s），P %s → %s（%.1fs）", hp0, hp, times, amount, p0, p, r.clock() - r.t0)
+    logger.info(
+        "轮间：回复体力 %s → %s（%d 格，确认框读到 +%s），P %s → %s（%.1fs）",
+        hp0,
+        hp,
+        times,
+        amount,
+        p0,
+        p,
+        r.clock() - r.t0,
+    )
     return r.result(True)
 
 
-def _upgrade(r: Run, card_index: int, info: dict | None, card_id: str | None = None, choose_card=None, deck_size: int | None = None) -> ExecutionResult:
+def _upgrade(
+    r: Run,
+    card_index: int,
+    info: dict | None,
+    card_id: str | None = None,
+    choose_card=None,
+    deck_size: int | None = None,
+) -> ExecutionResult:
     """轮间「強化」：打开牌组选卡页 → 有 card_id / choose_card 时走 card_ops._card_op（按 card_id 定位、核对、确认、
     认不出就取消）；都没有时按 card_index 点网格（旧路径）。"""
     if (info or {}).get("available") is False:
@@ -243,7 +271,11 @@ def _upgrade(r: Run, card_index: int, info: dict | None, card_id: str | None = N
                         calib=r.calib is not None, choose=choose, expected_size=deck_size)  # fmt: skip
         back, img = r.until(shop.consult_idle, SETTLE_TIMEOUT)
         r.snap(img, "back")
-        return r.result(done, None if done else "「強化」没做成（没给 / 没找到 card_id 或选中不符，已取消）", page_after=PAGE if back else None)
+        return r.result(
+            done,
+            None if done else "「強化」没做成（没给 / 没找到 card_id 或选中不符，已取消）",
+            page_after=PAGE if back else None,
+        )
     return _upgrade_by_index(r, card_index)
 
 
@@ -284,7 +316,9 @@ def _upgrade_by_index(r: Run, card_index: int) -> ExecutionResult:
     ok, img = r.until(done, SETTLE_TIMEOUT)
     r.snap(img, "back")
     if not ok:
-        return r.result(False, f"确认强化后 {SETTLE_TIMEOUT:.0f}s 内没看到「強化しました」，P 点也没减少", page_after=None)
+        return r.result(
+            False, f"确认强化后 {SETTLE_TIMEOUT:.0f}s 内没看到「強化しました」，P 点也没减少", page_after=None
+        )
     if state.get("toast"):  # 结果页：等它自己回主画面，不回来就交主循环
         back, img = r.until(shop.consult_idle, SETTLE_TIMEOUT)
         r.snap(img, "returned" if back else "not-returned")
@@ -311,11 +345,23 @@ def execute_interval(
 ) -> ExecutionResult:
     """执行一个轮间动作。page_fields 是识别给的字段（page_fields["interval"]）。ok=True 表示观察到生效。
     deck_size：状态机记账的牌组张数（强化选卡对话框多屏拼接核对用；None = 不核对）。"""
-    r = Run(action, PAGE, shoot or device.screenshot, click or device.click, clock, sleep, label="轮间", ocr=ocr, calib=calib)
+    r = Run(
+        action,
+        PAGE,
+        shoot or device.screenshot,
+        click or device.click,
+        clock,
+        sleep,
+        label="轮间",
+        ocr=ocr,
+        calib=calib,
+    )
     args = action.args or {}
     interval = (page_fields or {}).get("interval") or {}
     is_recover = action.kind is ActionKind.INTERVAL_BUY and args.get("service") == "recover"
-    if action.kind is not ActionKind.REROLL:  # 刷新确认框挂着（晚弹出来）：取消，别让它挡住这一步、也别被当成「已离开轮间」
+    if (
+        action.kind is not ActionKind.REROLL
+    ):  # 刷新确认框挂着（晚弹出来）：取消，别让它挡住这一步、也别被当成「已离开轮间」
         shop.cancel_reroll_dialog(r)
     elif shop.reroll_dialog(r.ocr(r.shoot())):  # 要刷新、确认框正好挂着：直接按确认框处理（主画面被它挡着，等不到）
         return shop._reroll(r, "interval", interval.get("refresh"))
@@ -337,7 +383,9 @@ def execute_interval(
     if action.kind is ActionKind.REROLL:  # args {"scope": "interval"}：左下「リフレッシュ」（10P）
         return shop._reroll(r, "interval", interval.get("refresh"))
     if action.kind is ActionKind.INTERVAL_UPGRADE_CARD:
-        return _upgrade(r, int(args.get("card_index", -1)), interval.get("upgrade"), args.get("card_id"), choose_card, deck_size)
+        return _upgrade(
+            r, int(args.get("card_index", -1)), interval.get("upgrade"), args.get("card_id"), choose_card, deck_size
+        )
     if action.kind is ActionKind.INTERVAL_BUY and args.get("service") == "recover":
         return _recover(r, interval.get("recover"), args.get("target_hp"))
     if action.kind is ActionKind.INTERVAL_BUY and "index" in args:
@@ -363,12 +411,16 @@ def mark_known(page_fields: dict, bought: set[int], blocked: set[int]) -> dict:
         return pf
     iv = dict(iv)
     for kind in ("cards", "changes", "drinks"):
-        iv[kind] = [dict(it, purchased=True) if it.get("index") in bought | blocked else it for it in iv.get(kind) or []]
+        iv[kind] = [
+            dict(it, purchased=True) if it.get("index") in bought | blocked else it for it in iv.get(kind) or []
+        ]
     pf["interval"] = iv
     return pf
 
 
-def screen_status(shoot=None, ocr=None, fallback: Callable[[], tuple] | None = None, tries: int = 3) -> tuple[int | None, int | None, int | None]:
+def screen_status(
+    shoot=None, ocr=None, fallback: Callable[[], tuple] | None = None, tries: int = 3
+) -> tuple[int | None, int | None, int | None]:
     """画面顶部读 (体力, 体力上限, P)。读不出就再截几帧；仍读不出的项用 fallback()（例如观测状态里的体力 / 上限 / P）补。"""
     from hiro.produce.ops import ocr_boxes
 
@@ -439,11 +491,17 @@ def interval_loop(
             if streak >= MAX_FAIL_STREAK:
                 break
             continue
-        if action.kind is ActionKind.INTERVAL_BUY and (action.args or {}).get("service") == "recover" and "target_hp" not in action.args:
+        if (
+            action.kind is ActionKind.INTERVAL_BUY
+            and (action.args or {}).get("service") == "recover"
+            and "target_hp" not in action.args
+        ):
             # 一次回到目标：目标与收尾同一口径（hp_target(上限)，调用方已含决策的模拟目标），不再每 2 点走一遍决策
             _, max_hp, _ = status()
             if max_hp is not None:
-                action = Action(action.kind, {**action.args, "target_hp": min(max_hp, hp_target(max_hp) if hp_target else max_hp)})
+                action = Action(
+                    action.kind, {**action.args, "target_hp": min(max_hp, hp_target(max_hp) if hp_target else max_hp)}
+                )
         res = execute(action, pf)
         if record:
             record(d, res)
@@ -471,7 +529,9 @@ def finish_interval(execute, status=screen_status, record=None, hp_target: Calla
     target = None if max_hp is None else min(max_hp, hp_target(max_hp) if hp_target else max_hp)
     tries = 0
     recover_fails = 0
-    limit = -(-(target - hp) // RECOVER_HP) + 2 if hp is not None and target is not None else 0  # 到目标要的次数 + 2 次余量
+    limit = (
+        -(-(target - hp) // RECOVER_HP) + 2 if hp is not None and target is not None else 0
+    )  # 到目标要的次数 + 2 次余量
     while hp is not None and target is not None and hp < target and (p is None or p >= RECOVER_PRICE):
         if tries >= limit or recover_fails >= 2:
             break

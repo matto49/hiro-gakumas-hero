@@ -30,11 +30,11 @@ class FakeSession:
 
 
 def _controller(monkeypatch, kaa_scene, *, fallback=None):
-    import kotonebot
-
     from hiro.loop import controller as ctl
     from hiro.loop import kaa_patches
     from hiro.loop.controller import HiroController
+
+    import kotonebot
 
     portrait = np.zeros((1280, 720, 3), np.uint8)
     monkeypatch.setattr(kotonebot, "device", NS(screenshot=lambda: portrait, click=lambda *a: None))
@@ -53,8 +53,8 @@ def _controller(monkeypatch, kaa_scene, *, fallback=None):
                  "_is_drink_offer", "_retry_network_error", "_skip_commu", "_first_run_settings", "_cancel_recover_dialog",
                  "_resume_special_guidance", "_record_finals_ranking", "_close_produce_log", "_is_pitem_select", "_watch_unknown"):  # fmt: skip
         setattr(c, name, lambda *a, **k: False)
-    c._ocr_boxes = lambda: []
-    c._ocr_texts = lambda: []
+    c._ocr_boxes = list
+    c._ocr_texts = list
     c._dispatch = lambda scene, last: None
     c._advance = lambda: 0
     return c, s
@@ -97,7 +97,13 @@ def test_page_sources_table(tmp_path):
 
     seg = tmp_path / "run"
     seg.mkdir()
-    page = lambda name, src=None: {"name": name, "area": "produce", "confidence": 1.0, "stable_frames": 1, **({"source": src} if src else {})}  # noqa: E731
+    page = lambda name, src=None: {  # noqa: E731
+        "name": name,
+        "area": "produce",
+        "confidence": 1.0,
+        "stable_frames": 1,
+        **({"source": src} if src else {}),
+    }
     steps = [
         {"observation": {"seq": 1, "source": "screen", "page": page("ACTION_SELECT", "kaa")},
          "observations_before": [{"seq": 0, "source": "screen", "page": page("LOADING", "quick")}],
@@ -109,7 +115,12 @@ def test_page_sources_table(tmp_path):
     ]  # fmt: skip
     (seg / "steps.jsonl").write_text("\n".join(json.dumps(s, ensure_ascii=False) for s in steps), encoding="utf-8")
     pages, misjudged = page_sources.count(seg)
-    assert pages == {("ACTION_SELECT", "kaa"): 1, ("ACTION_SELECT", "pixel"): 1, ("LOADING", "quick"): 1, ("HIF_EXAM", "—"): 1}
+    assert pages == {
+        ("ACTION_SELECT", "kaa"): 1,
+        ("ACTION_SELECT", "pixel"): 1,
+        ("LOADING", "quick"): 1,
+        ("HIF_EXAM", "—"): 1,
+    }
     md = page_sources.table(pages, misjudged, "run")
     assert "| ACTION_SELECT | 1 |" in md and "KAA 判不出、我们补判（recover:page_misjudged）1 次" in md
     assert "其他页面不一致（不是判页）（recover:page_misjudged）1 次" in md
@@ -146,14 +157,19 @@ def test_kaa_usage_counts_outermost_kaa_calls_only(monkeypatch):
 
 
 def test_kaa_usage_install_on_real_kaa_classes():
+    from hiro.loop import kaa_usage
+
     from kaa.tasks.produce.new.page import ActionSelectContext, ProducePage, StudyContext
     from kaa.tasks.produce.new.strategies.hif_grind import HifGrindStrategy
 
-    from hiro.loop import kaa_usage
-
     kaa_usage.install()
     assert kaa_usage.install() == 0  # 第二次不重复包
-    for fn in (StudyContext.commit, ActionSelectContext.fetch_available_actions, ProducePage.check_scene, HifGrindStrategy.on_study):
+    for fn in (
+        StudyContext.commit,
+        ActionSelectContext.fetch_available_actions,
+        ProducePage.check_scene,
+        HifGrindStrategy.on_study,
+    ):
         assert getattr(fn, kaa_usage._INSTALLED, False), fn
 
 

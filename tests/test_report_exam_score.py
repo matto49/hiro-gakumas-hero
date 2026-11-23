@@ -7,13 +7,20 @@ from hiro.loop.report import summarize
 
 
 def _exam(seq, label, score):
-    st = GameState(page=PageState(name="HIF_EXAM"), exam={"score": score}, exam_session=ExamSession(label=label, turn=1))
+    st = GameState(
+        page=PageState(name="HIF_EXAM"), exam={"score": score}, exam_session=ExamSession(label=label, turn=1)
+    )
     return Step(seq=seq, t=0.0, observation=Observation(seq=seq, t=0.0, page=PageObs(name="HIF_EXAM")), state=st)
 
 
 def _result(seq, fields):
     st = GameState(page=PageState(name="HIF_FINALS_RANKING"))
-    return Step(seq=seq, t=0.0, observation=Observation(seq=seq, t=0.0, page=PageObs(name="HIF_FINALS_RANKING"), fields=fields), state=st)
+    return Step(
+        seq=seq,
+        t=0.0,
+        observation=Observation(seq=seq, t=0.0, page=PageObs(name="HIF_FINALS_RANKING"), fields=fields),
+        state=st,
+    )
 
 
 def test_round_score_from_result_page_last_attempt():

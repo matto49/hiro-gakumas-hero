@@ -10,6 +10,10 @@ from __future__ import annotations
 import logging
 import subprocess
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from AppKit import NSRunningApplication  # pyobjc，只在 macOS 上有
 
 BUNDLE_ID = "jp.co.bandainamcoent.BNEI0421"
 MENU_VIEW = "显示"  # 系统语言为中文；英文 / 日文系统按下面的候选找
@@ -93,7 +97,11 @@ class LandscapeGuard:
             return False
         now = time.monotonic()
         # 只看中间区域：全屏后窗口顶部有一条白边，整帧均值会超过阈值（q8 / q9 LIVE 结束后一直没退出全屏）
-        black = img is not None and float(img[img.shape[0] // 8 : img.shape[0] * 7 // 8, img.shape[1] // 8 : img.shape[1] * 7 // 8].mean()) < 3.0
+        black = (
+            img is not None
+            and float(img[img.shape[0] // 8 : img.shape[0] * 7 // 8, img.shape[1] // 8 : img.shape[1] * 7 // 8].mean())
+            < 3.0
+        )
         if not black:
             self.black_since = None
         elif self.black_since is None:
@@ -109,7 +117,10 @@ class LandscapeGuard:
         if black and now - self.black_since >= self.EXIT_BLACK_S and now - self.entered_at > 30:
             return self._exit()
         if self._frozen(img, black, now):
-            logger.warning("全屏 LIVE 画面 %.0fs 没变（游戏暂停了，全屏里看不到「画面タップで再開」）：退出全屏", now - self.frozen_since)
+            logger.warning(
+                "全屏 LIVE 画面 %.0fs 没变（游戏暂停了，全屏里看不到「画面タップで再開」）：退出全屏",
+                now - self.frozen_since,
+            )
             self.frozen_since = None
             return self._exit()
         return False

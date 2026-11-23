@@ -2,12 +2,12 @@
 
 import json
 
-import pytest
-
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.llm import MockLLM
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import ActionKind, GameState
+
+import pytest
 
 pytestmark = pytest.mark.master
 
@@ -22,7 +22,13 @@ def _off(monkeypatch):
 
 
 def _st(dest, cards, **kw):
-    return GameState(page_fields={"destination": dest, "candidates": [{"index": i, "card_id": c, "upgrade": 0} for i, c in enumerate(cards)], **kw})
+    return GameState(
+        page_fields={
+            "destination": dest,
+            "candidates": [{"index": i, "card_id": c, "upgrade": 0} for i, c in enumerate(cards)],
+            **kw,
+        }
+    )
 
 
 def _pick(d):
@@ -47,14 +53,22 @@ def test_unknown_destination_keeps_old_behavior():
 
 
 def test_no_candidates_waits():
-    d = ProduceDeciders(CAMPUS_HIRO, None).decide("EXAM_CARD_MOVE", GameState(page_fields={"destination": "lost", "candidates": []}))
+    d = ProduceDeciders(CAMPUS_HIRO, None).decide(
+        "EXAM_CARD_MOVE", GameState(page_fields={"destination": "lost", "candidates": []})
+    )
     assert d.action.kind is ActionKind.WAIT
 
 
 def test_unrecognized_card_goes_to_llm(monkeypatch):
     monkeypatch.setenv("HIRO_PRODUCE_LLM", "card_move")
     llm = MockLLM(replies=[{"choice": 1, "reason": "留核心卡"}])
-    st = GameState(page_fields={"destination": "lost", "title": "除外するカードを選択", "candidates": [{"index": 0, "card_id": None}, {"index": 1, "card_id": BASIC}]})
+    st = GameState(
+        page_fields={
+            "destination": "lost",
+            "title": "除外するカードを選択",
+            "candidates": [{"index": 0, "card_id": None}, {"index": 1, "card_id": BASIC}],
+        }
+    )
     d = ProduceDeciders(CAMPUS_HIRO, llm).decide("EXAM_CARD_MOVE", st)
     assert d.source == "llm" and llm.calls
     user = json.loads(llm.calls[0][1])

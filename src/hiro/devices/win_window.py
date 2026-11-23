@@ -23,7 +23,7 @@ def _user32():
     import ctypes
 
     u = ctypes.windll.user32
-    try:
+    try:  # noqa: SIM105
         u.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))  # PER_MONITOR_AWARE_V2：拿物理像素
     except Exception:  # noqa: BLE001  老系统没有这个函数
         pass

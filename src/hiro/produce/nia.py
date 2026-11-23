@@ -23,7 +23,9 @@ UNDECIDED_STOP_S = 15.0  # 同一页一直决策不出（字段读不全 → Wai
 class NiaPages:
     def __init__(self, core, persist=None):
         self.core = core
-        self.persist = persist  # Path：选档时把场次 / 档位写进这个文件（resume 是新进程，内存里的会丢；NiaSampleCore 取标签时读）
+        self.persist = (
+            persist  # Path：选档时把场次 / 档位写进这个文件（resume 是新进程，内存里的会丢；NiaSampleCore 取标签时读）
+        )
         self._acted: tuple[str, float] | None = None
         self.place_choice: str | None = None  # 场所种类（kind）
         self.audition_choice: int | None = None  # 门槛票数（vote_need）
@@ -113,11 +115,17 @@ class NiaPages:
             self.audition_choice = tiers[int(i)]["vote_need"]
             self.core.nia_audition_number = args.get("audition_number") or tiers[int(i)].get("number")
             if fields.get("stage"):
-                self.core.nia_stage = fields["stage"]  # 考试标签按这一场（mid1 / mid2 / final），不按进了几场数（中间夹着営業、自主课）
+                self.core.nia_stage = fields[
+                    "stage"
+                ]  # 考试标签按这一场（mid1 / mid2 / final），不按进了几场数（中间夹着営業、自主课）
             self._save_next_exam()
         target = next((t for t in tiers if t["vote_need"] == self.audition_choice), None)
         if fields.get("expanded") and fields.get("chosen_need") == self.audition_choice and fields.get("start"):
-            logger.info("N.I.A 试镜：门槛 %s（档 %s），点「オーディション開始」", self.audition_choice, self.core.nia_audition_number)
+            logger.info(
+                "N.I.A 试镜：门槛 %s（档 %s），点「オーディション開始」",
+                self.audition_choice,
+                self.core.nia_audition_number,
+            )
             self._tap(rt, page, fields["start"])
             self.audition_choice = None
             return DONE
@@ -158,5 +166,10 @@ class NiaPages:
         return DONE
 
     def handlers(self) -> dict:
-        return {"NIA_SALES_PLACE": self.on_sales_place, "NIA_SALES_EVENT": self.on_sales_event, "NIA_AUDITION_SELECT": self.on_audition_select,
-                "NIA_AUDITION_BONUS": self.on_audition_bonus, "NIA_AUDITION_RESULT": self.on_audition_result}
+        return {
+            "NIA_SALES_PLACE": self.on_sales_place,
+            "NIA_SALES_EVENT": self.on_sales_event,
+            "NIA_AUDITION_SELECT": self.on_audition_select,
+            "NIA_AUDITION_BONUS": self.on_audition_bonus,
+            "NIA_AUDITION_RESULT": self.on_audition_result,
+        }

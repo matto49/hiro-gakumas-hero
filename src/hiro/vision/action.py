@@ -13,13 +13,13 @@
 import re
 from dataclasses import asdict, dataclass, field
 
-import cv2
-import numpy as np
-from cv2.typing import MatLike
-
 from hiro.vision.digits import read_number
 from hiro.vision.ocr import engine as ocr_engine
 from hiro.vision.ocr import ocr, ocr_boxes
+
+import cv2
+import numpy as np
+from cv2.typing import MatLike
 
 ATTRS = ("vo", "da", "vi")
 STAT_BOXES = {"vo": (200, 684, 275, 719), "da": (345, 682, 420, 720), "vi": (478, 684, 558, 718)}  # 避开左侧属性小图标
@@ -50,7 +50,10 @@ ACTIONS = [
     (re.compile(r"特別指導"), "special_training"),
     (re.compile(r"おでかけ"), "outing"),
     (re.compile(r"^営業$"), "sales"),  # N.I.A 営業（2次まで 6 週 等只有这一个按钮，11-17 原来读不出、决策 Wait 停）
-    (re.compile(r"活動支給"), "allowance"),  # 初 普通周的「活動支給」（领饮料 / 卡），3940a9 的 hajime_nia 决策认 allowance
+    (
+        re.compile(r"活動支給"),
+        "allowance",
+    ),  # 初 普通周的「活動支給」（领饮料 / 卡），3940a9 的 hajime_nia 决策认 allowance
     # N.I.A「Vo.自主レッスン」：属性前缀和「レッスン」之间夹着「自主」，要先于下面的 lesson（11-17 N.I.A 采样：attr 读成 None）
     (re.compile(r"(Vo|Da|Vi)?\.?自主レッ[スズ]ン"), "self_lesson"),
     (re.compile(r"(Vo|Da|Vi)?\.?レッ[スズ]ン"), "lesson"),
@@ -85,8 +88,12 @@ class ActionSelectState:
     star: int | None
     advice: str | None
     options: list[ActionOption] = field(default_factory=list)
-    exam_next: str | None = None  # 初 / N.I.A：页头「中間 / 1次 / 2次 / 最終まで」→ mid1 / mid2 / final（3940a9 按它查下一场的审查基准）
-    weeks_left: int | None = None  # 初 / N.I.A：页头「N週」（离下一场考试还有几周；换算成 step 见 hiro.state.modes.step_from_header）
+    exam_next: str | None = (
+        None  # 初 / N.I.A：页头「中間 / 1次 / 2次 / 最終まで」→ mid1 / mid2 / final（3940a9 按它查下一场的审查基准）
+    )
+    weeks_left: int | None = (
+        None  # 初 / N.I.A：页头「N週」（离下一场考试还有几周；换算成 step 见 hiro.state.modes.step_from_header）
+    )
 
     @property
     def complete(self) -> bool:
@@ -94,8 +101,12 @@ class ActionSelectState:
         初的「授業」只有一个按钮、不分属性（3940a9 11-17），不要求属性。"""
         need_attr = ("open_lesson",) if self.exam_next else ("class", "open_lesson")
         lessons_ok = all(o.attr for o in self.options if o.kind in need_attr)
-        return (None not in (self.days_left, self.stamina, self.p_points) and None not in self.params.values()
-                and bool(self.options) and lessons_ok)
+        return (
+            None not in (self.days_left, self.stamina, self.p_points)
+            and None not in self.params.values()
+            and bool(self.options)
+            and lessons_ok
+        )
 
     def to_dict(self) -> dict:
         return {**asdict(self), "complete": self.complete}
@@ -142,9 +153,15 @@ def _cost_by_heart(img: MatLike, cx: int, ty: int, read: int | None) -> int | No
     if band.size == 0:
         return read
     hsv = cv2.cvtColor(band, cv2.COLOR_BGR2HSV)
-    mask = ((hsv[:, :, 0] >= 35) & (hsv[:, :, 0] <= 85) & (hsv[:, :, 1] >= 120) & (hsv[:, :, 2] >= 120)).astype(np.uint8)
+    mask = ((hsv[:, :, 0] >= 35) & (hsv[:, :, 0] <= 85) & (hsv[:, :, 1] >= 120) & (hsv[:, :, 2] >= 120)).astype(
+        np.uint8
+    )
     n, _, st, _ = cv2.connectedComponentsWithStats(mask, 8)
-    hearts = [st[i] for i in range(1, n) if COST_HEART_AREA[0] <= st[i][4] <= COST_HEART_AREA[1] and 12 <= st[i][2] <= 45 and 15 <= st[i][3] <= 45]
+    hearts = [
+        st[i]
+        for i in range(1, n)
+        if COST_HEART_AREA[0] <= st[i][4] <= COST_HEART_AREA[1] and 12 <= st[i][2] <= 45 and 15 <= st[i][3] <= 45
+    ]
     if not hearts:
         return None
     if read is not None:
@@ -181,14 +198,21 @@ def _oikomi_options(img: MatLike) -> list[ActionOption]:
     return sorted(out, key=lambda o: o.center[1]) if len(out) == 3 else []
 
 
-OIKOMI_STAT_BAND = (425, 485)  # 追い込み页的三维数值换成大号排版（约 y 455，x 150 / 380 / 610），普通页的 STAT_ROW 读不到
+OIKOMI_STAT_BAND = (
+    425,
+    485,
+)  # 追い込み页的三维数值换成大号排版（约 y 455，x 150 / 380 / 610），普通页的 STAT_ROW 读不到
 
 
 def _oikomi_params(img: MatLike) -> dict:
     y1, y2 = OIKOMI_STAT_BAND
     # 左边的属性图标常被读成一个字（「込260」）：取末尾的数字
-    nums = sorted(((b[0] + b[2]) / 2, int(m.group(1))) for t, _, b in ocr_boxes(img[y1:y2], scale=2) if (m := re.search(r"(\d{2,4})$", t.strip())))
-    return dict(zip(ATTRS, (v for _, v in nums))) if len(nums) == 3 else {a: None for a in ATTRS}
+    nums = sorted(
+        ((b[0] + b[2]) / 2, int(m.group(1)))
+        for t, _, b in ocr_boxes(img[y1:y2], scale=2)
+        if (m := re.search(r"(\d{2,4})$", t.strip()))
+    )
+    return dict(zip(ATTRS, (v for _, v in nums))) if len(nums) == 3 else dict.fromkeys(ATTRS)
 
 
 def _options(img: MatLike, *, hajime: bool = False) -> list[ActionOption]:
@@ -222,7 +246,9 @@ def _options(img: MatLike, *, hajime: bool = False) -> list[ActionOption]:
                 attr = _attr_by_band(img, cx, ty)
             option = ActionOption(kind, compact, attr, center)
             if kind in ("lesson", "self_lesson"):
-                option.sp = any(SP_DX[0] < x - cx < SP_DX[1] and SP_DY[0] < y - ty < SP_DY[1] for x, y in _sp_badges(img))
+                option.sp = any(
+                    SP_DX[0] < x - cx < SP_DX[1] and SP_DY[0] < y - ty < SP_DY[1] for x, y in _sp_badges(img)
+                )
             if kind == "rest":
                 # 回复量在按钮左上角的爱心徽章里（白字深描边），位于文字左上方
                 option.hp_gain = read_number(img, (cx - 58, ty - 96, cx - 14, ty - 54))
@@ -250,7 +276,7 @@ def parse_stamina(text: str) -> tuple[int, int] | None:
     text = re.sub(r"[lI|／\\]", "/", text.replace(" ", ""))
     if m := re.fullmatch(r"\D*(\d{1,3})/(\d{2,3})\D*", text):
         cur, cap = int(m.group(1)), int(m.group(2))
-        return (cur, cap) if 0 < cap and cur <= cap else None
+        return (cur, cap) if cap > 0 and cur <= cap else None
     if "/" in text:
         return None  # 看得到斜杠却对不上（如 12/9），不猜
     digits = re.sub(r"\D", "", text)
@@ -317,7 +343,12 @@ def read_action_select(img: MatLike) -> ActionSelectState:
     # 选行动页剩余天数 ≥ 1：RapidOCR 会在左上装饰上读出幻影「0日」排在真数字前（DMM qualifydmm1-00390「0日 … ふ日」），跳过它交给 ddddocr
     days = next((int(d) for d in re.findall(r"(\d+)\s*日", header) if 1 <= int(d) <= 30), None)
     stamina = read_stamina(img)
-    points = re.search(r"\d+", "".join(t for t, _ in ocr(img[slice(*POINTS_BOX[1::2]), slice(*POINTS_BOX[::2])], scale=4, languages=("en-US",))))
+    points = re.search(
+        r"\d+",
+        "".join(
+            t for t, _ in ocr(img[slice(*POINTS_BOX[1::2]), slice(*POINTS_BOX[::2])], scale=4, languages=("en-US",))
+        ),
+    )
 
     def small_text(box) -> str:
         x1, y1, x2, y2 = box
@@ -356,7 +387,7 @@ def _icon_span(hsv: np.ndarray, attr: str) -> tuple[int, int] | None:
     lo, hi = STAT_ICON_HUE[attr]
     x1, x2 = STAT_ICON_SEARCH[attr]
     h, sat, v = hsv[:, x1:x2, 0], hsv[:, x1:x2, 1], hsv[:, x1:x2, 2]
-    cols = np.nonzero((((h >= lo) & (h <= hi) & (sat >= 120) & (v >= 150)).mean(axis=0) >= 0.3))[0]
+    cols = np.nonzero(((h >= lo) & (h <= hi) & (sat >= 120) & (v >= 150)).mean(axis=0) >= 0.3)[0]
     if len(cols) == 0:
         return None
     start = end = int(cols[0])

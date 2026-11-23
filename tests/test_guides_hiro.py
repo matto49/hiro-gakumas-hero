@@ -3,9 +3,9 @@
 import json
 import random
 
-import pytest
-
 from hiro.brain import guides
+
+import pytest
 
 HIRO = "i_card-shro-3-007"
 
@@ -15,9 +15,17 @@ def hiro_pack(monkeypatch, tmp_path):
     from hiro.brain import guides_hiro
 
     for mode in ("hajime", "nia"):
-        pack = {"format": "gkbench.guides.v1", "schema": 1, "mode": mode, "version": "test", "entries": guides_hiro.entries()}
+        pack = {
+            "format": "gkbench.guides.v1",
+            "schema": 1,
+            "mode": mode,
+            "version": "test",
+            "entries": guides_hiro.entries(),
+        }
         (tmp_path / f"{mode}-test.json").write_text(json.dumps(pack, ensure_ascii=False))
-    (tmp_path / "manifest.json").write_text(json.dumps({"schema": 1, "packs": {m: {"name": f"{m}-test"} for m in ("hajime", "nia")}}))
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"schema": 1, "packs": {m: {"name": f"{m}-test"} for m in ("hajime", "nia")}})
+    )
     monkeypatch.setenv("HIRO_GUIDES_DIR", str(tmp_path))
     guides._load_pack.cache_clear()
     yield
@@ -42,7 +50,9 @@ def _decide(mode, cands, deck, rerolls):
 
     prod = {"idol_card_id": HIRO, "mode": mode, "stamina": 20, "max_stamina": 30, "produce_point": 50, "params": {"Vo": 1, "Da": 1, "Vi": 1},
             "growth_permil": {}, "rerolls_left": rerolls, "excludes_left": 1, "deck": [{"card_id": c, "upgrade": 0} for c in deck]}  # fmt: skip
-    d = ProduceDeciders(CAMPUS_HIRO, None).decide("SELECT_CARD", GameState(produce=prod, page_fields={"candidates": [{"card_id": c} for c in cands]}))
+    d = ProduceDeciders(CAMPUS_HIRO, None).decide(
+        "SELECT_CARD", GameState(produce=prod, page_fields={"candidates": [{"card_id": c} for c in cands]})
+    )
     return action_key(d.action)
 
 
@@ -53,8 +63,15 @@ def test_hiro_card_pick_same_with_guides(monkeypatch, hiro_pack):
 
     pool = _pool()
     rnd = random.Random(11)
-    decks = [[], ["p_card-02-act-2_062", "p_card-02-men-1_031"], ["p_card-02-men-1_031", "p_card-02-men-1_031", "p_card-02-men-2_057", "p_card-02-men-2_111"]]
-    pages = [(rnd.sample(pool, 3), decks[i % 3], rnd.choice([0, 2]), rnd.choice(["produce-002", "produce-004"])) for i in range(300)]
+    decks = [
+        [],
+        ["p_card-02-act-2_062", "p_card-02-men-1_031"],
+        ["p_card-02-men-1_031", "p_card-02-men-1_031", "p_card-02-men-2_057", "p_card-02-men-2_111"],
+    ]
+    pages = [
+        (rnd.sample(pool, 3), decks[i % 3], rnd.choice([0, 2]), rnd.choice(["produce-002", "produce-004"]))
+        for i in range(300)
+    ]
     monkeypatch.delenv("HIRO_GUIDES_HIRO", raising=False)
     assert card_know("produce-002", HIRO) is None
     before = [_decide(m, c, d, r) for c, d, r, m in pages]

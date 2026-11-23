@@ -1,16 +1,16 @@
 """录屏一停就暂停对局（hiro.loop.pause_flag）：旗标出现 → 暂停、消失 → 恢复；开局前等录屏；暂停期间看门狗 / 收尾超时不计时。"""
 
+import importlib.util as _kiu
+
+from hiro.loop import pause_flag as rp
 
 import numpy as np
 import pytest
 
-from hiro.loop import pause_flag as rp
-
-import importlib.util as _kiu
-
-NEED_KAA = pytest.mark.skipif(_kiu.find_spec("kotonebot") is None or _kiu.find_spec("kaa") is None,
-                              reason="操作层：要装 KAA / kotonebot（pip install -e \".[play]\"）")
-
+NEED_KAA = pytest.mark.skipif(
+    _kiu.find_spec("kotonebot") is None or _kiu.find_spec("kaa") is None,
+    reason='操作层：要装 KAA / kotonebot（pip install -e ".[play]"）',
+)
 
 
 @pytest.fixture(autouse=True)
@@ -49,7 +49,12 @@ def test_flag_appears_pauses_and_disappears_resumes(tmp_path):
     flag.write_text("1793782800 片段 45s 不增长\n", encoding="utf-8")
     w.tick()
     w.tick()  # 还在：不重复暂停
-    assert flow.calls == ["pause"] and rp.paused() and sess.notes[0].startswith("rec_pause:") and "片段 45s 不增长" in sess.notes[0]
+    assert (
+        flow.calls == ["pause"]
+        and rp.paused()
+        and sess.notes[0].startswith("rec_pause:")
+        and "片段 45s 不增长" in sess.notes[0]
+    )
     flag.unlink()
     w.tick()
     assert flow.calls == ["pause", "resume"] and not rp.paused() and sess.notes[1].startswith("rec_resume:")
@@ -107,7 +112,14 @@ def test_watchdog_does_not_fire_across_pause(monkeypatch):
     t = [0.0]
     monkeypatch.setattr(rp.time, "monotonic", lambda: t[0])
     g = rg.Guard()  # 默认时钟 = rec_pause.active_clock
-    sess = NS(guard=g, state=NS(page=NS(name="HIF_EXAM")), recover=lambda *a: None, note=lambda *a: None, observe=lambda **k: None, record=lambda: None)
+    sess = NS(
+        guard=g,
+        state=NS(page=NS(name="HIF_EXAM")),
+        recover=lambda *a: None,
+        note=lambda *a: None,
+        observe=lambda **k: None,
+        record=lambda: None,
+    )
     cb = rg.watchdog(sess, clock=lambda: t[0])
     loop = NS(screenshot=np.full((1280, 720, 3), 40, np.uint8))
     t[0] = 100
@@ -139,7 +151,9 @@ def test_finish_loop_stops_at_checkpoint_and_timeout_excludes_pause(monkeypatch)
         t[0] += 1
         return None
 
-    monkeypatch.setattr("kotonebot.device", NS(screenshot=screenshot, click=lambda *a: None, click_center=lambda: None), raising=False)
+    monkeypatch.setattr(
+        "kotonebot.device", NS(screenshot=screenshot, click=lambda *a: None, click_center=lambda: None), raising=False
+    )
     monkeypatch.setattr(rs, "at_home", lambda: len(shots) >= 5)
     monkeypatch.setattr(rs, "screen_texts", lambda *a, **k: [])
     monkeypatch.setattr(rs, "tap", lambda name, img, click: False)  # 画面上什么模板都没有
@@ -155,6 +169,7 @@ def test_real_flow_controller_blocks_checkpoint(tmp_path):
     import time as _t
 
     import hiro  # noqa: F401
+
     from kotonebot.backend.context import FlowController
 
     flow, flag = FlowController(), tmp_path / "REC_DOWN"

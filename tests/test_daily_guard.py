@@ -79,7 +79,14 @@ def test_no_timeout_and_errors_pass_through():
 
 def test_classify_club_request_received_close():
     """2026-11-03 club_reward：领完奖励弹「リクエスト受け取り」，只有「閉じる」，以前标题不认 → 挂 300s 超时。"""
-    popup = [box("リクエスト受け取り", 360, 420), box("アノマリーノート（ビジュアル）×2", 360, 640), box("閉じる", 360, 1160)]
+    popup = [
+        box("リクエスト受け取り", 360, 420),
+        box("アノマリーノート（ビジュアル）×2", 360, 640),
+        box("閉じる", 360, 1160),
+    ]
     assert classify_popup(popup) == ("close", (360, 1160))
     # 带「受け取る」按钮的领取框仍不碰（ACTION_TEXTS）
-    assert classify_popup([box("プレゼント受け取り", 360, 420), box("閉じる", 212, 1160), box("受け取る", 500, 1160)]) is None
+    assert (
+        classify_popup([box("プレゼント受け取り", 360, 420), box("閉じる", 212, 1160), box("受け取る", 500, 1160)])
+        is None
+    )

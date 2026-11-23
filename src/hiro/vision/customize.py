@@ -44,7 +44,9 @@ def _customize_rows() -> dict[str, list[dict]]:
 def _card_customize_ids(card_id: str, upgrade: int) -> tuple[str, ...]:
     from hiro import master
 
-    rows = master.rows("SELECT produceCardCustomizeIds FROM ProduceCard WHERE id = ? AND upgradeCount = ?", card_id, upgrade)
+    rows = master.rows(
+        "SELECT produceCardCustomizeIds FROM ProduceCard WHERE id = ? AND upgradeCount = ?", card_id, upgrade
+    )
     return tuple(json.loads(rows[0]["produceCardCustomizeIds"] or "[]")) if rows else ()
 
 
@@ -125,16 +127,28 @@ def read_menu(img: MatLike, boxes) -> dict | None:
         from hiro.vision.ocr import engine
         from hiro.vision.pages import _contains_near
 
-        if engine() != "vision":  # RapidOCR 常错一个字；小写假名读成大写、长音读丢（q10「カスタマイズメニユ」）时先归一再比
+        if (
+            engine() != "vision"
+        ):  # RapidOCR 常错一个字；小写假名读成大写、长音读丢（q10「カスタマイズメニユ」）时先归一再比
             want = _fold_kana("カスタマイズメニュー")
-            hdr = next((b for t, b in boxes if _contains_near(t.replace(" ", ""), "カスタマイズメニュー") or want in _fold_kana(t)), None)
+            hdr = next(
+                (
+                    b
+                    for t, b in boxes
+                    if _contains_near(t.replace(" ", ""), "カスタマイズメニュー") or want in _fold_kana(t)
+                ),
+                None,
+            )
     if hdr is None:
         return None
     hy = _cy(hdr)
     orange = _orange(cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
     items = []
-    for k, (x1, x2) in enumerate(MENU_COLS):
-        col = sorted(((t.replace(" ", ""), b) for t, b in boxes if x1 <= _cx(b) < x2 and hy + 10 <= _cy(b) <= hy + 165), key=lambda tb: (_cy(tb[1]), tb[1][0]))
+    for _k, (x1, x2) in enumerate(MENU_COLS):
+        col = sorted(
+            ((t.replace(" ", ""), b) for t, b in boxes if x1 <= _cx(b) < x2 and hy + 10 <= _cy(b) <= hy + 165),
+            key=lambda tb: (_cy(tb[1]), tb[1][0]),
+        )
         if not col:
             continue
         left = next((int(m.group(1)) for t, _ in col if (m := re.search(r"あと(\d+)回", t))), None)
@@ -171,7 +185,11 @@ def read_special_guidance(img: MatLike, boxes=None) -> dict:
         boxes = _texts(img)
     texts = [t.replace(" ", "") for t, _ in boxes]
     view = "menu" if any("一覧に戻る" in t for t in texts) else "select"
-    name = "".join(t for t, b in boxes if DETAIL_NAME_Y[0] <= _cy(b) <= DETAIL_NAME_Y[1] and b[0] >= 180).replace("＋", "+").replace(" ", "")
+    name = (
+        "".join(t for t, b in boxes if DETAIL_NAME_Y[0] <= _cy(b) <= DETAIL_NAME_Y[1] and b[0] >= 180)
+        .replace("＋", "+")
+        .replace(" ", "")
+    )
     selected_card = card_from_name(name) if name else None
     menu = read_menu(img, boxes)
     from hiro.vision.ocr import engine

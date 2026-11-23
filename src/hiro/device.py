@@ -18,11 +18,6 @@ import logging
 import os
 import sys
 
-from kotonebot.client.device import Device
-from kotonebot.client.scaler import PortraitGameScaler
-from kotonebot.config.config import conf
-from kotonebot.primitives.geometry import Size
-
 # MaaTools 客户端和它的常数挪到了 hiro.devices.maatools（设备统一接口也用它），这里照旧导入，原有用法不变
 from hiro.devices.maatools import (  # noqa: F401
     CATALYST_IDIOM_SCALE,
@@ -35,11 +30,21 @@ from hiro.devices.maatools import (  # noqa: F401
     MaaToolsImpl,
 )
 
+from kotonebot.client.device import Device
+from kotonebot.client.scaler import PortraitGameScaler
+from kotonebot.config.config import conf
+from kotonebot.primitives.geometry import Size
+
 logger = logging.getLogger(__name__)
 
 
 PLAYCOVER_BACKENDS = ("maatools",)
-KAA_BACKENDS = {"adb": "custom", "mumu": "mumu12v5", "leidian": "leidian", "dmm": "dmm"}  # HIRO_DEVICE → KAA lifecycle.type
+KAA_BACKENDS = {
+    "adb": "custom",
+    "mumu": "mumu12v5",
+    "leidian": "leidian",
+    "dmm": "dmm",
+}  # HIRO_DEVICE → KAA lifecycle.type
 BACKENDS = ("auto", *PLAYCOVER_BACKENDS, *KAA_BACKENDS)
 BACKEND: str | None = None  # connect() 实际选中的后端；PlayCover 专用的退路（横屏全屏、真实鼠标点击）看它决定开不开
 DEVICE = None  # connect() 建的设备（hiro.loop.game_app 从里面取 adb shell 查前台应用 / 拉起游戏）
@@ -88,9 +93,9 @@ def fallback_click():
 def _kaa_config(name: str):
     """KAA 设备工厂要的配置：已 init_kaa 就用当前配置（后端已按环境变量写好）；
     否则（tap 等工具直接 connect）现建一份，后端按环境变量写。"""
-    from kaa.config.schema import KaaConfig
-
     from hiro.kaa_env import kaa_backend_from_env
+
+    from kaa.config.schema import KaaConfig
 
     try:
         from kaa.kaa_context import conf as kaa_conf
@@ -147,9 +152,9 @@ def connect(backend: str | None = None) -> Device:
     conf().device.default_logic_resolution = Size(720, 1280)
     if name == "dmm" and _dmm_driver() == "maafw":
         # 实验（缺省关）：DMM 版换成 MaaFramework 的 Win32 控制器截图 / 点击，见 hiro.device_maafw
-        from kotonebot.client.device import WindowsDevice
-
         from hiro.device_maafw import MaaFwWin32Impl
+
+        from kotonebot.client.device import WindowsDevice
 
         device = WindowsDevice()
         impl = MaaFwWin32Impl(device)
@@ -174,8 +179,10 @@ def connect(backend: str | None = None) -> Device:
     except Exception as e:  # kotonebot 把连不上包成它自己的 DeviceConnectRefusedError
         if name != "maatools":
             raise
-        raise RuntimeError(f"连不上 MaaTools（127.0.0.1:{MAATOOLS_PORT}）：Mac 只支持 hguandl 分支的 PlayCover，"
-                           "要在游戏的 PlayCover 设置里打开 maaTools，并且第一次从 PlayCover 界面启动游戏。"
-                           f"原版 PlayCover 不支持（{e}）") from e
+        raise RuntimeError(
+            f"连不上 MaaTools（127.0.0.1:{MAATOOLS_PORT}）：Mac 只支持 hguandl 分支的 PlayCover，"
+            "要在游戏的 PlayCover 设置里打开 maaTools，并且第一次从 PlayCover 界面启动游戏。"
+            f"原版 PlayCover 不支持（{e}）"
+        ) from e
     device.screenshot()  # 缩放器要靠首张截图确定物理分辨率，之后才能换算点击坐标
     return device

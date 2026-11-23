@@ -5,14 +5,13 @@
 """
 
 import json
+import logging
 from collections import Counter
 from dataclasses import asdict
 
-import logging
-
-from hiro.brain.llm import LLMAdapter, load_prompt, prompt_version
 from hiro.brain import rules as _rules
-from hiro.brain.rules import final_turn_override, Decision, fallback, soft_warnings, trivial, violations
+from hiro.brain.llm import LLMAdapter, load_prompt, prompt_version
+from hiro.brain.rules import Decision, fallback, final_turn_override, soft_warnings, trivial, violations
 from hiro.brain.state import BattleState, ExamMemory, IdolProfile
 
 logger = logging.getLogger(__name__)
@@ -104,7 +103,7 @@ class BattleBrain:
     def _ask(self, state: BattleState) -> Decision | None:
         payload = state.to_prompt_dict()
         user = "当前状态：\n" + json.dumps(payload, ensure_ascii=False)
-        for attempt in range(self.max_retries + 1):
+        for _attempt in range(self.max_retries + 1):
             res = self.llm.ask_json(self.system, user)
             # 发给 LLM 的局面一并记下（系统提示按 prompt_version 可还原），之后换模型 / 改提示词可以原样重放（tools.audit.exam_replay）
             self.calls.append(res.record(prompt_version=self.prompt_version, prompt_state=payload))

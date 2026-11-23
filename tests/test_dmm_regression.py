@@ -10,9 +10,9 @@ import json
 import sys
 from pathlib import Path
 
-import pytest
-
 from tools.audit.dmm_samples import diff, read
+
+import pytest
 
 HERE = Path(__file__).parent
 SAMPLES = json.loads((HERE / "dmm_regression.json").read_text(encoding="utf-8"))
@@ -36,6 +36,8 @@ def test_dmm_frame(sample):
             problems += diff(sample[key], got[key], key)
     if why:
         # 先读帧再判 xfail（strict）：标了 xfail 的条目修好后会报出来，提醒去掉标记
-        assert problems, f"{sample['file']} 已经能读对，去掉 dmm_regression.json 里的 xfail_on.{PLATFORM}（原因：{why}）"
+        assert problems, (
+            f"{sample['file']} 已经能读对，去掉 dmm_regression.json 里的 xfail_on.{PLATFORM}（原因：{why}）"
+        )
         pytest.xfail(why)
     assert not problems, f"{sample['file']}（{sample.get('note', '')}）：\n" + "\n".join(problems)

@@ -10,8 +10,9 @@ pytest.importorskip("hiro.brain.battle")  # 记忆管理在策略层（brain）
 pytest.importorskip("hiro.perception.lesson")  # HUD 数字读法在识别层
 
 import hiro.exec.exam as ex  # noqa: E402
-from hiro.brain.rules import Decision  # noqa: E402
-from hiro.contracts import Action, Decision as DC  # noqa: E402
+from hiro.brain.rules import Decision  # noqa: E402, F401
+from hiro.contracts import Action  # noqa: E402
+from hiro.contracts import Decision as DC
 
 
 class Rec:
@@ -135,7 +136,9 @@ def test_state_none_waits_then_rereads(env):
     src, adv = Source([(None, "hand_overlay"), (None, "hand_overlay")]), Advisor()
     done = iter([False, False, False, True])
     ex.run_exam(Brain(), "r1", Rec(), lambda img: next(done), source=src, advisor=adv)
-    assert src.calls.count("read") == 3 and [c for c in adv.calls if c[0] == "decide"] == [("decide", ["PlayCard", "Skip"])]
+    assert src.calls.count("read") == 3 and [c for c in adv.calls if c[0] == "decide"] == [
+        ("decide", ["PlayCard", "Skip"])
+    ]
 
 
 def test_missing_plugins_raise(monkeypatch, env):

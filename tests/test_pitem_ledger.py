@@ -4,11 +4,11 @@
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-import cv2
-import pytest
-
 from hiro.contracts import Event, GameState
 from hiro.loop.events import apply_event
+
+import cv2
+import pytest
 
 
 def _ev(kind, seq=1, origin="observed", **args):
@@ -26,15 +26,24 @@ def test_acquire_written_to_items():
 
 def test_customize_replaces_previous_stage():
     st = GameState(produce={"items": ["pitem_02-3-076-0", "customize_pitem-red"]})
-    st, _ = apply_event(st, _ev("PITEM_CUSTOMIZE", origin="action", item_id="customize_pitem-red-bear", replaces="customize_pitem-red"))
+    st, _ = apply_event(
+        st, _ev("PITEM_CUSTOMIZE", origin="action", item_id="customize_pitem-red-bear", replaces="customize_pitem-red")
+    )
     assert st.produce["items"] == ["pitem_02-3-076-0", "customize_pitem-red-bear"]
 
 
 def test_named_pitem_pick_emits_acquire():
     from hiro.loop.events import events_from_step
 
-    pf = {"pitems": [{"name": "はつぼしブレスレット", "pitem_id": "pitem_00-3-001-0"}, {"name": "はつぼしマスコット", "pitem_id": "pitem_00-3-002-0"}]}
-    evs = events_from_step("SELECT_PITEM", {"kind": "ActivateEffect", "args": {"pick_indexes": [0]}}, True, pf, {}, seq=5)
+    pf = {
+        "pitems": [
+            {"name": "はつぼしブレスレット", "pitem_id": "pitem_00-3-001-0"},
+            {"name": "はつぼしマスコット", "pitem_id": "pitem_00-3-002-0"},
+        ]
+    }
+    evs = events_from_step(
+        "SELECT_PITEM", {"kind": "ActivateEffect", "args": {"pick_indexes": [0]}}, True, pf, {}, seq=5
+    )
     assert [(e.kind, e.args.get("item_id")) for e in evs] == [("PITEM_ACQUIRE", "pitem_00-3-001-0")]
 
 

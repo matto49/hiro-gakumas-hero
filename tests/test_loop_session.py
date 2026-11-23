@@ -1,14 +1,14 @@
 """Session（注入截图 / 分类 / 提取）：观测与 reduce、缺字段等待、执行校验、trace 往返、报告度量。"""
 
-import json
-from pathlib import Path
-
-import numpy as np
+import json  # noqa: F401
+from pathlib import Path  # noqa: F401
 
 import hiro  # noqa: F401
-from hiro.contracts import Action, Candidate, Decision, LLMTrace, TraceWriter, read_steps
-from hiro.loop.report import markdown, report, summarize
+from hiro.contracts import Action, Candidate, Decision, LLMTrace, TraceWriter, read_steps  # noqa: F401
+from hiro.loop.report import markdown, report, summarize  # noqa: F401
 from hiro.loop.session import Session
+
+import numpy as np
 
 
 class Fake:
@@ -44,9 +44,9 @@ class Fake:
 
 def _session(tmp_path, fake):
     tw = TraceWriter(root=tmp_path, name="t", meta={"test": True})
-    return Session(tw, shoot=fake.shoot, classify=fake.classify, extract=fake.extract, sleep=fake.sleep, clock=fake.clock), tw
-
-
+    return Session(
+        tw, shoot=fake.shoot, classify=fake.classify, extract=fake.extract, sleep=fake.sleep, clock=fake.clock
+    ), tw
 
 
 def test_verify_detects_transition_and_misjudge(tmp_path):
@@ -54,7 +54,13 @@ def test_verify_detects_transition_and_misjudge(tmp_path):
     s, _ = _session(tmp_path, fake)
     s.observe(scene="ACTION_SELECT", fields=False, save_frame=False)
     r = s.verify(Action.produce_next("shop"), page_before="ACTION_SELECT", taps=[[100, 1000]], timeout=5)
-    assert r.ok and r.page_after == "CONSULT" and r.expected_transition and r.error is None and s.state.page.name == "CONSULT"
+    assert (
+        r.ok
+        and r.page_after == "CONSULT"
+        and r.expected_transition
+        and r.error is None
+        and s.state.page.name == "CONSULT"
+    )
     # 到了不该到的页面：记 page_misjudged
     fake = Fake([("ACTION_SELECT", "produce"), ("HIF_EXAM_RESULT", "produce")])
     s, _ = _session(tmp_path / "b", fake)
@@ -69,23 +75,16 @@ def test_verify_detects_transition_and_misjudge(tmp_path):
     assert not r.ok and r.page_after == "ACTION_SELECT" and "仍是" in r.error and r.waited_s >= 2
 
 
-
-
-
-
-
-
-
-
-
-
 def test_observe_complete_with_registered_adapter(tmp_path):
     """开源版：用注册的字段转换代替游戏专用识别。缺字段时最多等若干帧，读全就返回；一直缺就带着缺失继续。"""
     from hiro.vision import observe as ob
 
     ob.register_adapter("DEMO_PAGE", lambda raw: {"hp": raw.get("hp"), "gold": raw.get("gold")})
     try:
-        fake = Fake([("DEMO_PAGE", "demo")], {"DEMO_PAGE": [{"hp": None, "gold": 5}, {"hp": None, "gold": 5}, {"hp": 30, "gold": 5}]})
+        fake = Fake(
+            [("DEMO_PAGE", "demo")],
+            {"DEMO_PAGE": [{"hp": None, "gold": 5}, {"hp": None, "gold": 5}, {"hp": 30, "gold": 5}]},
+        )
         s, _ = _session(tmp_path, fake)
         obs = s.observe_complete("DEMO_PAGE", ("hp", "gold"), tries=5, interval=0.5)
         assert obs.fields["hp"] == 30 and obs.fields["gold"] == 5 and fake.slept == 1.0

@@ -8,9 +8,9 @@ import shutil
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.contracts import TraceWriter
+
+import pytest
 
 FIX = Path(__file__).parent / "data" / "g33-main-resume-steps.jsonl"  # 实机状态（trace 步骤文本），随仓库发布
 
@@ -26,7 +26,9 @@ def test_trace_writer_continues_existing_trace(tmp_path):
     tw2 = TraceWriter(root=tmp_path, name="g", meta={"command": "resume"})
     assert tw2.next_seq() == 6  # 帧文件 00005 也算，不覆盖
     run = json.loads((tw2.dir / "run.json").read_text(encoding="utf-8"))
-    assert run["command"] == "new" and run["segments"][0]["command"] == "resume" and run["segments"][0]["first_seq"] == 6
+    assert (
+        run["command"] == "new" and run["segments"][0]["command"] == "resume" and run["segments"][0]["first_seq"] == 6
+    )
     tw2.close()
 
 
@@ -89,13 +91,20 @@ def test_consult_rereads_when_p_missing(monkeypatch):
     seen = []
     h = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
     h.s = sess
-    h.deciders = NS(decide=lambda page, st: seen.append((st.produce or {}).get("produce_point")) or Decision(Action(ActionKind.SHOP_END), "结束", "rule", 0.9))
+    h.deciders = NS(
+        decide=lambda page, st: (
+            seen.append((st.produce or {}).get("produce_point"))
+            or Decision(Action(ActionKind.SHOP_END), "结束", "rule", 0.9)
+        )
+    )
     h._consult_open_dialog = lambda d, done: d
     h._choose_dialog_card = None
     h._deck_size = lambda: None
     monkeypatch.setattr(hif, "sleep", lambda s: None)
-    monkeypatch.setattr("hiro.produce.shop.execute_shop", lambda *a, **k: NS(ok=True, error=None, page_after="ACTION_SELECT"))
-    try:
+    monkeypatch.setattr(
+        "hiro.produce.shop.execute_shop", lambda *a, **k: NS(ok=True, error=None, page_after="ACTION_SELECT")
+    )
+    try:  # noqa: SIM105
         h.on_consult(None)
     except Exception:  # noqa: BLE001  ShopEnd 之后的收尾依赖实机，这里只看决策前有没有重读
         pass
@@ -105,11 +114,11 @@ def test_consult_rereads_when_p_missing(monkeypatch):
 def test_g33_consult_hud_reaches_produce_and_overrides_seed(tmp_path):
     """识屏 140621f：相談页也读头部体力 / P 点（只进 page_fields）；reduce 把它们当 ANY_PAGE_PRODUCE 写进 state.produce，盖过打底值。
     用第三十三局本战续跑后 seq 14 那帧（P 380、体力 13/33）。打底值先改成 999 / 1，确认是画面读数生效。"""
-    import cv2
-
     from hiro.loop.reduce import reduce
     from hiro.vision.extract import extract
     from hiro.vision.observe import observation
+
+    import cv2
 
     frame = Path(__file__).parent / "fixtures" / "shop" / "consult-main33-00014.jpg"
     if not frame.exists():

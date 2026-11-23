@@ -10,12 +10,11 @@ main13 本战（2026-11-02 04:00）：R1 结果页之后弹出这个框，hif.on
 
 from __future__ import annotations
 
-from hiro.vision.textnorm import contains_any
-
+import logging
 import time
 from collections.abc import Callable
 
-import logging
+from hiro.vision.textnorm import contains_any
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +26,13 @@ FORCED_TITLES = DATE_TITLES + DATA_UPDATE_TITLES
 TO_TITLE = ("タイトルへ",)
 # 回标题后可能要下载数据：有「ダウンロード」字样时点这些按钮，绝不点キャンセル（不下载就进不去）
 DOWNLOAD_HINTS = ("ダウンロード",)
-DOWNLOAD_OK = ("ダウンロード", "OK", "はい", "同意する", "決定")  # 「データダウンロード 214.6 MB」确认框是 キャンセル / 決定（Windows 第十七局卡了 15 分钟）
+DOWNLOAD_OK = (
+    "ダウンロード",
+    "OK",
+    "はい",
+    "同意する",
+    "決定",
+)  # 「データダウンロード 214.6 MB」确认框是 キャンセル / 決定（Windows 第十七局卡了 15 分钟）
 TAP_TO_START = ("TAPTOSTART",)
 CLOSE = ("閉じる", "キャンセル")
 PURCHASE_HINTS = ("購入", "ジュエル", "パック", "ショップ", "円")
@@ -101,7 +106,9 @@ def recover_to_home(shoot: Callable, click: Callable[[int, int], None], ocr: Cal
         elif tap := next((_center(b) for t, b in texts if any(k in t.upper() for k in TAP_TO_START)), None):
             logger.info("日期切换：标题页点「TAP TO START」")
             click(*tap)
-        elif close := next((_center(b) for t, b in texts if any(t == k or t.endswith(k) for k in CLOSE) and _center(b)[1] > 900), None):
+        elif close := next(
+            (_center(b) for t, b in texts if any(t == k or t.endswith(k) for k in CLOSE) and _center(b)[1] > 900), None
+        ):
             click(*close)
         elif _event_login_bonus(img):
             # 活动登录奖励（「開催期間」白字；奖励里有「ジュエル」，会命中下面的购买字样）：点底部空白翻页。
@@ -147,7 +154,10 @@ def _event_login_bonus(img) -> bool:
 MUMU_NO_BOOST = "不加速"  # MuMu 加速服务提示的取消按钮（另一个是「立即加速」）
 
 
-DIALOG_STRIP = (880, 1240)  # 弹窗标题「日付変更」y≈973、按钮「タイトルへ」y≈1159（2026-10-30 实拍）；只 OCR 这一条，约 0.2s（整帧约 2s）
+DIALOG_STRIP = (
+    880,
+    1240,
+)  # 弹窗标题「日付変更」y≈973、按钮「タイトルへ」y≈1159（2026-10-30 实拍）；只 OCR 这一条，约 0.2s（整帧约 2s）
 
 
 def strip_boxes(img, ocr) -> list:
@@ -173,7 +183,9 @@ def loop_callback(ocr: Callable, *, every: float = 5.0, clock: Callable[[], floa
             logger.warning("日期切换检测出错（%s），本轮跳过", e)
             return False
         if date_change_button(boxes) is not None:
-            kind = "データ更新" if any(any(k in _norm(t) for k in DATA_UPDATE_TITLES) for t, _, _ in boxes) else "日付変更"
+            kind = (
+                "データ更新" if any(any(k in _norm(t) for k in DATA_UPDATE_TITLES) for t, _, _ in boxes) else "日付変更"
+            )
             logger.warning("日期切换 / 数据更新：在 KAA 循环里认出「%s」，打断当前流程", kind)
             raise DateChanged(kind)
         # 通信エラー（第二十二局轮间卡死 195s）：同一条带里认，リトライ就点；只能回标题就点閉じる并抛 CommErrorToTitle（同日期切换的回首页路）

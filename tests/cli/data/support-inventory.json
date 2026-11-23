@@ -1,0 +1,72 @@
+{
+ "generated": 1763300000.0,
+ "source": "list",
+ "cards": {
+  "s_card-3-0067": {
+   "support_card_id": "s_card-3-0067",
+   "name": "わたしと美鈴、超仲良し",
+   "type": "SupportCardType_Visual",
+   "attr": "Vi",
+   "rarity": "SupportCardRarity_Ssr",
+   "level": 60,
+   "breaks": 4,
+   "new": true,
+   "seen_in": [
+    "list"
+   ],
+   "pages": [
+    1
+   ]
+  },
+  "s_card-3-0053": {
+   "support_card_id": "s_card-3-0053",
+   "name": "さあ、もう一戦！",
+   "type": "SupportCardType_Vocal",
+   "attr": "Vo",
+   "rarity": "SupportCardRarity_Ssr",
+   "level": 60,
+   "breaks": 4,
+   "new": true,
+   "seen_in": [
+    "list"
+   ],
+   "pages": [
+    1
+   ]
+  },
+  "s_card-3-0021": {
+   "support_card_id": "s_card-3-0021",
+   "name": "さみだれ",
+   "type": "SupportCardType_Visual",
+   "attr": "Vi",
+   "rarity": "SupportCardRarity_Ssr",
+   "level": 60,
+   "breaks": 4,
+   "new": true,
+   "seen_in": [
+    "list"
+   ],
+   "pages": [
+    1
+   ]
+  },
+  "s_card-2-9999": {
+   "support_card_id": "s_card-2-9999",
+   "name": "テストSR",
+   "type": "SupportCardType_Visual",
+   "attr": "Vi",
+   "rarity": "SupportCardRarity_Sr",
+   "level": 60,
+   "breaks": 4,
+   "new": true,
+   "seen_in": [
+    "list"
+   ],
+   "pages": [
+    1
+   ]
+  }
+ },
+ "unknown": [],
+ "screens": 2
+}

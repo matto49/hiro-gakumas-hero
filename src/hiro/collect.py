@@ -27,13 +27,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-import cv2
-import numpy as np
-
 from hiro.tool_device import open_tool_device
 from hiro.vision.classify import classify
 from hiro.vision.extract import extract
 from hiro.vision.observe import observation
+
+import cv2
+import numpy as np
 
 # 读这几页的字段还要 KAA（见模块说明），collect 不读
 NEEDS_KAA = {"SELECT_CARD": "选卡读卡还靠 KAA 的卡面插图比对（vision.extract._select_card），collect 不经 KAA，不读"}
@@ -85,7 +85,9 @@ def main():
     parser.add_argument("--interval", type=float, default=0.5)
     parser.add_argument("--minutes", type=float, default=30)
     parser.add_argument("--threshold", type=int, default=12, help="dHash 汉明距离超过该值才视为新画面")
-    parser.add_argument("--min-gap", type=float, default=3.0, help="同一场景两次自动保存的最小间隔（秒），避免待机动画刷屏")
+    parser.add_argument(
+        "--min-gap", type=float, default=3.0, help="同一场景两次自动保存的最小间隔（秒），避免待机动画刷屏"
+    )
     parser.add_argument("--name", default="live")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--dir", default=None, help="追加到已有数据集目录")
@@ -105,6 +107,7 @@ def main():
     last_auto = {"scene": None, "t": 0.0}
     seq = sum(1 for _ in (out / "manifest.jsonl").open()) if (out / "manifest.jsonl").exists() else 0
     deadline = time.time() + args.minutes * 60
+
     def page_of(img):
         tick = time.perf_counter()
         hit = classify(img)
@@ -127,13 +130,26 @@ def main():
         obs = observation(seq, t, scene, fields, area=area, screenshot=f"frames/{name}", timings_ms=timings)
         page_fields = {k: v for k, v in (hit.fields or {}).items() if k != "_quick"}
         row = {
-            "seq": seq, "t": t, "file": f"frames/{name}", "area": area, "scene": scene, "page_source": hit.source,
-            "trigger": trigger, "capture_ms": timings["capture"], "classify_ms": timings["classify"],
-            "extract_ms": timings["extract"], "fields": fields, "page_fields": page_fields or None, "observation": obs.to_dict(),
+            "seq": seq,
+            "t": t,
+            "file": f"frames/{name}",
+            "area": area,
+            "scene": scene,
+            "page_source": hit.source,
+            "trigger": trigger,
+            "capture_ms": timings["capture"],
+            "classify_ms": timings["classify"],
+            "extract_ms": timings["extract"],
+            "fields": fields,
+            "page_fields": page_fields or None,
+            "observation": obs.to_dict(),
         }
         manifest.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
         manifest.flush()
-        print(f"{seq:05d} {area}/{scene} ({hit.source}) classify={classify_ms:.0f}ms extract={extract_ms:.0f}ms {trigger or ''}", flush=True)
+        print(
+            f"{seq:05d} {area}/{scene} ({hit.source}) classify={classify_ms:.0f}ms extract={extract_ms:.0f}ms {trigger or ''}",
+            flush=True,
+        )
         return row
 
     def run_command(cmd: _Command) -> None:

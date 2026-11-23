@@ -1,28 +1,35 @@
 # 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
 """用户规则 3a / 3f：KAA 的每个策略钩子都由 HiroHifStrategy 自己接管；没接管 / 读不出 / 决策不合法时停下（UnhandledPage），不落到 KAA 默认的 commit(0)。"""
 
-from hiro.vision.ocr import Box, Text
 import inspect
-
-import pytest
 
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import Action, ActionKind, Decision, ExecutionResult, GameState
 from hiro.produce.hif import HiroHifStrategy, UnhandledPage
+from hiro.vision.ocr import Box, Text
+
+import pytest
 
 
 def _kaa_hooks() -> set[str]:
     from kaa.tasks.produce.new.strategies.base import ProduceStrategy
     from kaa.tasks.produce.new.strategies.hif_grind import HifGrindStrategy
 
-    return {n for cls in (ProduceStrategy, HifGrindStrategy) for n, _ in inspect.getmembers(cls, inspect.isfunction) if n.startswith("on_")}
+    return {
+        n
+        for cls in (ProduceStrategy, HifGrindStrategy)
+        for n, _ in inspect.getmembers(cls, inspect.isfunction)
+        if n.startswith("on_")
+    }
 
 
 def test_every_kaa_hook_is_overridden():
     from hiro.produce.hif import HifCore
 
-    missing = sorted(h for h in _kaa_hooks() if getattr(HiroHifStrategy, h).__qualname__.split(".")[0] != HifCore.__name__)
+    missing = sorted(
+        h for h in _kaa_hooks() if getattr(HiroHifStrategy, h).__qualname__.split(".")[0] != HifCore.__name__
+    )
     assert not missing, f"这些 KAA 钩子还会走 KAA 默认：{missing}"
 
 
@@ -81,7 +88,11 @@ def test_reward_skip_without_decision_cancels_then_stops(monkeypatch):
     import hiro.produce.hif as hif
 
     clicks = []
-    monkeypatch.setattr(hif, "device", type("D", (), {"click": staticmethod(lambda *a: clicks.append(a)), "screenshot": staticmethod(lambda: None)}))
+    monkeypatch.setattr(
+        hif,
+        "device",
+        type("D", (), {"click": staticmethod(lambda *a: clicks.append(a)), "screenshot": staticmethod(lambda: None)}),
+    )
     st = _strategy()
     st.on_pdrink_max_confirm(object())
     assert clicks == [hif.REWARD_SKIP_CANCEL] and st.s.recovers[-1][0] == "dialog"
@@ -98,7 +109,9 @@ def test_reward_skip_confirmed_after_own_full_skip(monkeypatch):
     clicked = []
     monkeypatch.setattr(hif, "tpl", lambda name: NS(exists=lambda img: True))  # 确认框标题两帧都在
     monkeypatch.setattr(hif, "tap", lambda name, img, click: clicked.append(name) or True)
-    monkeypatch.setattr(hif, "device", type("D", (), {"screenshot": staticmethod(lambda: None), "click": staticmethod(lambda *a: None)}))
+    monkeypatch.setattr(
+        hif, "device", type("D", (), {"screenshot": staticmethod(lambda: None), "click": staticmethod(lambda *a: None)})
+    )
     st = _strategy()
     st._skip_incoming_drink = True
     st.on_pdrink_max_confirm(object())
@@ -114,9 +127,9 @@ def test_unknown_screen_stops_after_limit(monkeypatch):
     """画面持续认不出超过 UNKNOWN_STOP_AFTER：调 strategy._stop（停下报警），不无限空转。"""
     import time as _time
 
-    from kaa.tasks.produce.new.consts import Scene, SceneType
-
     from hiro.loop.controller import HiroController
+
+    from kaa.tasks.produce.new.consts import Scene, SceneType
 
     c = HiroController.__new__(HiroController)
     c._texts = ["?"]
@@ -162,7 +175,11 @@ def test_retry_cancels_when_jewel(monkeypatch):
         return Text(text, Box(300 - 10, y - 10, 300 + 10, y + 10))
 
     clicks = []
-    monkeypatch.setattr(hif, "device", type("D", (), {"click": staticmethod(lambda *a: clicks.append(a)), "screenshot": staticmethod(lambda: None)}))
+    monkeypatch.setattr(
+        hif,
+        "device",
+        type("D", (), {"click": staticmethod(lambda *a: clicks.append(a)), "screenshot": staticmethod(lambda: None)}),
+    )
     monkeypatch.setattr(hif, "sleep", lambda s: None)
     st = _strategy()
     st._retries_so_far = lambda label: 0
@@ -184,17 +201,25 @@ def test_retry_confirm_reclicks_until_closed(monkeypatch):
 
     t = {"now": 0.0}
     clicks = []
-    monkeypatch.setattr(hif, "device", type("D", (), {"click": staticmethod(lambda *a: clicks.append(a)), "screenshot": staticmethod(lambda: None)}))
+    monkeypatch.setattr(
+        hif,
+        "device",
+        type("D", (), {"click": staticmethod(lambda *a: clicks.append(a)), "screenshot": staticmethod(lambda: None)}),
+    )
     monkeypatch.setattr(hif, "sleep", lambda s: t.__setitem__("now", t["now"] + s))
     monkeypatch.setattr(hif.time, "monotonic", lambda: t["now"])
-    dialog = [T("再挑戦確認", 400), T("再挑戦チケットを消費して、試験に再挑戦しますか？", 650), T("メキャンセル"), T("く決定")]
+    dialog = [
+        T("再挑戦確認", 400),
+        T("再挑戦チケットを消費して、試験に再挑戦しますか？", 650),
+        T("メキャンセル"),
+        T("く決定"),
+    ]
     # 第 1 次点「決定」没响应（淡入中），第 2 次才关
     monkeypatch.setattr(hif, "screen_texts", lambda *a, **k: dialog if len(clicks) < 3 else [])
     st = _strategy()
     st._retries_so_far = lambda label: 0
     assert st._click_retry("r2", T("再挑戦", 1000), []) in ("free", "ticket")
     assert len(clicks) == 3 and t["now"] < hif.HiroHifStrategy.RETRY_CONFIRM_WAIT  # 再挑戦 + 決定 ×2，没等满 15s
-
 
 
 def test_retry_capped():
@@ -210,9 +235,22 @@ def test_retry_cost_from_owned_tickets():
     def T(text, x, y):
         return type("T", (), {"text": text, "rect": type("R", (), {"center": type("C", (), {"x": x, "y": y})()})()})()
 
-    used = [T("所持", 134, 995), T("260", 323, 992), T("→", 421, 990), T("259", 509, 992), T("残り再挑戦回数", 166, 1048), T("3/3", 465, 1048)]
+    used = [
+        T("所持", 134, 995),
+        T("260", 323, 992),
+        T("→", 421, 990),
+        T("259", 509, 992),
+        T("残り再挑戦回数", 166, 1048),
+        T("3/3", 465, 1048),
+    ]
     assert retry_cost(used) == "ticket"
-    free = [T("所持", 134, 995), T("267", 323, 992), T("→", 421, 990), T("267", 509, 992), T("本日あと1回無料", 430, 950)]
+    free = [
+        T("所持", 134, 995),
+        T("267", 323, 992),
+        T("→", 421, 990),
+        T("267", 509, 992),
+        T("本日あと1回無料", 430, 950),
+    ]
     assert retry_cost(free) == "free"
     assert retry_cost([T("所持", 134, 995), T("267→267", 420, 992)]) == "free"  # 读成一个框
     assert retry_cost([T("再挑戦確認", 200, 400)]) is None
@@ -230,10 +268,21 @@ def test_retry_records_ticket_use_and_left(monkeypatch):
 
     t = {"now": 0.0}
     clicks = []
-    monkeypatch.setattr(hif, "device", type("D", (), {"click": staticmethod(lambda *a: clicks.append(a)), "screenshot": staticmethod(lambda: None)}))
+    monkeypatch.setattr(
+        hif,
+        "device",
+        type("D", (), {"click": staticmethod(lambda *a: clicks.append(a)), "screenshot": staticmethod(lambda: None)}),
+    )
     monkeypatch.setattr(hif, "sleep", lambda s: t.__setitem__("now", t["now"] + s))
     monkeypatch.setattr(hif.time, "monotonic", lambda: t["now"])
-    dialog = [T("再挑戦確認", 200, 400), T("所持", 134, 995), T("260", 323, 992), T("→", 421, 990), T("259", 509, 992), T("決定", 500, 1160)]
+    dialog = [
+        T("再挑戦確認", 200, 400),
+        T("所持", 134, 995),
+        T("260", 323, 992),
+        T("→", 421, 990),
+        T("259", 509, 992),
+        T("決定", 500, 1160),
+    ]
     monkeypatch.setattr(hif, "screen_texts", lambda *a, **k: dialog if len(clicks) < 2 else [])
     st = _strategy()
     st._retries_so_far = lambda label: 0
@@ -285,11 +334,11 @@ def test_live_landscape_skips_page_checks(monkeypatch):
     """第三十一局：横屏 LIVE 期间主循环不跑快速判页 / KAA 判页（KAA 拿竖屏 rect 裁 1280x720，每 2s 报错），记一次进展后等。"""
     import time as _time
 
-    import kotonebot
-    import numpy as np
-
     from hiro.loop.controller import HiroController
     from hiro.loop.repeat_guard import Guard
+
+    import kotonebot
+    import numpy as np
 
     live = np.zeros((720, 1280, 3), np.uint8)
     live[200:500, 300:900] = 120
@@ -311,11 +360,11 @@ def test_live_tick_taps_start_and_warns_when_still(monkeypatch):
     """横屏帧：每 2s OCR 一次，认到 TAP TO START 就点；同一画面 60s 不变报一次警。"""
     import time as _time
 
-    import kotonebot
-    import numpy as np
-
     import hiro.produce.ops as ops
     from hiro.loop.controller import HiroController
+
+    import kotonebot
+    import numpy as np
 
     t = [0.0]
     clicks, notes = [], []
@@ -344,7 +393,9 @@ def test_finals_retry_restarts_exam(monkeypatch):
 
     st = _strategy()
     st.rec = NS(log=lambda *a, **k: None)
-    monkeypatch.setattr(pages, "classify_page", lambda img: ("HIF_FINALS_RANKING", {"kind": "final", "rank": 2, "outcome": "敗退"}))
+    monkeypatch.setattr(
+        pages, "classify_page", lambda img: ("HIF_FINALS_RANKING", {"kind": "final", "rank": 2, "outcome": "敗退"})
+    )
     btn = NS(text="再挑戦", rect=NS(center=NS(y=1100)))
     monkeypatch.setattr(hif, "screen_texts", lambda *a, **k: [btn])
     st._click_retry = lambda label, b, texts: "free"

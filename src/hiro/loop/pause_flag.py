@@ -12,13 +12,12 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +116,7 @@ class Watcher:
         logger.warning("录屏%s：%s", "中断，暂停对局" if kind == "rec_pause" else "恢复，继续对局", why)
         self.events.append({"kind": kind, "t": time.time(), "why": why})
         if self.session is not None:
-            try:
+            try:  # noqa: SIM105
                 self.session.note(msg)  # 跟下一条 Step 写进 trace（复盘按 note 前缀 rec_pause / rec_resume 列出来）
             except Exception:  # noqa: BLE001
                 pass
@@ -130,7 +129,7 @@ class Watcher:
                 logger.warning("录屏看守出错：%r", e)
             self._stop.wait(self.poll)
 
-    def start(self) -> "Watcher":
+    def start(self) -> Watcher:
         if ENABLED and self._thread is None:
             self._thread = threading.Thread(target=self._run, name="hiro-rec-pause", daemon=True)
             self._thread.start()
@@ -141,7 +140,7 @@ class Watcher:
         self._stop.set()
         if paused():  # 退出时别把主线程留在暂停里
             _mark(False)
-            try:
+            try:  # noqa: SIM105
                 self.flow.request_resume()
             except Exception:  # noqa: BLE001
                 pass

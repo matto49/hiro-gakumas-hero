@@ -73,7 +73,9 @@ def cards() -> tuple[Card, ...]:
 
 def card(card_id: str, upgrade: int = 0) -> Card | None:
     """(卡 id, 强化次数) → 卡；game.db 里没有的新卡退回模拟器主数据（hiro.state.catalog 的退路），都没有给 None。"""
-    r = next(iter(rows(f"SELECT {_CARD_COLUMNS} FROM ProduceCard WHERE id = ? AND upgradeCount = ?", card_id, upgrade)), None)
+    r = next(
+        iter(rows(f"SELECT {_CARD_COLUMNS} FROM ProduceCard WHERE id = ? AND upgradeCount = ?", card_id, upgrade)), None
+    )
     if r is not None:
         return _card(r)
     try:

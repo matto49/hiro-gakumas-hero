@@ -20,7 +20,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cache, lru_cache  # noqa: F401
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ def norm_idol(idol_card: str | None) -> str | None:
     return idol_card.replace("i_card-skin-", "i_card-") if idol_card else None
 
 
-@lru_cache(maxsize=None)
+@cache
 def idol_traits(idol_card: str | None) -> tuple[str | None, str | None]:
     """偶像卡 → (plan, style)。先查 KAA 主数据，没有这张卡（新偶像）再查模拟器主数据；都查不到 (None, None)。"""
     cid = norm_idol(idol_card)
@@ -153,7 +153,7 @@ def eval_when(cond, ctx: Ctx | None) -> bool | None:
     """结构化谓词 → True / False；判不了（不认识的谓词、局面缺字段）→ None。"""
     if not isinstance(cond, dict) or len(cond) != 1:
         return None
-    (k, v), = cond.items()
+    ((k, v),) = cond.items()
     if k in ("all", "any"):
         vals = [eval_when(c, ctx) for c in v or []]
         if k == "all":
@@ -220,7 +220,14 @@ def select(entries: list[Entry], *, mode: str | None, difficulty: str | None, id
            pool: Pool | None = None, ctx: Ctx | None = None, layer: int | None = None) -> list[Hit]:  # fmt: skip
     """定稿第 5 节 1–3 步：过滤 + 排序。卡池不知道时，带 pool.requires 的条目不用（判不了是否满足，宁可不推荐要求卡池的东西）。"""
     plan, style = idol_traits(idol_card)
-    want = {"mode": mode, "difficulty": difficulty, "plan": plan, "style": style, "idol_card": norm_idol(idol_card), "layer": layer}
+    want = {
+        "mode": mode,
+        "difficulty": difficulty,
+        "plan": plan,
+        "style": style,
+        "idol_card": norm_idol(idol_card),
+        "layer": layer,
+    }
     hits = []
     for e in entries:
         if e.decision != decision:
@@ -272,7 +279,7 @@ def cache_dir() -> Path:
     return Path(os.environ.get("HIRO_GUIDES_DIR") or Path.home() / ".cache" / "hiro" / "guides")
 
 
-@lru_cache(maxsize=None)
+@cache
 def _load_pack(mode: str, root: str) -> tuple[Entry, ...]:
     d = Path(root)
     try:
@@ -302,7 +309,9 @@ def lookup(*, mode: str | None, difficulty: str | None, idol_card: str | None, d
     if norm_idol(idol_card) == HIRO_IDOL and not hiro_enabled():
         return []
     pool_entries = list(entries(mode)) + list(extra or [])
-    return select(pool_entries, mode=mode, difficulty=difficulty, idol_card=idol_card, decision=decision, pool=pool, ctx=ctx)
+    return select(
+        pool_entries, mode=mode, difficulty=difficulty, idol_card=idol_card, decision=decision, pool=pool, ctx=ctx
+    )
 
 
 def fetch(base: str = BASE_URL, modes=("hajime", "nia"), timeout: float = 30.0) -> dict:
@@ -380,7 +389,10 @@ def _main(argv=None) -> int:
         print(json.dumps(fetch(a.base), ensure_ascii=False))
         return 0
     for h in select(list(entries(a.mode)), mode=a.mode, difficulty=a.difficulty, idol_card=a.idol, decision=a.decision):
-        print(f"[{h.entry.level}/{h.entry.layer}] {h.entry.id}：{h.entry.content.get('why') or ''}（{h.entry.sources()}）" + (f"；注意：{h.note}" if h.note else ""))
+        print(
+            f"[{h.entry.level}/{h.entry.layer}] {h.entry.id}：{h.entry.content.get('why') or ''}（{h.entry.sources()}）"
+            + (f"；注意：{h.note}" if h.note else "")
+        )
     return 0
 
 

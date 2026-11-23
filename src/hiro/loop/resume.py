@@ -6,16 +6,16 @@ KAA 的再開流程只认识本战的再開对话框（ResumeDialogHifMain），
 一律点「キャンセル」并停止——破弃是用户才能做的决定。已经在培育页面时直接开始主循环。
 """
 
+import logging
 import time
+
+from hiro.devices.active import device
+from hiro.loop.pause_flag import active_clock  # noqa: E402
 
 from kaa.config.const import HifScenario
 from kaa.kaa_context import init_produce_session
 from kaa.tasks.actions.scenes import at_home
 from kaa.tasks.produce.session import ProduceSession
-import logging
-from hiro.devices.active import device
-
-from hiro.loop.pause_flag import active_clock  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +23,21 @@ CANCEL_BUTTON = (218, 1160)  # 破弃对话框左下「キャンセル」
 ENTER_TIMEOUT = 40.0
 
 
+from hiro import imgio  # noqa: E402
 from hiro.loop.errors import ResumeBlocked  # noqa: E402,F401  定义挪到 hiro.loop.errors（不依赖 KAA）
 from hiro.loop.resume_rules import (  # noqa: E402,F401  纯判据挪到 resume_rules（新主循环共用）
-    DISCARD_TITLE, END_BUTTON_TEXTS, RESUME_FORBIDDEN, REWARD_DANGER, REWARD_HINTS, REWARD_TAP, is_home_move_confirm, resume_button, reward_tap)
-from hiro import imgio
-from hiro.vision.ocr import find_text, screen_texts
-from hiro.vision.ui_templates import box, tap, tpl
+    DISCARD_TITLE,
+    END_BUTTON_TEXTS,
+    RESUME_FORBIDDEN,
+    REWARD_DANGER,
+    REWARD_HINTS,
+    REWARD_TAP,
+    is_home_move_confirm,
+    resume_button,
+    reward_tap,
+)
+from hiro.vision.ocr import find_text, screen_texts  # noqa: E402
+from hiro.vision.ui_templates import box, tap, tpl  # noqa: E402
 
 
 def _discard_dialog_visible(img) -> bool:
@@ -49,7 +58,9 @@ def guard_new(*, timeout: float = 15.0) -> None:
         img = device.screenshot()
         if _discard_dialog_visible(img):
             device.click(*CANCEL_BUTTON)
-            raise ResumeBlocked(f"游戏提示「{DISCARD_TITLE}」：其他端末有进行中的培育，新开会把它破弃。已点「キャンセル」，不自动新开；是否破弃由用户决定。")
+            raise ResumeBlocked(
+                f"游戏提示「{DISCARD_TITLE}」：其他端末有进行中的培育，新开会把它破弃。已点「キャンセル」，不自动新开；是否破弃由用户决定。"
+            )
         if tpl("Produce.ButtonResume").exists(img):
             raise ResumeBlocked("本机有进行中的培育（看到「再開する」），请用 `run_hif resume` 继续，而不是新开。")
         if any(tpl(f"Produce.{logo}").exists(img) for logo in ("LogoHajime", "LogoNia", "LogoHif")):
@@ -80,7 +91,12 @@ def skip_login_bonus(*, shoot=None, click=None, sleep=time.sleep) -> bool:
     tapped = False
     for _ in range(LOGIN_BONUS_MAX_PAGES):
         q = quick_page(shoot())
-        if not q or q.get("page") != "TRANSITION" or (q.get("fields") or {}).get("kind") != "login_bonus" or not q.get("tap"):
+        if (
+            not q
+            or q.get("page") != "TRANSITION"
+            or (q.get("fields") or {}).get("kind") != "login_bonus"
+            or not q.get("tap")
+        ):
             break
         logger.info("续跑开局：活动登录奖励，点底部空白 %s", q["tap"])
         click(*q["tap"])
@@ -158,7 +174,6 @@ def finish_produce_end(*, timeout: float = 180.0, go_home: bool = False) -> bool
     KAA 的 goto_home 不认 H.I.F 的「プロデュース完了」页；这里按时间封顶（kotonebot Loop 不检查 timeout）。
     不点「再挑戦」「生成」以外的花费类按钮；关注制作人一律跳过。返回是否回到首页。"""
     from hiro.devices.active import device as dev
-
     from hiro.loop.assist import Assist
 
     assist = Assist("结算收尾 / 回首页", click=lambda x, y: dev.click(x, y))  # 快速判页 + 卡住交 LLM（同主循环）
@@ -189,7 +204,9 @@ def finish_produce_end(*, timeout: float = 180.0, go_home: bool = False) -> bool
             continue
         if any("開始確認" in t or "本戦へ" in t for t in texts):
             # 选拔赛通关后游戏直接带到「本战开始确认」：到此为止，是否开本战（花 AP）由上层决定，绝不在这里点
-            logger.info("结算后到了培育开始确认页（%s），停止点击", "本战" if any("本戦へ" in t for t in texts) else "新培育")
+            logger.info(
+                "结算后到了培育开始确认页（%s），停止点击", "本战" if any("本戦へ" in t for t in texts) else "新培育"
+            )
             return True
         if any("メモリーにするフォト" in t for t in texts):
             # 选回忆照片页（q14：重新登录后不再自动跳过，180s 没回首页）：默认第一张已选中，点「次へ」
@@ -214,10 +231,15 @@ def finish_produce_end(*, timeout: float = 180.0, go_home: bool = False) -> bool
             logger.info("生成回忆")
         elif tpl("Produce.SaveMemoPic.Title").exists(img):
             tap("Produce.SaveMemoPic.ButtonConfirm", img, dev.click)
-        elif any(tap(n, img, dev.click) for n in ("Common.ButtonIconClose", "InProduce.ButtonNextNoIcon", "Common.ButtonNext")):
+        elif any(
+            tap(n, img, dev.click)
+            for n in ("Common.ButtonIconClose", "InProduce.ButtonNextNoIcon", "Common.ButtonNext")
+        ):
             pass
         else:
-            hit = next((t for t in boxes if t.text.strip() in END_BUTTON_TEXTS and t.rect.center.y > 700), None)  # 同一帧（模板点击不换帧）
+            hit = next(
+                (t for t in boxes if t.text.strip() in END_BUTTON_TEXTS and t.rect.center.y > 700), None
+            )  # 同一帧（模板点击不换帧）
             if hit is not None:
                 dev.click(*hit.rect.center)
             elif (spot := reward_tap(boxes)) is not None:
@@ -231,7 +253,7 @@ def finish_produce_end(*, timeout: float = 180.0, go_home: bool = False) -> bool
     try:  # 超时时存一帧，方便查是哪一页卡住（第十八局这里卡 180s 却没有任何记录）
         from pathlib import Path
 
-        import cv2
+        import cv2  # noqa: F401
 
         p = Path("reports/live/calib") / f"{time.strftime('%Y%m%d-%H%M%S')}-finish-timeout.png"
         p.parent.mkdir(parents=True, exist_ok=True)

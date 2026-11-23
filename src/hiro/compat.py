@@ -12,7 +12,6 @@ import sys
 import types
 
 
-
 def default_sim_workers() -> int:
     """模拟进程池的平台缺省上限（0 = 不限；HIRO_SIM_WORKERS 优先，见 hiro.sim.interval.sim_workers）。平台差异只放在这里：
     Windows 默认 1（不开进程池）：spawn 起的子进程会重新导入主模块（python -m hiro.run_hif → KAA、OCR、控制器整套），

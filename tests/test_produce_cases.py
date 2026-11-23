@@ -8,12 +8,12 @@ import os
 import sqlite3
 from pathlib import Path
 
-import pytest
-
 from hiro import plugins
 from hiro.brain.deciders import ProduceDeciders, action_key
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import Decision, GameState
+
+import pytest
 
 CASES = json.loads((Path(__file__).parents[1] / "examples/cases/produce.json").read_text(encoding="utf-8"))
 

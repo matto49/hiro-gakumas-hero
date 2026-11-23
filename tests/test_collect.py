@@ -3,9 +3,9 @@
 import json
 import socket
 
-import numpy as np
-
 from hiro import collect
+
+import numpy as np
 
 
 class FakeDevice:

@@ -72,7 +72,9 @@ def draws_path(tower_id: str, layer: int, sig: str) -> Path:
     return cache_dir() / f"{tower_id}-{layer}-{sig}.json"
 
 
-def save_draws(tower_id: str, layer: int, sig: str, draws: list[dict], rivals: list[int], skipped_generated: int = 0) -> Path:
+def save_draws(
+    tower_id: str, layer: int, sig: str, draws: list[dict], rivals: list[int], skipped_generated: int = 0
+) -> Path:
     p = draws_path(tower_id, layer, sig)
     p.parent.mkdir(parents=True, exist_ok=True)
     rec = {"tower_id": tower_id, "layer": layer, "formation_signature": sig, "draws": draws, "rivals": rivals,
@@ -147,7 +149,9 @@ def infer_draws(steps: list[dict], deck_ids: dict[str, set[int]] | None) -> tupl
                     g[0] = -1 if g[0] == slot else g[0] - (g[0] > slot)  # 打出的是它就不在手里了；右边的左移一格
             for g in [g for g in ghosts if 0 <= g[0] < min(len(expect), len(hand))]:
                 k = g[0]
-                if expect[k] == g[1] and hand[k] != g[1] and hand[k][0] in deck_ids:  # 同一位置换成了牌组里的卡：第一帧认错
+                if (
+                    expect[k] == g[1] and hand[k] != g[1] and hand[k][0] in deck_ids
+                ):  # 同一位置换成了牌组里的卡：第一帧认错
                     draws.insert(g[2], {"id": hand[k][0], "u": hand[k][1]})
                     skipped -= 1
                     for h in ghosts:
@@ -208,7 +212,9 @@ def exam_steps(steps_jsonl: Path, label: str, after_seq: int = 0) -> list[dict]:
 
 # ---------------------------------------------------------------- 每层挑战次数（跨进程）
 DAY_RESET_HOUR = 5  # 游戏每天日本时间凌晨 5 点换日（日付変更；北京时间 4 点）。协调 11-17 实机：北京 04:05 弹「日付変更」，登录奖励写「04:59まで」
-JST = __import__("datetime").timezone(__import__("datetime").timedelta(hours=9), "JST")  # 日本没有夏令时：固定 UTC+9（不用 zoneinfo，Windows 上要另装 tzdata）
+JST = __import__("datetime").timezone(
+    __import__("datetime").timedelta(hours=9), "JST"
+)  # 日本没有夏令时：固定 UTC+9（不用 zoneinfo，Windows 上要另装 tzdata）
 
 
 def game_day(now=None) -> str:
@@ -262,4 +268,3 @@ def reset_progress(tower_id: str) -> None:
     p = progress_path(tower_id)
     if p.exists():
         p.unlink()
-

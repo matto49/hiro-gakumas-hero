@@ -2,9 +2,9 @@
 
 import json
 
-import pytest
-
 from hiro.brain import guides as g
+
+import pytest
 
 FKTN, HIRO = "i_card-fktn-3-000", "i_card-shro-3-007"
 
@@ -21,8 +21,16 @@ def E(id, scope, decision="card_pick", prefer=(), avoid=(), ev=("guide",), unles
     content = {"prefer": list(prefer), "avoid": list(avoid), "why": why}
     if unless is not None:
         content["unless"] = unless
-    return g.Entry({"id": id, "kind": "written", "scope": scope, "decision": decision, "content": content,
-                    "evidence": [{"kind": k, "ref": f"{k}-ref", "n": 100} for k in ev]})
+    return g.Entry(
+        {
+            "id": id,
+            "kind": "written",
+            "scope": scope,
+            "decision": decision,
+            "content": content,
+            "evidence": [{"kind": k, "ref": f"{k}-ref", "n": 100} for k in ev],
+        }
+    )
 
 
 def _ids(hits):
@@ -53,9 +61,13 @@ def test_unless_and_pool():
     hits = g.select(es, mode="hajime", difficulty="pro", idol_card=FKTN, decision="card_pick", ctx=ctx)
     assert {h.entry.id: h.note for h in hits} == {"keep": None, "unknown": "判不了", "text-only": "只有文字"}
     full = g.Pool(support={"s_card-1": (4, 60)})
-    assert "pool" in _ids(g.select(es, mode="hajime", difficulty="pro", idol_card=FKTN, decision="card_pick", ctx=ctx, pool=full))
+    assert "pool" in _ids(
+        g.select(es, mode="hajime", difficulty="pro", idol_card=FKTN, decision="card_pick", ctx=ctx, pool=full)
+    )
     low = g.Pool(support={"s_card-1": (2, 60)})
-    assert "pool" not in _ids(g.select(es, mode="hajime", difficulty="pro", idol_card=FKTN, decision="card_pick", ctx=ctx, pool=low))
+    assert "pool" not in _ids(
+        g.select(es, mode="hajime", difficulty="pro", idol_card=FKTN, decision="card_pick", ctx=ctx, pool=low)
+    )
 
 
 def test_predicates():
@@ -64,27 +76,46 @@ def test_predicates():
     assert w({"all": [{"deck_has_all": ["a", "b"]}, {"deck_size_lte": 3}, {"p_point_lt": 100}]}, ctx) is True
     assert w({"any": [{"deck_has_any": ["z"]}, {"stamina_lt": 5}]}, ctx) is False
     assert w({"not": {"has_pitem": ["pitem_x"]}}, ctx) is False
-    assert w({"week_gte": 5}, ctx) is True and w({"next_exam": "final"}, ctx) is False and w({"deck_size_gte": 4}, ctx) is False
+    assert (
+        w({"week_gte": 5}, ctx) is True
+        and w({"next_exam": "final"}, ctx) is False
+        and w({"deck_size_gte": 4}, ctx) is False
+    )
     assert w({"p_point_lt": 1}, g.Ctx()) is None and w({"all": [{"p_point_lt": 100}, {"nope": 1}]}, ctx) is None
 
 
 def test_merge_first_entry_wins():
     """同一张卡一条推荐、一条避开：排序在前的那条说了算。"""
-    hits = [g.Hit(E("idol", {}, prefer=[{"id": "x", "role": "loop"}, "y"])), g.Hit(E("style", {}, prefer=["z"], avoid=["x", "w"]))]
+    hits = [
+        g.Hit(E("idol", {}, prefer=[{"id": "x", "role": "loop"}, "y"])),
+        g.Hit(E("style", {}, prefer=["z"], avoid=["x", "w"])),
+    ]
     m = g.merge(hits)
-    assert [(i.id, i.side, i.entry.id) for i in m] == [("x", "prefer", "idol"), ("y", "prefer", "idol"), ("z", "prefer", "style"), ("w", "avoid", "style")]
+    assert [(i.id, i.side, i.entry.id) for i in m] == [
+        ("x", "prefer", "idol"),
+        ("y", "prefer", "idol"),
+        ("z", "prefer", "style"),
+        ("w", "avoid", "style"),
+    ]
     assert m[0].fields["role"] == "loop"
 
 
 def test_switches_and_pack(monkeypatch, tmp_path):
     """攻略包从缓存目录读；HIRO_GUIDES=0 全关；广要 HIRO_GUIDES_HIRO=1；schema 比自己新的包不用。"""
-    pack = {"format": "gkbench.guides.v1", "schema": 1, "mode": "hajime", "version": "20261120.1",
-            "entries": [E("x", {"mode": "hajime"}).raw]}
+    pack = {
+        "format": "gkbench.guides.v1",
+        "schema": 1,
+        "mode": "hajime",
+        "version": "20261120.1",
+        "entries": [E("x", {"mode": "hajime"}).raw],
+    }
     (tmp_path / "hajime-20261120-1.json").write_text(json.dumps(pack))
-    (tmp_path / "manifest.json").write_text(json.dumps({"schema": 1, "packs": {"hajime": {"name": "hajime-20261120-1"}}}))
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"schema": 1, "packs": {"hajime": {"name": "hajime-20261120-1"}}})
+    )
     monkeypatch.setenv("HIRO_GUIDES_DIR", str(tmp_path))
     g._load_pack.cache_clear()
-    q = dict(mode="hajime", difficulty="pro", decision="card_pick")
+    q = {"mode": "hajime", "difficulty": "pro", "decision": "card_pick"}
     assert _ids(g.lookup(idol_card=FKTN, **q)) == ["x"]
     assert g.lookup(idol_card=HIRO, **q) == []
     monkeypatch.setenv("HIRO_GUIDES_HIRO", "1")
@@ -112,7 +143,9 @@ def test_refresh_if_stale(monkeypatch, tmp_path):
     import time
 
     monkeypatch.setenv("HIRO_GUIDES_DIR", str(tmp_path))
-    monkeypatch.delenv("HIRO_GUIDES_FETCH", raising=False)  # conftest 默认关掉联网，这条要测下载这条路（fetcher 是假的）
+    monkeypatch.delenv(
+        "HIRO_GUIDES_FETCH", raising=False
+    )  # conftest 默认关掉联网，这条要测下载这条路（fetcher 是假的）
     calls = []
     ok = lambda: calls.append(1) or {"hajime": "x"}  # noqa: E731
 

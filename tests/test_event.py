@@ -2,9 +2,6 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.state import profile_for
@@ -12,6 +9,9 @@ from hiro.contracts import GameState
 from hiro.loop.reduce import reduce
 from hiro.vision.event import read_event_choices
 from hiro.vision.observe import observation
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "event"
 # 文件 → [(体力消耗, P 消耗, 眠気)] 与选中项 / 选中项效果关键词（实机 <run> 局 00100/00125/00145，旧数据集 00261/00336）
@@ -36,7 +36,9 @@ def test_event_choices(name: str):
 @pytest.mark.parametrize("name", sorted(TRUTH))
 def test_choices_reach_decider(name: str):
     scene = "STUDY" if name.startswith("study") else "OUTING"
-    obs = observation(1, 0.0, scene, read_event_choices(cv2.imread(str(FIX / f"{name}.jpg"))), area="produce", stable_frames=3)
+    obs = observation(
+        1, 0.0, scene, read_event_choices(cv2.imread(str(FIX / f"{name}.jpg"))), area="produce", stable_frames=3
+    )
     assert obs.problems() == []
     state = GameState()
     for _ in range(3):

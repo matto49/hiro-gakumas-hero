@@ -3,10 +3,10 @@ KAA HifInterval.Title.exists() 判不出 → 主循环 UNKNOWN 197s 停机。左
 
 from pathlib import Path
 
-import cv2
-
 import hiro  # noqa: F401
 from hiro.loop.controller import interval_title_visible
+
+import cv2
 
 FIX = Path(__file__).parent / "fixtures"
 

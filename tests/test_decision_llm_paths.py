@@ -1,13 +1,13 @@
 """决策点补全（总控 11-13）：规则 / 模拟拿得准的照旧直接给；拿不准的交 LLM；LLM 不可用或输出非法再兜底。
 HIRO_PRODUCE_LLM 缺省全开（用户 11-14），off 全关，写名字只开这几条。用例默认在 off 下跑（conftest），要测的自己 setenv。"""
 
-import pytest
-
 from hiro.brain import deciders as dc
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.llm import MockLLM
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import GameState
+
+import pytest
 
 pytestmark = pytest.mark.master
 
@@ -20,8 +20,14 @@ def _change2(cards, deck=None):
     produce = {"mode": "produce-007", "step": 8}
     if deck is not None:
         produce["deck"] = [{"card_id": c, "upgrade": 0} for c in deck]
-    return GameState.from_dict({"mode": "produce", "page": {"name": "SKILL_CARD_CHANGE_2", "area": "produce"}, "produce": produce,
-                                "page_fields": {"cards": [dict(index=i, card_id=c, upgrade=0) for i, c in enumerate(cards)]}})
+    return GameState.from_dict(
+        {
+            "mode": "produce",
+            "page": {"name": "SKILL_CARD_CHANGE_2", "area": "produce"},
+            "produce": produce,
+            "page_fields": {"cards": [{"index": i, "card_id": c, "upgrade": 0} for i, c in enumerate(cards)]},
+        }
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -44,7 +50,9 @@ def test_switch_names_and_default_on(monkeypatch):
 def test_change2_clear_junk_stays_rule_even_with_llm(monkeypatch):
     monkeypatch.setenv("HIRO_PRODUCE_LLM", "all")
     llm = MockLLM(replies=[{"choice": 1, "reason": "不该被问到"}])
-    d = ProduceDeciders(CAMPUS_HIRO, llm).decide("SKILL_CARD_CHANGE_2", _change2([JUNK, OK_A, OK_B], deck=[JUNK, OK_A, OK_B]))
+    d = ProduceDeciders(CAMPUS_HIRO, llm).decide(
+        "SKILL_CARD_CHANGE_2", _change2([JUNK, OK_A, OK_B], deck=[JUNK, OK_A, OK_B])
+    )
     assert d.source == "rule" and d.action.args["remove_card_id"] == JUNK and not llm.calls
 
 
@@ -78,8 +86,15 @@ def test_report_counts_fallbacks_per_decider():
 
     from hiro.loop.report import _by_decider_source
 
-    steps = [SimpleNamespace(decision=SimpleNamespace(decider=d, source=s))
-             for d, s in (("card_change", "rule"), ("card_change", "llm"), ("remove_card", "fallback"), ("remove_card", "fallback"))]
+    steps = [
+        SimpleNamespace(decision=SimpleNamespace(decider=d, source=s))
+        for d, s in (
+            ("card_change", "rule"),
+            ("card_change", "llm"),
+            ("remove_card", "fallback"),
+            ("remove_card", "fallback"),
+        )
+    ]
     got = _by_decider_source(steps)
     assert dict(got["card_change"]) == {"rule": 1, "llm": 1} and got["remove_card"]["fallback"] == 2
 
@@ -165,7 +180,9 @@ def _fake_sim(monkeypatch, gains):
 
     monkeypatch.setattr(rv, "setup_for", lambda exam, drinks=None, **_: ({"drinks": drinks}, []))
     monkeypatch.setattr(iv, "_with", lambda base, **kw: dict(base, **kw))
-    rows = [{"mean": 1000, "gain": 0, "gain_se": 0, "n": 100}] + [{"mean": 1000 + g, "gain": g, "gain_se": se, "n": 100} for g, se in gains]
+    rows = [{"mean": 1000, "gain": 0, "gain_se": 0, "n": 100}] + [
+        {"mean": 1000 + g, "gain": g, "gain_se": se, "n": 100} for g, se in gains
+    ]
     monkeypatch.setattr(rv, "adaptive_eval", lambda setups, **_: rows[: len(setups)])
     from hiro.brain import drinks as dk
 
@@ -180,7 +197,9 @@ def test_choose_marks_noise_level_gain_unsure(monkeypatch):
     res = dk.choose(opts, "selection", 4, sim_context={"exam": "selection"})
     assert res["pick"].key == "a" and "噪声内" in res["unsure"]
     _fake_sim(monkeypatch, [(-300, 100)])
-    assert dk.choose(opts, "selection", 4, sim_context={"exam": "selection"})["unsure"] is None  # 别的都不如社区默认：拿得准
+    assert (
+        dk.choose(opts, "selection", 4, sim_context={"exam": "selection"})["unsure"] is None
+    )  # 别的都不如社区默认：拿得准
     _fake_sim(monkeypatch, [(3000, 100)])
     monkeypatch.setattr(dk, "log_deviation", lambda rec: None)
     res = dk.choose(opts, "selection", 4, sim_context={"exam": "selection"})
@@ -214,13 +233,23 @@ def _interval_setup(monkeypatch, unsure=True):
     fix = json.loads((Path(__file__).parent / "fixtures" / "main18_interval.json").read_text(encoding="utf-8"))
     monkeypatch.setattr(ProduceDeciders, "INTERVAL_DRINK_STEP", False)
     monkeypatch.setattr(dc, "_sim_ready", lambda: True)
-    alt = {"target_hp": 0, "buy": [7], "upgrade": None, "labels": ["买饮料 初星スペシャル青汁"], "gain": 9000, "gain_se": 6000, "cost": 100}
+    alt = {
+        "target_hp": 0,
+        "buy": [7],
+        "upgrade": None,
+        "labels": ["买饮料 初星スペシャル青汁"],
+        "gain": 9000,
+        "gain_se": 6000,
+        "cost": 100,
+    }
     plan = {"target_hp": 0, "buy": [6], "upgrade": None, "labels": ["买饮料 ブーストエキス"], "gain": 8000, "gain_se": 6000, "cost": 100,
             "significant": True, "final": True, "rule_labels": ["买饮料 ブーストエキス"], "rule_notes": [], "deviation": None,
             "unsure": "模拟方案 买饮料 初星スペシャル青汁 比社区默认 +1,000 ± 8,000，在噪声内" if unsure else None, "alt": alt if unsure else None,
             "rows": [], "seconds": 1.0, "policy": "community", "seeds": [0]}  # fmt: skip
     monkeypatch.setattr(iv, "plan_tiered", lambda *a, **k: __import__("copy").deepcopy(plan))
-    monkeypatch.setattr(iv, "CONTEXT", {"deck": fix["finals_context"]["deck"], "permil": fix["finals_context"]["permil"], "drinks": []})
+    monkeypatch.setattr(
+        iv, "CONTEXT", {"deck": fix["finals_context"]["deck"], "permil": fix["finals_context"]["permil"], "drinks": []}
+    )
     f = fix["121"]
     return GameState(page_fields=f["page_fields"], produce=dict(f["produce"], drink_capacity=4))
 
@@ -247,7 +276,11 @@ def test_interval_unsure_off_or_sure_keeps_rule_plan(monkeypatch):
 
 # ---- P 道具
 def _pitems(*names, colors=None):
-    return GameState(page_fields={"pitems": [{"slot": i, "name": n, "color": (colors or ["yellow"] * 3)[i]} for i, n in enumerate(names)]})
+    return GameState(
+        page_fields={
+            "pitems": [{"slot": i, "name": n, "color": (colors or ["yellow"] * 3)[i]} for i, n in enumerate(names)]
+        }
+    )
 
 
 def test_pitem_identical_candidates_marked_fallback(monkeypatch):
@@ -262,16 +295,28 @@ def test_pitem_clear_rule_and_unknown_slot(monkeypatch):
     monkeypatch.setenv("HIRO_PRODUCE_LLM", "select_pitem")
     llm = MockLLM(replies=[{"choice": 1, "reason": "未识别的那个可能是ロボ"}])
     d = ProduceDeciders(CAMPUS_HIRO, llm).decide("SELECT_PITEM", _pitems("ロボ（黄）", None, "インコ（黄）"))
-    assert d.source == "rule" and d.action.args["pick_indexes"] == [0] and not llm.calls  # ロボ 是这一段最好的：没认出的也不会更好
+    assert (
+        d.source == "rule" and d.action.args["pick_indexes"] == [0] and not llm.calls
+    )  # ロボ 是这一段最好的：没认出的也不会更好
     d = ProduceDeciders(CAMPUS_HIRO, llm).decide("SELECT_PITEM", _pitems("うさぎ（黄）", None, "インコ（黄）"))
-    assert d.source == "llm" and llm.calls and d.action.args["pick_indexes"] == [0]  # 候选按 [规则的选择 インコ(2), 0, 1]：选 1 = うさぎ
+    assert (
+        d.source == "llm" and llm.calls and d.action.args["pick_indexes"] == [0]
+    )  # 候选按 [规则的选择 インコ(2), 0, 1]：选 1 = うさぎ
 
 
 # ---- 特別指導：优先表做完、还有付得起的表外定制时问 LLM 做不做
 def _guidance(p=200):
-    opts = [{"id": "p_card_custom-040_070-g_effect-block_add-4-g_effect-block_add-13", "price": 40, "available": True},
-            {"id": "p_card_custom-070-g_effect-effect_add-e_effect-exam_lesson_depend_exam_card_play_aggressive-1100-01", "price": 70, "available": True}]
-    return GameState(page_fields={"produce_point": p, "cards": [{"index": 3, "card_id": OK_A, "upgrade": 1, "customizations": opts}]})
+    opts = [
+        {"id": "p_card_custom-040_070-g_effect-block_add-4-g_effect-block_add-13", "price": 40, "available": True},
+        {
+            "id": "p_card_custom-070-g_effect-effect_add-e_effect-exam_lesson_depend_exam_card_play_aggressive-1100-01",
+            "price": 70,
+            "available": True,
+        },
+    ]
+    return GameState(
+        page_fields={"produce_point": p, "cards": [{"index": 3, "card_id": OK_A, "upgrade": 1, "customizations": opts}]}
+    )
 
 
 def test_guidance_off_table_ends_by_rule(monkeypatch):
@@ -301,17 +346,27 @@ def test_pitem_color_only_slot_not_scored_as_pouch():
 
 def test_pitem_custom_page_unrecognized_slots_stop():
     """定制页（hif._custom_options 标 custom）三格都没认出：不按背包颜色当「背包 黄」选，停下。"""
-    st = GameState(page_fields={"pitems": [{"slot": i, "name": None, "color": "yellow", "custom": True} for i in range(3)]})
+    st = GameState(
+        page_fields={"pitems": [{"slot": i, "name": None, "color": "yellow", "custom": True} for i in range(3)]}
+    )
     d = ProduceDeciders(CAMPUS_HIRO, None).decide("SELECT_PITEM", st)
     assert d.action.kind.name == "WAIT"
-    st = GameState(page_fields={"pitems": [{"slot": 0, "name": None, "color": "yellow", "custom": True},
-                                           {"slot": 1, "name": "羽ロボ（黄）", "color": "yellow", "custom": True},
-                                           {"slot": 2, "name": "花ロボ（黄）", "color": "yellow", "custom": True}]})
+    st = GameState(
+        page_fields={
+            "pitems": [
+                {"slot": 0, "name": None, "color": "yellow", "custom": True},
+                {"slot": 1, "name": "羽ロボ（黄）", "color": "yellow", "custom": True},
+                {"slot": 2, "name": "花ロボ（黄）", "color": "yellow", "custom": True},
+            ]
+        }
+    )
     assert ProduceDeciders(CAMPUS_HIRO, None).decide("SELECT_PITEM", st).action.args["pick_indexes"] == [2]
 
 
 def test_pitem_custom_identical_names_wait_for_candidates():
     """定制页三个候选名字一样（DMM own2 seq 170：候选还没出来，识别按背包颜色猜了 ロボ ×3）：停下重读，不按第 1 个点。"""
-    st = GameState(page_fields={"pitems": [{"slot": i, "name": "ロボ（黄）", "color": "yellow", "custom": True} for i in range(3)]})
+    st = GameState(
+        page_fields={"pitems": [{"slot": i, "name": "ロボ（黄）", "color": "yellow", "custom": True} for i in range(3)]}
+    )
     d = ProduceDeciders(CAMPUS_HIRO, None).decide("SELECT_PITEM", st)
     assert d.action.kind.name == "WAIT" and "重读" in d.reason

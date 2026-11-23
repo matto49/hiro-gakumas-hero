@@ -18,24 +18,67 @@ import math
 import os
 import time
 from dataclasses import replace
-from functools import lru_cache
+from functools import cache, lru_cache  # noqa: F401
 
 from hiro.brain.llm import LLMAdapter, load_prompt, prompt_version
 from hiro.brain.state import IdolProfile
 from hiro.contracts import Action, ActionKind, Candidate, Decision, GameState, llm_trace_from_call
-from hiro.state.knowledge import (CONFLICT_CARDS, LOW_PICK_NO_DELETE, EFFECT_JA, OUTING_LAYOUT, STUDY_LAYOUT, UPGRADE_ORDER, YARUKI_CARDS,
-                                  is_conflict, is_once, template_option)  # fmt: skip
+from hiro.state.knowledge import (
+    CONFLICT_CARDS,
+    EFFECT_JA,
+    LOW_PICK_NO_DELETE,
+    OUTING_LAYOUT,
+    STUDY_LAYOUT,
+    UPGRADE_ORDER,
+    YARUKI_CARDS,
+    is_conflict,  # fmt: skip
+    is_once,
+    template_option,
+)
 from hiro.state.produce import ATTRS, ProduceState
 
 logger = logging.getLogger(__name__)
 TIER_RANK = {"S": 3, "A": 2, "B": 1}
-PAGES = ("TOWER_FORMATION", "TOWER_RETRY", "ACTION_SELECT", "SELECT_CARD", "SELECT_DRINK", "CONSULT", "STUDY", "OUTING", "HIF_ROUND_INTERVAL", "SELECT_PITEM", "PDRINK_MAX", "SPECIAL_GUIDANCE", "FORMATION", "QUALIFY_MEMORY",
-         "SKILL_CARD_CHANGE_1", "SKILL_CARD_CHANGE_2", "SKILL_CARD_REMOVAL", "SKILL_CARD_ENHANCE", "PDRINK_MAX_CONFIRM", "EVENT_CHOICE", "EXAM_CARD_MOVE")
+PAGES = (
+    "TOWER_FORMATION",
+    "TOWER_RETRY",
+    "ACTION_SELECT",
+    "SELECT_CARD",
+    "SELECT_DRINK",
+    "CONSULT",
+    "STUDY",
+    "OUTING",
+    "HIF_ROUND_INTERVAL",
+    "SELECT_PITEM",
+    "PDRINK_MAX",
+    "SPECIAL_GUIDANCE",
+    "FORMATION",
+    "QUALIFY_MEMORY",
+    "SKILL_CARD_CHANGE_1",
+    "SKILL_CARD_CHANGE_2",
+    "SKILL_CARD_REMOVAL",
+    "SKILL_CARD_ENHANCE",
+    "PDRINK_MAX_CONFIRM",
+    "EVENT_CHOICE",
+    "EXAM_CARD_MOVE",
+)
 
 
 # 决策点补全（总控 2026-11-13）：规则 / 模拟拿不准的局面交 LLM，LLM 不可用或输出非法再兜底。用户 11-14：默认全开（「我们先默认都模型兜底」）。
 # HIRO_PRODUCE_LLM 不设 / all = 全开；off = 全关；change_remove,remove_card,… = 只开这几条。选行动 / 抓卡三选一原来就问 LLM，不受这个开关管。
-LLM_PATHS = ("change_remove", "remove_card", "select_drink", "consult", "interval", "drink_overflow", "select_pitem", "special_guidance", "event_choice", "card_move", "tower_formation")
+LLM_PATHS = (
+    "change_remove",
+    "remove_card",
+    "select_drink",
+    "consult",
+    "interval",
+    "drink_overflow",
+    "select_pitem",
+    "special_guidance",
+    "event_choice",
+    "card_move",
+    "tower_formation",
+)
 
 
 def llm_path_on(name: str) -> bool:
@@ -70,7 +113,9 @@ def action_key(a: Action) -> str:
             return ":".join([head, a.args["service"]] + ([str(a.args["card_index"])] if "card_index" in a.args else []))
         return f"{head}:{a.args['index']}"
     if a.kind in (ActionKind.REMOVE_CARD, ActionKind.ENHANCE_CARD, ActionKind.CHANGE_CARD):
-        head = {ActionKind.REMOVE_CARD: "remove", ActionKind.ENHANCE_CARD: "enhance", ActionKind.CHANGE_CARD: "change"}[a.kind]
+        head = {ActionKind.REMOVE_CARD: "remove", ActionKind.ENHANCE_CARD: "enhance", ActionKind.CHANGE_CARD: "change"}[
+            a.kind
+        ]
         if a.args.get("cancel"):
             return f"{head}:cancel"
         return f"{head}:{a.args.get('card_id') or a.args.get('remove_card_id') or a.args.get('pick_index')}"
@@ -110,7 +155,9 @@ class ProduceDeciders:
         # 授業 遇到换卡档时改选眠気档；lead 接好两步后传 True。
         self.change_controlled = change_controlled
         self.change_target: str | None = None  # 阶段 1 选中的换入卡 card_id（阶段 2 比较价值用）
-        self.consult_used: set[str] = set()  # 初 / N.I.A：这一次相談里已经用过的服务（删除 / 强化各一次，回到选行动页清空）
+        self.consult_used: set[str] = (
+            set()
+        )  # 初 / N.I.A：这一次相談里已经用过的服务（删除 / 强化各一次，回到选行动页清空）
         self.picked_musts: set[str] = set()  # 本局决策器自己拿到的必拿卡（牌组没识别时用来判断还缺什么）
         self.consult_delete_lean = False  # 选拔相談打开「削除」对话框时：只删 qualify_consult_deletable 的牌（用户 2026-11-03 顺序），没有就取消
         self._page_spend: dict = {}  # 选卡页（page.since_seq）→ 本页已用的刷新 / 禁用次数
@@ -156,7 +203,9 @@ class ProduceDeciders:
             from hiro.state.produce import FINALS
 
             ps = self.produce_state(state)
-            if ps is None or ps.mode == FINALS or not ps.deck or _is_hajime_nia(ps.mode):  # 初 / N.I.A 不按 H.I.F 选拔考试预热
+            if (
+                ps is None or ps.mode == FINALS or not ps.deck or _is_hajime_nia(ps.mode)
+            ):  # 初 / N.I.A 不按 H.I.F 选拔考试预热
                 return
             from hiro.sim import resource as rv
 
@@ -166,7 +215,9 @@ class ProduceDeciders:
         except Exception as e:  # noqa: BLE001  预热失败不影响决策
             logger.debug("饮料模拟预热失败：%s", e)
 
-    def _page_fallback(self, page: str, state: GameState, n_options: int | None, why: str, *, prior: Decision | None = None, **kw) -> Decision:
+    def _page_fallback(
+        self, page: str, state: GameState, n_options: int | None, why: str, *, prior: Decision | None = None, **kw
+    ) -> Decision:
         """规则失败时的社区模板兜底（不选第 0 项）。认不出、没有模板的页面输出 Wait / 取消，由主循环记 recover。"""
         warn = [f"规则失败（{why}），改用社区模板兜底"] + (list(prior.warnings) if prior else [])
         n = n_options
@@ -182,7 +233,11 @@ class ProduceDeciders:
                                 warnings=warn, decider="study")  # fmt: skip
         if page == "OUTING":
             ps = self.produce_state(state)
-            key = "trouble" if ps and ps.mode == "produce-007" and ps.step == 5 else ("paid" if ps and ps.produce_point >= 150 else "free")
+            key = (
+                "trouble"
+                if ps and ps.mode == "produce-007" and ps.step == 5
+                else ("paid" if ps and ps.produce_point >= 150 else "free")
+            )
             i = fit(OUTING_LAYOUT.index(key))
             if i is not None:
                 return Decision(Action.event_select(i), f"外出兜底：社区模板选「{key}」档（knowledge.OUTING_LAYOUT 第 {i + 1} 项）", "fallback", 0.4,
@@ -198,22 +253,40 @@ class ProduceDeciders:
             known = [i for i, c in enumerate(raw) if c.get("card_id") and (n is None or i < n)]
             if known:
                 i, reason = self._card_fallback(raw, known, state.page_fields.get("recommended"))
-                return Decision(Action.activate_effect(i), reason, "fallback", 0.4, warnings=warn, decider="select_card")
+                return Decision(
+                    Action.activate_effect(i), reason, "fallback", 0.4, warnings=warn, decider="select_card"
+                )
         if page == "SELECT_PITEM":
             items = state.page_fields.get("pitems") or []
             order = {"yellow": 0, "green": 1, "red": 2}
-            colored = [(order[it["color"]], i) for i, it in enumerate(items) if it.get("color") in order and not it.get("custom") and (n is None or i < n)]
+            colored = [
+                (order[it["color"]], i)
+                for i, it in enumerate(items)
+                if it.get("color") in order and not it.get("custom") and (n is None or i < n)
+            ]
             if colored:
                 i = min(colored)[1]
                 return Decision(Action.activate_effect(items[i].get("index", i)), "P 道具兜底：按背包颜色 黄 > 緑 > 赤", "fallback", 0.4,
                                 warnings=warn, decider="select_pitem")  # fmt: skip
         if page in ("SKILL_CARD_REMOVAL", "SKILL_CARD_ENHANCE"):
             kind = ActionKind.REMOVE_CARD if page == "SKILL_CARD_REMOVAL" else ActionKind.ENHANCE_CARD
-            return Decision(Action(kind, {"cancel": True}), f"{page} 兜底：取消，不盲选", "fallback", 0.2, warnings=warn, decider=page.lower())
+            return Decision(
+                Action(kind, {"cancel": True}),
+                f"{page} 兜底：取消，不盲选",
+                "fallback",
+                0.2,
+                warnings=warn,
+                decider=page.lower(),
+            )
         if page == "PDRINK_MAX_CONFIRM":
             return Decision(Action(ActionKind.DIALOG, {"kind": "reward_skip", "confirm": False}), "兜底：不确认跳过奖励", "fallback", 0.2, warnings=warn,
                             decider="drink_overflow")  # fmt: skip
-        if prior is not None and prior.action.kind in (ActionKind.WAIT, ActionKind.SHOP_END, ActionKind.INTERVAL_END, ActionKind.CUSTOMIZE_END):
+        if prior is not None and prior.action.kind in (
+            ActionKind.WAIT,
+            ActionKind.SHOP_END,
+            ActionKind.INTERVAL_END,
+            ActionKind.CUSTOMIZE_END,
+        ):
             prior.warnings = warn
             return prior
         return Decision(Action.ui(ActionKind.WAIT, why=why), f"{page} 没有可用的兜底模板：停下等主循环处理（不选第 0 项）", "fallback", 0.1,
@@ -242,7 +315,7 @@ class ProduceDeciders:
             produce["idol_card_id"] = self.profile.idol_id
         if self.main_attr and not produce.get("main_attr"):
             produce["main_attr"] = self.main_attr
-        if HAJIME_NIA_STATE and _is_hajime_nia(produce.get("mode")):
+        if HAJIME_NIA_STATE and _is_hajime_nia(produce.get("mode")):  # noqa: SIM102
             # 初 / N.I.A：没有星星（用户 11-17「完全不用处理」，star 留 None，GameState.produce_state() 在这两个模式不要求它）；
             # step 没读到补 0，unknown_fields 按原始局面仍当未观测。原来缺 step 时 produce_state() 是 None，选饮料 / 相談 / 特別指導 / 饮料溢出都在走兜底
             if produce.get("step") is None:
@@ -268,18 +341,24 @@ class ProduceDeciders:
         if available:
             fit = _step_for_options(ps, available)
             if fit is None:
-                return self._stale_step_fallback(available, state.produce, f"日程第 {ps.step} 步的选项和页面对不上，附近也找不到对得上的一步")
+                return self._stale_step_fallback(
+                    available, state.produce, f"日程第 {ps.step} 步的选项和页面对不上，附近也找不到对得上的一步"
+                )
             if fit != ps.step:
                 stale = f"日程第 {ps.step} 步的选项和页面对不上，按第 {fit} 步预览（页头可能读偏）"
                 ps = replace(ps, step=fit)
         unknown = self.unknown_fields(state, ps)
         try:
-            rows = [r for r in preview_action_select(ps, available, unknown) if r["option"] not in self.unavailable_options]
+            rows = [
+                r for r in preview_action_select(ps, available, unknown) if r["option"] not in self.unavailable_options
+            ]
         except (KeyError, IndexError, StopIteration, TypeError) as e:
             return self._stale_step_fallback(available, state.produce, f"选行动预览失败（{type(e).__name__}: {e}）")
         if stale:
             d = self._action_select_decide(ps, state, available, unknown, rows)
-            return replace(d, source="fallback" if d.source in ("rule", "llm") else d.source, warnings=[*d.warnings, stale])
+            return replace(
+                d, source="fallback" if d.source in ("rule", "llm") else d.source, warnings=[*d.warnings, stale]
+            )
         return self._action_select_decide(ps, state, available, unknown, rows)
 
     def _action_select_hajime_nia(self, state: GameState) -> Decision:
@@ -293,15 +372,26 @@ class ProduceDeciders:
         # page_fields.declined_options：这一周游戏弹过警告、已经取消掉的选项（相談開始確認「Pポイントの所持数が少ないです」→ shop，
         # 平台点キャンセル后回到选行动页时给），这次不再选（全被排除时照旧全部可选）
         declined = set(state.page_fields.get("declined_options") or ())
-        all_opts = [o for o in (state.page_fields.get("options") or []) if o.get("option") and o.get("option") not in self.unavailable_options]
+        all_opts = [
+            o
+            for o in (state.page_fields.get("options") or [])
+            if o.get("option") and o.get("option") not in self.unavailable_options
+        ]
         opts = [o for o in all_opts if o["option"] not in declined] or all_opts
         cands = [Candidate(Action.produce_next(o["option"], attr=o.get("attr"), sp=o.get("sp"))) for o in opts]
         if not opts:
-            return Decision(Action.ui(ActionKind.WAIT, why="没有可用行动"), "没有可选的行动", "fallback", 0.1, cands, decider="action_select")
+            return Decision(
+                Action.ui(ActionKind.WAIT, why="没有可用行动"),
+                "没有可选的行动",
+                "fallback",
+                0.1,
+                cands,
+                decider="action_select",
+            )
         # step（第几周）N.I.A 画面上读不到，规则也只有初 MASTER「第 6 周前不能休息」用它：不算状态不全（N.I.A 实机 11-17 选行动 25 次全记成 fallback）
         missing = [k for k in ("stamina", "max_stamina") if prod.get(k) is None]
         st = self._hajime_nia_status(state)
-        i, reason, rules = choose_action(st, opts)
+        i, reason, _rules = choose_action(st, opts)
         o = opts[i]
         warn = [f"状态缺 {missing}，按默认值选"] if missing else []
         return Decision(Action.produce_next(o["option"], attr=o.get("attr"), sp=o.get("sp")), reason, "fallback" if missing else "rule",
@@ -317,7 +407,14 @@ class ProduceDeciders:
         if family(raw.get("mode")) not in (HAJIME, NIA):
             return None
         # 续跑没读到页头的帧只有 mode / 牌组（11-17 trace）：选卡用不到体力 / P 点 / 属性，补占位值，unknown_fields 仍当未观测
-        for k, v in (("step", 0), ("stamina", 0), ("max_stamina", 0), ("produce_point", 0), ("params", {}), ("growth_permil", {})):
+        for k, v in (
+            ("step", 0),
+            ("stamina", 0),
+            ("max_stamina", 0),
+            ("produce_point", 0),
+            ("params", {}),
+            ("growth_permil", {}),
+        ):
             if raw.get(k) is None:
                 raw[k] = v
         return self.produce_state(replace(state, produce=raw))
@@ -331,7 +428,11 @@ class ProduceDeciders:
         pf = state.page_fields or {}
         criteria = pf.get("criteria")
         if not criteria and pf.get("exam_next"):  # 页头「中間まで / 最終まで」：按主数据查下一场的审查基准
-            criteria = exam_criteria(prod["mode"], prod.get("idol_card_id") or (self.profile.idol_id if self.profile else None), pf["exam_next"])
+            criteria = exam_criteria(
+                prod["mode"],
+                prod.get("idol_card_id") or (self.profile.idol_id if self.profile else None),
+                pf["exam_next"],
+            )
         return Status(mode=prod["mode"], step=int(prod.get("step") or 0), stamina=int(prod.get("stamina") or 0),
                       max_stamina=int(prod.get("max_stamina") or prod.get("stamina") or 1), produce_point=int(prod.get("produce_point") or 0),
                       params=dict(prod.get("params") or {}), rest_left=prod.get("rest_left"), main_attr=prod.get("main_attr") or self.main_attr,
@@ -381,8 +482,14 @@ class ProduceDeciders:
             return out(True, f"没过，第 {n + 1} 次再挑戦（先看确认框花什么）")
         cost = pf.get("cost")
         if cost in ("free", "ticket"):
-            return out(True, f"再挑戦花的是{'免费次数' if cost == 'free' else '已有的再挑戦チケット'}，确认（第 {n + 1} 次）")
-        return out(False, "确认框要花ジュエル，取消" if cost == "jewel" else "确认框读不出花什么，取消（不冒险花ジュエル）", 0.7)
+            return out(
+                True, f"再挑戦花的是{'免费次数' if cost == 'free' else '已有的再挑戦チケット'}，确认（第 {n + 1} 次）"
+            )
+        return out(
+            False,
+            "确认框要花ジュエル，取消" if cost == "jewel" else "确认框读不出花什么，取消（不冒险花ジュエル）",
+            0.7,
+        )
 
     # ---------------------------------------------------------------- N.I.A 营业 / 试镜选档（hiro.brain.hajime_nia，设计稿第三、六节）
     def sales_place(self, state: GameState) -> Decision:
@@ -390,7 +497,13 @@ class ProduceDeciders:
 
         places = [p for p in state.page_fields.get("places") or [] if "index" in p]
         if not places:
-            return Decision(Action.ui(ActionKind.WAIT, why="营业场所没读到"), "营业场所没读到", "fallback", 0.1, decider="sales_place")
+            return Decision(
+                Action.ui(ActionKind.WAIT, why="营业场所没读到"),
+                "营业场所没读到",
+                "fallback",
+                0.1,
+                decider="sales_place",
+            )
         i, reason, _ = choose_sales_place(self._hajime_nia_status(state), places, (state.produce or {}).get("drinks"))
         return Decision(Action.event_select(i), reason, "rule", 0.7, decider="sales_place")
 
@@ -399,7 +512,13 @@ class ProduceDeciders:
 
         choices = [c for c in state.page_fields.get("choices") or [] if "index" in c]
         if not choices:
-            return Decision(Action.ui(ActionKind.WAIT, why="营业选项没读到"), "营业选项没读到", "fallback", 0.1, decider="sales_event")
+            return Decision(
+                Action.ui(ActionKind.WAIT, why="营业选项没读到"),
+                "营业选项没读到",
+                "fallback",
+                0.1,
+                decider="sales_event",
+            )
         i, reason, _ = choose_sales_event(self._hajime_nia_status(state), choices)
         return Decision(Action.event_select(i), reason, "rule", 0.7, decider="sales_event")
 
@@ -410,10 +529,24 @@ class ProduceDeciders:
         pf = state.page_fields
         tiers = [t for t in pf.get("tiers") or [] if "index" in t]
         if not tiers:
-            return Decision(Action.ui(ActionKind.WAIT, why="试镜档位没读到"), "试镜档位没读到", "fallback", 0.1, decider="audition_select")
+            return Decision(
+                Action.ui(ActionKind.WAIT, why="试镜档位没读到"),
+                "试镜档位没读到",
+                "fallback",
+                0.1,
+                decider="audition_select",
+            )
         votes = pf.get("votes") if pf.get("votes") is not None else (state.produce or {}).get("votes")
-        i, number, reason, _ = choose_audition(self._hajime_nia_status(state), votes, tiers, failed=int(pf.get("failed") or 0))
-        return Decision(Action(ActionKind.EVENT_SELECT, {"select": int(i), "audition_number": number}), reason, "rule", 0.7, decider="audition_select")
+        i, number, reason, _ = choose_audition(
+            self._hajime_nia_status(state), votes, tiers, failed=int(pf.get("failed") or 0)
+        )
+        return Decision(
+            Action(ActionKind.EVENT_SELECT, {"select": int(i), "audition_number": number}),
+            reason,
+            "rule",
+            0.7,
+            decider="audition_select",
+        )
 
     def _stale_step_fallback(self, available: list[dict] | None, produce: dict | None, why: str) -> Decision:
         """日程对不上时的兜底：不按（可能读错的）step 套日程模板，只按页面上的选项选。"""
@@ -421,7 +554,9 @@ class ProduceDeciders:
         d = self._action_select_without_state(available, prod)
         return replace(d, source="fallback", warnings=[*d.warnings, why])
 
-    def _action_select_decide(self, ps: ProduceState, state: GameState, available, unknown, rows: list[dict]) -> Decision:
+    def _action_select_decide(
+        self, ps: ProduceState, state: GameState, available, unknown, rows: list[dict]
+    ) -> Decision:
         from hiro.state.context import payload, to_previews
 
         for i, r in enumerate(rows):
@@ -432,7 +567,14 @@ class ProduceDeciders:
         if len(legal) > 1:
             legal = [i for i in legal if not _rest_blocked(ps, rows, i)] or legal
         if not rows:
-            return Decision(Action.ui(ActionKind.WAIT, why="没有可用行动"), "没有可选的行动", "fallback", 0.1, cands, decider="action_select")
+            return Decision(
+                Action.ui(ActionKind.WAIT, why="没有可用行动"),
+                "没有可选的行动",
+                "fallback",
+                0.1,
+                cands,
+                decider="action_select",
+            )
         if len(legal) == 1:
             blocked = [_rest_blocked(ps, rows, i) for i in range(len(rows)) if _rest_blocked(ps, rows, i)]
             why = f"只剩一个可选行动（休息被拦：{blocked[0]}）" if blocked else "只有一个体力够的行动"
@@ -444,7 +586,10 @@ class ProduceDeciders:
         if self.llm is None:
             return self._fallback(previews[fb[0]].action, fb[1], cands, "action_select", [])
         user = payload(ps, "action_select", available=available, unknown=unknown)
-        user["社区模板"] = {"今天": template, "说明": "もりし的选拔/本战日程模板；第 8、14 天按考后体力是否 ≥21 在差し入れ和外出之间选"}
+        user["社区模板"] = {
+            "今天": template,
+            "说明": "もりし的选拔/本战日程模板；第 8、14 天按考后体力是否 ≥21 在差し入れ和外出之间选",
+        }
         data, calls = self._ask(["action_select.md", "hif_produce.md", *self.playbook], user)
         choice = _int(data, "choice")
         if choice not in legal:
@@ -455,10 +600,17 @@ class ProduceDeciders:
         return Decision(previews[choice].action, str(data.get("reason", "")), "llm", None, cands, line=str(data.get("line", "")),
                         llm=[llm_trace_from_call(c) for c in calls], decider="action_select")  # fmt: skip
 
-    RULE_TEMPLATE_OPTIONS = ("gift", "outing", "shop", "special_guidance")  # 模板直接决定、不用 LLM 的日程（授業 选哪个属性仍交给 LLM）
+    RULE_TEMPLATE_OPTIONS = (
+        "gift",
+        "outing",
+        "shop",
+        "special_guidance",
+    )  # 模板直接决定、不用 LLM 的日程（授業 选哪个属性仍交给 LLM）
     LESSON_MIN_STAMINA = 8  # 只剩课程可选时，体力不低于它才按规则上主属性课程；更低时交给 LLM 权衡休息
 
-    def _action_select_rule(self, ps: ProduceState, rows: list[dict], legal: list[int], template: str | None) -> tuple[int, str] | None:
+    def _action_select_rule(
+        self, ps: ProduceState, rows: list[dict], legal: list[int], template: str | None
+    ) -> tuple[int, str] | None:
         """规则能明确决定的选行动，不调 LLM（协调 2026-11-03 选拔提速：第二十一局选拔 LLM 4.9 分钟 / 29 次，选行动 14 次里多数是这两类）：
         1. 当天有社区模板、模板动作可选，且是 差し入れ / 外出 / 相談 / 特別指導（第 8、14 天的 差し入れ / 外出 已按考后体力 ≥ 21 分好）；
         2. 选拔里能选的只有课程（加休息）、体力 ≥ LESSON_MIN_STAMINA：只上主属性课程，有 SP 选 SP [もりし]。
@@ -473,18 +625,27 @@ class ProduceDeciders:
             if len(hit) == 1:
                 return hit[0], f"社区模板：第 {ps.step} 天 {rows[hit[0]]['选项']}（规则直接定，不调 LLM）"
         opts = {rows[i]["option"] for i in legal}
-        if ps.mode != FINALS and opts <= {"training", "rest"} and "training" in opts and ps.stamina >= self.LESSON_MIN_STAMINA:
+        if (
+            ps.mode != FINALS
+            and opts <= {"training", "rest"}
+            and "training" in opts
+            and ps.stamina >= self.LESSON_MIN_STAMINA
+        ):
             main, basis = main_attr_basis(ps)
             mains = [i for i in legal if rows[i]["option"] == "training" and rows[i].get("attr") == main]
             if mains:
                 i = max(mains, key=lambda k: bool(rows[k].get("sp")))
-                return i, f"只能上课程：只上主属性 {main}（{basis}）{'，SP' if rows[i].get('sp') else ''} [もりし]（规则直接定，不调 LLM）"
+                return (
+                    i,
+                    f"只能上课程：只上主属性 {main}（{basis}）{'，SP' if rows[i].get('sp') else ''} [もりし]（规则直接定，不调 LLM）",
+                )
         return None
 
-    def _action_select_fallback(self, ps: ProduceState, rows: list[dict], legal: list[int], template: str | None) -> tuple[int, str]:
+    def _action_select_fallback(
+        self, ps: ProduceState, rows: list[dict], legal: list[int], template: str | None
+    ) -> tuple[int, str]:
         """社区规则兜底：按模板的行动类型；课程上成长率最高的属性并优先 SP；授業补离本战 R1 基准最远的非主属性。"""
         from hiro.state.context import main_attr
-
         from hiro.state.produce import FINALS
 
         main = main_attr(ps)
@@ -528,7 +689,14 @@ class ProduceDeciders:
         opts = available or []
         cands = [Candidate(Action.produce_next(o["option"], attr=o.get("attr"))) for o in opts]
         if not opts:
-            return Decision(Action.ui(ActionKind.WAIT, why="没有可用行动"), "没有可选的行动", "fallback", 0.1, cands, decider="action_select")
+            return Decision(
+                Action.ui(ActionKind.WAIT, why="没有可用行动"),
+                "没有可选的行动",
+                "fallback",
+                0.1,
+                cands,
+                decider="action_select",
+            )
         produce = produce or {}
         if produce.get("mode") and produce.get("step"):
             want = template_option(produce["mode"], produce["step"], produce.get("stamina") or 33)
@@ -536,7 +704,9 @@ class ProduceDeciders:
             if hit is not None:
                 return Decision(Action.produce_next(hit["option"]), f"状态不全，按日程模板第 {produce['step']} 天选 {want}", "fallback", 0.5, cands,
                                 warnings=["ProduceState 字段不全，没有预演"], decider="action_select")  # fmt: skip
-        o = min(opts, key=lambda o: (order.index(o["option"]) if o["option"] in order else 99, -(o.get("hp_cost") or 0)))
+        o = min(
+            opts, key=lambda o: (order.index(o["option"]) if o["option"] in order else 99, -(o.get("hp_cost") or 0))
+        )
         sp = {8: True, 6: False}.get(o.get("hp_cost")) if o["option"] == "training" else None
         return Decision(Action.produce_next(o["option"], attr=o.get("attr"), sp=sp), "状态不全，按固定顺序兜底", "fallback", 0.3, cands,
                         warnings=["ProduceState 字段不全，没有预演"], decider="action_select")  # fmt: skip
@@ -545,20 +715,36 @@ class ProduceDeciders:
     def select_card(self, state: GameState, *, change: bool = False) -> Decision:
         from hiro.state.context import for_llm, preview_card_pick, situation, to_previews
 
-        raw = [c for c in state.page_fields.get("candidates") or []]
+        raw = list(state.page_fields.get("candidates") or [])
         known = [i for i, c in enumerate(raw) if c.get("card_id")]
         has_state = self.produce_state(state) is not None
-        ps = self.produce_state(state) or (self._loose_hajime_nia_state(state) if HAJIME_NIA_CARD_PICK else None) or _empty_state(self.profile)
+        ps = (
+            self.produce_state(state)
+            or (self._loose_hajime_nia_state(state) if HAJIME_NIA_CARD_PICK else None)
+            or _empty_state(self.profile)
+        )
         unknown = self.unknown_fields(state, ps)
-        cands_in = [{"card_id": c["card_id"], "upgrade": c.get("upgrade") or 0} if c.get("card_id") else None for c in raw]
+        cands_in = [
+            {"card_id": c["card_id"], "upgrade": c.get("upgrade") or 0} if c.get("card_id") else None for c in raw
+        ]
         pick = preview_card_pick(ps, [c or {"card_id": raw[known[0]]["card_id"]} for c in cands_in], change=change,
                                  unknown=unknown) if known else None  # fmt: skip
         rows = pick["候选"] if pick else []
-        cands = [Candidate(p.action, preview=p.summary) for p in to_previews([r for i, r in enumerate(rows) if i in known], "card_pick")]
+        cands = [
+            Candidate(p.action, preview=p.summary)
+            for p in to_previews([r for i, r in enumerate(rows) if i in known], "card_pick")
+        ]
         recommended = state.page_fields.get("recommended")
         if not known:
             if isinstance(recommended, int):
-                return Decision(Action.activate_effect(recommended), "候选都没识别出来，跟随游戏推荐", "fallback", 0.2, cands, decider="select_card")
+                return Decision(
+                    Action.activate_effect(recommended),
+                    "候选都没识别出来，跟随游戏推荐",
+                    "fallback",
+                    0.2,
+                    cands,
+                    decider="select_card",
+                )
             return Decision(Action.ui(ActionKind.WAIT, why="选卡候选未识别"), "候选和推荐都没识别出来：停下等重新识别（不选第 0 张）", "fallback", 0.1,
                             cands, decider="select_card")  # fmt: skip
         if (why := self._sudden_zero(state, ps, unknown)) is not None:
@@ -579,9 +765,12 @@ class ProduceDeciders:
         if not ps.deck:
             copies = dict(seen)
         bad = {i for i in known if unwanted(raw[i]["card_id"], copies.get(raw[i]["card_id"], 0))}
-        counted = bool(ps.deck) and "deck" not in unknown  # 张数确认过（状态机记账）才放开「第二张」；只见过对话框一屏时不放
+        counted = (
+            bool(ps.deck) and "deck" not in unknown
+        )  # 张数确认过（状态机记账）才放开「第二张」；只见过对话框一屏时不放
         missing = lambda cid: cid not in owned or (counted and wants_copy(cid, copies.get(cid, 0)))  # noqa: E731
-        from hiro.state.modes import HAJIME, NIA, family as _family
+        from hiro.state.modes import HAJIME, NIA
+        from hiro.state.modes import family as _family
 
         if HAJIME_NIA_CARD_PICK and not change and _family(ps.mode) in (HAJIME, NIA):
             # 初 / N.I.A 不按 H.I.F 的必拿表刷新 / 禁用、不进 H.I.F 提示词的 LLM（11-17 实机：为 せのびの魔法 把每页刷新 / 禁用用光）
@@ -590,16 +779,29 @@ class ProduceDeciders:
             know = YARUKI_CARDS.get(raw[i]["card_id"])
             if know and know.get("must") and missing(raw[i]["card_id"]):
                 self.picked_musts.add(raw[i]["card_id"])
-                return Decision(Action.activate_effect(i), f"社区必拿：{know['name']}（{know['note']}）", "rule", 1.0, cands, decider="select_card")
+                return Decision(
+                    Action.activate_effect(i),
+                    f"社区必拿：{know['name']}（{know['note']}）",
+                    "rule",
+                    1.0,
+                    cands,
+                    decider="select_card",
+                )
         from hiro.state.produce import FINALS as _FINALS
 
-        blind_finals = ps.mode == _FINALS and not ps.deck  # 本战牌组没记账（对话框只见过一屏也算）：不按「必拿还缺」刷新 / 禁用
+        blind_finals = (
+            ps.mode == _FINALS and not ps.deck
+        )  # 本战牌组没记账（对话框只见过一屏也算）：不按「必拿还缺」刷新 / 禁用
         # 本战牌组没识别、也没在对话框里见过时，不按「必拿还缺」刷新 / 禁用（第十九局 00:02：牌组里有 せのび，却按缺 せのび 用光了刷新和禁用）
         if not blind_finals and (d := self._fish_for_musts(raw, known, budget, owned, cands, bad)):
             return out(d)
         if d := self._avoid_conflict(raw, known, budget, cands, bad):
             return out(d)
-        good = [i for i in known if _tier_rank(raw[i]["card_id"]) >= TIER_RANK["A"] and raw[i]["card_id"] not in owned and i not in bad]
+        good = [
+            i
+            for i in known
+            if _tier_rank(raw[i]["card_id"]) >= TIER_RANK["A"] and raw[i]["card_id"] not in owned and i not in bad
+        ]
         if len(good) == 1 and all(_tier_rank(raw[i]["card_id"]) == 0 for i in known if i != good[0]):
             # 只有一张 S / A / protect，其余都是社区没提到的卡：直接拿（第 6 局第 3 天 がむしゃら 被刷掉、LLM 回放也没选它）
             k = YARUKI_CARDS.get(raw[good[0]]["card_id"]) or {}
@@ -613,16 +815,34 @@ class ProduceDeciders:
         if ps.mode == FINALS and core:
             # 本战不进 LLM（第十九局本战 00:03：LLM 理由说要 えいえいおー+、实际选了 手書きのメッセージ）：有核心卡按社区优先级直接拿
             i = max(core, key=lambda k: (_card_priority(raw[k]["card_id"]), -k))
-            return out(Decision(Action.activate_effect(i), f"本战：拿核心卡 {_card_label(raw[i])}（社区优先级）", "rule", 0.9, cands, decider="select_card"))
+            return out(
+                Decision(
+                    Action.activate_effect(i),
+                    f"本战：拿核心卡 {_card_label(raw[i])}（社区优先级）",
+                    "rule",
+                    0.9,
+                    cands,
+                    decider="select_card",
+                )
+            )
         lean_sel = False
         if SELECTION_LEAN_PICK and ps.mode != FINALS and ps.deck and "deck" not in unknown:
             # 选拔（协调 2026-11-03 提速：选卡 12 次 LLM，其中「必拿已齐、候选无 S/A」6 次，3 次输出无效）：必拿都齐了、候选里没有核心卡时，
             # 和本战同样按瘦牌组规则（先刷新、否则拿最不污染的），不调 LLM
             owned_ids = {c.card_id for c in ps.deck}
             musts_done = all(cid in owned_ids for cid, k in YARUKI_CARDS.items() if k.get("must"))
-            sel_core = [i for i in known if raw[i]["card_id"] not in owned_ids and _is_core_card(raw[i]["card_id"], copies.get(raw[i]["card_id"], 0))]
+            sel_core = [
+                i
+                for i in known
+                if raw[i]["card_id"] not in owned_ids
+                and _is_core_card(raw[i]["card_id"], copies.get(raw[i]["card_id"], 0))
+            ]
             lean_sel = musts_done and not sel_core
-        musts_done = bool(ps.deck) and "deck" not in unknown and all(cid in {c.card_id for c in ps.deck} for cid, k in YARUKI_CARDS.items() if k.get("must"))
+        musts_done = (
+            bool(ps.deck)
+            and "deck" not in unknown
+            and all(cid in {c.card_id for c in ps.deck} for cid, k in YARUKI_CARDS.items() if k.get("must"))
+        )
 
         def lean_pick(why: str) -> Decision:
             # D40：选卡页没有「不拿」按钮（第三十三局选拔 #339 差し入れ页只有「受け取る」，课程页另有「カード除去」/ 再抽選）。
@@ -634,7 +854,16 @@ class ProduceDeciders:
 
             clean = [k for k in known if not polluting(k)]
             if not clean and _budget_ok(budget, "reroll"):
-                return out(Decision(Action(ActionKind.REROLL), f"{why}：候选都会污染牌组，先刷新", "rule", 0.8, cands, decider="select_card"))
+                return out(
+                    Decision(
+                        Action(ActionKind.REROLL),
+                        f"{why}：候选都会污染牌组，先刷新",
+                        "rule",
+                        0.8,
+                        cands,
+                        decider="select_card",
+                    )
+                )
             i = min(clean or known, key=lambda k: (_pollution_key(raw[k]["card_id"], k in bad), k != recommended))
             return out(Decision(Action.activate_effect(i), f"{why}：这一页不能不拿，拿最不污染的 {_card_label(raw[i])}"
                                 f"（{'一次性' if is_once(raw[i]['card_id']) else '可复用'}{'、会生成眠気' if _makes_sleep(raw[i]['card_id']) else ''}）",
@@ -656,15 +885,29 @@ class ProduceDeciders:
         if self.llm is None or len(known) == 1:
             if SELECT_NONE_LEAN and len(known) > 1 and musts_done and unrated:
                 return lean_pick("兜底：必拿已齐、候选都是社区没提到的卡")
-            return self._fallback(Action.activate_effect(fb[0]), fb[1], cands, "select_card", [], source="rule" if len(known) == 1 else "fallback")
+            return self._fallback(
+                Action.activate_effect(fb[0]),
+                fb[1],
+                cands,
+                "select_card",
+                [],
+                source="rule" if len(known) == 1 else "fallback",
+            )
         user = {"局面": situation(ps, unknown) if has_state else "识别未提供完整局面",
                 "选卡": pick | {"候选": [r for i, r in enumerate(for_llm(rows)) if i in known], "本页预算": _budget_text(budget)}}  # fmt: skip
         if SELECT_NONE_LEAN:
-            user["选卡"]["不想拿时"] = '这一页没有「不拿」按钮。三张都不想拿时输出 {"action": "skip"}：系统先刷新（有次数时），否则拿最不污染牌组的一张（一次性优先）'
+            user["选卡"]["不想拿时"] = (
+                '这一页没有「不拿」按钮。三张都不想拿时输出 {"action": "skip"}：系统先刷新（有次数时），否则拿最不污染牌组的一张（一次性优先）'
+            )
         data, calls = self._ask(["produce_card_pick.md", "hif_produce.md", *self.playbook], user)
         act, idx = (data or {}).get("action"), _int(data, "index")
-        if SELECT_NONE_LEAN and (act in ("skip", "none", "no_pick", "pass") or (act == "pick" and idx is not None and idx < 0)):
-            return replace(lean_pick(f"LLM：不想拿（{str((data or {}).get('reason', ''))[:60]}）"), llm=[llm_trace_from_call(c) for c in calls])
+        if SELECT_NONE_LEAN and (
+            act in ("skip", "none", "no_pick", "pass") or (act == "pick" and idx is not None and idx < 0)
+        ):
+            return replace(
+                lean_pick(f"LLM：不想拿（{str((data or {}).get('reason', ''))[:60]}）"),
+                llm=[llm_trace_from_call(c) for c in calls],
+            )
         action = None
         if act == "pick" and idx in known and idx in bad and any(i not in bad for i in known):
             idx = None  # 决策-07 / 小牌组：有别的候选时不拿冲突牌、可复用的非核心牌，退回兜底（兜底把它们排在最后）
@@ -677,8 +920,10 @@ class ProduceDeciders:
         if action is None:
             why = f"LLM 输出无效（{data or calls[-1].get('error')}），{fb[1]}"
             if SELECT_NONE_LEAN and musts_done and unrated:
-                return replace(lean_pick(f"LLM 输出无效（{data or calls[-1].get('error')}）；必拿已齐、候选都是社区没提到的卡"),
-                               llm=[llm_trace_from_call(c) for c in calls])
+                return replace(
+                    lean_pick(f"LLM 输出无效（{data or calls[-1].get('error')}）；必拿已齐、候选都是社区没提到的卡"),
+                    llm=[llm_trace_from_call(c) for c in calls],
+                )
             return self._fallback(Action.activate_effect(fb[0]), why, cands, "select_card", calls)
         return out(Decision(action, str(data.get("reason", "")), "llm", None, cands, line=str(data.get("line", "")),
                             llm=[llm_trace_from_call(c) for c in calls], decider="select_card"))  # fmt: skip
@@ -693,21 +938,27 @@ class ProduceDeciders:
         page = state.page.since_seq if state.page else None
         used = self._page_spend.get(page, {"reroll": 0, "exclude": 0})
         ids = [c.get("card_id") for c in raw]
-        stuck = self._last_reroll.get(page) == ids  # 刷新后候选完全没变：上次刷新没生效（次数其实用完了，第 6 局 23:29:33 / 41）
+        stuck = (
+            self._last_reroll.get(page) == ids
+        )  # 刷新后候选完全没变：上次刷新没生效（次数其实用完了，第 6 局 23:29:33 / 41）
         high = any(c.get("card_id") for c in raw) and all((c.get("upgrade") or 0) >= 1 for c in raw if c.get("card_id"))
         from hiro.state.produce import FINALS
 
         finals = ps.mode == FINALS
         reserve = 0 if (high or finals) else 1 + (1 if ps.mode == "produce-007" and ps.step < 5 else 0)
         caps, reserves = {"reroll": 1, "exclude": 1}, {"reroll": reserve, "exclude": reserve}
-        from hiro.state.modes import HAJIME, NIA, family as _family
+        from hiro.state.modes import HAJIME, NIA
+        from hiro.state.modes import family as _family
 
         other = _family(ps.mode) in (HAJIME, NIA)  # 初 / N.I.A：没有 せのびの魔法 倾斜，也没有第 5 天确定强化 / 本战
         if not finals and not other and SENOBI not in ({c.card_id for c in ps.deck} | self.picked_musts):
             # 总控 2026-11-02（决策-11）：本战牌组来自选拔回忆，せのびの魔法 必须在选拔里拿到（缺它 R1 专家 −11.9 万）。
             # 还没拿到时刷新向它倾斜：每页最多 2 次、不留预留。禁用次数少（整局 3 次），不跟着倾斜：仍每页 1 次、照常留预留，
             # 别在前几页用光（第十五局第 3 页时只剩 1 次）
-            caps["reroll"], reserves["reroll"] = 2, (1 if ps.mode == "produce-007" and ps.step < 5 else 0)  # 第 5 天确定强化页仍留 1 次
+            caps["reroll"], reserves["reroll"] = (
+                2,
+                (1 if ps.mode == "produce-007" and ps.step < 5 else 0),
+            )  # 第 5 天确定强化页仍留 1 次
         cap = caps["reroll"]
         out = {"high": high, "reserve": reserve, "used": dict(used), "stuck": stuck, "cap": cap, "other": other}
         for kind, key in (("reroll", "rerolls_left"), ("exclude", "excludes_left")):
@@ -715,7 +966,9 @@ class ProduceDeciders:
             if high:  # 确定强化页：剩多少用多少（次数未识别时最多 3 次）
                 allowed = left if left is not None else 3 - used[kind]
             else:
-                allowed = caps[kind] - used[kind] if left is None else min(caps[kind] - used[kind], left - reserves[kind])
+                allowed = (
+                    caps[kind] - used[kind] if left is None else min(caps[kind] - used[kind], left - reserves[kind])
+                )
             out[kind] = max(0, allowed)
             out[kind + "_left"] = left
         if stuck:
@@ -756,7 +1009,8 @@ class ProduceDeciders:
         3. 三张都是「不拿」：有刷新次数先刷新（本页预算同 _pick_budget），否则拿最不污染的。copies=None：牌组张数没确认，不按已有张数判。"""
         from hiro.brain import hajime_nia_rules as hr
         from hiro.state.knowledge import SMALL_DECK_CORE, core_keep
-        from hiro.state.modes import NIA, family as _family
+        from hiro.state.modes import NIA
+        from hiro.state.modes import family as _family
 
         fam = _family(ps.mode)
         diff = None
@@ -776,7 +1030,10 @@ class ProduceDeciders:
         from hiro.brain import flows
 
         idol_flow = flows.flow(ps.idol_card_id)
-        other_flow = idol_flow not in (None, "yaruki")  # 广（やる気）照原来的卡表；别的偶像按自己流派（协调 11-19 多偶像）
+        other_flow = idol_flow not in (
+            None,
+            "yaruki",
+        )  # 广（やる気）照原来的卡表；别的偶像按自己流派（协调 11-19 多偶像）
         loops = flows.loop_parts(ps.idol_card_id) if other_flow else ()
         # 偶像卡攻略（hiro.brain.guides，协调 11-20）：有条目时，广（HIRO_GUIDES_HIRO=1）从条目读卡表，别的偶像在流派规则上补充
         from hiro.brain import guides as _guides
@@ -794,19 +1051,30 @@ class ProduceDeciders:
             weight = max(int(pr.get("weight") or 0), know.weight(cid) if know else 0)
             # 攻略级别高于 flows 的卡面规则（协调 11-20）：条目推荐的卡不按 flows 判冲突，条目避开的卡算冲突
             recommended = bool(know and cid in know.prefer)
-            why_bad = (None if recommended else flows.conflicts(cid, buff)) or ("トラブル" if _is_trouble_card(cid) else None) \
+            why_bad = (
+                (None if recommended else flows.conflicts(cid, buff))
+                or ("トラブル" if _is_trouble_card(cid) else None)
                 or (f"攻略里避开（{know.source(cid)}）" if know and know.avoided(cid) else None)
+            )
             if why_bad:
                 return (0, int(once), weight), why_bad
             kk = (know.keep(cid) if know else None) or (1 if cid in loops else None)
             loop_need = kk is not None and (copies is None or n < kk)
             if not once and not loop_need:
-                return (1, -_makes_sleep(cid), weight), ("循环卡已经有了" if kk is not None else "可复用、不是这个流派的循环卡")
+                return (1, -_makes_sleep(cid), weight), (
+                    "循环卡已经有了" if kk is not None else "可复用、不是这个流派的循环卡"
+                )
             strong = weight >= flows.STRONG_WEIGHT or bool(know and know.strong(cid))
-            main = bool(buff) and flows.buff_main(cid, buff)  # 主打拿手 buff（手拍子「好印象の150%分」对ことね）也算合拍
+            main = bool(buff) and flows.buff_main(
+                cid, buff
+            )  # 主打拿手 buff（手拍子「好印象の150%分」对ことね）也算合拍
             gives = bool(buff) and (_gives_buff(cid, buff) or main)
             dup = fam == NIA and once and n > 0
-            label = f"攻略 {know.source(cid)}" if know and know.source(cid) else f"社区优先表 {weight}（{'、'.join(pr.get('sources') or [])}）"
+            label = (
+                f"攻略 {know.source(cid)}"
+                if know and know.source(cid)
+                else f"社区优先表 {weight}（{'、'.join(pr.get('sources') or [])}）"
+            )
             tags = [t for t, on in ((label, strong), ("一次性", once), ("还缺的循环卡", loop_need and not once),
                                     (f"主打{buff}" if main else f"加{buff}", gives), (f"牌组里已有 {n} 张", dup)) if on]  # fmt: skip
             return (2, strong, loop_need, gives, dup, _card_rarity(cid), weight, up), "、".join(tags)
@@ -823,11 +1091,15 @@ class ProduceDeciders:
             # 卡表：HIRO_GUIDES_HIRO=1 且有条目时从攻略读（hiro.brain.guides_hiro 迁过去的同一份），否则手写表；两者等价
             conflict = know.conflict(cid) if know else conflict_like(cid)
             if reliant or conflict or _is_trouble_card(cid):
-                return (0, int(not reliant), int(once), card_value(cid, up)), ("主打好印象" if reliant else "冲突 / 好印象系")
+                return (0, int(not reliant), int(once), card_value(cid, up)), (
+                    "主打好印象" if reliant else "冲突 / 好印象系"
+                )
             kk = know.keep(cid) if know else (core_keep(cid) if cid in SMALL_DECK_CORE else None)
             loop_need = kk is not None and (copies is None or n < kk)
             if not once and not loop_need:
-                return (1, -_makes_sleep(cid), card_value(cid, up)), ("循环卡已够张数" if kk is not None else "可复用、不是循环卡")
+                return (1, -_makes_sleep(cid), card_value(cid, up)), (
+                    "循环卡已够张数" if kk is not None else "可复用、不是循环卡"
+                )
             strong = know.strong(cid) if know else _tier_rank(cid) >= TIER_RANK["A"]
             tier = (know.tier(cid) if know else (YARUKI_CARDS.get(cid) or {}).get("tier")) or "必拿"
             gives = bool(buff) and _gives_buff(cid, buff)
@@ -900,19 +1172,30 @@ class ProduceDeciders:
         return None
 
     @staticmethod
-    def _avoid_conflict(raw: list[dict], known: list[int], budget: dict, cands: list[Candidate], bad: set = frozenset()) -> Decision | None:
+    def _avoid_conflict(
+        raw: list[dict], known: list[int], budget: dict, cands: list[Candidate], bad: set = frozenset()
+    ) -> Decision | None:
         """候选全是冲突牌（ハイテンション、好印象系）时：本页预算内有禁用就禁用一张换新的，有刷新就刷新；都没有才交给兜底（决策-07）。"""
         if not known or not all(i in bad for i in known):
             return None
         excludes = budget["exclude"] if budget.get("exclude_left") is not None else None
         rerolls = budget["reroll"] if budget.get("reroll_left") is not None else None
         names = "、".join(raw[i].get("name") or raw[i]["card_id"] for i in known)
-        worst = min(known, key=lambda i: cull_key(raw[i]["card_id"], raw[i].get("upgrade") or 0))  # 和换 / 删同序：最该清掉的先禁
+        worst = min(
+            known, key=lambda i: cull_key(raw[i]["card_id"], raw[i].get("upgrade") or 0)
+        )  # 和换 / 删同序：最该清掉的先禁
         if excludes:
             return Decision(Action.exclude_card(worst), f"候选全是不该拿的牌（{names}；小牌组：冲突牌、可复用的非核心牌不拿）：禁用一张换新的（禁用还剩 {excludes}）",
                             "rule", 0.8, cands, decider="select_card")  # fmt: skip
         if rerolls:
-            return Decision(Action(ActionKind.REROLL), f"候选全是不该拿的牌（{names}）：刷新（还剩 {rerolls}）", "rule", 0.8, cands, decider="select_card")
+            return Decision(
+                Action(ActionKind.REROLL),
+                f"候选全是不该拿的牌（{names}）：刷新（还剩 {rerolls}）",
+                "rule",
+                0.8,
+                cands,
+                decider="select_card",
+            )
         return None
 
     @staticmethod
@@ -945,7 +1228,9 @@ class ProduceDeciders:
         cands = [Candidate(Action.activate_effect(i), note=c.get("name")) for i, c in enumerate(raw)]
         if not raw:
             if can_skip:
-                return Decision(Action.exclude_card(0), "候选为空：不拿", "fallback", 0.2, cands, decider="select_drink")
+                return Decision(
+                    Action.exclude_card(0), "候选为空：不拿", "fallback", 0.2, cands, decider="select_drink"
+                )
             return Decision(Action.ui(ActionKind.WAIT, why="饮料候选未识别"), "候选未识别、这一页又不能不拿：停下等重新识别（不盲选第 1 瓶）",
                             "fallback", 0.1, cands, warnings=["SELECT_DRINK candidates 为空"], decider="select_drink")  # fmt: skip
         known = [(i, c) for i, c in enumerate(raw) if c.get("drink_id")]
@@ -953,7 +1238,9 @@ class ProduceDeciders:
             if not can_skip:
                 return Decision(Action.ui(ActionKind.WAIT, why="饮料候选都没认出"), "饮料都没认出、这一页又不能不拿：停下等重新识别", "fallback", 0.1, cands,
                                 warnings=["SELECT_DRINK 候选没有 drink_id"], decider="select_drink")  # fmt: skip
-            return Decision(Action.exclude_card(0), "饮料都没认出：不拿", "fallback", 0.3, cands, decider="select_drink")
+            return Decision(
+                Action.exclude_card(0), "饮料都没认出：不拿", "fallback", 0.3, cands, decider="select_drink"
+            )
         ps = self.produce_state(state)
         held, capacity, full, warn = self._drink_holding(state, ps)
         if full and held is None:
@@ -977,10 +1264,24 @@ class ProduceDeciders:
                 opts.append(dk.Option(f"pick{i}", f"拿 {name}", hold + [c["drink_id"]], Action.activate_effect(i)))
         if full:
             best_in = min(known, key=lambda x: _drink_rank(x[1]["drink_id"]))[0]
-            opts.append(dk.Option("keep", "不收（保持现有）", hold, Action(ActionKind.DISCARD_DRINK, {"discard": [], "receive": False, "pick_index": best_in})))
+            opts.append(
+                dk.Option(
+                    "keep",
+                    "不收（保持现有）",
+                    hold,
+                    Action(ActionKind.DISCARD_DRINK, {"discard": [], "receive": False, "pick_index": best_in}),
+                )
+            )
         elif can_skip:
             opts.append(dk.Option("skip", "不拿", hold, Action.exclude_card(0)))
-        res = dk.choose(opts, stage, capacity, sim_context=self._drink_sim_context(ps, stage), where="SELECT_DRINK", take_on_tie=True)
+        res = dk.choose(
+            opts,
+            stage,
+            capacity,
+            sim_context=self._drink_sim_context(ps, stage),
+            where="SELECT_DRINK",
+            take_on_tie=True,
+        )
         return self._drink_decision(res, opts, stage, "select_drink", warn, state)
 
     def _drink_holding(self, state: GameState, ps) -> tuple[list | None, int, bool, list]:
@@ -994,13 +1295,19 @@ class ProduceDeciders:
                 and all(h.get("drink_id") in (None, ps.drinks[h["index"]]) for h in held if h.get("index") is not None and h["index"] < len(ps.drinks)):  # fmt: skip
             # 画面只读到一部分持有（第十六局第 18 天：4 瓶只读到 2 瓶）：比较用状态机的完整持有，能丢的只是画面上那几瓶
             seen = {h["index"]: h for h in held}
-            held = [dict(seen.get(i) or {"index": i, "drink_id": d}, visible=i in seen) for i, d in enumerate(ps.drinks)]
+            held = [
+                dict(seen.get(i) or {"index": i, "drink_id": d}, visible=i in seen) for i, d in enumerate(ps.drinks)
+            ]
             warn.append(f"画面只读到 {len(seen)} 瓶持有：按状态机的 {len(ps.drinks)} 瓶比较，只丢画面上能点到的")
         if held is not None:
-            raw_drinks = [d.get("drink_id") if isinstance(d, dict) else d for d in (state.produce or {}).get("drinks") or []]
+            raw_drinks = [
+                d.get("drink_id") if isinstance(d, dict) else d for d in (state.produce or {}).get("drinks") or []
+            ]
             held, w = _resolve_held(held, list(ps.drinks) if ps is not None and ps.drinks else (raw_drinks or None))
             warn += w
-        capacity = (ps.drink_capacity if ps is not None and ps.drink_capacity else None) or 3  # 同 ProduceState.drink_capacity 的缺省
+        capacity = (
+            ps.drink_capacity if ps is not None and ps.drink_capacity else None
+        ) or 3  # 同 ProduceState.drink_capacity 的缺省
         full = state.page_fields.get("full")
         if full is None:
             full = held is not None and len(held) >= capacity
@@ -1040,7 +1347,9 @@ class ProduceDeciders:
             return
         rows = {r["key"]: r for r in res["rows"]}
         by_key = {o.key: o for o in opts}
-        order = [res["pick"]] + [by_key[r["key"]] for r in sorted(res["rows"], key=lambda r: r["rule_rank"]) if r["key"] in by_key]
+        order = [res["pick"]] + [
+            by_key[r["key"]] for r in sorted(res["rows"], key=lambda r: r["rule_rank"]) if r["key"] in by_key
+        ]
         picked, seen = [], set()
         for o in order:
             sig = tuple(sorted(d for d in o.drinks if d))
@@ -1052,7 +1361,12 @@ class ProduceDeciders:
         options = []
         for o in picked:
             r = rows.get(o.key) or {}
-            info = {"名字": o.label, "之后持有": dk.describe(list(o.drinks), stage), "社区档位": r.get("tiers"), "社区排名": r.get("rule_rank")}
+            info = {
+                "名字": o.label,
+                "之后持有": dk.describe(list(o.drinks), stage),
+                "社区档位": r.get("tiers"),
+                "社区排名": r.get("rule_rank"),
+            }
             if o.cost:
                 info["花 P"] = o.cost
             if "sim_gain" in r:
@@ -1066,7 +1380,9 @@ class ProduceDeciders:
         res["llm_decision"] = d
         res["pick"] = next(o for o, (a, _) in zip(picked, options) if a is d.action)
 
-    def _drink_decision(self, res: dict, opts: list, stage: str, decider: str, warn: list, state: GameState | None = None) -> Decision:
+    def _drink_decision(
+        self, res: dict, opts: list, stage: str, decider: str, warn: list, state: GameState | None = None
+    ) -> Decision:
         from hiro.brain import drinks as dk
 
         self._drink_resolve(res, opts, stage, decider, state)
@@ -1075,20 +1391,29 @@ class ProduceDeciders:
         cands = []
         for o in opts:
             r = rows.get(o.key) or {}
-            prev = {"选项": o.label, "持有": dk.describe(list(o.drinks), stage), "社区档位": r.get("tiers"), "社区排名": r.get("rule_rank")}
+            prev = {
+                "选项": o.label,
+                "持有": dk.describe(list(o.drinks), stage),
+                "社区档位": r.get("tiers"),
+                "社区排名": r.get("rule_rank"),
+            }
             if "sim_gain" in r:
                 prev.update({"模拟期望": r["sim_mean"], "比社区默认": f"{r['sim_gain']:+,} ± {r['sim_gain_se']:,}"})
             cands.append(Candidate(o.action, preview=prev, expected=r.get("sim_mean"), note=o.label))
         why = f"{res['why']}；之后持有：{dk.describe(list(pick.drinks), stage)}"
         w = list(warn)
         if res.get("deviation"):
-            w.append(f"community_deviation：{res['deviation']['rule']} → {res['deviation']['pick']}（{res['deviation']['gain']:+,} ± {res['deviation']['gain_se']:,}）")
+            w.append(
+                f"community_deviation：{res['deviation']['rule']} → {res['deviation']['pick']}（{res['deviation']['gain']:+,} ± {res['deviation']['gain_se']:,}）"
+            )
         ld = res.get("llm_decision")
         if ld is not None:
-            why = (f"{ld.reason}（LLM；{why}）" if ld.source == "llm" else why)
+            why = f"{ld.reason}（LLM；{why}）" if ld.source == "llm" else why
             return Decision(pick.action, why, ld.source, ld.confidence, cands, warnings=w + ld.warnings, line=ld.line,
                             llm=ld.llm, decider=decider)  # fmt: skip
-        return Decision(pick.action, why, "sim" if res.get("deviation") else "rule", 0.85, cands, warnings=w, decider=decider)
+        return Decision(
+            pick.action, why, "sim" if res.get("deviation") else "rule", 0.85, cands, warnings=w, decider=decider
+        )
 
     def _drink_free(self, state: GameState) -> int | None:
         ps = self.produce_state(state)
@@ -1113,7 +1438,14 @@ class ProduceDeciders:
             cards, warn = _master_customize_offers(ps), ["识别未提供特別指導页的 cards：按 master 定制项与基础价推出"]
         end = Action(ActionKind.CUSTOMIZE_END)
         if not cards:
-            return Decision(end, "可定制的卡未识别，不定制直接结束", "fallback", 0.3, warnings=warn + ["识别未提供 cards"], decider="special_guidance")
+            return Decision(
+                end,
+                "可定制的卡未识别，不定制直接结束",
+                "fallback",
+                0.3,
+                warnings=warn + ["识别未提供 cards"],
+                decider="special_guidance",
+            )
         # P：页面给了就用页面的；否则用 state.produce 里上一次的；都没有就不按价格过滤（执行器在画面上判断，P 不够时按钮是灰的）
         p = state.page_fields.get("produce_point")
         if p is None:
@@ -1125,6 +1457,7 @@ class ProduceDeciders:
                                        note=f"{opt['id']}（{opt.get('price')}P）"))  # fmt: skip
         cands.append(Candidate(end, note="结束"))
         done_here = getattr(self, "_customized_here", set())
+
         def levels_for(card_id: str, price, steps=None) -> int | None:
             """这一次要做几级：目标级数，按 P 能付的封顶；必须做满的卡 P 不够做满（且没开始过）就返回 None（不做）。
             steps：逐级价格（识别 / master 的 levels，例如 えいえいおー 40 / 40 / 70）；没有时按每级 price 算。"""
@@ -1157,22 +1490,38 @@ class ProduceDeciders:
                         for opt in card.get("customizations") or []:
                             price = opt.get("price")
                             # available 为 None（识别读不到按钮状态，q11 第 19 天每项都是 null）不算不可用，只有明确 False 才跳过
-                            if key not in _customize_text(opt["id"]) or opt.get("available") is False or (p is not None and price is not None and price > p):
+                            if (
+                                key not in _customize_text(opt["id"])
+                                or opt.get("available") is False
+                                or (p is not None and price is not None and price > p)
+                            ):
                                 continue
                             n = levels_for(card_id, price, opt.get("levels"))
                             if n is None and not (fresh is None and card.get("customized")):
                                 continue
-                            n = n or max(1, min(CUSTOMIZE_LEVELS[card_id][0], p // price if p and price else 1))  # 做满的卡已开始过：P 能付几级做几级
+                            n = n or max(
+                                1, min(CUSTOMIZE_LEVELS[card_id][0], p // price if p and price else 1)
+                            )  # 做满的卡已开始过：P 能付几级做几级
                             self._customized_here = done_here | {(card.get("index"), card_id)}
                             args = dict(_customize_args(card, opt), levels=n)
                             return Decision(Action(ActionKind.CUSTOMIZE_CARD, args),
                                             f"定制 {name}：{why}（{'+'.join(map(str, (opt.get('levels') or [price] * n)[:n]))}P，{n} 级）{'；已定制过，升级' if card.get('customized') else ''}", "rule", 0.8, cands,
                                             warnings=warn, decider="special_guidance")  # fmt: skip
-        rule = Decision(end, f"社区优先表里没有能定制的卡（P {p}）", "rule", 0.6, cands, warnings=warn, decider="special_guidance")
+        rule = Decision(
+            end, f"社区优先表里没有能定制的卡（P {p}）", "rule", 0.6, cands, warnings=warn, decider="special_guidance"
+        )
         # 决策点补全：优先表做完了，但还有付得起的表外定制 → 拿不准做不做，交 LLM（结束是规则的选择）。只问一次：选了某项照做，下一帧再到这里不重复问
-        extra = [] if getattr(self, "_guidance_asked", False) else [
-            (card, opt) for card in cards if (card.get("index"), card.get("card_id")) not in done_here
-            for opt in card.get("customizations") or [] if opt.get("available") is not False and p is not None and opt.get("price") and opt["price"] <= p]
+        extra = (
+            []
+            if getattr(self, "_guidance_asked", False)
+            else [
+                (card, opt)
+                for card in cards
+                if (card.get("index"), card.get("card_id")) not in done_here
+                for opt in card.get("customizations") or []
+                if opt.get("available") is not False and p is not None and opt.get("price") and opt["price"] <= p
+            ]
+        )
         if extra and llm_path_on("special_guidance") and self.llm is not None:
             self._guidance_asked = True
             extra.sort(key=lambda co: -card_value(co[0].get("card_id"), co[0].get("upgrade") or 0))
@@ -1218,7 +1567,9 @@ class ProduceDeciders:
         tower_id, layer = pf.get("tower_id"), pf.get("layer")
         cands = sorted(pf.get("candidates") or [], key=lambda c: c.get("index", 0))
         k = int(pf.get("sub_slots") or 1)
-        stop = lambda why: Decision(Action.ui(ActionKind.WAIT, why=why), why, "fallback", 0.1, warnings=[why], decider="tower_formation")  # noqa: E731
+        stop = lambda why: Decision(  # noqa: E731
+            Action.ui(ActionKind.WAIT, why=why), why, "fallback", 0.1, warnings=[why], decider="tower_formation"
+        )
         if not tower_id or layer is None or not cands:
             return stop("偶像之路编成：塔 / 层 / 候选回忆没读出来，停下等重新识别")
         mechs = list(pf.get("mechanics") or tw.layer_mechanics(tower_id, int(layer)) or [None])
@@ -1248,7 +1599,9 @@ class ProduceDeciders:
                             lo["score_bonus_permils"] = [int(x) for x in shown]
                         if hp:
                             lo["max_stamina"] = lo["starting_stamina"] = int(hp)
-                    combos.append({"lex": lex, "main": main, "subs": subs, "loadout": lo, "why_not": tf.evaluable(lo), "rows": []})
+                    combos.append(
+                        {"lex": lex, "main": main, "subs": subs, "loadout": lo, "why_not": tf.evaluable(lo), "rows": []}
+                    )
             if not combos:
                 return stop("偶像之路编成：这一层没有一种考试查得到设置（" + "；".join(notes) + "）")
             # 「除外 SSR ≤ N」这类条件：牌组里打出即除外的 SSR 张数只作排序参考（static_margin，软惩罚），不筛编成（协调 11-14：
@@ -1267,7 +1620,9 @@ class ProduceDeciders:
             self._tower_cache = cache
         if evaluated:
             # 先按撑到第几轮（局数）再按排序键：早轮被淘汰的局数少、运气好时分数虚高，不能排到决赛的前面
-            order = sorted([c for c in combos if c["sim"]["n"]], key=lambda c: (c["sim"]["n"], tf.rank_key(c["sim"])), reverse=True)
+            order = sorted(
+                [c for c in combos if c["sim"]["n"]], key=lambda c: (c["sim"]["n"], tf.rank_key(c["sim"])), reverse=True
+            )
         else:
             order = sorted(combos, key=lambda c: -c["bonus_sum"])
 
@@ -1325,7 +1680,9 @@ class ProduceDeciders:
             seeds = [self.TOWER_SEED0 * (i + 1) + 17 for i in range(done, upto)]
             try:
                 try:
-                    res = run([c["loadout"] for c in alive], seeds, budget_s=left, detail=True, workers=self.TOWER_WORKERS)
+                    res = run(
+                        [c["loadout"] for c in alive], seeds, budget_s=left, detail=True, workers=self.TOWER_WORKERS
+                    )
                 except TypeError:  # 旧版 evaluate：只有分数
                     res = run([c["loadout"] for c in alive], seeds, budget_s=left)
             except Exception as e:  # noqa: BLE001  bench / GKMS 不可用：兜底
@@ -1334,7 +1691,12 @@ class ProduceDeciders:
             for c, rows in zip(alive, res):
                 c["rows"] = c["rows"] + list(rows)
             done = upto
-            alive.sort(key=lambda c: tf.rank_key(tf.summarize(c["rows"], c["lex"].get("border"), c["lex"].get("star_conditions"))), reverse=True)
+            alive.sort(
+                key=lambda c: tf.rank_key(
+                    tf.summarize(c["rows"], c["lex"].get("border"), c["lex"].get("star_conditions"))
+                ),
+                reverse=True,
+            )
             alive = alive[:keep]
         return any(c["rows"] for c in ok)
 
@@ -1348,7 +1710,14 @@ class ProduceDeciders:
         last, border, pick = pf.get("last_score"), pf.get("border"), dict(pf.get("last_pick") or {})
         if n >= self.TOWER_RETRY_MAX:
             why = f"偶像之路第 {pf.get('layer')} 层已失败 {n} 次（上限 {self.TOWER_RETRY_MAX}），不再挑战，停下报告"
-            return Decision(Action(ActionKind.DIALOG, {"kind": "tower_retry", "confirm": False}), why, "rule", 1.0, warnings=[why], decider="tower_retry")
+            return Decision(
+                Action(ActionKind.DIALOG, {"kind": "tower_retry", "confirm": False}),
+                why,
+                "rule",
+                1.0,
+                warnings=[why],
+                decider="tower_retry",
+            )
         if last is not None and border and last >= border * self.TOWER_RETRY_SAME:
             return Decision(Action(ActionKind.DIALOG, {"kind": "tower_retry", "confirm": True, "pick": pick}),
                             f"第 {n} 次失败：{last:,} / 过关线 {border:,}（≥ {self.TOWER_RETRY_SAME:.0%}），同编成再打", "rule", 0.8, decider="tower_retry")  # fmt: skip
@@ -1356,8 +1725,15 @@ class ProduceDeciders:
         order = cache.get("order") if cache.get("key") == (pf.get("tower_id"), int(pf.get("layer") or -1)) else None
         nxt = None
         for c in order or []:
-            p = {"kind": "tower", "mechanic": c["lex"]["mechanic"], "main": c["main"].get("index"), "subs": [s.get("index") for s in c["subs"]]}
-            if (p["mechanic"], p["main"]) != (pick.get("mechanic"), pick.get("main")) and p not in getattr(self, "_tower_tried", []):
+            p = {
+                "kind": "tower",
+                "mechanic": c["lex"]["mechanic"],
+                "main": c["main"].get("index"),
+                "subs": [s.get("index") for s in c["subs"]],
+            }
+            if (p["mechanic"], p["main"]) != (pick.get("mechanic"), pick.get("main")) and p not in getattr(
+                self, "_tower_tried", []
+            ):
                 nxt = p
                 break
         self._tower_tried = getattr(self, "_tower_tried", []) + [pick]
@@ -1368,7 +1744,9 @@ class ProduceDeciders:
                         f"第 {n} 次失败：{last} / 过关线 {border}，差得多，换评估排下一位的编成（{nxt['mechanic']}·主回忆 {nxt['main']}）",
                         "rule", 0.7, decider="tower_retry")  # fmt: skip
 
-    def formation(self, state: GameState, *, support_sets: list[dict] | None = None, memory_sets: list[dict] | None = None) -> Decision:
+    def formation(
+        self, state: GameState, *, support_sets: list[dict] | None = None, memory_sets: list[dict] | None = None
+    ) -> Decision:
         """开局编成：从预存的支援卡 / 记忆编成里选第几号（brain/formation.py，社区规则）。选中的支援卡编成决定主属性，
         同时写进 self.main_attr 供之后的选行动使用。候选编成来自 page_fields（support_sets / memory_sets）或参数。"""
         from hiro.brain.formation import memory_profile, support_profile
@@ -1377,7 +1755,9 @@ class ProduceDeciders:
         conf = _formation_conf()
         pf = state.page_fields
         if support_sets is None:
-            support_sets = pf["support_sets"] if "support_sets" in pf else conf.get("support_sets") or []  # 页面给了（哪怕为空）就以页面为准
+            support_sets = (
+                pf["support_sets"] if "support_sets" in pf else conf.get("support_sets") or []
+            )  # 页面给了（哪怕为空）就以页面为准
         if memory_sets is None:
             memory_sets = pf["memory_sets"] if "memory_sets" in pf else conf.get("memory_sets") or []
         plan = catalog().one("IdolCard", self.profile.idol_id)["planType"] if self.profile else "ProducePlanType_Plan2"
@@ -1394,7 +1774,12 @@ class ProduceDeciders:
             cands.append(Candidate(Action(ActionKind.SELECT_FORMATION, {"support_set": i}),
                                    note=f"支援 #{i}：{p['counts']}，主属性 {p['main_attr']}，SP 发生率 {p['sp_rate']} 张、SP 结束奖励 {p['sp_end']} 张"))  # fmt: skip
         for i, p in mem:
-            cands.append(Candidate(Action(ActionKind.SELECT_FORMATION, {"memory_set": i}), note=f"记忆 #{i}：{p['score']} 分（{'、'.join(p['hits']) or '无推荐卡'}）"))
+            cands.append(
+                Candidate(
+                    Action(ActionKind.SELECT_FORMATION, {"memory_set": i}),
+                    note=f"记忆 #{i}：{p['score']} 分（{'、'.join(p['hits']) or '无推荐卡'}）",
+                )
+            )
         args = {"support_set": best_sup[0] if best_sup else None, "memory_set": best_mem[0] if best_mem else None,
                 "main_attr": best_sup[1]["main_attr"] if best_sup else None}  # fmt: skip
         if args["main_attr"]:
@@ -1405,7 +1790,9 @@ class ProduceDeciders:
         reason = []
         if best_sup:
             p = best_sup[1]
-            reason.append(f"支援 #{best_sup[0]}：主属性 {p['main_attr']} {p['counts'][p['main_attr']]} 张（目标 4），SP 发生率 {p['sp_rate']} 张 [seesaa][もりし]")
+            reason.append(
+                f"支援 #{best_sup[0]}：主属性 {p['main_attr']} {p['counts'][p['main_attr']]} 张（目标 4），SP 发生率 {p['sp_rate']} 张 [seesaa][もりし]"
+            )
             if p["counts"][p["main_attr"]] < 4:
                 warn.append(f"候选支援编成里主属性最多只有 {p['counts'][p['main_attr']]} 张，社区建议 4 张")
         if best_mem:
@@ -1454,7 +1841,9 @@ class ProduceDeciders:
     def drink_overflow(self, state: GameState) -> Decision:
         d = self._drink_overflow(state)
         args = d.action.args
-        self.overflow_skip = d.action.kind is ActionKind.DISCARD_DRINK and not args.get("receive") and not args.get("discard")
+        self.overflow_skip = (
+            d.action.kind is ActionKind.DISCARD_DRINK and not args.get("receive") and not args.get("discard")
+        )
         return d
 
     def drink_overflow_confirm(self, state: GameState) -> Decision:
@@ -1492,8 +1881,19 @@ class ProduceDeciders:
         self._note_seen_deck(cards)
         cancel = Action(ActionKind.REMOVE_CARD, {"cancel": True})
         if not cards:
-            return Decision(cancel, "删卡页的卡格没读到：取消，不盲选", "rule", 0.6, warnings=["识别未提供 cards"], decider="remove_card")
-        warn = [f"{sum(1 for c in cards if not c.get('card_id'))} 格没认出，不选"] if any(not c.get("card_id") for c in cards) else []
+            return Decision(
+                cancel,
+                "删卡页的卡格没读到：取消，不盲选",
+                "rule",
+                0.6,
+                warnings=["识别未提供 cards"],
+                decider="remove_card",
+            )
+        warn = (
+            [f"{sum(1 for c in cards if not c.get('card_id'))} 格没认出，不选"]
+            if any(not c.get("card_id") for c in cards)
+            else []
+        )
         finals = (state.produce or {}).get("mode") == FINALS
         counts, size = self._deck_counts(state)
         pool = cull_pool(cards, "delete", counts=counts, finals=finals, deck_size=size)
@@ -1514,8 +1914,11 @@ class ProduceDeciders:
         kind = CULL_TIERS.get(cull_tier(best["card_id"]), "价值最低的卡")
         if finals and cull_tier(best["card_id"]) >= 2 and best["card_id"] in FINALS_DELETE:
             kind = "本战模拟删除收益最高的牌"
+
         def act(c: dict) -> Action:
-            return Action(ActionKind.REMOVE_CARD, {"card_id": c["card_id"], "index": c.get("index"), "upgrade": c.get("upgrade")})
+            return Action(
+                ActionKind.REMOVE_CARD, {"card_id": c["card_id"], "index": c.get("index"), "upgrade": c.get("upgrade")}
+            )
 
         rule = Decision(act(best), f"删{kind} {_card_label(best)}（换 / 删同序，用户 2026-11-03；保护卡不删）", "rule", 0.9,
                         warnings=warn, decider="remove_card")  # fmt: skip
@@ -1528,8 +1931,15 @@ class ProduceDeciders:
         why = f"没有明确该删的牌（最该删的是「{CULL_TIERS.get(cull_tier(best['card_id']), '')}」档），只能按价值估"
         if counts is None:
             why += "；牌组没记账，保护卡的所有副本都不在候选里"
-        return self._ask_choice("remove_card", rule, options, "删卡：从牌组里删一张，或者不删（取消）", why, state,
-                                {"本战牌组目标张数": FINALS_DECK_TARGET} if finals else None)
+        return self._ask_choice(
+            "remove_card",
+            rule,
+            options,
+            "删卡：从牌组里删一张，或者不删（取消）",
+            why,
+            state,
+            {"本战牌组目标张数": FINALS_DECK_TARGET} if finals else None,
+        )
 
     def enhance_card(self, state: GameState) -> Decision:
         """强化事件页（SKILL_CARD_ENHANCE）：未强化、有 + 版的卡里按 UPGRADE_ORDER（届いて！ > せのび > デイドリーミング > 紙吹雪）>
@@ -1546,7 +1956,14 @@ class ProduceDeciders:
             if forced:
                 return Decision(Action.ui(ActionKind.WAIT, why="必选强化页卡格没读到"), "必选强化页（没有キャンセル）卡格没读到：等重新识别，不取消、不盲选",
                                 "rule", 0.3, warnings=["识别未提供 cards"], decider="enhance_card")  # fmt: skip
-            return Decision(cancel, "强化页的卡格没读到：取消，不盲选", "rule", 0.6, warnings=["识别未提供 cards"], decider="enhance_card")
+            return Decision(
+                cancel,
+                "强化页的卡格没读到：取消，不盲选",
+                "rule",
+                0.6,
+                warnings=["识别未提供 cards"],
+                decider="enhance_card",
+            )
 
         from hiro.state.knowledge import SMALL_DECK_CORE
 
@@ -1581,7 +1998,13 @@ class ProduceDeciders:
         best = max(pool, key=score)
         args = {"card_id": best["card_id"], "index": best.get("index"), "upgrade": 0}
         why = "UPGRADE_ORDER" if best["card_id"] in UPGRADE_ORDER else "社区评级 / 卡牌价值"
-        return Decision(Action(ActionKind.ENHANCE_CARD, args), f"强化 {_card_label(best)}（按 {why}）", "rule", 0.9, decider="enhance_card")
+        return Decision(
+            Action(ActionKind.ENHANCE_CARD, args),
+            f"强化 {_card_label(best)}（按 {why}）",
+            "rule",
+            0.9,
+            decider="enhance_card",
+        )
 
     @staticmethod
     def _forced_enhance(cards: list[dict]) -> Decision:
@@ -1607,7 +2030,11 @@ class ProduceDeciders:
             return (not is_conflict(cid), not _is_basic(cid), card_value(cid), -c.get("index", 0))
 
         best = max(rest, key=key)
-        kind = "冲突卡" if is_conflict(best["card_id"]) else ("基础卡" if _is_basic(best["card_id"]) else "非核心里价值最高的卡")
+        kind = (
+            "冲突卡"
+            if is_conflict(best["card_id"])
+            else ("基础卡" if _is_basic(best["card_id"]) else "非核心里价值最高的卡")
+        )
         args = {"card_id": best["card_id"], "index": best.get("index"), "upgrade": 0}
         return Decision(Action(ActionKind.ENHANCE_CARD, args), f"必选强化页（P 道具触发，没有キャンセル）、核心都已强化：强化{kind} {_card_label(best)}",
                         "rule", 0.7, decider="enhance_card")  # fmt: skip
@@ -1645,7 +2072,14 @@ class ProduceDeciders:
                                   hold[:j] + [incoming["drink_id"]] + hold[j + 1:],
                                   Action(ActionKind.DISCARD_DRINK, {"discard": [h["index"]], "receive": True})))  # fmt: skip
         stage = dk.stage_of(ps.mode if ps else None, interval=bool(state.page_fields.get("interval")))
-        res = dk.choose(opts, stage, max(capacity, len(hold)), sim_context=self._drink_sim_context(ps, stage), where="PDRINK_MAX", take_on_tie=True)
+        res = dk.choose(
+            opts,
+            stage,
+            max(capacity, len(hold)),
+            sim_context=self._drink_sim_context(ps, stage),
+            where="PDRINK_MAX",
+            take_on_tie=True,
+        )
         return self._drink_decision(res, opts, stage, "drink_overflow", warn, state)
 
     def _drink_overflow_multi(self, state: GameState, ps, held: list, incomings: list, warn: list) -> Decision:
@@ -1671,13 +2105,34 @@ class ProduceDeciders:
             take = [x["index"] for t, x in combo if t == "n"]
             drinks = [h.get("drink_id") for h in hidden] + [x.get("drink_id") for _, x in combo]
             discard = [h["index"] for h in visible if h["index"] not in keep_h]
-            label = ("收 " + "、".join(x.get("name") or drink_name(x["drink_id"]) for t, x in combo if t == "n") if take else "不收") + (
-                "，丢 " + "、".join(h.get("name") or drink_name(h.get("drink_id")) for h in visible if h["index"] in discard) if discard else "")
+            label = (
+                "收 " + "、".join(x.get("name") or drink_name(x["drink_id"]) for t, x in combo if t == "n")
+                if take
+                else "不收"
+            ) + (
+                "，丢 "
+                + "、".join(h.get("name") or drink_name(h.get("drink_id")) for h in visible if h["index"] in discard)
+                if discard
+                else ""
+            )
             key = "keep" if not take else "take" + "-".join(map(str, take))
-            opts.append(dk.Option(key, label, drinks, Action(ActionKind.DISCARD_DRINK, {"discard": discard, "receive": bool(take), "receive_indexes": take})))
+            opts.append(
+                dk.Option(
+                    key,
+                    label,
+                    drinks,
+                    Action(
+                        ActionKind.DISCARD_DRINK, {"discard": discard, "receive": bool(take), "receive_indexes": take}
+                    ),
+                )
+            )
         stage = dk.stage_of(ps.mode if ps else None, interval=bool(state.page_fields.get("interval")))
-        res = dk.choose(opts, stage, cap, sim_context=self._drink_sim_context(ps, stage), where="PDRINK_MAX", take_on_tie=True)
-        return self._drink_decision(res, opts, stage, "drink_overflow", warn + [f"新来 {len(incomings)} 瓶，按持有 + 新来的合起来挑"], state)
+        res = dk.choose(
+            opts, stage, cap, sim_context=self._drink_sim_context(ps, stage), where="PDRINK_MAX", take_on_tie=True
+        )
+        return self._drink_decision(
+            res, opts, stage, "drink_overflow", warn + [f"新来 {len(incomings)} 瓶，按持有 + 新来的合起来挑"], state
+        )
 
     # ---------------------------------------------------------------- 相談 / 授業 / 外出 / 轮间（识别字段到位前为保守规则）
     def consult(self, state: GameState) -> Decision:
@@ -1695,7 +2150,14 @@ class ProduceDeciders:
             return Decision(Action(ActionKind.SHOP_END), "相談货架未识别，不买直接离开", "rule", 0.3,
                             warnings=["识别未提供 shelf：删眠気 / 强化 / 换饮料都没做"], decider="consult")  # fmt: skip
         if ps is None:
-            return Decision(Action(ActionKind.SHOP_END), "P 点等局面未识别，不买", "fallback", 0.3, warnings=["ProduceState 不全"], decider="consult")
+            return Decision(
+                Action(ActionKind.SHOP_END),
+                "P 点等局面未识别，不买",
+                "fallback",
+                0.3,
+                warnings=["ProduceState 不全"],
+                decider="consult",
+            )
         if _is_hajime_nia(ps.mode):
             return self._hajime_nia_consult(state, ps, services)
         if ps.mode != FINALS:
@@ -1717,7 +2179,10 @@ class ProduceDeciders:
 
         pool = []
         if can_delete:
-            cards = [{"index": i, "card_id": c.card_id, "upgrade": c.upgrade, "customized": c.customized} for i, c in enumerate(ps.deck)]
+            cards = [
+                {"index": i, "card_id": c.card_id, "upgrade": c.upgrade, "customized": c.customized}
+                for i, c in enumerate(ps.deck)
+            ]
             counts, size = self._deck_counts(state)
             pool = cull_pool(cards, "delete", counts=counts, finals=True, deck_size=size)
 
@@ -1734,7 +2199,10 @@ class ProduceDeciders:
         for it in sorted(_items(shelf, "card"), key=lambda it: -_card_priority(it.get("card_id"))):
             know = YARUKI_CARDS.get(it.get("card_id"))
             if know and know.get("must") and it["card_id"] not in owned and _affordable(it, p):
-                return done(Action(ActionKind.SHOP_BUY, {"index": it["index"]}), f"买缺的核心卡 {know['name']}（{it['price']}P）")
+                return done(
+                    Action(ActionKind.SHOP_BUY, {"index": it["index"]}),
+                    f"买缺的核心卡 {know['name']}（{it['price']}P）",
+                )
         if pool:
             return delete_first()
         d = self._finals_consult_drinks(state, ps, shelf or [], p)
@@ -1742,20 +2210,32 @@ class ProduceDeciders:
             return d
         why = getattr(self, "_finals_drink_why", "")
         plan = getattr(self, "_finals_drink_plan", None) or {}
-        if plan.get("source") in ("llm", "fallback"):  # 不买是 LLM 定的（或 LLM 失败按规则兜底）：结束 / 刷新的决定带上来源和调用记录（只带一次）
+        if plan.get("source") in (
+            "llm",
+            "fallback",
+        ):  # 不买是 LLM 定的（或 LLM 失败按规则兜底）：结束 / 刷新的决定带上来源和调用记录（只带一次）
             base_done = done
 
             def done(action: Action, reason: str) -> Decision:  # noqa: F811
                 d = base_done(action, reason)
-                d.source, d.line, d.llm, d.warnings = plan["source"], plan.get("line", ""), plan.pop("llm", []), d.warnings + plan["warnings"]
+                d.source, d.line, d.llm, d.warnings = (
+                    plan["source"],
+                    plan.get("line", ""),
+                    plan.pop("llm", []),
+                    d.warnings + plan["warnings"],
+                )
                 plan["source"] = "rule"
                 return d
+
         v = self._consult_visit(state, ps, shelf or [], services)
         if self._consult_free_slots(state, ps) > 0 and p >= 50 and self._consult_can_reroll(state, ps, shelf or [], v):
             # 免费刷新：按价值没有值得买的饮料 → 刷新，新货架重新估值（_finals_consult_drinks 按货架签名重算）
             return done(Action(ActionKind.REROLL, {"scope": "consult"}),
                         f"【刷新】本战相談免费刷新（あと {state.page_fields.get('rerolls_left')} 回）：当前货架按价值没有值得买的饮料（{why}），刷新再估一次")  # fmt: skip
-        return done(Action(ActionKind.SHOP_END), f"本战相談给轮间留 P 点（{p}P）：轮间卡便宜，补卡、R2 饮料、回体力都要用钱 [もなみ][もりし]{('；' + why) if why else ''}")
+        return done(
+            Action(ActionKind.SHOP_END),
+            f"本战相談给轮间留 P 点（{p}P）：轮间卡便宜，补卡、R2 饮料、回体力都要用钱 [もなみ][もりし]{('；' + why) if why else ''}",
+        )
 
     def _hajime_nia_consult(self, state: GameState, ps: ProduceState, services: dict) -> Decision:
         """初 / N.I.A 相談：只删卡（H.I.F 选拔的 P 点预算、第 19 天特別指導预留在这两个模式里不适用）。
@@ -1769,22 +2249,44 @@ class ProduceDeciders:
         delete = services.get("delete") or {}
         rid = "nia.delete_order" if family(ps.mode) == NIA else "hajime.consult_price"
         if "deck" in unknown or not ps.deck:
-            return Decision(Action(ActionKind.SHOP_END), "相談：牌组没识别，不删卡", "rule", 0.5, warnings=["牌组未识别：没有做删卡"], decider="consult")
+            return Decision(
+                Action(ActionKind.SHOP_END),
+                "相談：牌组没识别，不删卡",
+                "rule",
+                0.5,
+                warnings=["牌组未识别：没有做删卡"],
+                decider="consult",
+            )
         if "delete" in self.consult_used or delete.get("used") or delete.get("exchanged"):
             # 一次相談每种服务只能用一次（协调 11-18 初 PRO：删完一张按钮变「交換済」，又按 125P 重复删了 3 次停机）。
             # 画面上的 125P 是下一次相談的删卡价（平台写进 produce.consult_delete_price，选行动时用）
             return Decision(Action(ActionKind.SHOP_END), f"相談：这次已经删过一张（每种服务一次相談只能用一次；{delete.get('price')}P 是下一次的价），结束",
                             "rule", 0.8, decider="consult")  # fmt: skip
         if not delete.get("available", True) or not _affordable(delete, p):
-            return Decision(Action(ActionKind.SHOP_END), f"相談：删卡用不了或 P 点不够（{p}P），不买", "rule", 0.6, decider="consult")
-        cards = [{"index": i, "card_id": c.card_id, "upgrade": c.upgrade, "customized": c.customized} for i, c in enumerate(ps.deck)]
+            return Decision(
+                Action(ActionKind.SHOP_END),
+                f"相談：删卡用不了或 P 点不够（{p}P），不买",
+                "rule",
+                0.6,
+                decider="consult",
+            )
+        cards = [
+            {"index": i, "card_id": c.card_id, "upgrade": c.upgrade, "customized": c.customized}
+            for i, c in enumerate(ps.deck)
+        ]
         counts, _ = self._deck_counts(state)
         from hiro.brain import flows
 
         if flows.flow(ps.idol_card_id) not in (None, "yaruki"):
-            pool = _flow_delete_pool(cards, ps.idol_card_id, ps.mode)  # 广以外的偶像：按自己的流派判冲突（协调 11-19 多偶像）+ 攻略的删卡条目
+            pool = _flow_delete_pool(
+                cards, ps.idol_card_id, ps.mode
+            )  # 广以外的偶像：按自己的流派判冲突（协调 11-19 多偶像）+ 攻略的删卡条目
         else:
-            pool = [c for c in cull_pool(cards, "delete", counts=counts) if qualify_consult_deletable(c["card_id"], c.get("upgrade") or 0)]
+            pool = [
+                c
+                for c in cull_pool(cards, "delete", counts=counts)
+                if qualify_consult_deletable(c["card_id"], c.get("upgrade") or 0)
+            ]
         if not pool:
             return Decision(Action(ActionKind.SHOP_END), "相談：牌组里没有该删的卡（トラブル / 可复用的非核心卡 / 冲突卡 / 基本卡都没有了），不买", "rule", 0.7,
                             decider="consult")  # fmt: skip
@@ -1818,7 +2320,9 @@ class ProduceDeciders:
                 ok, cost = False, last["cost"]
                 if last.get("index") is not None:
                     it = next((x for x in shelf if x.get("index") == last["index"]), None)
-                    ok = (it is None and bool(shelf)) or (it is not None and (bool(it.get("purchased")) or not (it.get("card_id") or it.get("drink_id"))))
+                    ok = (it is None and bool(shelf)) or (
+                        it is not None and (bool(it.get("purchased")) or not (it.get("card_id") or it.get("drink_id")))
+                    )
                 elif last.get("service"):
                     price = (services.get(last["service"]) or {}).get("price")
                     ok = price is not None and last.get("price_before") is not None and price > last["price_before"]
@@ -1852,7 +2356,11 @@ class ProduceDeciders:
         left = state.page_fields.get("rerolls_left")
         if not isinstance(left, int) or left <= 0:
             return False
-        sig = sorted((it.get("index"), it.get("card_id") or it.get("drink_id")) for it in shelf if it.get("card_id") or it.get("drink_id"))
+        sig = sorted(
+            (it.get("index"), it.get("card_id") or it.get("drink_id"))
+            for it in shelf
+            if it.get("card_id") or it.get("drink_id")
+        )
         tried = v.setdefault("rerolls", [])
         if tried and tried[-1] == sig:
             return False  # 上一次刷新后货架没变：没刷成
@@ -1864,7 +2372,12 @@ class ProduceDeciders:
     def _guidance_reserve(self, ps: ProduceState, deck_known: bool) -> tuple[int, str]:
         """给第 19 天特別指導留多少 P：计划定制（knowledge.CUSTOMIZE_PRIORITY 里前 2 张能做的卡，一次特別指導最多 2 张）的
         master 逐级价格之和，减去第 13–18 天预计进账（knowledge.selection_p_income）。牌组未识别时按优先表前两张（えいえいおー 3 级 + 届いて）。"""
-        from hiro.state.knowledge import CUSTOMIZE_LEVELS, CUSTOMIZE_PRIORITY, SELECTION_GUIDANCE_DAY, selection_p_income
+        from hiro.state.knowledge import (
+            CUSTOMIZE_LEVELS,
+            CUSTOMIZE_PRIORITY,
+            SELECTION_GUIDANCE_DAY,
+            selection_p_income,
+        )
 
         if ps.step >= SELECTION_GUIDANCE_DAY:
             return 0, "第 19 天之后没有特別指導"
@@ -1883,7 +2396,10 @@ class ProduceDeciders:
                 cost += c
         income = selection_p_income(ps.step)
         reserve = max(0, cost - income)
-        return reserve, f"第 19 天特別指導计划 {'、'.join(plan) or '无'}（{cost}P），第 {ps.step + 1}–18 天预计进账 {income:+}P → 预留 {reserve}P"
+        return (
+            reserve,
+            f"第 19 天特別指導计划 {'、'.join(plan) or '无'}（{cost}P），第 {ps.step + 1}–18 天预计进账 {income:+}P → 预留 {reserve}P",
+        )
 
     def _selection_consult(self, state: GameState, ps: ProduceState, shelf: list, services: dict) -> Decision:
         """选拔相談，一次一个动作。顺序（社区默认档位，用户 2026-11-02；もなみ：选拔② 前相談主要强化 + 删眠気，饮料事故就补）：
@@ -1901,7 +2417,9 @@ class ProduceDeciders:
         p = v["p"]
         reserve, reserve_why = self._guidance_reserve(ps, deck_known)
         budget = p - reserve
-        last_visit = not any(d > ps.step for d in SELECTION_CONSULT_DAYS)  # 修：原来判 step == 19，但相談在第 12 天，永远不触发
+        last_visit = not any(
+            d > ps.step for d in SELECTION_CONSULT_DAYS
+        )  # 修：原来判 step == 19，但相談在第 12 天，永远不触发
         cands = _shop_candidates(shelf, services, p, ActionKind.SHOP_BUY)
         head = (f"P {p}（入场 {v['entry_p']}，本次已花 {v['spent']}：{'、'.join(v['log']) or '无'}）；{reserve_why}；可花 {budget}P"
                 f"{'；选拔③ 前最后一次相談' if last_visit else ''}")  # fmt: skip
@@ -1909,32 +2427,67 @@ class ProduceDeciders:
 
         def go(action: Action, label: str, cost: int, tier: str, **track) -> Decision:
             v["last"] = {"label": label, "cost": cost, **track}
-            return Decision(action, f"【{tier}】{label}（{cost}P）。{head}", "rule", 0.85, cands, warnings=warn, decider="consult")
+            return Decision(
+                action, f"【{tier}】{label}（{cost}P）。{head}", "rule", 0.85, cands, warnings=warn, decider="consult"
+            )
 
         owned = {c.card_id for c in ps.deck} if deck_known else set(self.picked_musts)
         # 1. 缺的核心卡
         for it in sorted(_items(shelf, "card"), key=lambda it: -_card_priority(it.get("card_id"))):
             know = YARUKI_CARDS.get(it.get("card_id"))
             if know and know.get("must") and it["card_id"] not in owned and _affordable(it, p):
-                return go(Action(ActionKind.SHOP_BUY, {"index": it["index"]}), f"买缺的核心卡 {know['name']}", it["price"], "第一档：补全核心卡", index=it["index"])
+                return go(
+                    Action(ActionKind.SHOP_BUY, {"index": it["index"]}),
+                    f"买缺的核心卡 {know['name']}",
+                    it["price"],
+                    "第一档：补全核心卡",
+                    index=it["index"],
+                )
         # 2. 饮料
         d = self._consult_drinks(state, ps, shelf, p, budget, stage="selection", only_accident=False, go=go)
         if d is not None:
             return d
         # 2'. 刷新（免费、有次数）：当前货架上值得买的已经买完，还有饮料空位 / 还缺必拿卡、预算够一瓶饮料 → 刷新再看
         missing = [c for c, k in YARUKI_CARDS.items() if k.get("must") and c not in owned] if deck_known else []
-        if budget >= 50 and (self._consult_free_slots(state, ps) > 0 or missing) and self._consult_can_reroll(state, ps, shelf, v):
+        if (
+            budget >= 50
+            and (self._consult_free_slots(state, ps) > 0 or missing)
+            and self._consult_can_reroll(state, ps, shelf, v)
+        ):
             v["last"] = None
-            why = f"免费刷新（あと {state.page_fields.get('rerolls_left')} 回）：当前货架上没有值得买的饮料 / 核心卡了" + (f"，还缺 {len(missing)} 张必拿卡" if missing else "")
-            return Decision(Action(ActionKind.REROLL, {"scope": "consult"}), f"【刷新】{why}。{head}", "rule", 0.8, cands, warnings=warn, decider="consult")
+            why = (
+                f"免费刷新（あと {state.page_fields.get('rerolls_left')} 回）：当前货架上没有值得买的饮料 / 核心卡了"
+                + (f"，还缺 {len(missing)} 张必拿卡" if missing else "")
+            )
+            return Decision(
+                Action(ActionKind.REROLL, {"scope": "consult"}),
+                f"【刷新】{why}。{head}",
+                "rule",
+                0.8,
+                cands,
+                warnings=warn,
+                decider="consult",
+            )
         # 3. 删卡（用户 2026-11-03：「优先删眠気，然后是非一次性的 思い出し笑い 这类不提供再动的牌，然后再是不好用的卡（初始卡）」；
         #    原来 2026-11-02 只删眠気）。顺序同 cull_pool，能删的范围见 qualify_consult_deletable；P 预算顺序照旧（核心卡 + 饮料 → 删卡 → 强化）
         delete = services.get("delete") or {}
-        if delete.get("available", True) and delete.get("price") is not None and delete["price"] <= budget and "delete" not in v["no_target"]:
+        if (
+            delete.get("available", True)
+            and delete.get("price") is not None
+            and delete["price"] <= budget
+            and "delete" not in v["no_target"]
+        ):
             if deck_known:
-                cards = [{"index": i, "card_id": c.card_id, "upgrade": c.upgrade, "customized": c.customized} for i, c in enumerate(ps.deck)]
+                cards = [
+                    {"index": i, "card_id": c.card_id, "upgrade": c.upgrade, "customized": c.customized}
+                    for i, c in enumerate(ps.deck)
+                ]
                 counts, _ = self._deck_counts(state)
-                pool = [c for c in cull_pool(cards, "delete", counts=counts) if qualify_consult_deletable(c["card_id"], c["upgrade"])]
+                pool = [
+                    c
+                    for c in cull_pool(cards, "delete", counts=counts)
+                    if qualify_consult_deletable(c["card_id"], c["upgrade"])
+                ]
                 # 原来「删初始卡不挤掉核心卡强化」的保护已去掉（用户 2026-11-03：饮料和删牌优先于强化；R2 模拟 せのび 不强化 +0.1 万 ± 1.4 万，不反对）
                 if pool:
                     c = pool[0]
@@ -1942,12 +2495,19 @@ class ProduceDeciders:
                     return go(Action(ActionKind.SHOP_BUY, {"service": "delete", "card_index": c["index"]}), label, delete["price"],
                               "删卡（眠気 > 非一次性不带再動 > 初始卡 > 不好用的牌）", service="delete", price_before=delete["price"])  # fmt: skip
             else:
-                self.consult_delete_lean = True  # 对话框里按同一顺序删 qualify_consult_deletable 的牌，没有就取消（remove_card）
+                self.consult_delete_lean = (
+                    True  # 对话框里按同一顺序删 qualify_consult_deletable 的牌，没有就取消（remove_card）
+                )
                 return go(Action(ActionKind.SHOP_BUY, {"service": "delete"}), "打开「削除」对话框删卡（眠気 > 非一次性不带再動 > 初始卡 > 不好用的牌；牌组未识别，没有就取消）",
                           delete["price"], "删卡（眠気 > 非一次性不带再動 > 初始卡 > 不好用的牌）", service="delete", price_before=delete["price"])  # fmt: skip
         # 4. 强化核心卡
         upgrade = services.get("upgrade") or {}
-        if upgrade.get("available", True) and upgrade.get("price") is not None and upgrade["price"] <= budget and "upgrade" not in v["no_target"]:
+        if (
+            upgrade.get("available", True)
+            and upgrade.get("price") is not None
+            and upgrade["price"] <= budget
+            and "upgrade" not in v["no_target"]
+        ):
             if deck_known:
                 target = _upgrade_target(ps)
                 if target is not None:
@@ -1958,12 +2518,22 @@ class ProduceDeciders:
                           service="upgrade", price_before=upgrade["price"])  # fmt: skip
         # 5. 最后一次相談：预算还有剩，空栏补期望不为负的饮料
         if last_visit:
-            d = self._consult_drinks(state, ps, shelf, budget, budget, stage="selection", only_accident=False, go=go, fill=True)
+            d = self._consult_drinks(
+                state, ps, shelf, budget, budget, stage="selection", only_accident=False, go=go, fill=True
+            )
             if d is not None:
                 return d
         v["last"] = None
         left = "；剩下的留给第 19 天特別指導" if reserve else ""
-        return Decision(Action(ActionKind.SHOP_END), f"预算内没有要做的了。{head}{left}", "rule", 0.8, cands, warnings=warn, decider="consult")
+        return Decision(
+            Action(ActionKind.SHOP_END),
+            f"预算内没有要做的了。{head}{left}",
+            "rule",
+            0.8,
+            cands,
+            warnings=warn,
+            decider="consult",
+        )
 
     def _finals_consult_drinks(self, state: GameState, ps: ProduceState, shelf: list, p: int) -> Decision | None:
         """本战相談买不买饮料（用户 2026-11-02：看缺不缺好用的饮料，按价值定，不用瓶数阈值）。
@@ -1994,12 +2564,24 @@ class ProduceDeciders:
             full = True
         hold = [h.get("drink_id") for h in held or []]
         free = 0 if full else capacity - len(hold)
-        items = [it for it in _items(shelf, "drink") if it.get("drink_id") and it.get("price") is not None and it["price"] <= p]
+        items = [
+            it
+            for it in _items(shelf, "drink")
+            if it.get("drink_id") and it.get("price") is not None and it["price"] <= p
+        ]
         deck_n = len(ps.deck) if ps.deck else None
         r1p = FINALS_P_VALUE["r1_reward"]
         if free <= 0 or not items:
             self._finals_drink_why = "饮料栏满（相談里换不了）" if free <= 0 else "货架没有买得起的饮料"
-            self._finals_drink_plan = {"key": key, "buy": [], "reason": "", "source": "rule", "cands": [], "warnings": [], "why_end": self._finals_drink_why}
+            self._finals_drink_plan = {
+                "key": key,
+                "buy": [],
+                "reason": "",
+                "source": "rule",
+                "cands": [],
+                "warnings": [],
+                "why_end": self._finals_drink_why,
+            }
             return None
         opts = [dk.Option("none", "不买（留 P 给轮间）", hold, None, cost=0, extra={"buy": []})]
         for k in range(1, min(free, len(items)) + 1):
@@ -2012,11 +2594,13 @@ class ProduceDeciders:
                                       None, cost=cost, extra={"buy": [it["index"] for it in combo]}))  # fmt: skip
         need_loss = lambda o: interval_p_value(p + r1p, deck_n) - interval_p_value(p - o.cost + r1p, deck_n)  # noqa: E731
 
-        def rule_ok(o) -> bool:  # 社区默认：多一瓶 0–1 档（不只是比空着好），且不挤占轮间需要量（留 P 的损失只按低价计）
+        def rule_ok(
+            o,
+        ) -> bool:  # 社区默认：多一瓶 0–1 档（不只是比空着好），且不挤占轮间需要量（留 P 的损失只按低价计）
             if o.key == "none":
                 return True
             tags = dk.tag(o.drinks, "r1")
-            bought = tags[len(hold):]
+            bought = tags[len(hold) :]
             # 买的每一瓶在新持有里都要是 0–1 档（多买一瓶回复 / 元気 不算「缺好饮料」）
             return all(t <= 1 for t, _, _ in bought) and need_loss(o) <= FINALS_P_VALUE["low"] * o.cost + 1e-6
 
@@ -2037,12 +2621,20 @@ class ProduceDeciders:
                 base, notes = rv.setup_for("r1", drinks=hold, **c)
                 ranked = sorted(opts[1:], key=lambda o: dk.holding_key(o.drinks, "r1", capacity))[: dk.MAX_SIM_OPTIONS]
                 sims = [opts[0]] + ranked
-                res = rv.adaptive_eval([base] + [iv._with(base, drinks=o.drinks) for o in ranked], threshold=dk.OVERRIDE_SE, workers=4)
+                res = rv.adaptive_eval(
+                    [base] + [iv._with(base, drinks=o.drinks) for o in ranked], threshold=dk.OVERRIDE_SE, workers=4
+                )
                 val = {}
                 for o, r in zip(sims, res):
                     v = 1.2 * r["gain"] - need_loss(o)
                     val[o.key] = (v, 1.2 * r["gain_se"])
-                    rows[o.key].update({"R1 期望": r["mean"], "R1 比不买": f"{r['gain']:+,} ± {r['gain_se']:,}", "总价值（R2 分）": round(v)})
+                    rows[o.key].update(
+                        {
+                            "R1 期望": r["mean"],
+                            "R1 比不买": f"{r['gain']:+,} ± {r['gain_se']:,}",
+                            "总价值（R2 分）": round(v),
+                        }
+                    )
                 best = max(sims, key=lambda o: val[o.key][0])
                 if rule.key not in val:
                     val[rule.key] = (0.0, 0.0)
@@ -2121,10 +2713,16 @@ class ProduceDeciders:
             return None
         if fill and dk.tag(pick.drinks, stage)[-1][0] > 3:
             return None
-        tier = "第一档：补全饮料（事故：" + "、".join(trouble) + "）" if trouble else ("最后一次相談收尾：空栏补饮料" if fill else "第一档：补全饮料")
+        tier = (
+            "第一档：补全饮料（事故：" + "、".join(trouble) + "）"
+            if trouble
+            else ("最后一次相談收尾：空栏补饮料" if fill else "第一档：补全饮料")
+        )
         if go is None:
             dec = self._drink_decision(res, opts, stage, "consult", warn, state)
-            dec.reason = f"【本战相談·饮料事故：{'、'.join(trouble)}】{dec.reason}（もなみ：事故时才在这里买，价格和轮间一样）"
+            dec.reason = (
+                f"【本战相談·饮料事故：{'、'.join(trouble)}】{dec.reason}（もなみ：事故时才在这里买，价格和轮间一样）"
+            )
             return dec
         dec = go(pick.action, pick.label, pick.cost, tier, index=pick.extra.get("index"))
         sub = self._drink_decision(res, opts, stage, "consult", warn, state)
@@ -2158,9 +2756,19 @@ class ProduceDeciders:
         if hit is None:
             hit = _from_selected_effect(state.page_fields, roles["plain"], effect)
         if hit is not None:
-            if (d := self._study_change_cost(state, choices, hit, trouble, f"选{effect}关系那档（本人おすすめ効果，按效果名）")) is not None:
+            if (
+                d := self._study_change_cost(
+                    state, choices, hit, trouble, f"选{effect}关系那档（本人おすすめ効果，按效果名）"
+                )
+            ) is not None:
                 return d
-            return Decision(Action.event_select(hit), f"选{effect}关系那档（本人おすすめ効果，按效果名）", "rule", 0.9, decider="study")
+            return Decision(
+                Action.event_select(hit),
+                f"选{effect}关系那档（本人おすすめ効果，按效果名）",
+                "rule",
+                0.9,
+                decider="study",
+            )
         plain = roles["plain"]
         pos = {"A": 0, "B": 1}[slot]
         if len(plain) == 2:
@@ -2170,7 +2778,9 @@ class ProduceDeciders:
         return Decision(Action.event_select(idx), f"选{effect}关系那档：选项识别不全，按固定位置第 {idx + 1} 项", "rule", 0.6,
                         warnings=[f"choices 不完整（非眠気项 {plain}），按固定位置选择"], decider="study")  # fmt: skip
 
-    def _study_change_cost(self, state: GameState, choices: list[dict], hit: int, trouble: int | None, base: str = "选本人おすすめ効果档") -> Decision | None:
+    def _study_change_cost(
+        self, state: GameState, choices: list[dict], hit: int, trouble: int | None, base: str = "选本人おすすめ効果档"
+    ) -> Decision | None:
         """授業档位是「セレクトチェンジ」（选拔第 10、17 天、本战第 1、4 天 [wiki]）：会从牌组换出一张卡，换入的卡也未必合用。
         换卡不受决策器控制（change_controlled=False，执行仍是 KAA 盲换第 0 张）时，改选不换卡的眠気档：眠気 费用 0、可以打掉除外，
         代价远小于盲换走核心卡（第 4 局本战两次授業换走了 デイドリーミング、がむしゃら，换进 ハイテンション、紅葉ランニング）。
@@ -2180,7 +2790,11 @@ class ProduceDeciders:
         sel = flat(state.page_fields.get("effect"))
         ps = self.produce_state(state)
         change_day = ps is not None and (ps.mode, ps.step) in CHANGE_STUDY_DAYS
-        is_change = "セレクトチェンジ" in text(hit) or ("セレクトチェンジ" in sel and state.page_fields.get("selected") == hit) or change_day
+        is_change = (
+            "セレクトチェンジ" in text(hit)
+            or ("セレクトチェンジ" in sel and state.page_fields.get("selected") == hit)
+            or change_day
+        )
         if not is_change:
             return None
         from hiro.state.produce import FINALS
@@ -2188,7 +2802,9 @@ class ProduceDeciders:
         if self.change_controlled:
             # 换卡一旦开始就取消不了（阶段 1 没有取消键，取消会绕回换卡页：main8 第 1 次授業死循环），按「必须换掉一张」评估这一档：
             # 牌组里有明显废牌（基础卡 / 冲突牌 / 好印象系，价值 ≤ 1）才选；没有废牌或牌组未知（本战）时改选眠気档，避免换亏核心牌组
-            deck = [{"card_id": c.card_id, "upgrade": c.upgrade} for c in ps.deck] if ps is not None and ps.deck else None
+            deck = (
+                [{"card_id": c.card_id, "upgrade": c.upgrade} for c in ps.deck] if ps is not None and ps.deck else None
+            )
             finals = ps is not None and ps.mode == FINALS
             worst = _removable(deck, self._deck_counts(state)[0], finals=finals) if deck else None
             # 有可换的废牌：价值 ≤ 1，或非一次性的非核心牌（用户 2026-11-03 思い出し笑い「能换掉的时候就应该换掉」）
@@ -2197,8 +2813,13 @@ class ProduceDeciders:
                 # 本战一律换（协调 2026-11-04 审计：第 21 / 22 / 25 局）：手册「本战第 4 天课程换掉剩余弱卡」「四次课程…一次换掉最弱卡」；
                 # 另一档是眠気档，会往牌组里加 眠気，而用户删牌顺序第一位就是 眠気（小牌组）。换出由 change_remove 保护核心卡、换入按价值选；
                 # 牌组未知也换（阶段 2 读对话框里的牌组再挑换出）；只有已知牌组里全是保护卡（没有可换的）时才选眠気档
-                why = (f"牌组里有可换的废牌 {_card_label(worst[1])}（价值 {worst[0]:g}）" if junk
-                       else "本战按手册换掉最弱的卡（另一档会加 眠気）" if finals else "选拔期牌组里通常还有基础卡可换")
+                why = (
+                    f"牌组里有可换的废牌 {_card_label(worst[1])}（价值 {worst[0]:g}）"
+                    if junk
+                    else "本战按手册换掉最弱的卡（另一档会加 眠気）"
+                    if finals
+                    else "选拔期牌组里通常还有基础卡可换"
+                )
                 return Decision(Action.event_select(hit), f"{base}；セレクトチェンジ：{why}，换入 / 换出由换卡决策器按卡牌价值指定",
                                 "rule", 0.85, decider="study")  # fmt: skip
             if trouble is not None and "セレクトチェンジ" not in text(trouble):
@@ -2206,7 +2827,9 @@ class ProduceDeciders:
                        else "牌组未知（本战开局还没读牌组页）")  # fmt: skip
                 return Decision(Action.event_select(trouble), f"这一档是セレクトチェンジ，开始后取消不了、必须换掉一张；{why}，换亏风险大。"
                                 "改选眠気档：眠気 费用 0、打出后除外", "rule", 0.8, decider="study")  # fmt: skip
-            return Decision(Action.event_select(hit), f"{base}；三档都会换卡，按卡牌价值换", "rule", 0.6, decider="study")
+            return Decision(
+                Action.event_select(hit), f"{base}；三档都会换卡，按卡牌价值换", "rule", 0.6, decider="study"
+            )
 
         if ps is None or ps.mode != FINALS:
             # 选拔：执行侧已保护核心卡（96c7acc），换入的卡可能是冲突牌，但之后的相談还能删；照常选本人おすすめ効果档
@@ -2226,7 +2849,13 @@ class ProduceDeciders:
         这一步取消不了，换不换亏要在授業选档时判断（_study_change_cost）。"""
         cands = state.page_fields.get("candidates") or []
         if not cands:
-            return Decision(Action.ui(ActionKind.WAIT, why="换卡候选未识别"), "换卡候选未识别", "fallback", 0.1, decider="card_change")
+            return Decision(
+                Action.ui(ActionKind.WAIT, why="换卡候选未识别"),
+                "换卡候选未识别",
+                "fallback",
+                0.1,
+                decider="card_change",
+            )
         # 换入按删卡顺序挑（协调 2026-11-07）：挑 cull_key 最大的（最晚才会被删），同档再比价值。只按 card_value 挑时，
         # 换进来的往往正是下次最先换掉的那类（Win2：换进「止められない想い」，下一次换卡就把它换掉，3 张元気な挨拶 没动）
         from hiro.state.produce import FINALS
@@ -2283,7 +2912,9 @@ class ProduceDeciders:
         incoming = card_value(incoming_id, 0) if incoming_id else None
         if incoming is not None and incoming <= value:
             # 取消会绕回换卡页（main8 死循环），换亏也只能换：换出价值最低的那张
-            warn.append(f"换入的卡（{incoming:g}）不比换出的 {_card_label(card)}（{value:g}）强；取消会绕回换卡页，只能换")
+            warn.append(
+                f"换入的卡（{incoming:g}）不比换出的 {_card_label(card)}（{value:g}）强；取消会绕回换卡页，只能换"
+            )
         self.change_target = None
 
         def act(c: dict) -> Action:
@@ -2306,8 +2937,15 @@ class ProduceDeciders:
         options = [(act(c), {"名字": _card_label(c), "卡 id": c["card_id"], "档": CULL_TIERS.get(cull_tier(c["card_id"]), ""),
                              "价值估计": round(card_value(c["card_id"], c.get("upgrade") or 0), 1)}) for c in pool]  # fmt: skip
         extra = {"换入的卡": _card_label({"card_id": incoming_id, "upgrade": 0}) if incoming_id else "未知"}
-        return self._ask_choice("change_remove", rule, options, "授業セレクトチェンジ第 2 步：从牌组里选一张换出（不能取消，必须换一张）",
-                                "；".join(unsure), state, extra)
+        return self._ask_choice(
+            "change_remove",
+            rule,
+            options,
+            "授業セレクトチェンジ第 2 步：从牌组里选一张换出（不能取消，必须换一张）",
+            "；".join(unsure),
+            state,
+            extra,
+        )
 
     def _study_effect(self) -> tuple[str | None, str]:
         """本人おすすめ効果的日文名，以及它在授業里是 A 档还是 B 档。"""
@@ -2340,9 +2978,23 @@ class ProduceDeciders:
         else:
             trouble, paid, free = (OUTING_LAYOUT.index(k) for k in ("trouble", "paid", "free"))
         if ps and ps.mode == "produce-007" and ps.step == 5 and trouble is not None:
-            return Decision(Action.event_select(trouble), "社区：选拔第 5 天外出选中间的眠気档，之后在相談花 100P 删掉——比当场花 50P 避开多拿一次获得 / 删卡收益 [ep07]", "rule", 0.8, warnings=warn, decider="outing")
+            return Decision(
+                Action.event_select(trouble),
+                "社区：选拔第 5 天外出选中间的眠気档，之后在相談花 100P 删掉——比当场花 50P 避开多拿一次获得 / 删卡收益 [ep07]",
+                "rule",
+                0.8,
+                warnings=warn,
+                decider="outing",
+            )
         if ps and paid is not None and ps.produce_point >= 150:
-            return Decision(Action.event_select(paid), f"P 点 {ps.produce_point} 充裕，付 50P 多拿一张强化卡", "rule", 0.6, warnings=warn, decider="outing")
+            return Decision(
+                Action.event_select(paid),
+                f"P 点 {ps.produce_point} 充裕，付 50P 多拿一张强化卡",
+                "rule",
+                0.6,
+                warnings=warn,
+                decider="outing",
+            )
         if ps is None:
             warn = warn + ["局面不全（P 点 / 日程未知），选「なし」"]
         return Decision(Action.event_select(free), "不加眠気、不花 P 点", "rule", 0.5, warnings=warn, decider="outing")
@@ -2361,13 +3013,21 @@ class ProduceDeciders:
             try:
                 from hiro.state import modes
 
-                plan = modes.master().one("IdolCard", (state.produce or {}).get("idol_card_id") or (self.profile.idol_id if self.profile else ""))["planType"]
+                plan = modes.master().one(
+                    "IdolCard",
+                    (state.produce or {}).get("idol_card_id") or (self.profile.idol_id if self.profile else ""),
+                )["planType"]
             except Exception:  # noqa: BLE001
                 pass
             k, reason, _ = choose_nia_pitem(self._hajime_nia_status(state), items, plan)
             if k is not None:
-                return Decision(Action.activate_effect(items[k].get("index", k)), reason, "rule", 0.7, decider="select_pitem")
-        parsed = [None if it.get("custom") and not (it.get("name") or it.get("item_id") or it.get("id")) else pitem.parse(it) for it in items]
+                return Decision(
+                    Action.activate_effect(items[k].get("index", k)), reason, "rule", 0.7, decider="select_pitem"
+                )
+        parsed = [
+            None if it.get("custom") and not (it.get("name") or it.get("item_id") or it.get("id")) else pitem.parse(it)
+            for it in items
+        ]
         if any(q and q["stage"] != "pouch" for q in parsed):
             # 同一页别的候选已是玩偶 / 装饰段：只有颜色（名字没认出）的格子不是背包，按没认出算（原来当「背包 黄」3 分，压过 インコ / うさぎ）
             parsed = [None if q and q["stage"] == "pouch" and not (it.get("name") or it.get("item_id") or it.get("id")) else q
@@ -2389,14 +3049,32 @@ class ProduceDeciders:
                 # 定制页（pitem_custom 能认装饰了）三个候选名字一样：多半是候选还没出来（DMM own2 seq 170：定制页刚进场、三格还空，
                 # 识别按背包颜色给了「ロボ（黄）」×3，按第 1 个点下去定制成了 うさぎ）。停下重读，不盲选
                 why = f"P 道具定制 {len(known)} 个候选识别成一样的（{items[known[0]].get('name')}）：候选像是还没出来 / 没认出，重读"
-                return Decision(Action.ui(ActionKind.WAIT, why=why), why, "fallback", 0.1, cands, warnings=[why], decider="select_pitem")
+                return Decision(
+                    Action.ui(ActionKind.WAIT, why=why),
+                    why,
+                    "fallback",
+                    0.1,
+                    cands,
+                    warnings=[why],
+                    decider="select_pitem",
+                )
             # 非定制页（旧识别）：第二段装饰没认出时规则只能按第 1 个选。LLM 也看不到装饰，不问；记成兜底，报告里能数出来
-            return replace(rule, source="fallback", confidence=0.3,
-                           warnings=[f"P 道具 {len(known)} 个候选识别成一样的（{items[known[0]].get('name')}）：多半是第二段装饰没认出，按第 1 个选"])
+            return replace(
+                rule,
+                source="fallback",
+                confidence=0.3,
+                warnings=[
+                    f"P 道具 {len(known)} 个候选识别成一样的（{items[known[0]].get('name')}）：多半是第二段装饰没认出，按第 1 个选"
+                ],
+            )
         top = pitem.score(parsed[best])
         ties = {str(sorted(parsed[i].items())) for i in known if pitem.score(parsed[i]) == top}
         unknown_n = len(items) - len(known)
-        stage_max = max({"pouch": pitem.POUCH_RANK, "plush": pitem.PLUSH_RANK, "deco": pitem.DECO_RANK}[parsed[best]["stage"]].values())
+        stage_max = max(
+            {"pouch": pitem.POUCH_RANK, "plush": pitem.PLUSH_RANK, "deco": pitem.DECO_RANK}[
+                parsed[best]["stage"]
+            ].values()
+        )
         why = (f"{len(ties)} 个不同的候选社区排序打平" if len(ties) > 1 else
                f"{unknown_n} 个候选没认出，认出的最好只是 {items[best].get('name')}" if unknown_n and top < stage_max else None)  # fmt: skip
         if why is None:
@@ -2459,7 +3137,7 @@ class ProduceDeciders:
         close = key(a)[:-1] == key(b)[:-1] and abs(key(a)[-1] - key(b)[-1]) < 0.3
         if not unknown and not close:
             return rule
-        why = (f"{len(unknown)} 张候选没认出" if unknown else f"{name(raw[a])} 和 {name(raw[b])} 价值差不多")
+        why = f"{len(unknown)} 张候选没认出" if unknown else f"{name(raw[a])} 和 {name(raw[b])} 价值差不多"
         options = [(pick([i]), {"名字": name(raw[i]), "强化": raw[i].get("upgrade"), "价值估计": cands[k].preview["价值估计"],
                                 "核心卡": _is_core_card(raw[i].get("card_id")) if raw[i].get("card_id") else None}) for k, i in enumerate(order)]  # fmt: skip
         return self._ask_choice("card_move", rule, options, f"考试中的技能卡移动：选一张移到{why_dest}（{'移走' if out else '留着用'}）", why, state,
@@ -2479,14 +3157,20 @@ class ProduceDeciders:
         pf = state.page_fields
         choices = sorted(pf.get("choices") or [], key=lambda c: c.get("index", 0))
         title = pf.get("title") or ""
-        stop = lambda why, w: Decision(Action.ui(ActionKind.WAIT, why=why), why, "fallback", 0.1, warnings=w, decider="event_choice")  # noqa: E731
+        stop = lambda why, w: Decision(  # noqa: E731
+            Action.ui(ActionKind.WAIT, why=why), why, "fallback", 0.1, warnings=w, decider="event_choice"
+        )
         if pf.get("dialogue_only") is True and choices:
             # 平台按按钮外观判的纯台词页（白底深色字、没有图标 / 代价角标 / トラブル，ef07f2b）：选第一个，不停机
             return Decision(Action.event_select(choices[0]["index"]), f"事件「{title or '未识别'}」：{len(choices)} 个选项都是纯台词（没有效果），选第一个",
                             "rule", 0.9, decider="event_choice")  # fmt: skip
         if len(choices) < 2:
             return stop("事件选项没读出来（少于 2 个）：停下等人", ["EVENT_CHOICE choices 缺失"])
-        if all(c.get("no_effect") or (c.get("effect") == "" and not any(c.get(k) for k in ("cost_hp", "cost_p", "trouble"))) for c in choices):
+        if all(
+            c.get("no_effect")
+            or (c.get("effect") == "" and not any(c.get(k) for k in ("cost_hp", "cost_p", "trouble")))
+            for c in choices
+        ):
             # 识别读过、每一项都没有效果（开场纯台词二选一等，协调 11-17）：直接选第一个，不停机。effect 缺失（None）仍当没读到
             return Decision(Action.event_select(choices[0]["index"]), f"事件「{title or '未识别'}」：每个选项都没有效果（纯台词），选第一个",
                             "rule", 0.9, decider="event_choice")  # fmt: skip
@@ -2495,8 +3179,8 @@ class ProduceDeciders:
         vecs = [v for v, _ in parsed]
         unparsed = {i for i, (_, ok) in enumerate(parsed) if not ok}  # choices 里的位置
         raw = state.produce or {}  # 局面不全（ProduceState 构造不出）时体力 / 成长率直接读原始字段
-        kw = dict(stamina=ps.stamina if ps else raw.get("stamina"), max_stamina=ps.max_stamina if ps else raw.get("max_stamina"),
-                  growth=ps.growth_permil if ps else raw.get("growth_permil"), main_attr=(ps.main_attr if ps else raw.get("main_attr")) or self.main_attr)  # fmt: skip
+        kw = {"stamina": ps.stamina if ps else raw.get("stamina"), "max_stamina": ps.max_stamina if ps else raw.get("max_stamina"),
+                  "growth": ps.growth_permil if ps else raw.get("growth_permil"), "main_attr": (ps.main_attr if ps else raw.get("main_attr")) or self.main_attr}  # fmt: skip
         scores = [ev.score(v, **kw) for v in vecs]
         cands = [Candidate(Action.event_select(c["index"]), preview={"选项": c.get("text"), "效果": ev.describe(v), "粗估分": round(sc, 1)},
                            expected=sc, note=c.get("text")) for c, v, sc in zip(choices, vecs, scores)]  # fmt: skip
@@ -2562,7 +3246,9 @@ class ProduceDeciders:
         if cache is None or not shelf_key <= cache["shelf"]:
             from hiro.state.knowledge import interval_hp_target
 
-            target_hp = iv.value_hp_target(max_hp, interval_hp_target(self.profile.idol_id if self.profile else None, max_hp))  # HP_TARGET_VALUE（默认关）
+            target_hp = iv.value_hp_target(
+                max_hp, interval_hp_target(self.profile.idol_id if self.profile else None, max_hp)
+            )  # HP_TARGET_VALUE（默认关）
             try:
                 # 用户 2026-11-02：社区默认方案（补到 22 张 → R2 饮料 → 回体力到目标）为默认，B3 模拟方案好过 2 个标准误才偏离
                 # 中途重算（第十八局本战：强化失败 → 结束 → 轮间重进，方案被推翻又叠加一套）：以账本里已执行的部分为前提
@@ -2606,7 +3292,13 @@ class ProduceDeciders:
         def done(action: Action, step: str) -> Decision:
             iv.save_interval_cache({"plan": cache, "ledger": ledger})  # 每发一个动作落盘一次（重启后接着执行，不重算）
             hw = getattr(self, "_interval_held_warn", None)
-            w = ([hw] if hw else []) + ([f"community_deviation：{'、'.join(dev['rule']) or '不买'} → {'、'.join(dev['pick']) or '不买'}（{dev['gain']:+,} ± {dev['gain_se']:,}）"] if dev else [])
+            w = ([hw] if hw else []) + (
+                [
+                    f"community_deviation：{'、'.join(dev['rule']) or '不买'} → {'、'.join(dev['pick']) or '不买'}（{dev['gain']:+,} ± {dev['gain_se']:,}）"
+                ]
+                if dev
+                else []
+            )
             if dev and dev.get("has_hp"):
                 # 协调 2026-11-02：社区续打对体力估值偏高，偏离方案里含体力档的都单独记一条（续打第 2、3 步改好前）
                 w.append("community_deviation 含体力档：社区续打对体力的估值偏高（第十七局专家核对只是噪声），请复核")
@@ -2615,20 +3307,30 @@ class ProduceDeciders:
                 tail = f"；LLM：{ld.reason}" if ld.source == "llm" and ld.reason else ""
                 return Decision(action, f"{step}；{why}{tail}", ld.source, ld.confidence, cands, warnings=w + ld.warnings, line=ld.line,
                                 llm=cache.pop("llm_traces", []), decider="interval")  # fmt: skip
-            return Decision(action, f"{step}；{why}", "sim" if dev else "rule", 0.8, cands, warnings=w, decider="interval")
+            return Decision(
+                action, f"{step}；{why}", "sim" if dev else "rule", 0.8, cands, warnings=w, decider="interval"
+            )
 
         recover = items.get("recover") or {}
         per2 = recover.get("price_per_2hp") or 10
-        self.interval_target_hp = res["target_hp"]  # 执行侧离开前的体力检查用同一个目标（第十二局：决策 24、收尾 17 不一致）
+        self.interval_target_hp = res[
+            "target_hp"
+        ]  # 执行侧离开前的体力检查用同一个目标（第十二局：决策 24、收尾 17 不一致）
         if hp < res["target_hp"] and recover.get("available", True) and p >= per2:
-            return done(Action(ActionKind.INTERVAL_BUY, {"service": "recover"}), f"回体力 {hp} → 目标 {res['target_hp']}/{max_hp}")
+            return done(
+                Action(ActionKind.INTERVAL_BUY, {"service": "recover"}),
+                f"回体力 {hp} → 目标 {res['target_hp']}/{max_hp}",
+            )
         shelf = {it["index"]: it for k in ("cards", "drinks") for it in items.get(k) or []}
         # drink_step 能用（有增益表的开局信息、能刷新）时，方案里的饮料一律交给它（第二十八局：社区默认方案把 ミックススムージー（换手·2 档，
         # 增益常为负）当抽牌类目标先买了）；用不了时弱饮料（3–4 档）仍不按方案买，其余照方案买
         step_ready = (self.INTERVAL_DRINK_STEP and self.INTERVAL_REROLL and (items.get("refresh") or {}).get("available") is not False
                       and self._gains_setup(ps, self._interval_held(state, ps), res) is not None)  # fmt: skip
+
         def plan_buy(step: bool, note: str = "") -> Decision | None:
-            for idx in ([] if cache.get("rerolling") else res["buy"]):  # 刷新过：方案里按格子编号记的东西已经换了，不再按编号买
+            for idx in (
+                [] if cache.get("rerolling") else res["buy"]
+            ):  # 刷新过：方案里按格子编号记的东西已经换了，不再按编号买
                 it = shelf.get(idx)
                 if it is None or it.get("purchased"):
                     continue
@@ -2640,8 +3342,14 @@ class ProduceDeciders:
                 if not _affordable(it, p):
                     continue
                 cache["tried"][idx] = p
-                ledger["pending"] = {"kind": "drink" if it.get("drink_id") else "card", "id": it.get("drink_id") or (it.get("card_id"), it.get("upgrade") or 0), "p": p}
-                return done(Action(ActionKind.INTERVAL_BUY, {"index": idx}), f"买 {it.get('name')}（{it.get('price')}P）{note}")
+                ledger["pending"] = {
+                    "kind": "drink" if it.get("drink_id") else "card",
+                    "id": it.get("drink_id") or (it.get("card_id"), it.get("upgrade") or 0),
+                    "p": p,
+                }
+                return done(
+                    Action(ActionKind.INTERVAL_BUY, {"index": idx}), f"买 {it.get('name')}（{it.get('price')}P）{note}"
+                )
             return None
 
         if (d := plan_buy(step_ready)) is not None:
@@ -2649,7 +3357,7 @@ class ProduceDeciders:
         d = self._interval_reroll(state, ps, items, cache, res, done)
         if d is not None:
             return d
-        if step_ready and cache.get("reroll_failed") and "gains" not in cache:
+        if step_ready and cache.get("reroll_failed") and "gains" not in cache:  # noqa: SIM102
             # 逐瓶 / 刷新估值失败：方案里的饮料按方案买，不因为估值失败就一瓶不买（DMM 本战轮间：估值 KeyError，
             # 方案「回体力 + 买 おしゃれハーブティー、ルイボスティー」只回了体力，剩 516P、R2 四次都是零饮料开局）
             if (d := plan_buy(False, "（刷新估值失败，按方案买）")) is not None:
@@ -2660,7 +3368,10 @@ class ProduceDeciders:
                 and (upgrade.get("left") is None or upgrade["left"] > 0) and _affordable(upgrade, p):  # fmt: skip
             cache["tried"]["upgrade"] = p
             ledger["pending"] = {"kind": "upgrade", "id": up, "p": p}
-            return done(Action(ActionKind.INTERVAL_UPGRADE_CARD, {"card_id": up}), f"强化 {_card_label({'card_id': up})}（{upgrade.get('price')}P）")
+            return done(
+                Action(ActionKind.INTERVAL_UPGRADE_CARD, {"card_id": up}),
+                f"强化 {_card_label({'card_id': up})}（{upgrade.get('price')}P）",
+            )
         # 不清空方案 / 账本：执行侧可能误判已离开（第十八局本战 22:33「IntervalEnd 时已不在轮间」其实还在），重进时接着用；下一次轮间按 key 重置
         cache["ended"] = True
         rr = f"；{cache['reroll_note']}" if cache.get("reroll_note") else ""
@@ -2712,7 +3423,11 @@ class ProduceDeciders:
         src_seq = src.get("seq") if isinstance(src, dict) else getattr(src, "seq", None)
         # 「本帧读到」：状态 observed / verified 且来源就是这一帧（执行 cdce573 离开考试时把 exam.drinks 写回 produce.drinks、记 observed，
         # 那是 R1 结束时的值，不含本次轮间买的；不能当本帧画面去减账本）
-        fresh = (state.field_status or {}).get("produce.drinks") in ("observed", "verified") and src_seq is not None and src_seq == state.seq
+        fresh = (
+            (state.field_status or {}).get("produce.drinks") in ("observed", "verified")
+            and src_seq is not None
+            and src_seq == state.seq
+        )
         ctx = iv.CONTEXT.get("drinks")
         ctx = None if ctx is None else [d for d in ctx if d]
         self._interval_held_warn = None
@@ -2726,7 +3441,9 @@ class ProduceDeciders:
             return held
         if ctx is not None:
             if page and sorted(page) != sorted(ctx):
-                self._interval_held_warn = f"轮间持有：produce.drinks {page}（未在本帧读到）和 R1 结束剩余 {ctx} 不一致，按 R1 结束剩余"
+                self._interval_held_warn = (
+                    f"轮间持有：produce.drinks {page}（未在本帧读到）和 R1 结束剩余 {ctx} 不一致，按 R1 结束剩余"
+                )
             return ctx
         return page or []
 
@@ -2741,7 +3458,13 @@ class ProduceDeciders:
             return None
         for a in ("Vo", "Da", "Vi"):
             permil.setdefault(a, min(permil.values()))
-        return iv.R2Setup(deck=deck, drinks=list(holding), hp=max(ps.stamina, res.get("target_hp") or ps.stamina), max_hp=ps.max_stamina, permil=permil)
+        return iv.R2Setup(
+            deck=deck,
+            drinks=list(holding),
+            hp=max(ps.stamina, res.get("target_hp") or ps.stamina),
+            max_hp=ps.max_stamina,
+            permil=permil,
+        )
 
     def _interval_prefetch_gains(self, state: GameState, ps: ProduceState, items: dict, res: dict) -> None:
         """方案一算出来，就按「现在持有 + 方案里要买的饮料」在后台算刷新估值要用的增益表（执行回体力 / 买东西的这段时间里算）。"""
@@ -2752,7 +3475,11 @@ class ProduceDeciders:
             shelf = {it["index"]: it for it in items.get("drinks") or []}
             planned = [shelf[i]["drink_id"] for i in res.get("buy") or [] if i in shelf and shelf[i].get("drink_id")]
             setup = self._gains_setup(ps, held + list(self._interval_ledger["drinks"]) + planned, res)
-            if setup is not None and ps.drink_capacity > len(setup.drinks) and (items.get("refresh") or {}).get("available") is not False:
+            if (
+                setup is not None
+                and ps.drink_capacity > len(setup.drinks)
+                and (items.get("refresh") or {}).get("available") is not False
+            ):
                 iv.start_gains(setup)
         except Exception as e:  # noqa: BLE001  预取失败不影响决策
             logger.debug("增益表预取失败：%s", e)
@@ -2773,7 +3500,14 @@ class ProduceDeciders:
                     self._interval_plan = saved["plan"]
                 logger.info("轮间：读回落盘的账本 / 方案（%s）", key)
         if led is None or led["key"] != key:
-            led = self._interval_ledger = {"key": key, "drinks": [], "cards": [], "upgraded": [], "rerolls": 0, "pending": None}
+            led = self._interval_ledger = {
+                "key": key,
+                "drinks": [],
+                "cards": [],
+                "upgraded": [],
+                "rerolls": 0,
+                "pending": None,
+            }
         pend = led.pop("pending", None)
         led["pending"] = None
         if pend is not None and p < pend["p"]:
@@ -2782,7 +3516,9 @@ class ProduceDeciders:
 
     INTERVAL_REROLL = True  # 测试 / 兜底开关
 
-    def _interval_fill_card(self, items: dict, ledger: dict, cache: dict, nrr: int, spare: int, p: int, done) -> Decision | None:
+    def _interval_fill_card(
+        self, items: dict, ledger: dict, cache: dict, nrr: int, spare: int, p: int, done
+    ) -> Decision | None:
         """刷新后的货架上补卡（牌组不满 22 张时）。HIRO_INTERVAL_FILL_22（缺省开，用户 11-18「本战轮间还是要补充到 22 张卡」）：
         按 interval.fill_order（一次性 / 循环件 / 社区评级 > 最不污染的可复用卡，冲突卡不拿）；关掉时照旧只买核心卡。"""
         from hiro.sim import interval as iv
@@ -2806,10 +3542,14 @@ class ProduceDeciders:
             return None
         cache["tried"][("rc", nrr, it["index"])] = p
         ledger["pending"] = {"kind": "card", "id": (it["card_id"], it.get("upgrade") or 0), "p": p}
-        return done(Action(ActionKind.INTERVAL_BUY, {"index": it["index"]}),
-                    f"刷新后的货架：{what}，买 {it.get('name')}（{it.get('price')}P；牌组 {len(deck)} 张）")
+        return done(
+            Action(ActionKind.INTERVAL_BUY, {"index": it["index"]}),
+            f"刷新后的货架：{what}，买 {it.get('name')}（{it.get('price')}P；牌组 {len(deck)} 张）",
+        )
 
-    def _interval_reroll(self, state: GameState, ps: ProduceState, items: dict, cache: dict, res: dict, done) -> Decision | None:
+    def _interval_reroll(
+        self, state: GameState, ps: ProduceState, items: dict, cache: dict, res: dict, done
+    ) -> Decision | None:
         """轮间刷新货架（用户 2026-11-02：第十六局 R2 只有 漢方、第十七局只有 ハーブティー，剩 435P）。计划里的回体力 / 买卡 / 买饮料做完之后、强化之前：
         1. 刷新过的新货架：先买值得买的饮料（R2 增益 > 1.5 个标准误，空位 / 可花 P 内增益和最大），牌组不满 22 张时按补卡顺序买卡；
         2. 再估一次刷新：价值 = 新货架期望最优买法 − 当前货架最优买法（hiro.sim.interval.reroll_ev，商品池按实机观测等概率），
@@ -2820,7 +3560,12 @@ class ProduceDeciders:
         from hiro.sim import interval as iv
 
         refresh = items.get("refresh") or {}
-        if not self.INTERVAL_REROLL or refresh.get("available") is False or refresh.get("price") is None or cache.get("reroll_failed"):
+        if (
+            not self.INTERVAL_REROLL
+            or refresh.get("available") is False
+            or refresh.get("price") is None
+            or cache.get("reroll_failed")
+        ):
             return None
         p = ps.produce_point
         price = int(refresh["price"])
@@ -2833,18 +3578,28 @@ class ProduceDeciders:
             fill = [it.get("price") or 0 for it in items.get("cards") or [] if it.get("card_id") and not it.get("purchased")
                     and iv.fill_order([it["card_id"]], deck)]  # fmt: skip
             per2 = (items.get("recover") or {}).get("price_per_2hp") or 10
-            need = short * (min(fill) if fill else 0) + iv.recover_cost(ps.stamina, max(ps.stamina, iv.recover_target(ps.max_stamina)), per2)
+            need = short * (min(fill) if fill else 0) + iv.recover_cost(
+                ps.stamina, max(ps.stamina, iv.recover_target(ps.max_stamina)), per2
+            )
         spare = p - need
         held = self._interval_held(state, ps)
         ledger = self._interval_ledger
         # 持有 = R1 剩下的（读得到时）+ 本次轮间账本里成交的（第十八局本战：按货架 id 反推，买掉的格读成 None → 「持有 空」，拿垃圾饮料填空位）
         holding = held + list(ledger["drinks"])
         free = ps.drink_capacity - len(holding)
-        if any(not it.get("drink_id") and not it.get("purchased") for it in items.get("drinks") or []) and cache.get("rerolling"):
+        if any(not it.get("drink_id") and not it.get("purchased") for it in items.get("drinks") or []) and cache.get(
+            "rerolling"
+        ):
             # 刷新后的新货架还没认出来：等识别，不拿空货架去估（第十八局：两次刷新估值一模一样）
             cache["unread_waits"] = cache.get("unread_waits", 0) + 1
             if cache["unread_waits"] <= 3:
-                return Decision(Action.ui(ActionKind.WAIT, why="刷新后货架未识别"), "刷新后的货架还没认出：重新观测", "rule", 0.6, decider="interval")
+                return Decision(
+                    Action.ui(ActionKind.WAIT, why="刷新后货架未识别"),
+                    "刷新后的货架还没认出：重新观测",
+                    "rule",
+                    0.6,
+                    decider="interval",
+                )
         cache["unread_waits"] = 0
         if "gains" not in cache:
             setup = self._gains_setup(ps, holding, res)
@@ -2869,10 +3624,12 @@ class ProduceDeciders:
             return None
         nrr = cache.get("rerolls", 0)
         if self.INTERVAL_DRINK_STEP:
-            return self._interval_drink_step(ps, items, cache, res, done, gains, shelf, holding, free, spare, price, nrr)
+            return self._interval_drink_step(
+                ps, items, cache, res, done, gains, shelf, holding, free, spare, price, nrr
+            )
         if cache.get("rerolling"):
             # 1. 新货架：值得买的饮料
-            v0, picks = iv.shelf_value(shelf, gains, free, spare)
+            _v0, picks = iv.shelf_value(shelf, gains, free, spare)
             for idx in picks:
                 # 键带上刷新次数：刷新后同一格编号是另一瓶（第二十五局：第 1 次刷新后在 6 号格买了 ブレンド，第 2 次刷新后 6 号格的 ホエイ 被当成已买）
                 if cache["tried"].get(("rr", nrr, idx)) is not None and p < cache["tried"][("rr", nrr, idx)]:
@@ -2910,14 +3667,19 @@ class ProduceDeciders:
         cache["rerolls"] = n + 1
         cache["reroll_pending"] = {"p": p, "shelf": sorted(shelf)}
         ledger["rerolls"] = ledger.get("rerolls", 0) + 1
-        d = done(Action(ActionKind.REROLL, {"scope": "interval"}), f"刷新货架（第 {n + 1} 次）：{note}" + ("" if default else "；R2 目标已达到，按估值仍刷（偏离社区默认）"))
+        d = done(
+            Action(ActionKind.REROLL, {"scope": "interval"}),
+            f"刷新货架（第 {n + 1} 次）：{note}" + ("" if default else "；R2 目标已达到，按估值仍刷（偏离社区默认）"),
+        )
         if not default:
             d.warnings = d.warnings + [f"community_deviation：轮间刷新（R2 目标已达到仍刷，期望 {r['ev']:+,.0f}）"]
         return d
 
     INTERVAL_DRINK_STEP = True  # 买饮料 / 刷新按栏位机会成本 + 社区先验（第二十五局，用户 2026-11-04「瞎买饮料」；False 回到原来的「值得买就买 + 刷新估值」）
 
-    def _interval_drink_step(self, ps, items, cache, res, done, gains, shelf, holding, free, spare, price, nrr) -> Decision | None:
+    def _interval_drink_step(
+        self, ps, items, cache, res, done, gains, shelf, holding, free, spare, price, nrr
+    ) -> Decision | None:
         """当前货架（刷新前后都算）上下一步：买 / 刷新 / 停（hiro.sim.interval.drink_step）。停了才轮到强化（用户 2026-11-03：强化的收益不如买饮料；
         第二十五局：饮料栏空 2 格、P 215 时去强化了 ワクワク）。方案里按格子编号买的（res["buy"]）已经在前面执行过。"""
         from hiro.brain import drinks as dk
@@ -2933,16 +3695,21 @@ class ProduceDeciders:
         avail = [x for x in shelf if not bought(x[0])]
         st = iv.drink_step(avail, gains, holding, free, spare, price, rerolls=nrr)
         warn = [f"community_deviation：轮间饮料 {st['deviation']}"] if st.get("deviation") else []
-        tail = f"；持有 {dk.describe(holding, 'r2')}" + (f"；不买：{'、'.join(st['skipped'])}" if st.get("skipped") else "")
+        tail = f"；持有 {dk.describe(holding, 'r2')}" + (
+            f"；不买：{'、'.join(st['skipped'])}" if st.get("skipped") else ""
+        )
         if st["kind"] == "buy":
             idx = st["index"]
             it = next(x for x in items["drinks"] if x.get("index") == idx)
             cache["tried"][("rr", nrr, idx)] = p
             ledger["pending"] = {"kind": "drink", "id": it["drink_id"], "p": p}
-            d = done(Action(ActionKind.INTERVAL_BUY, {"index": idx}), f"{it.get('name')}（{it.get('price')}P）：{st['why']}{tail}")
+            d = done(
+                Action(ActionKind.INTERVAL_BUY, {"index": idx}),
+                f"{it.get('name')}（{it.get('price')}P）：{st['why']}{tail}",
+            )
             d.warnings = d.warnings + warn
             return d
-        if cache.get("rerolling"):
+        if cache.get("rerolling"):  # noqa: SIM102
             # 牌组不满 22 张：按补卡顺序买卡（cards 也随刷新换了）
             if (d := self._interval_fill_card(items, ledger, cache, nrr, spare, p, done)) is not None:
                 return d
@@ -2963,10 +3730,8 @@ class ProduceDeciders:
         社区 [もなみ][game8][seesaa]：R1 消耗的体力只能在这里回复；饮料按优先级补；やる気 不必勉强补到 22 张。
         做法：先预留回到目标体力的 P 点，预留之外按 饮料 > 必拿/S/A 卡 > 强化核心卡；最后结束。"""
         from hiro.brain import hif_rules as cr
-
-        from hiro.state.knowledge import interval_hp_target
-
         from hiro.sim import interval as _iv
+        from hiro.state.knowledge import interval_hp_target
 
         p, hp, max_hp = ps.produce_point, ps.stamina, ps.max_stamina
         target = interval_hp_target(self.profile.idol_id if self.profile else None, max_hp)
@@ -2979,7 +3744,15 @@ class ProduceDeciders:
         upgrade = items.get("upgrade") or {}
         cands = _shop_candidates(shelf, {"recover": recover, "upgrade": upgrade}, p, ActionKind.INTERVAL_BUY)
         per2 = recover.get("price_per_2hp") or 10  # 货架给的价格优先，缺时按社区规则（每 2 体力 10P）
-        need = (per2 * math.ceil((target - hp) / 2) if recover.get("price_per_2hp") else cr.interval_recover_price(target - hp)) if hp < target else 0
+        need = (
+            (
+                per2 * math.ceil((target - hp) / 2)
+                if recover.get("price_per_2hp")
+                else cr.interval_recover_price(target - hp)
+            )
+            if hp < target
+            else 0
+        )
         budget = p - need
         owned = {c.card_id for c in ps.deck}
 
@@ -2987,7 +3760,9 @@ class ProduceDeciders:
             return Decision(action, reason, "rule", 0.8, cands, decider="interval")
 
         recover_ok = hp < target and recover.get("available", True) and p >= per2
-        cheapest = min((it["price"] for it in shelf if not it.get("purchased") and it.get("price") is not None), default=None)
+        cheapest = min(
+            (it["price"] for it in shelf if not it.get("purchased") and it.get("price") is not None), default=None
+        )
         if recover_ok and (cheapest is None or budget < cheapest):
             return done(Action(ActionKind.INTERVAL_BUY, {"service": "recover"}),
                         f"体力 {hp}/{max_hp}，回到目标 {target} 要 {need}P、现有 {p}P：P 点不够兼顾时先回体力（R1 消耗只能在轮间回复）")  # fmt: skip
@@ -3018,23 +3793,39 @@ class ProduceDeciders:
         for it in cards:
             know = YARUKI_CARDS.get(it.get("card_id"))
             if know and know.get("must") and deck_known and it["card_id"] not in owned and _affordable(it, budget):
-                return done(Action(ActionKind.INTERVAL_BUY, {"index": it["index"]}), f"买缺的核心卡 {know['name']}（{it['price']}P）")
+                return done(
+                    Action(ActionKind.INTERVAL_BUY, {"index": it["index"]}),
+                    f"买缺的核心卡 {know['name']}（{it['price']}P）",
+                )
         if _iv.INTERVAL_FILL_22 and deck_known:
             # ① 补到 22 张（用户 11-18）：牌组用状态机记账，没有时用 R1 记下的
-            deck = [(c.card_id, c.upgrade) for c in ps.deck] if ps.deck and "deck" not in unknown else [tuple(c) for c in _iv.CONTEXT.get("deck") or []]
+            deck = (
+                [(c.card_id, c.upgrade) for c in ps.deck]
+                if ps.deck and "deck" not in unknown
+                else [tuple(c) for c in _iv.CONTEXT.get("deck") or []]
+            )
             if len(deck) < _iv.OUENBOU_SIZE:
                 avail = [it for it in cards if it.get("card_id") and _affordable(it, budget)]
                 order = _iv.fill_order([it["card_id"] for it in avail], deck)
                 it = next((x for cid, _ in order for x in avail if x["card_id"] == cid), None)
                 if it is not None:
-                    return done(Action(ActionKind.INTERVAL_BUY, {"index": it["index"]}),
-                                f"补到 22 张：买 {_card_label(it)}（{it['price']}P；牌组 {len(deck)} 张，不拿冲突卡）")
+                    return done(
+                        Action(ActionKind.INTERVAL_BUY, {"index": it["index"]}),
+                        f"补到 22 张：买 {_card_label(it)}（{it['price']}P；牌组 {len(deck)} 张，不拿冲突卡）",
+                    )
         if ps.deck and "deck" not in unknown and upgrade.get("available", True) and _affordable(upgrade, budget):
-            up = _upgrade_target(ps)  # 别复用 target：后面的「回体力到目标」要用体力目标（原来写成 target 被覆盖成 None）
+            up = _upgrade_target(
+                ps
+            )  # 别复用 target：后面的「回体力到目标」要用体力目标（原来写成 target 被覆盖成 None）
             if up is not None:
-                return done(Action(ActionKind.INTERVAL_UPGRADE_CARD, {"card_index": up[0]}), f"强化核心卡 {up[1]}（{upgrade['price']}P）")
+                return done(
+                    Action(ActionKind.INTERVAL_UPGRADE_CARD, {"card_index": up[0]}),
+                    f"强化核心卡 {up[1]}（{upgrade['price']}P）",
+                )
         if recover_ok:
-            return done(Action(ActionKind.INTERVAL_BUY, {"service": "recover"}), f"回体力到目标 {target}（{hp}/{max_hp}）")
+            return done(
+                Action(ActionKind.INTERVAL_BUY, {"service": "recover"}), f"回体力到目标 {target}（{hp}/{max_hp}）"
+            )
         return done(Action(ActionKind.INTERVAL_END), f"没有要买的（剩 {p}P，体力 {hp}/{max_hp}，目标 {target}）")
 
     def _interval_refresh_why(self, items: dict, shelf: list, budget: int) -> str | None:
@@ -3047,7 +3838,11 @@ class ProduceDeciders:
         drinks = _items(shelf, "drink")
         refresh = items.get("refresh") or {}
         price = refresh.get("price")
-        if not drinks or any(it.get("purchased") for it in (items.get("drinks") or [])) or any(not it.get("drink_id") for it in drinks):
+        if (
+            not drinks
+            or any(it.get("purchased") for it in (items.get("drinks") or []))
+            or any(not it.get("drink_id") for it in drinks)
+        ):
             return None
         if refresh.get("available") is False or price is None or budget - price < INTERVAL_DRINK_RESERVE:
             return None
@@ -3062,8 +3857,10 @@ class ProduceDeciders:
             return None
         tried["sigs"].append(sig)
         names = "、".join(it.get("name") or it["drink_id"] for it in drinks)
-        return (f"【刷新】轮间货架饮料（{names}）没有复制 / 爆发（R2 优先档），刷新找一次（{price}P，第 {len(tried['sigs'])} 次，"
-                f"最多 {INTERVAL_REFRESH_MAX} 次；刷完还剩 {budget - price}P）")
+        return (
+            f"【刷新】轮间货架饮料（{names}）没有复制 / 爆发（R2 优先档），刷新找一次（{price}P，第 {len(tried['sigs'])} 次，"
+            f"最多 {INTERVAL_REFRESH_MAX} 次；刷完还剩 {budget - price}P）"
+        )
 
     def _interval_state(self, state: GameState) -> tuple[ProduceState | None, set[str]]:
         """轮间用的 ProduceState：体力 / 最大体力 / P 点取本页页头读数（识别-06 / ef5d764 三读投票），其余字段由 ProduceState 补。
@@ -3082,8 +3879,12 @@ class ProduceDeciders:
         placeholder = {"idol_card_id": self.profile.idol_id if self.profile else "", "mode": "produce-008", "step": 8,
                        "params": {}, "growth_permil": {}, "star": 0}  # fmt: skip
         for f in fields(ProduceState):
-            if (f.name == "star" or (f.default is MISSING and f.default_factory is MISSING)) and produce.get(f.name) is None:
-                produce[f.name] = placeholder.get(f.name)  # star 有默认值（初 / N.I.A 没有星星），但 H.I.F 构造时必须有：照旧补占位
+            if (f.name == "star" or (f.default is MISSING and f.default_factory is MISSING)) and produce.get(
+                f.name
+            ) is None:
+                produce[f.name] = placeholder.get(
+                    f.name
+                )  # star 有默认值（初 / N.I.A 没有星星），但 H.I.F 构造时必须有：照旧补占位
         if self.main_attr and not produce.get("main_attr"):
             produce["main_attr"] = self.main_attr
         ps = replace(state, produce=produce).produce_state()
@@ -3114,14 +3915,24 @@ class ProduceDeciders:
                         warnings=[skipped], decider="interval")  # fmt: skip
 
     # ---------------------------------------------------------------- 公共
-    def _ask(self, prompts: list[str], user: dict, *, extra_system: str = "", extra_version: str = "") -> tuple[dict | None, list[dict]]:
+    def _ask(
+        self, prompts: list[str], user: dict, *, extra_system: str = "", extra_version: str = ""
+    ) -> tuple[dict | None, list[dict]]:
         version = prompt_version(*prompts) + (f"+{extra_version}" if extra_version else "")
         system = load_prompt(*prompts) + (f"\n\n{extra_system}" if extra_system else "")
         res = self.llm.ask_json(system, json.dumps(user, ensure_ascii=False))
         return res.data, [res.record(prompt_version=version)]
 
-    def _ask_choice(self, path: str, rule: Decision, options: list[tuple[Action, dict]], question: str, why: str, state: GameState,
-                    extra: dict | None = None) -> Decision:
+    def _ask_choice(
+        self,
+        path: str,
+        rule: Decision,
+        options: list[tuple[Action, dict]],
+        question: str,
+        why: str,
+        state: GameState,
+        extra: dict | None = None,
+    ) -> Decision:
         """规则拿不准（why）时让 LLM 在 options 里选一个（options：[(动作, 给 LLM 看的说明)]，第一个是规则的选择）。
         开关没开 / 没有 LLM / 只有一个选项：原样返回规则的决定。LLM 输出非法：按规则的选择兜底（source=fallback），带 LLM 记录和提醒。"""
         if not llm_path_on(path) or self.llm is None or len(options) < 2:
@@ -3138,13 +3949,18 @@ class ProduceDeciders:
         if HAJIME_NIA_STATE and _is_hajime_nia(mode):
             # 初 / N.I.A：不带 H.I.F 的培育说明和广的 H.I.F 打法（选拔 / 本战、星星），打法用这个模式的社区规则清单
             from hiro.brain import hajime_nia_rules as hr
-            from hiro.state.modes import family as _family, mode as _mode
+            from hiro.state.modes import family as _family
+            from hiro.state.modes import mode as _mode
 
             try:
                 diff = _mode(mode).difficulty
             except KeyError:
                 diff = None
-            idol = ps.idol_card_id if ps is not None else ((state.produce or {}).get("idol_card_id") or (self.profile.idol_id if self.profile else None))
+            idol = (
+                ps.idol_card_id
+                if ps is not None
+                else ((state.produce or {}).get("idol_card_id") or (self.profile.idol_id if self.profile else None))
+            )
             data, calls = self._ask(["hajime_nia_choice.md"], user, extra_system=_idol_section(idol, self.profile, mode) + "\n\n" + hr.guide(_family(mode), diff),
                                     extra_version=f"hajime_nia_rules@{hr.load().get('captured_at', '?')}")  # fmt: skip
         else:
@@ -3153,15 +3969,28 @@ class ProduceDeciders:
         traces = [llm_trace_from_call(c) for c in calls]
         if k is None or not 0 <= k < len(options):
             bad = data if data is not None else (calls[-1].get("error") if calls else None)
-            return replace(rule, source="fallback", confidence=0.3, llm=traces,
-                           warnings=[*rule.warnings, f"规则拿不准（{why}）；LLM 输出无效（{bad}），按规则的选择兜底"])
+            return replace(
+                rule,
+                source="fallback",
+                confidence=0.3,
+                llm=traces,
+                warnings=[*rule.warnings, f"规则拿不准（{why}）；LLM 输出无效（{bad}），按规则的选择兜底"],
+            )
         return replace(rule, action=options[k][0], reason=str((data or {}).get("reason", ""))[:300], source="llm", confidence=None,
                        line=str((data or {}).get("line", "")), llm=traces,
                        warnings=[*rule.warnings, f"规则拿不准（{why}），交 LLM：选 {options[k][1].get('名字', k)}"
                                  + ("（和规则相同）" if k == 0 else f"（规则原本选 {options[0][1].get('名字', 0)}）")])  # fmt: skip
 
     @staticmethod
-    def _fallback(action: Action, reason: str, cands: list[Candidate], decider: str, calls: list[dict], *, source: str = "fallback") -> Decision:
+    def _fallback(
+        action: Action,
+        reason: str,
+        cands: list[Candidate],
+        decider: str,
+        calls: list[dict],
+        *,
+        source: str = "fallback",
+    ) -> Decision:
         return Decision(action, reason, source, 0.3 if source == "fallback" else 0.8, cands,
                         llm=[llm_trace_from_call(c) for c in calls], decider=decider)  # fmt: skip
 
@@ -3188,10 +4017,14 @@ def _resolve_held(held: list, state_drinks: list | None) -> tuple[list, list]:
                 warn.append(f"第 {i + 1} 瓶没认全：按候选 ∩ 状态机持有（同一行）认成 {st}")
             elif len(alt) == 1:
                 h.update(drink_id=alt[0], method="state_match_rest")
-                warn.append(f"第 {(i if isinstance(i, int) else -1) + 1} 瓶没认全：按候选 ∩ 状态机持有里还没对上的瓶认成 {alt[0]}")
+                warn.append(
+                    f"第 {(i if isinstance(i, int) else -1) + 1} 瓶没认全：按候选 ∩ 状态机持有里还没对上的瓶认成 {alt[0]}"
+                )
             else:
                 h["visible"] = False
-                warn.append(f"第 {(i if isinstance(i, int) else -1) + 1} 瓶没认出（候选 {cands or '无'}）：不作为丢弃对象")
+                warn.append(
+                    f"第 {(i if isinstance(i, int) else -1) + 1} 瓶没认出（候选 {cands or '无'}）：不作为丢弃对象"
+                )
         out.append(h)
     return out, warn
 
@@ -3213,7 +4046,11 @@ def _is_hajime_nia(mode: str | None) -> bool:
     from hiro.state.modes import HAJIME, NIA, family
 
     return family(mode) in (HAJIME, NIA)
+
+
 SELECTION_LEAN_PICK = False  # 选拔里必拿已齐、候选无核心卡时按瘦牌组规则选（不调 LLM；协调 2026-11-03 提速）。行为变化，默认关，等用户答复（总控 2026-11-03）
+
+
 def _sim_ready() -> bool:
     """模拟器可用：引擎能导入、主数据（catalog.sqlite）已构建。HIRO_SIM=0 强制不用（只按社区规则）。"""
     import os
@@ -3231,7 +4068,9 @@ def _sim_ready() -> bool:
 # 轮间货架没有复制 / 爆发饮料时先刷新（协调 2026-11-08，Windows 第七 / 九 / 十 / 十二局剩 400P 以上），最多刷这么多次
 INTERVAL_REFRESH_MAX = 3
 INTERVAL_DRINK_RESERVE = 200  # 刷完至少还够买两瓶 100P 饮料
-CHANGE_JUNK_VALUE = 1.0  # card_value ≤ 它算「废牌」（冲突 0、基础卡 0.5、好印象系 1）：授業セレクトチェンジ 只在有废牌时才选
+CHANGE_JUNK_VALUE = (
+    1.0  # card_value ≤ 它算「废牌」（冲突 0、基础卡 0.5、好印象系 1）：授業セレクトチェンジ 只在有废牌时才选
+)
 # 授業是セレクトチェンジ 的日子 [wiki]：选拔第 10、17 天，本战第 1、4 天（step = 日程位置）
 CHANGE_STUDY_DAYS = {("produce-007", 10), ("produce-007", 17), ("produce-008", 1), ("produce-008", 4)}
 
@@ -3268,8 +4107,13 @@ def _budget_text(budget: dict) -> str:
     if budget.get("other"):
         note = "全是强化卡，可以用光" if budget.get("high") else f"每页最多 1 次，留 {budget.get('reserve')} 次备用"
         return f"{one('reroll', '刷新')}，{one('exclude', '禁用')}；{note}"
-    note = ("确定强化页，可以用光 [もなみ]" if budget.get("high") else "还缺 せのびの魔法：刷新每页最多 2 次（第 5 天前留 1 次给确定强化页）；禁用每页 1 次、照常留预留（决策-11）" if budget.get("cap") == 2
-            else f"每页最多 1 次，预留 {budget.get('reserve')} 次给第 5 天确定强化 / 本战（次数随回忆带进本战 [wiki]）")
+    note = (
+        "确定强化页，可以用光 [もなみ]"
+        if budget.get("high")
+        else "还缺 せのびの魔法：刷新每页最多 2 次（第 5 天前留 1 次给确定强化页）；禁用每页 1 次、照常留预留（决策-11）"
+        if budget.get("cap") == 2
+        else f"每页最多 1 次，预留 {budget.get('reserve')} 次给第 5 天确定强化 / 本战（次数随回忆带进本战 [wiki]）"
+    )
     return f"{one('reroll', '刷新')}，{one('exclude', '禁用')}；{note}"
 
 
@@ -3281,7 +4125,11 @@ def _invalid_decision(page: str, d: Decision, n: int | None, kw: dict) -> str | 
             return f"输出了 {a.kind.value}，不是 EventSelect"
         if n is not None and not 0 <= int(a.args.get("select", -1)) < n:
             return f"选项 {a.args.get('select')} 越界（共 {n} 项）"
-    if page in ("SELECT_DRINK", "SELECT_CARD", "SELECT_PITEM") and a.kind is ActionKind.ACTIVATE_EFFECT and n is not None:
+    if (
+        page in ("SELECT_DRINK", "SELECT_CARD", "SELECT_PITEM")
+        and a.kind is ActionKind.ACTIVATE_EFFECT
+        and n is not None
+    ):
         i = (a.args.get("pick_indexes") or [-1])[0]
         if not 0 <= int(i) < n:
             return f"序号 {i} 越界（共 {n} 项）"
@@ -3362,14 +4210,16 @@ def _is_core_card(card_id: str | None, copies: int | None = None) -> bool:
     return bool(k.get("protect")) and copies is not None and copies < int(k.get("keep") or 1)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _makes_sleep(card_id: str | None) -> bool:
     """打出会往牌堆塞眠気（成長痛 / 気まぐれハート 之类）。"""
     from hiro.brain.cards import description_text
     from hiro.state.context import catalog
 
     try:
-        return "眠気" in description_text(catalog().card(card_id, 0)["produceDescriptions"]) and "生成" in description_text(catalog().card(card_id, 0)["produceDescriptions"])
+        return "眠気" in description_text(
+            catalog().card(card_id, 0)["produceDescriptions"]
+        ) and "生成" in description_text(catalog().card(card_id, 0)["produceDescriptions"])
     except Exception:
         return False
 
@@ -3393,7 +4243,12 @@ def _best_drink(raw: list[dict]) -> int | None:
             row = catalog().one("ProduceDrink", did)
         except Exception:
             row = {}
-        return (-_drink_rank(did), row.get("planType") in ("ProducePlanType_Plan2", "ProducePlanType_Common"), rarity.get(row.get("rarity"), 0), -i)
+        return (
+            -_drink_rank(did),
+            row.get("planType") in ("ProducePlanType_Plan2", "ProducePlanType_Common"),
+            rarity.get(row.get("rarity"), 0),
+            -i,
+        )
 
     scored = [(s, i) for i in range(len(raw)) if (s := score(i)) is not None]
     return max(scored)[1] if scored else None
@@ -3407,7 +4262,7 @@ SIGNATURE_BUFF = {"ProduceExamEffectType_ExamCardPlayAggressive": "やる気", "
                   "ProduceExamEffectType_ExamConcentration": "強気", "ProduceExamEffectType_ExamFullPower": "全力"}  # fmt: skip
 
 
-@lru_cache(maxsize=None)
+@cache
 def _signature_buff(idol_card_id: str | None) -> str | None:
     from hiro.state.context import catalog
 
@@ -3417,10 +4272,15 @@ def _signature_buff(idol_card_id: str | None) -> str | None:
         return None
 
 
-_IMPRESSION_MAIN = (r"好印象の\d+%分パラメータ上昇", r"好印象が\d+以上の場合、使用可", r"以降.*好印象\+", r"好印象増加量増加")
+_IMPRESSION_MAIN = (
+    r"好印象の\d+%分パラメータ上昇",
+    r"好印象が\d+以上の場合、使用可",
+    r"以降.*好印象\+",
+    r"好印象増加量増加",
+)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _impression_main(card_id: str) -> bool:
     """主要得分 / 使用条件挂在好印象上（协调 11-18）：「好印象のN%分パラメータ上昇」「好印象がN以上の場合、使用可」「以降…好印象+」
     「好印象増加量増加」。只消費好印象、主体是やる気 / 元気的（ゆめみごこち、あのときの約束）、顺带加好印象的（成長痛、止められない想い）不算。"""
@@ -3436,17 +4296,19 @@ def _impression_main(card_id: str) -> bool:
     return any(re.search(p, text) for p in _IMPRESSION_MAIN)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _card_rarity(card_id: str) -> int:
     from hiro.state.context import catalog
 
     try:
-        return {"ProduceCardRarity_R": 1, "ProduceCardRarity_Sr": 2, "ProduceCardRarity_Ssr": 3}.get(catalog().card(card_id, 0).get("rarity"), 0)
+        return {"ProduceCardRarity_R": 1, "ProduceCardRarity_Sr": 2, "ProduceCardRarity_Ssr": 3}.get(
+            catalog().card(card_id, 0).get("rarity"), 0
+        )
     except Exception:
         return 0
 
 
-@lru_cache(maxsize=None)
+@cache
 def _gives_buff(card_id: str, word: str) -> bool:
     """卡面写着「<buff>+N」（やる気+3 之类；未强化版的说明）。"""
     from hiro.brain.cards import description_text
@@ -3458,12 +4320,12 @@ def _gives_buff(card_id: str, word: str) -> bool:
         return False
 
 
-@lru_cache(maxsize=None)
+@cache
 def _impression_role(card_id: str) -> tuple[bool, bool]:
     """(好印象来源, 消耗好印象)：卡面「好印象+N」/ 费用类型 ExamCostType_ExamReview（私がスター、ゆめみごこち、手書きのメッセージ）。"""
     try:
-        from hiro.brain.cards import card_view
         from hiro import master
+        from hiro.brain.cards import card_view
 
         kaa = master.card(card_id)
         if kaa is None:
@@ -3486,8 +4348,8 @@ def is_pure_impression(card_id: str | None) -> bool:
     try:
         import re
 
-        from hiro.brain.cards import card_view
         from hiro import master
+        from hiro.brain.cards import card_view
 
         kaa = master.card(card_id)
         text = card_view(0, kaa, available=True).text if kaa else ""
@@ -3515,7 +4377,14 @@ def unwanted(card_id: str | None, copies: int = 0) -> str | None:
 # 一次性 = master 的「レッスン中1回」（playMovePositionType=Lost，knowledge.is_once）；再動 = master playEffects 里有
 # exam_playable_value_add（スキルカード使用数追加）/ exam_extra_turn（ターン追加）。都不看识别文字。
 # 只保留游戏规则本身造成的差别：授業セレクトチェンジ 不能选トラブル（眠気），删卡可以。
-CULL_TIERS = {0: "眠気等トラブル", 1: "非一次性、不带再動的牌", 2: "冲突牌 / 纯好印象系", 3: "初始卡 / 基础卡", 4: "其余（按价值）", 5: "核心牌的多余副本"}
+CULL_TIERS = {
+    0: "眠気等トラブル",
+    1: "非一次性、不带再動的牌",
+    2: "冲突牌 / 纯好印象系",
+    3: "初始卡 / 基础卡",
+    4: "其余（按价值）",
+    5: "核心牌的多余副本",
+}
 REDO_EFFECTS = ("e_effect-exam_playable_value_add", "e_effect-exam_extra_turn")
 
 
@@ -3641,7 +4510,10 @@ def choose_card_to_change(deck: list, incoming=None) -> str | None:
     deck：牌组卡格（识别 read_card_dialog 的 cards：[{index, card_id, upgrade}]）或 ProduceState.deck（DeckCard）；
     incoming：阶段 1 选的换入卡（card_id 或 {card_id, upgrade}），给出时换入不比换出强就不换。
     顺序同 cull_pool(op="change")（换 / 删同序，用户 2026-11-03）；传 ProduceState.deck 时张数按它确认，传对话框卡格时保护卡所有副本都不换。"""
-    cards = [c if isinstance(c, dict) else {"card_id": c.card_id, "upgrade": c.upgrade, "customized": c.customized} for c in deck or []]
+    cards = [
+        c if isinstance(c, dict) else {"card_id": c.card_id, "upgrade": c.upgrade, "customized": c.customized}
+        for c in deck or []
+    ]
     counts = None
     if deck and not isinstance(deck[0], dict):
         counts = {}
@@ -3679,7 +4551,9 @@ def _protected_slots(cards: list[dict], counts: dict | None = None) -> set[int]:
         want = (YARUKI_CARDS.get(cid) or {}).get("keep") or 1
         if cid in CORE_CARDS or (YARUKI_CARDS.get(cid) or {}).get("must") or "-ido-" in cid:
             keep.add(i)
-        elif counts is None or counts.get(cid) is None or counts[cid] < sum(1 for c in cards if c.get("card_id") == cid):
+        elif (
+            counts is None or counts.get(cid) is None or counts[cid] < sum(1 for c in cards if c.get("card_id") == cid)
+        ):
             keep.add(i)  # 张数没确认 / 对话框比记账多（拼接出错）：所有副本都留
         else:
             visible = sum(1 for c in cards if c.get("card_id") == cid)
@@ -3690,7 +4564,9 @@ def _protected_slots(cards: list[dict], counts: dict | None = None) -> set[int]:
     return keep
 
 
-def cull_pool(cards: list[dict], op: str, *, counts: dict | None = None, finals: bool = False, deck_size: int | None = None) -> list[dict]:
+def cull_pool(
+    cards: list[dict], op: str, *, counts: dict | None = None, finals: bool = False, deck_size: int | None = None
+) -> list[dict]:
     """能去掉的卡格，按换 / 删同一个顺序排好（第一个最该去掉）。op："change"（授業セレクトチェンジ 阶段 2）/ "delete"（相談削除、删卡事件）。
     - 两者共用：保护格（_protected_slots）、没认出的格不选；顺序 cull_key。
     - 游戏规则造成的差别：换卡不能选トラブル（眠気）。
@@ -3706,8 +4582,15 @@ def cull_pool(cards: list[dict], op: str, *, counts: dict | None = None, finals:
         pool = [c for c in pool if not _is_trouble_card(c["card_id"])]
     elif finals:
         big = deck_size is not None and deck_size > FINALS_DECK_TARGET
-        pool = [c for c in pool if lean_deletable(c["card_id"]) or (big and (c["card_id"] in FINALS_DELETE or c["card_id"] in CONFLICT_CARDS))]
-    return sorted(pool, key=lambda c: (*cull_key(c["card_id"], c.get("upgrade") or 0, finals=finals), c.get("index", 0)))
+        pool = [
+            c
+            for c in pool
+            if lean_deletable(c["card_id"])
+            or (big and (c["card_id"] in FINALS_DELETE or c["card_id"] in CONFLICT_CARDS))
+        ]
+    return sorted(
+        pool, key=lambda c: (*cull_key(c["card_id"], c.get("upgrade") or 0, finals=finals), c.get("index", 0))
+    )
 
 
 def lean_deletable(card_id: str | None) -> bool:
@@ -3720,7 +4603,6 @@ def _idol_section(idol_card_id: str | None, profile: IdolProfile | None, mode_id
     """初 / N.I.A 提示词里的「偶像」一节：按偶像卡的流派写（协调 11-19 多偶像）。广照原来的说法；别的偶像写拿手 buff 和冲突的 buff，
     社区依据只有流派优先表（いおん）和 g8-NIAM 的循环件，没有更细的就写「暂无」。"""
     from hiro.brain import flows
-
     from hiro.brain.idol_know import notes as guide_notes
 
     f = flows.flow(idol_card_id)
@@ -3728,14 +4610,25 @@ def _idol_section(idol_card_id: str | None, profile: IdolProfile | None, mode_id
     extra = guide_notes(mode_id, idol_card_id)
     tail = ("\n\n这张卡的攻略要点：\n" + "\n".join(extra)) if extra else ""
     if f in (None, "yaruki"):
-        return "## 偶像\n\n篠澤広（Campus mode!!）是ロジック的やる気流派：能上やる気的卡、用完就除外的卡对她有用；好印象系的卡和她的打法冲突。" + tail
+        return (
+            "## 偶像\n\n篠澤広（Campus mode!!）是ロジック的やる気流派：能上やる気的卡、用完就除外的卡对她有用；好印象系的卡和她的打法冲突。"
+            + tail
+        )
     buff = _signature_buff(idol_card_id)
     others = "、".join(flows.OTHER_BUFFS.get(buff or "", ())) or "暂无（这个流派的冲突卡没有社区说法）"
     loops = "、".join(_card_label({"card_id": c}) for c in flows.loop_parts(idol_card_id)) or "暂无"
-    name = profile.name if profile is not None and profile.idol_id == (idol_card_id or "").replace("i_card-skin-", "i_card-") else (idol_card_id or "未知")
-    return (f"## 偶像\n\n{name}：{flows.flow_name(idol_card_id)}，拿手 buff 是{buff or '未知'}。"
-            f"主打{buff}、加{buff}的卡和用完就除外的卡对她有用；主打{others}的卡和她的打法冲突。"
-            f"循环件 [g8-NIAM]：{loops}。" + ("" if extra else "更细的初 / N.I.A 卡表：暂无（社区篇只有回忆用的流派优先表）。") + tail)
+    name = (
+        profile.name
+        if profile is not None and profile.idol_id == (idol_card_id or "").replace("i_card-skin-", "i_card-")
+        else (idol_card_id or "未知")
+    )
+    return (
+        f"## 偶像\n\n{name}：{flows.flow_name(idol_card_id)}，拿手 buff 是{buff or '未知'}。"
+        f"主打{buff}、加{buff}的卡和用完就除外的卡对她有用；主打{others}的卡和她的打法冲突。"
+        f"循环件 [g8-NIAM]：{loops}。"
+        + ("" if extra else "更细的初 / N.I.A 卡表：暂无（社区篇只有回忆用的流派优先表）。")
+        + tail
+    )
 
 
 FLOW_CULL = {0: "トラブル", 1: "基本卡", 2: "冲突卡（主打同プラン另一种 buff）", 3: "可复用、不是这个流派循环件的卡"}
@@ -3769,7 +4662,9 @@ def _flow_delete_pool(cards: list[dict], idol_card_id: str | None, mode_id: str 
             return 1
         if flows.conflicts(cid, buff) or cid in drop:  # class:other_buff 就是 flows.conflicts，本来就删
             return 2
-        if "class:genki_cash" in drop and flows.buff_main(cid, "元気"):  # 靠元気出分的卡（元気のN%分パラメータ上昇），条目点名才删
+        if "class:genki_cash" in drop and flows.buff_main(
+            cid, "元気"
+        ):  # 靠元気出分的卡（元気のN%分パラメータ上昇），条目点名才删
             return 2
         if "class:off_plan" in drop and plan_of and _card_plan(cid) not in (None, "common", plan_of):
             return 2
@@ -3837,7 +4732,9 @@ def _upgrade_target(ps: ProduceState) -> tuple[int, str] | None:
 
     best = None
     for k, c in enumerate(ps.deck):
-        pri = _card_priority(c.card_id) + (10 * (len(UPGRADE_ORDER) - UPGRADE_ORDER.index(c.card_id)) if c.card_id in UPGRADE_ORDER else 0)
+        pri = _card_priority(c.card_id) + (
+            10 * (len(UPGRADE_ORDER) - UPGRADE_ORDER.index(c.card_id)) if c.card_id in UPGRADE_ORDER else 0
+        )
         if c.upgrade or pri <= 0:
             continue
         try:
@@ -3856,7 +4753,10 @@ def _shop_candidates(shelf: list[dict], services: dict, p: int, buy: ActionKind)
     out = []
     for it in shelf:
         if it.get("kind") == "card" and it.get("card_id"):
-            name, note = card_name(it["card_id"], it.get("upgrade") or 0), YARUKI_CARDS.get(it["card_id"], {}).get("note")
+            name, note = (
+                card_name(it["card_id"], it.get("upgrade") or 0),
+                YARUKI_CARDS.get(it["card_id"], {}).get("note"),
+            )
         elif it.get("kind") == "drink" and it.get("drink_id"):
             from hiro.state.knowledge import DRINK_CLASSES, drink_class
 
@@ -3866,10 +4766,19 @@ def _shop_candidates(shelf: list[dict], services: dict, p: int, buy: ActionKind)
             name, note = it.get("name") or "（未识别）", None
         preview = {"商品": name, "价格": it.get("price"), "买后P点": p - it["price"] if it.get("price") is not None else None,
                    "SALE": bool(it.get("sale")), "已购": bool(it.get("purchased")), "社区": note}  # fmt: skip
-        out.append(Candidate(Action(buy, {"index": it.get("index")}), preview={k: v for k, v in preview.items() if v is not None}))
+        out.append(
+            Candidate(
+                Action(buy, {"index": it.get("index")}), preview={k: v for k, v in preview.items() if v is not None}
+            )
+        )
     for name, svc in services.items():
         if svc:
-            out.append(Candidate(Action(buy, {"service": name}), preview={"服务": name, "价格": svc.get("price"), "可用": svc.get("available", True)}))
+            out.append(
+                Candidate(
+                    Action(buy, {"service": name}),
+                    preview={"服务": name, "价格": svc.get("price"), "可用": svc.get("available", True)},
+                )
+            )
     return out
 
 
@@ -3899,7 +4808,9 @@ def _customize_args(card: dict, opt: dict) -> dict:
     item_index：page_fields 给了 item_index 就用它；否则用它在本卡 customizations 列表里的位置（识别按画面顺序给出，
     master 推出时按 produceCardCustomizeIds 的顺序——假设与画面顺序一致，尚无实机截图核对）。"""
     opts = card.get("customizations") or []
-    index = opt.get("item_index", next((k for k, o in enumerate(opts) if o is opt or o.get("id") == opt.get("id")), None))
+    index = opt.get(
+        "item_index", next((k for k, o in enumerate(opts) if o is opt or o.get("id") == opt.get("id")), None)
+    )
     return {"card_index": card["index"], "card_id": card["card_id"], "customize_id": opt["id"], "item_index": index}
 
 
@@ -3937,7 +4848,9 @@ def _customize_cost(card_id: str, keys: list, levels: int) -> int | None:
         for key in keys:
             for cid in ids:
                 if key in _customize_text(cid) or key in cid:
-                    rows = sorted(catalog().by_id("ProduceCardCustomize", cid), key=lambda r: r.get("customizeCount") or 0)
+                    rows = sorted(
+                        catalog().by_id("ProduceCardCustomize", cid), key=lambda r: r.get("customizeCount") or 0
+                    )
                     if rows:
                         return sum(r["producePoint"] for r in rows[:levels])
     return None
@@ -3993,7 +4906,12 @@ def _rest_blocked(ps: ProduceState, rows: list[dict], i: int) -> str | None:
         return f"零收益：明天开考自动回复后不休息也是 {no_rest} 体力"
     template = template_option(ps.mode, ps.step, ps.stamina)
     spend = [o for o in others if o in ("shop", "special_guidance")]
-    if template in ("shop", "special_guidance") and spend and ps.produce_point >= SPEND_MIN_P and no_rest >= OUTING_HP_LINE:
+    if (
+        template in ("shop", "special_guidance")
+        and spend
+        and ps.produce_point >= SPEND_MIN_P
+        and no_rest >= OUTING_HP_LINE
+    ):
         return f"社区模板今天去{'相談' if 'shop' in spend else '特別指導'}，P {ps.produce_point} 不带进本战，不休息开考体力也有 {no_rest}"
     return None
 
@@ -4050,12 +4968,14 @@ def _r1_requirements(ps: ProduceState) -> dict:
     """本战 R1 的三项审查基准；没有考试要求数据（exam_requirements 插件）时抛 ExamRequirementsUnavailable。"""
     from hiro.state.context import catalog, hif_preview
 
-    cfg = hif_preview("produce-008", 7, ps.params, idol_card_id=ps.idol_card_id, catalog=catalog())["source"]["battle_config"]
+    cfg = hif_preview("produce-008", 7, ps.params, idol_card_id=ps.idol_card_id, catalog=catalog())["source"][
+        "battle_config"
+    ]
     return {"Vo": cfg["vocal"], "Da": cfg["dance"], "Vi": cfg["visual"]}
 
 
 def _empty_state(profile: IdolProfile | None) -> ProduceState:
     """识别还没给出完整局面时，三选一的预演只需要牌组为空的占位状态（ワッペン、拿后张数按未知处理）。"""
     return ProduceState(idol_card_id=profile.idol_id if profile else "i_card-shro-3-007", mode="produce-007", step=1, stamina=0,
-                        max_stamina=0, produce_point=0, params={a: 0 for a in ATTRS}, growth_permil={a: 1000 for a in ATTRS}, star=0,
+                        max_stamina=0, produce_point=0, params=dict.fromkeys(ATTRS, 0), growth_permil=dict.fromkeys(ATTRS, 1000), star=0,
                         wappen_left=0)  # fmt: skip

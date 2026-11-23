@@ -3,9 +3,9 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from hiro.produce.memory_select import memory_missing_on_page
+
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "pages"
 TRUE = ("1472", "2236", "1191")  # 画面上的 Vo / Da / Vi
@@ -26,9 +26,14 @@ def test_rapidocr_noise_one_value_one_digit_off_passes():
     assert _missing(TRUE, _rapid()) == []
 
 
-@pytest.mark.parametrize("expect", [("1472", "2236", "2181"),  # 这一项差 2 位
-                                    ("1500", "2236", "1191"),  # 两项对不上
-                                    ("1472", "2136", "1191")])  # 对上的那项其实差 1 位、另一项也差：不止一项缺
+@pytest.mark.parametrize(
+    "expect",
+    [
+        ("1472", "2236", "2181"),  # 这一项差 2 位
+        ("1500", "2236", "1191"),  # 两项对不上
+        ("1472", "2136", "1191"),
+    ],
+)  # 对上的那项其实差 1 位、另一项也差：不止一项缺
 def test_other_memory_still_rejected(expect):
     assert _missing(expect, _rapid()) != []
 
@@ -41,10 +46,10 @@ def test_one_digit_off_does_not_join_tokens():
 
 
 def test_finals_start_page_recognized_on_dmm_frame():
-    import cv2
-
     from hiro.runtime import opening
     from hiro.runtime.frame import Frame
+
+    import cv2
 
     p = FIX / "finals-start-dmm-540.png"
     if not p.exists():

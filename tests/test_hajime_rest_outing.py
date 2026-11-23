@@ -4,10 +4,10 @@
 from pathlib import Path
 from types import SimpleNamespace as NS
 
+from hiro.contracts import Action, Decision
+
 import cv2
 import pytest
-
-from hiro.contracts import Action, Decision
 
 FIXP = Path(__file__).with_name("fixtures") / "pages"
 
@@ -38,16 +38,18 @@ def _check(rt):
 def test_rest_confirm_after_rest_decision_taps_rest():
     rt = _rest_rt(("ACTION_SELECT", Decision(Action.produce_next("rest"), "休息", "rule", 0.8)))
     assert "休む" in _check(rt)
-    (x, y), = rt.raw_device.taps
+    ((x, y),) = rt.raw_device.taps
     assert abs(x - 497) < 30 and abs(y - 1159) < 20
 
 
-@pytest.mark.parametrize("last", [None, ("ACTION_SELECT", Decision(Action.produce_next("training", attr="Da"), "课程", "rule", 0.8))])
+@pytest.mark.parametrize(
+    "last", [None, ("ACTION_SELECT", Decision(Action.produce_next("training", attr="Da"), "课程", "rule", 0.8))]
+)
 def test_rest_confirm_without_rest_decision_cancels(last):
     """续跑后不知道刚才选了什么、或者选的不是休息：点キャンセル回选行动页重新决策。"""
     rt = _rest_rt(last)
     assert "キャンセル" in _check(rt)
-    (x, y), = rt.raw_device.taps
+    ((x, y),) = rt.raw_device.taps
     assert x < 300 and abs(y - 1160) < 20
 
 
@@ -92,8 +94,16 @@ def test_outing_decider_picks_affordable():
     from hiro.brain.state import profile_for
     from hiro.contracts import GameState
 
-    prod = {"mode": "produce-001", "stamina": 20, "max_stamina": 30, "produce_point": 30, "params": {"Vo": 195, "Da": 250, "Vi": 159}}
-    d = ProduceDeciders(profile_for("i_card-shro-3-007"), None).outing(GameState(produce=prod, page_fields={"choices": _outing_fields()["choices"]}))
+    prod = {
+        "mode": "produce-001",
+        "stamina": 20,
+        "max_stamina": 30,
+        "produce_point": 30,
+        "params": {"Vo": 195, "Da": 250, "Vi": 159},
+    }
+    d = ProduceDeciders(profile_for("i_card-shro-3-007"), None).outing(
+        GameState(produce=prod, page_fields={"choices": _outing_fields()["choices"]})
+    )
     assert d.action.args["select"] == 2
 
 
@@ -107,7 +117,12 @@ def test_event_commit_uses_choice_centers_when_buttons_missing(monkeypatch):
     core = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
     choices = [{"index": i, "text": t, "center": [360, y], "disabled": i < 2}
                for i, (t, y) in enumerate((("1パーセント", 698), ("50パーセント", 799), ("100パーセント", 901)))]  # fmt: skip
-    core.s = NS(observe=lambda **k: "obs", state=NS(page_fields={"choices": choices}), record=lambda obs, **k: None, note=lambda m: None)
+    core.s = NS(
+        observe=lambda **k: "obs",
+        state=NS(page_fields={"choices": choices}),
+        record=lambda obs, **k: None,
+        note=lambda m: None,
+    )
     core.deciders = NS(decide=lambda page, st, **k: Decision(Action.event_select(2), "买得起的", "rule", 0.8))
     core._note_fallback = lambda page, d: None
     core._act = lambda fn, action, **k: fn()

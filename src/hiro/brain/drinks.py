@@ -78,7 +78,9 @@ def describe(drinks: list, stage: str) -> str:
 
     parts = []
     for d, (t, _, k) in zip(drinks, tag(drinks, stage)):
-        parts.append(f"{drink_name(d)}〔{DRINK_CLASSES[k]['label']}·{'优先' if t == 0 else ('超限' if t == 4 and k in DRAW_CLASSES else f'{t:g}档')}〕")
+        parts.append(
+            f"{drink_name(d)}〔{DRINK_CLASSES[k]['label']}·{'优先' if t == 0 else ('超限' if t == 4 and k in DRAW_CLASSES else f'{t:g}档')}〕"
+        )
     return "、".join(parts) or "空"
 
 
@@ -94,8 +96,16 @@ class Option:
     extra: dict = field(default_factory=dict)
 
 
-def choose(options: list[Option], stage: str, capacity: int, *, sim_context: dict | None = None, seeds=range(100), where: str = "",
-           take_on_tie: bool = False) -> dict:
+def choose(
+    options: list[Option],
+    stage: str,
+    capacity: int,
+    *,
+    sim_context: dict | None = None,
+    seeds=range(100),
+    where: str = "",
+    take_on_tie: bool = False,
+) -> dict:
     """规则默认 + 模拟。返回 {pick: Option, rule: Option, rows: [...], why: str, sim: bool, deviation: dict | None, unsure: str | None}。
     sim_context：{deck, hp, max_hp, permil, exam}（hiro.sim.resource.setup_for 的参数）；None 或 SIM=False 时只按规则。
     unsure：规则 / 模拟拿不准的原因（决策点补全：交 LLM 在候选里选）——没有模拟时同档打平、模拟失败、模拟偏向别的候选但在噪声内
@@ -108,9 +118,24 @@ def choose(options: list[Option], stage: str, capacity: int, *, sim_context: dic
         keyed.sort(key=lambda x: (x[0], x[2].key not in NOOP, x[1]))  # 组合打平时不动（不收 / 不拿 / 不买）
     best_key, _, rule = keyed[0]
     tiers_txt = lambda k: "/".join(f"{t:g}" for t in tiers_of(k))  # noqa: E731
-    rows = [{"key": o.key, "label": o.label, "tiers": tiers_txt(k), "rule_rank": n + 1, "cost": o.cost} for n, (k, _, o) in enumerate(keyed)]
-    out = {"pick": rule, "rule": rule, "rows": rows, "sim": False, "deviation": None, "unsure": None, "why": f"社区默认：{rule.label}（档位 {tiers_txt(best_key)}）"}
-    if take_on_tie and rule.key not in NOOP and any(o.key in NOOP and tiers_of(k) == tiers_of(best_key) for k, _, o in keyed):
+    rows = [
+        {"key": o.key, "label": o.label, "tiers": tiers_txt(k), "rule_rank": n + 1, "cost": o.cost}
+        for n, (k, _, o) in enumerate(keyed)
+    ]
+    out = {
+        "pick": rule,
+        "rule": rule,
+        "rows": rows,
+        "sim": False,
+        "deviation": None,
+        "unsure": None,
+        "why": f"社区默认：{rule.label}（档位 {tiers_txt(best_key)}）",
+    }
+    if (
+        take_on_tie
+        and rule.key not in NOOP
+        and any(o.key in NOOP and tiers_of(k) == tiers_of(best_key) for k, _, o in keyed)
+    ):
         # 和「不动」档位打平：直接收，不交模拟 / LLM 改回不收（模拟算不到「拿到饮料就得分」）
         out["why"] += "；档位和不收打平，默认收新饮料（拿到饮料就得分的卡 / P 道具）"
         return out
@@ -159,9 +184,13 @@ def choose(options: list[Option], stage: str, capacity: int, *, sim_context: dic
     cross = tiers_of(k) != tiers_of(best_key)
     if cross and notes:
         # 牌组 / 倍率用的是参考值（第十八局本战 22:20：「牌组没记账：用参考牌组」却跨档拿了 おしゃれハーブティー）：输入是假的，不允许跨档偏离
-        out["why"] += f"；模拟里 {o.label} 比它 {r['gain']:+,} ± {r['gain_se']:,}，但{('、'.join(notes))}，不跨档偏离{note}"
+        out["why"] += (
+            f"；模拟里 {o.label} 比它 {r['gain']:+,} ± {r['gain_se']:,}，但{('、'.join(notes))}，不跨档偏离{note}"
+        )
         if r["gain"] > 0:
-            out["unsure"] = f"模拟偏向 {o.label}（{r['gain']:+,} ± {r['gain_se']:,}），但{'、'.join(notes)}，输入是参考值"
+            out["unsure"] = (
+                f"模拟偏向 {o.label}（{r['gain']:+,} ± {r['gain_se']:,}），但{'、'.join(notes)}，输入是参考值"
+            )
         return out
     if r["gain"] > OVERRIDE_SE * max(r["gain_se"], 1):
         out["pick"] = o
@@ -172,7 +201,9 @@ def choose(options: list[Option], stage: str, capacity: int, *, sim_context: dic
                       f"（> {OVERRIDE_SE:g} 个标准误）{note}")  # fmt: skip
         log_deviation(out["deviation"])
     else:
-        out["why"] += f"；模拟里最好的其他候选 {o.label} 比它 {r['gain']:+,} ± {r['gain_se']:,}，不到 {OVERRIDE_SE:g} 个标准误，不改{note}"
+        out["why"] += (
+            f"；模拟里最好的其他候选 {o.label} 比它 {r['gain']:+,} ± {r['gain_se']:,}，不到 {OVERRIDE_SE:g} 个标准误，不改{note}"
+        )
         if r["gain"] > 0:
             out["unsure"] = f"模拟里 {o.label} 比社区默认 {r['gain']:+,} ± {r['gain_se']:,}，在噪声内"
     return out
@@ -224,6 +255,6 @@ def best_incoming(cands: list[dict], held: list | None, stage: str, capacity: in
         if not hold:
             t, o, _ = tag([c["drink_id"]], stage)[0]
             return ((t, o),)
-        return min(holding_key(hold[:j] + [c["drink_id"]] + hold[j + 1:], stage, capacity) for j in range(len(hold)))
+        return min(holding_key(hold[:j] + [c["drink_id"]] + hold[j + 1 :], stage, capacity) for j in range(len(hold)))
 
     return min(known, key=best_key)

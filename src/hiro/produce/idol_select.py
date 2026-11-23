@@ -30,7 +30,7 @@ MATCH_THRESHOLD = 12  # 实测命中距离 2–8，误匹配 ≥ 10
 
 def find_on_page(img, skin_id: str) -> Box | None:
     """这一屏里 skin_id 那张卡的位置（整帧坐标）；没有 None。"""
-    x0, y0, w, h = box("Produce.BoxIdolOverviewIdols").xywh
+    _x0, y0, _w, h = box("Produce.BoxIdolOverviewIdols").xywh
     bottom = y0 + h
     for x in COLS:
         for y in range(y0 - 8, bottom - MIN_H, ROW_STEP):

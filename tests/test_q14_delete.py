@@ -3,14 +3,14 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.brain.deciders import ProduceDeciders, deletable
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import GameState
 from hiro.vision.offline import load
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "q14_delete"
 EIEI = "p_card-02-men-1_031"
@@ -34,7 +34,9 @@ def decks():
 
 def _choose(cards):
     grid = [dict(c, index=i) for i, c in enumerate(cards)]
-    d = ProduceDeciders(CAMPUS_HIRO, None).decide("SKILL_CARD_REMOVAL", GameState(page_fields={"cards": grid}, produce={"mode": "produce-007"}))
+    d = ProduceDeciders(CAMPUS_HIRO, None).decide(
+        "SKILL_CARD_REMOVAL", GameState(page_fields={"cards": grid}, produce={"mode": "produce-007"})
+    )
     return d.action.args.get("card_id"), d
 
 

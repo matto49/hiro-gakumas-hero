@@ -21,13 +21,25 @@ from hiro.contracts import GameState, Observation
 from hiro.loop.reduce import reduce
 from hiro.state.invariants import check_invariants, filter_observation
 
-DECK_DECIDERS = {"pick", "select_card", "study", "outing", "consult", "removal", "change", "interval", "skill_card_change"}
+DECK_DECIDERS = {
+    "pick",
+    "select_card",
+    "study",
+    "outing",
+    "consult",
+    "removal",
+    "change",
+    "interval",
+    "skill_card_change",
+}
 
 
 def segments(first: Path) -> list[Path]:
     """<run> 与 <run>-rN，按 N 排序。"""
     base = re.sub(r"-r\d+$", "", first.name)
-    segs = [p for p in first.parent.glob(base + "*") if p.name == base or re.fullmatch(re.escape(base) + r"-r\d+", p.name)]
+    segs = [
+        p for p in first.parent.glob(base + "*") if p.name == base or re.fullmatch(re.escape(base) + r"-r\d+", p.name)
+    ]
     return sorted(segs, key=lambda p: int(p.name.rsplit("-r", 1)[1]) if p.name != base else 1)
 
 
@@ -35,7 +47,7 @@ def replay(first: Path) -> dict:
     state = GameState()
     checks, decisions, deck_actions = [], [], []
     for seg in segments(first):
-        for line in open(seg / "steps.jsonl", encoding="utf-8"):
+        for line in open(seg / "steps.jsonl", encoding="utf-8"):  # noqa: SIM115
             step = json.loads(line)
             raws = step.get("observations_before", []) + [step["observation"]] + step.get("observations_after", [])
             for raw in raws:
@@ -65,14 +77,21 @@ def report(res: dict) -> str:
     lines.append("规则命中：" + ("、".join(f"{k} ×{v}" for k, v in sorted(by.items())) or "无"))
     for c in res["checks"]:
         if c["verdict"] == "read_error":
-            lines.append(f"- read_error {c['segment']} seq {c['seq']} {c['field']}：读数 {c['observed']}，期望 {c['predicted']}（{c['rule']}）")
+            lines.append(
+                f"- read_error {c['segment']} seq {c['seq']} {c['field']}：读数 {c['observed']}，期望 {c['predicted']}（{c['rule']}）"
+            )
     gaps = [c for c in res["checks"] if c["verdict"] == "model_gap"]
     if gaps:
-        lines.append(f"model_gap {len(gaps)} 条：" + "；".join(f"{c['segment']} seq {c['seq']} {c['field']} {c.get('note') or ''}" for c in gaps[:8]))
+        lines.append(
+            f"model_gap {len(gaps)} 条："
+            + "；".join(f"{c['segment']} seq {c['seq']} {c['field']} {c.get('note') or ''}" for c in gaps[:8])
+        )
     dec = res["decisions"]
     lines.append(f"决策点 {len(dec)} 个，牌组已知 {sum(d['deck_known'] for d in dec)} 个")
-    lines.append(f"改变牌组 / P 点的决策 {len(res['deck_actions'])} 个：" + "、".join(
-        f"{k} ×{v}" for k, v in Counter(a["decider"] or a["action"] for a in res["deck_actions"]).items()))
+    lines.append(
+        f"改变牌组 / P 点的决策 {len(res['deck_actions'])} 个："
+        + "、".join(f"{k} ×{v}" for k, v in Counter(a["decider"] or a["action"] for a in res["deck_actions"]).items())
+    )
     return "\n".join(lines)
 
 

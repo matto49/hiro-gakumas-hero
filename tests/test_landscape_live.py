@@ -1,15 +1,15 @@
 """新主循环接 PlayCover 横屏 LIVE 黑屏（协调 11-16，p13：LIVE 黑屏 181 秒 LOADING 停机）：
 LandscapeGuard 挂在 Runtime 上、in_live 期间看门狗不停；全屏截到 16:10 时居中裁成 16:9。"""
 
-import numpy as np
-import pytest
-
 from hiro.devices.base import DeviceUnavailable, LogicalScreen, check_aspect, crop_box
 from hiro.loop import landscape
 from hiro.loop.errors import ResumeBlocked
 from hiro.runtime import loop
 from hiro.runtime.loop import STAY, Runtime
-from hiro.vision.classify import UNKNOWN, PageHit
+from hiro.vision.classify import UNKNOWN, PageHit  # noqa: F401
+
+import numpy as np
+import pytest
 
 
 def test_fullscreen_16_10_is_cropped_to_16_9():
@@ -99,8 +99,16 @@ def test_guard_enters_then_exits_fullscreen(monkeypatch):
     monkeypatch.setattr(landscape.time, "monotonic", lambda: t["now"])
     calls = []
     g = landscape.LandscapeGuard(active=True)
-    monkeypatch.setattr(g, "_enter", lambda: calls.append("enter") or g.__dict__.update(fullscreen=True, entered_at=t["now"], black_since=None) or True)
-    monkeypatch.setattr(g, "_exit", lambda: calls.append("exit") or g.__dict__.update(fullscreen=False, black_since=None) or True)
+    monkeypatch.setattr(
+        g,
+        "_enter",
+        lambda: (
+            calls.append("enter") or g.__dict__.update(fullscreen=True, entered_at=t["now"], black_since=None) or True
+        ),
+    )
+    monkeypatch.setattr(
+        g, "_exit", lambda: calls.append("exit") or g.__dict__.update(fullscreen=False, black_since=None) or True
+    )
     black = np.zeros((1280, 720, 3), np.uint8)
     for _ in range(25):
         g.tick(black)

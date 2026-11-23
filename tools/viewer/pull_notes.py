@@ -24,7 +24,16 @@ def main() -> None:
     ap.add_argument("--out", default=str(OUT))
     out = Path(ap.parse_args().out)
     # 走 ssh 读服务器文件（不经过本机代理），同一 id 以最后一条为准
-    raw = subprocess.run(["ssh", os.environ["HIRO_VIEW_HOST"], "cat " + os.environ.get("HIRO_NOTES_FILE", "/var/lib/hiro-notes/notes.jsonl")], capture_output=True, text=True, check=True).stdout
+    raw = subprocess.run(
+        [
+            "ssh",
+            os.environ["HIRO_VIEW_HOST"],
+            "cat " + os.environ.get("HIRO_NOTES_FILE", "/var/lib/hiro-notes/notes.jsonl"),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
     notes: dict[str, dict] = {}
     for line in raw.splitlines():
         try:
@@ -32,7 +41,10 @@ def main() -> None:
         except ValueError:
             continue
         notes[n["id"]] = n
-    live = sorted((n for n in notes.values() if not n.get("deleted")), key=lambda n: (n.get("run", ""), n.get("exam", ""), n.get("seq", 0)))
+    live = sorted(
+        (n for n in notes.values() if not n.get("deleted")),
+        key=lambda n: (n.get("run", ""), n.get("exam", ""), n.get("seq", 0)),
+    )
     out.mkdir(parents=True, exist_ok=True)
     (out / "notes.jsonl").write_text("".join(json.dumps(n, ensure_ascii=False) + "\n" for n in live), encoding="utf-8")
     by_run = defaultdict(list)
@@ -43,7 +55,11 @@ def main() -> None:
         for n in ns:
             where = f"{EXAM.get(n.get('exam'), n.get('exam'))}{'（第' + str(n['attempt']) + '次）' if (n.get('attempt') or 1) > 1 else ''} · 剩{n.get('rem')}（{n.get('attr')}×{n.get('mult')}）· 段{n.get('seg')} #{n.get('seq')}"
             lines.append(f"- {where} · 当时：{n.get('action')}（{n.get('source')}）")
-            lines.append(f"  判定：{n.get('verdict') or '—'}" + (f"；应该：{n['should']}" if n.get("should") else "") + (f"；类型：{'、'.join(n['tags'])}" if n.get("tags") else ""))
+            lines.append(
+                f"  判定：{n.get('verdict') or '—'}"
+                + (f"；应该：{n['should']}" if n.get("should") else "")
+                + (f"；类型：{'、'.join(n['tags'])}" if n.get("tags") else "")
+            )
             if n.get("text"):
                 lines.append("  " + n["text"].replace("\n", "\n  "))
         (out / f"{run}.md").write_text("\n".join(lines) + "\n", encoding="utf-8")

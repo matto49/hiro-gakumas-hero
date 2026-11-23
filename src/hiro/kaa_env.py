@@ -38,7 +38,12 @@ SOLUTION_NAME = os.environ.get("HIRO_KAA_SOLUTION") or "hiro-gakumas"
 AUTO = "auto"
 
 # HIRO_DEVICE → (KAA lifecycle.type, 缺省截图方式)；截图方式的可选值以 kaa.config.validation 为准
-_KAA_DEVICE = {"adb": ("custom", "adb"), "mumu": ("mumu12v5", None), "leidian": ("leidian", "adb"), "dmm": ("dmm", "windows_background")}
+_KAA_DEVICE = {
+    "adb": ("custom", "adb"),
+    "mumu": ("mumu12v5", None),
+    "leidian": ("leidian", "adb"),
+    "dmm": ("dmm", "windows_background"),
+}
 
 
 def kaa_backend_from_env():
@@ -54,7 +59,13 @@ def kaa_backend(device: str, *, adb: str | None = None, screenshot: str | None =
     """按 HIRO_DEVICE 等构造 KAA 的 BackendConfig；PlayCover 路线（auto / maatools）返回 None，不动 KAA 默认值。
     platform 现在只保留给调用方 / 测试（各平台缺省一致）。"""
     from kaa.config.base_config import (
-        AutoConnection, BackendConfig, CustomDevice, DmmDevice, LeidianDevice, MuMu12V5Device, TcpConnection,
+        AutoConnection,
+        BackendConfig,
+        CustomDevice,
+        DmmDevice,
+        LeidianDevice,
+        MuMu12V5Device,
+        TcpConnection,
     )  # fmt: skip
 
     if device not in _KAA_DEVICE:
@@ -66,7 +77,9 @@ def kaa_backend(device: str, *, adb: str | None = None, screenshot: str | None =
     lifecycle = {
         "custom": lambda: CustomDevice(type="custom"),
         # KAA 不设实例 ID 会报错，单开就是 0；后台模式按游戏包名截它所在的显示（MuMu 6 把应用放在单独的显示里）
-        "mumu12v5": lambda: MuMu12V5Device(type="mumu12v5", instance_id=instance or "0", mumu_background_mode=mumu_background),
+        "mumu12v5": lambda: MuMu12V5Device(
+            type="mumu12v5", instance_id=instance or "0", mumu_background_mode=mumu_background
+        ),
         "leidian": lambda: LeidianDevice(type="leidian", instance_id=instance),
         "dmm": lambda: DmmDevice(type="dmm"),
     }[kind]()

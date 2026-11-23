@@ -4,13 +4,13 @@ import os
 import subprocess
 import sys
 
-import numpy as np
-import pytest
-
 from hiro.loop.errors import ResumeBlocked
-from hiro.runtime import Frame, Runtime, UNKNOWN, nav, opening
+from hiro.runtime import UNKNOWN, Frame, Runtime, nav, opening
 from hiro.vision.ocr import Box, Text
 from hiro.vision.ui_templates import Match
+
+import numpy as np
+import pytest
 
 
 class FakeDevice:
@@ -37,7 +37,9 @@ def frame(seen: dict, texts=()):
 def rig(monkeypatch, frames, on_tap=None):
     """Runtime：截图依次给 frames（用完重复最后一帧）；on_tap(taps) 返回下一批帧时替换队列（模拟点完换页）。"""
     t = {"now": 0.0}
-    rt = Runtime(FakeDevice(), lambda img: UNKNOWN, clock=lambda: t["now"], sleep=lambda s: t.__setitem__("now", t["now"] + s))
+    rt = Runtime(
+        FakeDevice(), lambda img: UNKNOWN, clock=lambda: t["now"], sleep=lambda s: t.__setitem__("now", t["now"] + s)
+    )
     queue = list(frames)
 
     def shot():
@@ -88,7 +90,10 @@ def test_enter_produce_new_and_resume_guard(monkeypatch):
 
 
 def test_enter_produce_discard_dialog_only_cancels(monkeypatch):
-    dlg = frame({"Produce.BreakProduceDialog.Title": (360, 500)}, [Text("キャンセル", Box(180, 1150, 260, 1170)), Text("開始する", Box(460, 1150, 560, 1170))])
+    dlg = frame(
+        {"Produce.BreakProduceDialog.Title": (360, 500)},
+        [Text("キャンセル", Box(180, 1150, 260, 1170)), Text("開始する", Box(460, 1150, 560, 1170))],
+    )
     rt, _ = rig(monkeypatch, [frame(HOME)], on_tap=lambda taps: [dlg] if len(taps) == 1 else None)
     with pytest.raises(ResumeBlocked, match="破棄"):
         opening.enter_produce(rt, new=True)
@@ -119,7 +124,9 @@ def test_select_scenario_retaps_when_page_did_not_change(monkeypatch):
     """点了画面一直没换（点击没生效）：FLIP_WAIT_S 后再点一次。"""
     nxt = tuple(opening.point("Produce.PointNext"))
     hajime = frame({"Produce.LogoHajime": (1, 1)})
-    rt, _ = rig(monkeypatch, [hajime], on_tap=lambda taps: [hajime] if len(taps) == 1 else [frame({"Produce.LogoNia": (1, 1)})])
+    rt, _ = rig(
+        monkeypatch, [hajime], on_tap=lambda taps: [hajime] if len(taps) == 1 else [frame({"Produce.LogoNia": (1, 1)})]
+    )
     opening.select_scenario(rt, "Produce.LogoNia")
     assert rt.raw_device.taps == [nxt, nxt]
 
@@ -134,7 +141,11 @@ def test_choose_mode_refills_ap_once(monkeypatch):
 
     monkeypatch.setattr("hiro.loop.ap_refill.refill", refill)
     btn = {"Produce.ButtonHifQualify": (360, 900)}
-    seq = [frame({"Produce.TextAPInsufficient": (360, 600)}), frame(btn), frame({"Produce.TextStepIndicator1": (100, 100)})]
+    seq = [
+        frame({"Produce.TextAPInsufficient": (360, 600)}),
+        frame(btn),
+        frame({"Produce.TextStepIndicator1": (100, 100)}),
+    ]
     rt, _ = rig(monkeypatch, [frame(btn)], on_tap=lambda taps: [seq[len(taps) - 1]] if len(taps) <= len(seq) else None)
     opening.choose_mode(rt, "qualify")
     assert calls == [20]  # 只打选拔：本战还要 20 AP 一起补
@@ -145,7 +156,11 @@ def test_choose_mode_refills_ap_once(monkeypatch):
 
 
 def test_start_presses_start_then_skip_commu(monkeypatch):
-    seq = [frame({"Produce.RadioTextSkipCommu": (200, 700)}), frame({"Common.ButtonConfirmNoIcon": (500, 1100)}), frame({})]
+    seq = [
+        frame({"Produce.RadioTextSkipCommu": (200, 700)}),
+        frame({"Common.ButtonConfirmNoIcon": (500, 1100)}),
+        frame({}),
+    ]
     rt, _ = rig(monkeypatch, [frame({"Produce.Step4.ButtonProduceStart": (500, 1150)})],
                 on_tap=lambda taps: [seq[min(len(taps) - 1, 2)]])  # fmt: skip
     opening.start(rt)
@@ -153,9 +168,13 @@ def test_start_presses_start_then_skip_commu(monkeypatch):
 
 
 def test_opening_imports_no_kaa():
-    code = "import sys, hiro.runtime.opening; print([m for m in sys.modules if m.split('.')[0] in ('kaa', 'kotonebot')])"
+    code = (
+        "import sys, hiro.runtime.opening; print([m for m in sys.modules if m.split('.')[0] in ('kaa', 'kotonebot')])"
+    )
     env = {k: v for k, v in os.environ.items() if k != "HIRO_KAA_GAME_DATA"}
-    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, env=env).stdout.strip()
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True, env=env
+    ).stdout.strip()
     assert out == "[]"
 
 
@@ -178,7 +197,13 @@ def test_step1_already_selected_just_next(monkeypatch):
 def test_step1_selects_from_overview_then_next(monkeypatch):
     _step1(monkeypatch, None)
     s1 = frame({"Produce.TextStepIndicator1": (1, 1), "Produce.ButtonPIdolOverview": (600, 400)})
-    another = frame({"Common.ButtonConfirmNoIcon": (500, 1160), "Produce.TextAnotherIdolAvailableDialog": (360, 500), "Common.ButtonIconClose": (650, 300)})
+    another = frame(
+        {
+            "Common.ButtonConfirmNoIcon": (500, 1160),
+            "Produce.TextAnotherIdolAvailableDialog": (360, 500),
+            "Common.ButtonIconClose": (650, 300),
+        }
+    )
     overview = frame({"Produce.IdolOverview.ButtonConfirm": (500, 1160), "Common.ButtonConfirmNoIcon": (500, 1160)})
     back = frame({"Produce.TextStepIndicator1": (1, 1), "Produce.Step1.ButtonNext": (500, 1160)})
     back.selected = True
@@ -186,7 +211,13 @@ def test_step1_selects_from_overview_then_next(monkeypatch):
     script = {1: [another], 2: [overview], 3: [overview], 4: [back], 5: [s2]}  # 第几次点击之后的画面
     rt, _ = rig(monkeypatch, [s1], on_tap=lambda taps: script.get(len(taps)))
     opening.step1(rt, "i_card-skin-hski-3-007")
-    assert rt.raw_device.taps == [(600, 400), (650, 300), (274, 698), (500, 1160), (500, 1160)]  # 一览、关提示、点卡、确认、次へ
+    assert rt.raw_device.taps == [
+        (600, 400),
+        (650, 300),
+        (274, 698),
+        (500, 1160),
+        (500, 1160),
+    ]  # 一览、关提示、点卡、确认、次へ
 
 
 def test_step1_idol_missing_stops(monkeypatch):
@@ -219,12 +250,16 @@ def _step2(monkeypatch, *, enabled_after_pick=True, picked=True, mismatch=False)
         return picked
 
     monkeypatch.setattr(formation_steps, "rental_pick", pick)
-    monkeypatch.setattr(opening, "_next_enabled", lambda f, name: Match(Box(500, 1150, 501, 1151), 0.9) if state["enabled"] or getattr(f, "lit", False) else None)
+    monkeypatch.setattr(
+        opening,
+        "_next_enabled",
+        lambda f, name: Match(Box(500, 1150, 501, 1151), 0.9) if state["enabled"] or getattr(f, "lit", False) else None,
+    )
     return calls, state
 
 
 def test_step2_full_formation_goes_next(monkeypatch):
-    calls, state = _step2(monkeypatch)
+    calls, _state = _step2(monkeypatch)
     s2 = frame({"Produce.TextStepIndicator2": (1, 1)})
     s2.lit = True
     rt, _ = rig(monkeypatch, [s2], on_tap=lambda taps: [frame({"Produce.TextStepIndicator3": (1, 1)})])
@@ -233,8 +268,12 @@ def test_step2_full_formation_goes_next(monkeypatch):
 
 
 def test_step2_rents_when_slot_empty(monkeypatch):
-    calls, state = _step2(monkeypatch)
-    rt, _ = rig(monkeypatch, [frame({"Produce.TextStepIndicator2": (1, 1)})], on_tap=lambda taps: [frame({"Produce.TextStepIndicator3": (1, 1)})])
+    calls, _state = _step2(monkeypatch)
+    rt, _ = rig(
+        monkeypatch,
+        [frame({"Produce.TextStepIndicator2": (1, 1)})],
+        on_tap=lambda taps: [frame({"Produce.TextStepIndicator3": (1, 1)})],
+    )
     opening.step2(rt, set_no=4, rental_attr="Vi")
     assert calls["pick"] == ["Vi"] and rt.raw_device.taps == [(500, 1150)]
 
@@ -272,10 +311,20 @@ def test_step3_confirms_rent_tip_then_next(monkeypatch):
 def test_step4_sets_boost_checkboxes(monkeypatch):
     states = {"Produce.Step4.CheckboxNoteBoost": True, "Produce.Step4.CheckboxPtBoost": False}
     monkeypatch.setattr("hiro.vision.ui_templates.checkbox_checked", lambda img, m: states[m.name])
-    s4 = frame({"Produce.TextStepIndicator4Or2": (1, 1), "Produce.Step4.CheckboxNoteBoost": (100, 800), "Produce.Step4.CheckboxPtBoost": (100, 900)})
+    s4 = frame(
+        {
+            "Produce.TextStepIndicator4Or2": (1, 1),
+            "Produce.Step4.CheckboxNoteBoost": (100, 800),
+            "Produce.Step4.CheckboxPtBoost": (100, 900),
+        }
+    )
     rt, _ = rig(monkeypatch, [s4])
     real_find = nav.find
-    monkeypatch.setattr(nav, "find", lambda f, name, **kw: (m := real_find(f, name, **kw)) and type("M", (), {"rect": m.rect, "name": name})())
+    monkeypatch.setattr(
+        nav,
+        "find",
+        lambda f, name, **kw: (m := real_find(f, name, **kw)) and type("M", (), {"rect": m.rect, "name": name})(),
+    )
     opening.step4(rt, note_boost=False, pt_boost=False)
     assert rt.raw_device.taps == [(100, 800)]  # 只把勾着的 NoteBoost 取消，PtBoost 本来就没勾
 
@@ -310,13 +359,16 @@ def test_prepare_main_skips_formation_steps(monkeypatch):
 
 def _memory_unset_rig(monkeypatch, chosen):
     from hiro.produce import formation_steps, prep_steps
-    from hiro.vision.ocr import Box as OBox, Text
+    from hiro.vision.ocr import Box as OBox
+    from hiro.vision.ocr import Text
 
     monkeypatch.setattr(prep_steps, "select_set", lambda n, **kw: True)
     monkeypatch.setattr(formation_steps, "check_memory_set", lambda img, plan, n, **kw: None)
     s3 = frame({"Produce.TextStepIndicator3": (1, 1), "Produce.Step3.ButtonNext": (500, 1160)})
     dlg = frame({}, [Text("キャンセル", OBox(162, 1144, 311, 1180)), Text("く完了する", OBox(394, 1144, 577, 1176))])
-    dlg.__dict__.update(has_dialog=True, dialog={"kind": "other", "title": "メモリー編成確認", "danger": False, "y": 937, "body": ""})
+    dlg.__dict__.update(
+        has_dialog=True, dialog={"kind": "other", "title": "メモリー編成確認", "danger": False, "y": 937, "body": ""}
+    )
     s4 = frame({"Produce.TextStepIndicator4Or2": (1, 1)})
     rt, _ = rig(monkeypatch, [s3], on_tap=lambda taps: [dlg] if len(taps) == 1 else [s4])
     plan = {"memory": {"chosen": [{"card_id": f"c{i}"} for i in range(chosen)]}}
@@ -338,7 +390,8 @@ def test_step3_memory_unset_cancel_and_stop_when_plan_wants_four(monkeypatch):
 
 
 def _texts(*items):
-    from hiro.vision.ocr import Box as OBox, Text
+    from hiro.vision.ocr import Box as OBox
+    from hiro.vision.ocr import Text
 
     return [Text(t, OBox(x - 40, y - 15, x + 40, y + 15)) for t, x, y in items]
 
@@ -349,7 +402,9 @@ def test_prepare_main_on_finals_start_checks_memory_then_presses_honsen(monkeypa
     called = []
     monkeypatch.setattr(opening, "check_main_memory", lambda rt, expect: called.append(("memory", expect)))
     monkeypatch.setattr(opening, "step4", lambda rt, **kw: called.append("step4"))
-    confirm = frame({"Produce.TextStepIndicator4Or2": (65, 49)}, _texts(("開始確認", 120, 40), ("H.I.F本戦へ", 470, 1160)))
+    confirm = frame(
+        {"Produce.TextStepIndicator4Or2": (65, 49)}, _texts(("開始確認", 120, 40), ("H.I.F本戦へ", 470, 1160))
+    )
     after = frame({})
     rt, _ = rig(monkeypatch, [confirm], on_tap=lambda taps: [after])
     assert opening.prepare(rt, "main", idol="i", expect_memory=("1", "2", "3")) is True
@@ -405,13 +460,20 @@ def test_finals_start_ocr_variants():
     assert not opening._finals_start(frame({}, _texts(("開始確認", 65, 48), ("本戦へ進む", 360, 400))))  # 正文里的不算
 
 
-@pytest.mark.parametrize("name, want", [("dmm/start-confirm-dmm1.png", True), ("start-confirm-q16.png", True),
-                                        ("finals/start-confirm-540.png", True), ("settings/start-confirm-m23.png", False)])
+@pytest.mark.parametrize(
+    "name, want",
+    [
+        ("dmm/start-confirm-dmm1.png", True),
+        ("start-confirm-q16.png", True),
+        ("finals/start-confirm-540.png", True),
+        ("settings/start-confirm-m23.png", False),
+    ],
+)
 def test_finals_start_on_real_frames(name, want):
     """实机开始确认页：本战（H.I.F本戦へ）认得出；选拔第 2 步的「プロデュース開始」不算。只用模板（不 OCR）。"""
-    import cv2
-
     from hiro.vision.offline import load
+
+    import cv2
 
     path = os.path.join(os.environ.get("HIRO_FIXTURES", os.path.join(os.path.dirname(__file__), "fixtures")), name)
     if not os.path.exists(path):
@@ -429,9 +491,14 @@ def test_new_produce_snaps_a_frame_per_tap(monkeypatch):
     rt.session.trace = type("T", (), {"next_seq": lambda self: len(saved) + 1,
                                       "save_frame": lambda self, seq, img: saved.append(seq) or f"frames/{seq:05d}.jpg"})()  # fmt: skip
     rt.session.note = notes.append
-    monkeypatch.setattr(opening, "_new_produce", lambda rt, mode, **kw: (rt.screen.shot(), rt.device.tap(10, 20), rt.device.tap(30, 40)))
+    monkeypatch.setattr(
+        opening, "_new_produce", lambda rt, mode, **kw: (rt.screen.shot(), rt.device.tap(10, 20), rt.device.tap(30, 40))
+    )
     opening.new_produce(rt, "main")
-    assert saved == [1, 2] and notes == ["开局点击 (10, 20)（帧 frames/00001.jpg）", "开局点击 (30, 40)（帧 frames/00002.jpg）"]
+    assert saved == [1, 2] and notes == [
+        "开局点击 (10, 20)（帧 frames/00001.jpg）",
+        "开局点击 (30, 40)（帧 frames/00002.jpg）",
+    ]
     rt.device.tap(50, 60)
     assert len(saved) == 2  # 开局之后不再存
 
@@ -450,8 +517,14 @@ def test_step1_next_is_not_tapped_twice_while_page_changes(monkeypatch):
     assert rt.raw_device.taps == [(353, 1093)] and called == ["memory", "step4"]
 
 
-@pytest.mark.parametrize("name, want", [("finals-start-confirm-2-p15main.jpg", True), ("finals-step1-p15main.jpg", False),
-                                        ("dmm/start-confirm-dmm1.png", True)])
+@pytest.mark.parametrize(
+    "name, want",
+    [
+        ("finals-start-confirm-2-p15main.jpg", True),
+        ("finals-step1-p15main.jpg", False),
+        ("dmm/start-confirm-dmm1.png", True),
+    ],
+)
 def test_on_start_confirm_real_frames(name, want):
     import cv2
 
@@ -463,7 +536,7 @@ def test_on_start_confirm_real_frames(name, want):
 
 
 def test_on_start_confirm_not_qualify_step4(monkeypatch):
-    rt, _ = rig(monkeypatch, [frame({})])
+    _rt, _ = rig(monkeypatch, [frame({})])
     q = frame({"Produce.TextStepIndicator4Or2": (123, 49)}, _texts(("4.開始確認", 111, 49)))
     assert opening.on_start_confirm(q) is False
 

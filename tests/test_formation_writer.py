@@ -2,11 +2,11 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 from hiro.produce import formation_writer as fw
 from hiro.produce.formation_writer import FormationWriteError, fix_plan
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "support"
 
@@ -22,7 +22,9 @@ def test_fix_plan_keeps_present_cards_and_prefers_wrong_slots():
         fix_plan(["a", "b"], ["c", "d", "e"])
 
 
-@pytest.mark.lowres_sample("支援卡列表样例 list-01 是 540x960 截图；自动编成默认关，DMM 支援卡列表待编成库存扫描取实机帧补进回归集")
+@pytest.mark.lowres_sample(
+    "支援卡列表样例 list-01 是 540x960 截图；自动编成默认关，DMM 支援卡列表待编成库存扫描取实机帧补进回归集"
+)
 def test_find_support_tile_on_real_list_frame():
     from hiro.vision.support_screens import read_support_list
 
@@ -31,7 +33,11 @@ def test_find_support_tile_on_real_list_frame():
     assert tile is not None and tile["center"] == [581, 648]
     assert fw.find_support_tile(r["cards"], "s_card-x") is None
     partial = read_support_list(cv2.imread(str(FIX / "list-03.png")))
-    assert all(fw.find_support_tile(partial["cards"], c["support_card_id"]) is None for c in partial["cards"] if c.get("partial"))
+    assert all(
+        fw.find_support_tile(partial["cards"], c["support_card_id"]) is None
+        for c in partial["cards"]
+        if c.get("partial")
+    )
 
 
 # ------------------------------------------------------------------ 支援卡：假设备状态机
@@ -88,12 +94,21 @@ class FakeGame:
     def read_formation(self, img):
         if img != "step2":
             return None
-        return {"view": "step2", "slots": [{"slot": i, "support_card_id": c, "center": SLOT_CENTERS[i], "name": c} for i, c in enumerate(self.slots)]}
+        return {
+            "view": "step2",
+            "slots": [
+                {"slot": i, "support_card_id": c, "center": SLOT_CENTERS[i], "name": c}
+                for i, c in enumerate(self.slots)
+            ],
+        }
 
     def read_list(self, img):
         if img != "list":
             return None
-        cards = [{"support_card_id": cid, "center": c, "partial": False, "selected": cid == self.selected} for cid, c in self._tiles()]
+        cards = [
+            {"support_card_id": cid, "center": c, "partial": False, "selected": cid == self.selected}
+            for cid, c in self._tiles()
+        ]
         return {"page": self.page + 1, "pages": len(self.pages), "controls": CONTROLS, "cards": cards}
 
     def device(self):
@@ -109,7 +124,9 @@ def _plan(ids):
 
 def test_fix_support_changes_only_wrong_slot_and_verifies():
     g = FakeGame(["a", "b", "x", "d", "e"], [[["p", "q", "r"], ["c", "s", "t"]], [["u"]]])
-    done = fw.fix_support(g.device(), _plan(["a", "b", "c", "d", "e"]), read_formation=g.read_formation, read_list=g.read_list)
+    done = fw.fix_support(
+        g.device(), _plan(["a", "b", "c", "d", "e"]), read_formation=g.read_formation, read_list=g.read_list
+    )
     assert done == [{"slot": 2, "from": "x", "to": "c"}] and g.slots == ["a", "b", "c", "d", "e"]
 
 
@@ -122,20 +139,29 @@ def test_fix_support_finds_card_on_second_page():
 def test_fix_support_missing_card_cancels_and_raises():
     g = FakeGame(["a", "b", "x", "d", "e"], [[["p", "q"], ["r", "s"]]])
     with pytest.raises(FormationWriteError, match="没找到"):
-        fw.fix_support(g.device(), _plan(["a", "b", "c", "d", "e"]), read_formation=g.read_formation, read_list=g.read_list)
+        fw.fix_support(
+            g.device(), _plan(["a", "b", "c", "d", "e"]), read_formation=g.read_formation, read_list=g.read_list
+        )
     assert g.view == "step2" and g.slots[2] == "x"  # 已经キャンセル回到第 2 步，编成没被改
 
 
 def test_fix_support_does_not_decide_when_tap_did_not_select():
     g = FakeGame(["a", "b", "x", "d", "e"], [[["c"]]], select_works=False)
     with pytest.raises(FormationWriteError, match="选中"):
-        fw.fix_support(g.device(), _plan(["a", "b", "c", "d", "e"]), read_formation=g.read_formation, read_list=g.read_list)
+        fw.fix_support(
+            g.device(), _plan(["a", "b", "c", "d", "e"]), read_formation=g.read_formation, read_list=g.read_list
+        )
     assert tuple(CONTROLS["decide"]) not in g.clicks and g.slots[2] == "x"
 
 
 def test_fix_support_noop_when_already_matching():
     g = FakeGame(["a", "b", "c", "d", "e"], [[["c"]]])
-    assert fw.fix_support(g.device(), _plan(["e", "d", "c", "b", "a"]), read_formation=g.read_formation, read_list=g.read_list) == []
+    assert (
+        fw.fix_support(
+            g.device(), _plan(["e", "d", "c", "b", "a"]), read_formation=g.read_formation, read_list=g.read_list
+        )
+        == []
+    )
     assert g.clicks == []
 
 
@@ -203,7 +229,11 @@ def test_fix_memory_picks_by_inventory_position(monkeypatch):
 
     mem = FakeMemory(["act-2_062", "men-3_012", "act-3_050", "men-1_035"])
     card_of = lambda r, c: "act-3_039" if (r, c) == (7, 1) else f"other{r}{c}"  # noqa: E731
-    monkeypatch.setattr(memory_picker, "iter_rows", lambda p: ((g, [{"row": g, "col": c, "center": (0, 0)} for c in range(3)]) for g in range(mem.rows)))  # 精确行号
+    monkeypatch.setattr(
+        memory_picker,
+        "iter_rows",
+        lambda p: ((g, [{"row": g, "col": c, "center": (0, 0)} for c in range(3)]) for g in range(mem.rows)),
+    )  # 精确行号
     monkeypatch.setattr(memory_picker, "picker_open", lambda boxes: True)
     monkeypatch.setattr(fw, "memory_key", lambda e: e["key_override"])
     plan = {"memory": {"chosen": [{"card_id": "p_card-02-act-2_062"}, {"card_id": "p_card-00-men-3_012"}, {"card_id": "p_card-02-act-3_050"},
@@ -226,10 +256,19 @@ def test_fix_memory_without_inventory_position_refuses():
 def test_inventory_position_only_for_memory_scan_entries():
     from hiro.brain.formation import _inventory_position
 
-    scan_entry = {"cell": [12, 2], "slot": 38, "stats": {"Vo": 10}, "card": {"card_id": "p_card-02-act-3_039"}, "timing": "start", "abilities": []}
+    scan_entry = {
+        "cell": [12, 2],
+        "slot": 38,
+        "stats": {"Vo": 10},
+        "card": {"card_id": "p_card-02-act-3_039"},
+        "timing": "start",
+        "abilities": [],
+    }
     pos = _inventory_position(scan_entry)
     assert pos["cell"] == [12, 2] and isinstance(pos["key"], str)
-    assert _inventory_position({"cell": [1, 2], "stats": [{"attr": "Vo"}]}) == {}  # tools.memory_inventory：屏内行号，不用
+    assert (
+        _inventory_position({"cell": [1, 2], "stats": [{"attr": "Vo"}]}) == {}
+    )  # tools.memory_inventory：屏内行号，不用
 
 
 def test_autofix_switch_default_off(monkeypatch):
@@ -258,7 +297,9 @@ def test_fix_support_waits_for_settled_slots():
             page["slots"] = [{**s, "support_card_id": c} for s, c in zip(page["slots"], nxt)]
         return page
 
-    done = fw.fix_support(g.device(), _plan(["a", "b", "c", "d", "e"]), read_formation=read_formation, read_list=g.read_list)
+    done = fw.fix_support(
+        g.device(), _plan(["a", "b", "c", "d", "e"]), read_formation=read_formation, read_list=g.read_list
+    )
     assert done == [] and g.slots == ["a", "b", "c", "d", "e"]
 
 
@@ -270,12 +311,19 @@ def test_fix_memory_matches_core_when_ability_text_differs(monkeypatch):
 
     mem = FakeMemory(["act-2_062", "men-3_012", "act-3_050", "men-1_035"])
     card_of = lambda r, c: "act-3_039" if (r, c) == (7, 1) else f"other{r}{c}"  # noqa: E731
-    monkeypatch.setattr(memory_picker, "iter_rows", lambda p: ((g, [{"row": g, "col": c, "center": (0, 0)} for c in range(3)]) for g in range(mem.rows)))  # 精确行号
+    monkeypatch.setattr(
+        memory_picker,
+        "iter_rows",
+        lambda p: ((g, [{"row": g, "col": c, "center": (0, 0)} for c in range(3)]) for g in range(mem.rows)),
+    )  # 精确行号
     monkeypatch.setattr(memory_picker, "picker_open", lambda boxes: True)
 
     def key(e):
         r, c = mem.selected
-        return json.dumps([e["card"], 1, "start", 10, 20, 0, 0, [{"text": "初期ダンス上昇+2O" if (r, c) == (7, 1) else f"x{r}{c}"}]], ensure_ascii=False)
+        return json.dumps(
+            [e["card"], 1, "start", 10, 20, 0, 0, [{"text": "初期ダンス上昇+2O" if (r, c) == (7, 1) else f"x{r}{c}"}]],
+            ensure_ascii=False,
+        )
 
     monkeypatch.setattr(fw, "memory_key", key)
     want = json.dumps(["act-3_039", 1, "start", 10, 20, 0, 0, [{"text": "初期ダンス上昇+20"}]], ensure_ascii=False)
@@ -293,7 +341,11 @@ def _core_rig(monkeypatch, target_cell, ability_of):
 
     mem = FakeMemory(["act-2_062", "men-3_012", "act-3_050", "men-1_035"], rows=40)
     card_of = lambda r, c: "act-3_039" if (r, c) == target_cell else f"other{r}{c}"  # noqa: E731
-    monkeypatch.setattr(memory_picker, "iter_rows", lambda p: ((g, [{"row": g, "col": c, "center": (0, 0)} for c in range(3)]) for g in range(mem.rows)))  # 精确行号
+    monkeypatch.setattr(
+        memory_picker,
+        "iter_rows",
+        lambda p: ((g, [{"row": g, "col": c, "center": (0, 0)} for c in range(3)]) for g in range(mem.rows)),
+    )  # 精确行号
     monkeypatch.setattr(memory_picker, "picker_open", lambda boxes: True)
 
     def key(e):
@@ -311,7 +363,9 @@ def _core_rig(monkeypatch, target_cell, ability_of):
 
 def test_fix_memory_ignores_stats_and_searches_rows_around(monkeypatch):
     """11-16 账号 2：属性随当前编成变、库存行号偏了几行。卡 / 强化 / 时机一致 + 能力文字相似就选，在目标行上下 SEARCH_ROWS 行里找。"""
-    mem, card_of, plan, dev = _core_rig(monkeypatch, (13, 1), lambda r, c: "初期ダンス上昇+2O" if (r, c) == (13, 1) else f"x{r}{c}")
+    mem, card_of, plan, dev = _core_rig(
+        monkeypatch, (13, 1), lambda r, c: "初期ダンス上昇+2O" if (r, c) == (13, 1) else f"x{r}{c}"
+    )
     done = fw.fix_memory(dev, plan, read_icons=mem.read_icons, make_picker=lambda: mem.picker(card_of))
     assert mem.decided == [(13, 1)] and done[0]["to"] == "act-3_039"  # 库存写第 7 行，实际在第 13 行
 

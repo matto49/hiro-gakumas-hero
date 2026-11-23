@@ -98,7 +98,7 @@ def evaluate_rust(loadouts: list[dict], seeds: list[int], *, budget_s: float | N
     if budget_s is not None:
         import os
 
-        cores = max(1, (os.cpu_count() or 2) - 1) if not threads else threads
+        cores = max(1, (os.cpu_count() or 2) - 1) if not threads else threads  # noqa: SIM212
         secs = max(0.1, min(secs, float(budget_s) * cores / n * 0.9))
     out = []
     for lo in loadouts:
@@ -114,7 +114,11 @@ def evaluate_rust(loadouts: list[dict], seeds: list[int], *, budget_s: float | N
                 row.append(int(raw))
                 continue
             first = top is not None and raw > top
-            conds = [{"text": "通关条件", "field": None, "got": None, "ok": (stars >= 3) if first else None}] if has_cond else []
+            conds = (
+                [{"text": "通关条件", "field": None, "got": None, "ok": (stars >= 3) if first else None}]
+                if has_cond
+                else []
+            )
             row.append({"score": int(raw), "first": bool(first), "stars": int(stars), "conditions": conds})
         out.append(row)
     return out

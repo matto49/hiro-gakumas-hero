@@ -254,7 +254,9 @@ class ScreenTracker:
         """自己决定打出这张（下一次 observe 时据手牌变化确认去向）。"""
         k = _key(card.card_id, card.upgrade)
         self.last_play = k
-        self.last_play_once = bool(getattr(getattr(card, "tags", None), "once", False)) or bool(self._fact("lost_on_play", k))
+        self.last_play_once = bool(getattr(getattr(card, "tags", None), "once", False)) or bool(
+            self._fact("lost_on_play", k)
+        )
         for cid, up, n in self._fact("creates", k) or ():  # 打出时往山札塞的卡（眠気 等），画面上看不到
             self.deck[(cid, int(up))] += int(n)
         self.played.append({"id": k[0], "u": k[1]})
@@ -274,7 +276,9 @@ class ScreenTracker:
     def types(self, turn: int, limit: int, allocation: dict | None = None) -> list[int]:
         """每回合属性：见过的照记；末三回合按配额的固定尾（没有配额时按偶像流向 流3 → 流2 → 流1）；
         其余未知回合按配额里还没用掉的属性填（多的先填），没有配额时填 流1。"""
-        tail = list((allocation or {}).get("fixed_tail") or ()) or ([self.trend[2], self.trend[1], self.trend[0]] if len(self.trend) >= 3 else [])
+        tail = list((allocation or {}).get("fixed_tail") or ()) or (
+            [self.trend[2], self.trend[1], self.trend[0]] if len(self.trend) >= 3 else []
+        )
         prefix = max(0, limit - len(tail))
         left = Counter((allocation or {}).get("random_prefix_counts") or {})
         for t in range(1, prefix + 1):
@@ -319,11 +323,15 @@ def tower_context(loadout: dict) -> dict:
     if isinstance(pm, dict):
         pm = [pm.get(k, pm.get(int(k) if str(k).isdigit() else k)) for k in ("1", "2", "3")]
     return {
-        "turns": int(m["turn"]) if m else (int(loadout["turns"]) if loadout.get("turns") else None),  # 没有 battle_config 时可直接给
+        "turns": int(m["turn"])
+        if m
+        else (int(loadout["turns"]) if loadout.get("turns") else None),  # 没有 battle_config 时可直接给
         "permil_fixed": {a: int(v) for a, v in zip(("Vo", "Da", "Vi"), pm)} if pm and all(pm) else None,
         "max_stamina": int(loadout["max_stamina"]) if loadout.get("max_stamina") else None,
         "idol": loadout.get("idol_card_id"),
-        "deck": _with_initial_cards([_card_ref(c) for c in loadout.get("produce_cards") or ()], loadout.get("idol_card_id")),
+        "deck": _with_initial_cards(
+            [_card_ref(c) for c in loadout.get("produce_cards") or ()], loadout.get("idol_card_id")
+        ),
     }
 
 
@@ -380,17 +388,30 @@ def from_screen(state: Any, memory: Any, legal: list, tracker: ScreenTracker, ex
         hand.append({"id": c.card_id, "u": int(u or 0), "p": int(c.slot in plays)})
     obs = {
         "v": SCHEMA,
-        "exam": {**{k: exam.get(k) for k in ("produce", "step", "plan", "idol")}, "turn": turn, "limit": limit,
-                 "types": [] if exam.get("lesson") else tracker.types(turn, limit, exam.get("allocation")),
-                 "permil": [0, 0, 0] if exam.get("lesson") else permil, "crit": list(exam.get("crit") or [0, 0, 0])},
-        "num": {"score": tracker.num("score", getattr(state, "score", None)), "stamina": tracker.num("stamina", getattr(state, "hp", None)),
-                "max_stamina": tracker.num("max_stamina", max_hp), "block": tracker.num("block", getattr(state, "genki", None)),
-                "playable": max(1, int(getattr(state, "actions_left", None) or 0), tracker.plays_left()), "plays": len(tracker.played)},
+        "exam": {
+            **{k: exam.get(k) for k in ("produce", "step", "plan", "idol")},
+            "turn": turn,
+            "limit": limit,
+            "types": [] if exam.get("lesson") else tracker.types(turn, limit, exam.get("allocation")),
+            "permil": [0, 0, 0] if exam.get("lesson") else permil,
+            "crit": list(exam.get("crit") or [0, 0, 0]),
+        },
+        "num": {
+            "score": tracker.num("score", getattr(state, "score", None)),
+            "stamina": tracker.num("stamina", getattr(state, "hp", None)),
+            "max_stamina": tracker.num("max_stamina", max_hp),
+            "block": tracker.num("block", getattr(state, "genki", None)),
+            "playable": max(1, int(getattr(state, "actions_left", None) or 0), tracker.plays_left()),
+            "plays": len(tracker.played),
+        },
         "stance": [None, 0],
         "status": _status_rows(state),
         "ench": [list(e) for e in tracker.ench],
         "hand": hand,
-        "deck": _cards(tracker.deck), "grave": _cards(tracker.grave), "hold": [], "lost": _cards(tracker.lost),
+        "deck": _cards(tracker.deck),
+        "grave": _cards(tracker.grave),
+        "hold": [],
+        "lost": _cards(tracker.lost),
         "played": list(tracker.played),
         "drinks": [d.drink_id for d in drinks],
         "legal": lg,
@@ -417,10 +438,17 @@ def lesson_step_type(rest: str, produce: str | None = None) -> int | None:
     if produce in LEGEND_PRODUCES and kind in ("normal", "sp"):
         return 29 + a * 2 + (kind == "sp")
     return 1 + a * 3 + {"normal": 0, "sp": 1, "hard": 2}.get(kind, 0)
-MODE_PRODUCE = {"hajime": "produce-001", "nia": "produce-004"}  # 缺省难度（初 REGULAR / N.I.A PRO）；编成给了 produce_id 就用编成的
 
 
-def exam_fields(label: str | None, *, idol: str | None, plan: int | None, crit=None, produce: str | None = None) -> dict:
+MODE_PRODUCE = {
+    "hajime": "produce-001",
+    "nia": "produce-004",
+}  # 缺省难度（初 REGULAR / N.I.A PRO）；编成给了 produce_id 就用编成的
+
+
+def exam_fields(
+    label: str | None, *, idol: str | None, plan: int | None, crit=None, produce: str | None = None
+) -> dict:
     """hiro 的考试标签 → UIObs exam 的固定部分。写法都照 bench 给 UINet 的（11-17 扫 bench 逐步记录核过）：
     - qualify-1/2/3（选拔）、r1 / r2（本战）：produce-007 / 008，plan = 偶像 plan 类型 + 1；
     - tower / tower-<层>（偶像之路）：produce "tower"、step 空、plan 0、crit 全 0；
@@ -454,8 +482,11 @@ def audition_context(label: str, idol: str | None, number: int, produce: str | N
     mode, _, rest = base.partition("-")
     row = audition_row(idol, produce or MODE_PRODUCE[mode], rest, number)
     cfg = tw.master().battle_config(row["produceExamBattleConfigId"]) or {}
-    return {"crit": [int(cfg[k]) for k in ("vocal", "dance", "visual")] if cfg else [0, 0, 0],
-            "turns": int(cfg["turn"]) if cfg.get("turn") else None, "row": row}
+    return {
+        "crit": [int(cfg[k]) for k in ("vocal", "dance", "visual")] if cfg else [0, 0, 0],
+        "turns": int(cfg["turn"]) if cfg.get("turn") else None,
+        "row": row,
+    }
 
 
 def exam_context(loadout: dict) -> dict:
@@ -472,7 +503,12 @@ def exam_context(loadout: dict) -> dict:
     deck = []
     for c in x.get("produce_cards") or ():
         if isinstance(c, dict):
-            deck.append((c.get("produce_card_id") or c.get("id"), int(c.get("current_upgrade_count", c.get("upgrade_count")) or 0)))
+            deck.append(
+                (
+                    c.get("produce_card_id") or c.get("id"),
+                    int(c.get("current_upgrade_count", c.get("upgrade_count")) or 0),
+                )
+            )
         else:
             deck.append(_card_ref(c))
     return {

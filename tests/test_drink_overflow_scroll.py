@@ -2,11 +2,11 @@
 DMM 单局测试 dmmt2 选拔：新饮料 センブリソーダ 说明四行，已有饮料只完整露出 2 瓶，决策要丢第 [2] 瓶（初星スペシャル青汁），
 「只看到 2 瓶」失败两次后停机。滑动后的画面没有实拍：用第一次溢出页（三瓶都露出）代替，它的第 2 瓶取消勾选后的帧是实拍。"""
 
-from test_shop_exec import frame
-
 from hiro.contracts import Action, ActionKind
 from hiro.produce import drink_swap
 from tests.test_interval import Fake
+
+from test_shop_exec import frame
 
 
 def _new_checked(img):
@@ -21,7 +21,15 @@ def test_scrolls_to_cut_off_owned_row():
     cut = frame("overflow_cut")
     frames = {"cut": cut, "scrolled": frame("overflow_3rows"), "scrolled_off2": frame("overflow_3rows_off2"),
               "back": cut, "back_new": _new_checked(cut), "after": frame("overflow_after")}  # fmt: skip
-    fake = Fake(frames, {("scrolled", (630, 946)): "scrolled_off2", ("back", (630, 481)): "back_new", ("back_new", (381, 1160)): "after"}, "cut")
+    fake = Fake(
+        frames,
+        {
+            ("scrolled", (630, 946)): "scrolled_off2",
+            ("back", (630, 481)): "back_new",
+            ("back_new", (381, 1160)): "after",
+        },
+        "cut",
+    )
     swipes = []
 
     def swipe(x1, y1, x2, y2):
@@ -40,7 +48,9 @@ def test_scrolls_to_cut_off_owned_row():
 
 def test_visible_rows_need_no_scroll():
     """三瓶都看得到时不滑。"""
-    fake = Fake({"open": frame("overflow_3rows"), "off2": frame("overflow_3rows_off2")}, {("open", (630, 946)): "off2"}, "open")
+    fake = Fake(
+        {"open": frame("overflow_3rows"), "off2": frame("overflow_3rows_off2")}, {("open", (630, 946)): "off2"}, "open"
+    )
     swipes = []
     drink_swap.resolve_overflow([2], shoot=fake.shoot, click=fake.click, clock=fake.clock, sleep=fake.sleep, ocr=fake.ocr, calib=False,
                                 swipe=lambda *a: swipes.append(a))  # fmt: skip

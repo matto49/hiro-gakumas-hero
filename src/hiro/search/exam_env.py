@@ -50,23 +50,23 @@ def bonus_permils(b) -> dict:
 
 
 def _master():
-    from gakumas_exam.master import shared
-
     import hiro.sim  # noqa: F401  引擎路径
     from hiro.sim.engine import master_commit
+
+    from gakumas_exam.master import shared
 
     return shared(master_commit())
 
 
 def exam_env(lo: dict, seed: int, *, guid_prefix: str = "card-exam"):
     """编成 → 我们的引擎对局（FidelityBattle，Rust 后端时是 NativeBattle，.rx 是 gakumas_exam_rs.Exam）。"""
-    from gakumas_exam.battle import FidelityBattle, _native
-    from gakumas_exam.cards import ExamCard
-    from gakumas_exam.setup import new_exam
-
     import hiro.sim  # noqa: F401
     from hiro.bench_bridge.advisor import _customize_ids
     from hiro.search.loadout import parse_deck_entry
+
+    from gakumas_exam.battle import FidelityBattle, _native
+    from gakumas_exam.cards import ExamCard
+    from gakumas_exam.setup import new_exam
 
     m = _master()
     cz = _customize_ids()
@@ -85,11 +85,17 @@ def exam_env(lo: dict, seed: int, *, guid_prefix: str = "card-exam"):
         gimmick = lo.get("gimmick_group_id")
     else:
         ex_ = lo["exam"]
-        cfg = next((r for r in m.table("ProduceExamBattleConfig") if r["id"] == ex_["produce_exam_battle_config_id"]), None)
+        cfg = next(
+            (r for r in m.table("ProduceExamBattleConfig") if r["id"] == ex_["produce_exam_battle_config_id"]), None
+        )
         if cfg is None:
             raise ExamUnsupported(f"主数据里没有 battle config {ex_['produce_exam_battle_config_id']}")
         weights = {1: cfg["vocal"], 2: cfg["dance"], 3: cfg["visual"], "turns": int(cfg["turn"])}
-        turns = {"randomize_turns": True, "config_weights": weights, "bonus_permil": bonus_permils(lo["score_bonus_permils"])}
+        turns = {
+            "randomize_turns": True,
+            "config_weights": weights,
+            "bonus_permil": bonus_permils(lo["score_bonus_permils"]),
+        }
         gimmick = ex_.get("produce_exam_gimmick_effect_group_id")
     ex = new_exam(None, m, seed, deck=deck, items=list(lo.get("produce_item_ids") or []), stamina=hp, max_stamina=int(lo["max_stamina"]),
                   drinks=list(lo.get("drink_ids") or []), plan_type=PLAN_TYPES.get(plan, 0), gimmicks=[gimmick] if gimmick else None,
@@ -168,13 +174,17 @@ def audition_row(idol_card_id: str, produce_id: str, round_key: str, number: int
 def turn_weights(lo: dict) -> dict | None:
     """这场考试三属性回合的权重 {1: Vo, 2: Da, 3: Vi}（主数据 ProduceExamBattleConfig.vocal / dance / visual）；查不到 None。"""
     try:
-        from gakumas_exam.master import shared
-
         import hiro.sim  # noqa: F401  引擎路径
         from hiro.sim.engine import master_commit
 
+        from gakumas_exam.master import shared
+
         cid = (lo.get("exam") or {}).get("produce_exam_battle_config_id")
-        cfg = next((r for r in shared(master_commit()).table("ProduceExamBattleConfig") if r["id"] == cid), None) if cid else None
+        cfg = (
+            next((r for r in shared(master_commit()).table("ProduceExamBattleConfig") if r["id"] == cid), None)
+            if cid
+            else None
+        )
     except Exception:  # noqa: BLE001
         return None
     return {1: float(cfg["vocal"]), 2: float(cfg["dance"]), 3: float(cfg["visual"])} if cfg else None
@@ -260,7 +270,9 @@ def _lesson_loadout(doc: dict) -> dict:
 LESSON_KINDS = {"normal": "NORMAL", "sp": "SP", "hard": "HARD"}
 
 
-def lesson_levels_by_clear(produce_id: str, idol_card_id: str | None, kind: str, clear: int, turns: int | None = None) -> list[dict]:
+def lesson_levels_by_clear(
+    produce_id: str, idol_card_id: str | None, kind: str, clear: int, turns: int | None = None
+) -> list[dict]:
     """按画面的合格线（CLEARまで 开课时的 N）反查这节课的档位（ProduceStepLessonLevel）：同培育、同种类、successThreshold = clear；
     带 plan 的档位只要偶像的 plan。档位按日程位置定，不是同种同属性第几次（平台 11-18 核两局实机），所以不按次数查。
     初 REGULAR（produce-001）的追い込み用的是 produce-002 的 hard 档（bench 5 节实录：p_step_lesson-produce-002-…-hard-01 / 02）。
@@ -289,7 +301,9 @@ def lesson_levels_by_clear(produce_id: str, idol_card_id: str | None, kind: str,
     return out
 
 
-def lesson_from_screen(produce_id: str, idol_card_id: str | None, kind: str, attr: str, screen: dict) -> tuple[dict, list[str]]:
+def lesson_from_screen(
+    produce_id: str, idol_card_id: str | None, kind: str, attr: str, screen: dict
+) -> tuple[dict, list[str]]:
     """实机课程（平台的课程画面读数 state.exam_session.lesson：turns_total / clear_target / perfect_target / level_ids /
     lesson_limit_up_score）→ lesson 写法 + 说明。回合数、合格线用画面的；满分线画面读到（过了合格线才出现 PERFECTまで）就用，
     没读到按档位 resultTargetValueLimit + lesson_limit_up_score（档位按合格线反查，候选的满分线不唯一就不封顶）。"""
@@ -311,7 +325,10 @@ def lesson_from_screen(produce_id: str, idol_card_id: str | None, kind: str, att
         if len(caps) == 1:
             up = screen.get("lesson_limit_up_score")
             perfect = caps.pop() + int(up or 0)
-            notes.append(f"满分线按档位 {sorted(r['id'] for r in rows)} 算 {perfect}" + ("" if up is not None else "（满分线加成没读到，按 0）"))
+            notes.append(
+                f"满分线按档位 {sorted(r['id'] for r in rows)} 算 {perfect}"
+                + ("" if up is not None else "（满分线加成没读到，按 0）")
+            )
         else:
             notes.append(f"满分线没读到、档位对不上（候选 {len(rows)} 个），不封顶")
     return {"parameter_type": a, "kind": LESSON_KINDS[k], "name": None, "limit_turn": int(turns), "clear_score": int(clear),
@@ -418,7 +435,9 @@ def objective(lo: dict, rivals: list | None = None) -> dict:
     else:
         npc = (lo.get("exam") or {}).get("produce_exam_battle_npc_group_id")
         rows = [r for r in tw.master().rows("ProduceExamBattleNpcGroup") if r.get("id") == npc] if npc else []
-        permil = loadout_npc_permil(lo)  # 主数据区间没算对手分增减（N.I.Aキー −80%、チャレンジP道具 +…%）：按客户端算法缩放
+        permil = loadout_npc_permil(
+            lo
+        )  # 主数据区间没算对手分增减（N.I.Aキー −80%、チャレンジP道具 +…%）：按客户端算法缩放
         top = sorted((scale_npc_range(int(r["scoreMin"]), int(r["scoreMax"]), permil)[1] for r in rows), reverse=True)
     out = {"rivals": top, "lost_ssr_max": None, "debuffs_min": None}
     out.update(stage_objective(lo))

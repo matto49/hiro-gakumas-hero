@@ -22,7 +22,9 @@ WINGS_MIN = 3000  # 格子顶部白色像素：羽约 5440，其他 ≤ 1440
 MEDAL_MIN = 1500  # 左上角金色像素：メダル约 2780（z6 11-19 首个实机样本），其他装饰 ≤ 115
 RIBBON_MIN = 3500  # 浅蓝（低饱和）像素：リボン约 6540，其他 ≤ 1330
 
-CANDIDATE_WHITE_MIN = 2000  # 候选格里白色（低饱和高亮）像素：有候选背包 6600–11600，进场动画还没出候选 0–18（DMM 11-14 own2）
+CANDIDATE_WHITE_MIN = (
+    2000  # 候选格里白色（低饱和高亮）像素：有候选背包 6600–11600，进场动画还没出候选 0–18（DMM 11-14 own2）
+)
 PLUSH_BY_HUE = {"blue": "ロボ", "yellow": "うさぎ", "green": "インコ", "purple": "もじゃ"}
 
 
@@ -108,4 +110,6 @@ def custom_names(img: np.ndarray, pouch_kanji: str) -> list[str | None]:
     if not is_decoration_stage(img):
         return [f"{p}（{pouch_kanji}）" if p else None for p in plush]
     base = next((p for p in plush if p), None)  # 三格是同一只毛绒（装饰可能盖住一部分，取认出来的那个）
-    return [f"{d}{base}（{pouch_kanji}）" if d and base and ok else None for d, ok in zip(decoration_kinds(img), present)]
+    return [
+        f"{d}{base}（{pouch_kanji}）" if d and base and ok else None for d, ok in zip(decoration_kinds(img), present)
+    ]

@@ -5,11 +5,11 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision import deck
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "events"
 
@@ -37,7 +37,11 @@ def test_card_dialog_selected(name, selected, card):
 
 def test_card_dialog_disagreement_gives_none(monkeypatch):
     """角框选中的格子和详情栏卡名对不上时不猜。"""
-    monkeypatch.setattr(deck, "card_from_name", lambda text, candidates=None: {"card_id": "x", "name": "x", "upgrade": 0} if "基本" in text else None)
+    monkeypatch.setattr(
+        deck,
+        "card_from_name",
+        lambda text, candidates=None: {"card_id": "x", "name": "x", "upgrade": 0} if "基本" in text else None,
+    )
     r = deck.read_card_dialog(_img("removal-sel6-00146"))
     assert r["selected"] == 6 and r["agree"] is False and r["selected_card"] is None
 
@@ -56,7 +60,13 @@ def test_confirm_dialog(name, expect):
 
 def test_confirm_dialog_sale():
     r = deck.read_confirm_dialog(cv2.imread(str(FIX.parent / "shop" / "flow" / "00127-confirm.jpg")))
-    assert (r["kind"], r["item"]["name"], r["item"]["upgrade"], r["price"], r["sale"]) == ("exchange", "デイドリーミング", 1, 49, True)
+    assert (r["kind"], r["item"]["name"], r["item"]["upgrade"], r["price"], r["sale"]) == (
+        "exchange",
+        "デイドリーミング",
+        1,
+        49,
+        True,
+    )
 
 
 @pytest.mark.parametrize("name", ["removal-sel6-00146", "acquire-memory-00028", "not-acquire-select-drink"])
@@ -84,7 +94,9 @@ def test_acquire_popup(name, kind, item_id, upgrade):
         assert r["upgrade"] == upgrade and r["agree"] is True
 
 
-@pytest.mark.parametrize("name", ["not-acquire-select-drink", "not-acquire-drink-detail-01824", "removal-sel6-00146", "delete-confirm-00148"])
+@pytest.mark.parametrize(
+    "name", ["not-acquire-select-drink", "not-acquire-drink-detail-01824", "removal-sel6-00146", "delete-confirm-00148"]
+)
 def test_not_acquire_popup(name):
     """选饮料页瓶身标签「初星水」、考试「Pドリンク詳細」的饮料名都在同一高度，不能当成获得弹窗。"""
     assert deck.read_acquire_popup(_img(name)) is None
@@ -102,7 +114,17 @@ def test_card_dialog_observation():
     raw, _ = extract("SKILL_CARD_REMOVAL", _img("removal-sel6-00146"))
     obs = observation(2, 0.0, "SKILL_CARD_REMOVAL", raw)
     assert obs.fields["selected"] == 6 and obs.fields["selected_card"] == KYORI and obs.fields["confirm"] is None
-    assert set(obs.fields["cards"][0]) == {"index", "row", "col", "card_id", "name", "upgrade", "customized", "center", "dimmed"}
+    assert set(obs.fields["cards"][0]) == {
+        "index",
+        "row",
+        "col",
+        "card_id",
+        "name",
+        "upgrade",
+        "customized",
+        "center",
+        "dimmed",
+    }
 
 
 def test_change1_candidates():
@@ -120,11 +142,16 @@ def test_change1_candidates():
     assert obs.problems(strict=True) == []
     f = obs.fields
     assert [(c["index"], c["name"], c["upgrade"], c["recommended"]) for c in f["candidates"]] == [
-        (0, "200%スマイル", 0, True), (1, "パステル気分", 0, False), (2, "リスタート", 0, True)]
+        (0, "200%スマイル", 0, True),
+        (1, "パステル気分", 0, False),
+        (2, "リスタート", 0, True),
+    ]
     assert (f["recommended"], f["rerolls_left"], f["excludes_left"], f["complete"]) == (0, 2, 1, True)
 
 
-@pytest.mark.parametrize(("name", "selected", "card"), [("enhance-kaa", None, None), ("enhance-selected-kaa", 1, "可愛い仕草")])
+@pytest.mark.parametrize(
+    ("name", "selected", "card"), [("enhance-kaa", None, None), ("enhance-selected-kaa", 1, "可愛い仕草")]
+)
 def test_enhance_grid_region(name, selected, card):
     """识别-07：强化页卡格从 y≈698 起（删卡页 398 起），用删卡页区域只能读到 8 格。"""
     from hiro.vision.extract import extract
@@ -164,7 +191,10 @@ def test_change1_icon_not_a_letter():
     raw, _ = extract(scene, img)
     f = observation(1, 0.0, scene, raw).fields
     assert [(c["index"], c["name"], c["upgrade"], c["recommended"]) for c in f["candidates"]] == [
-        (0, "ひなたぼっこ", 0, True), (1, "気まぐれハート", 0, False), (2, "せのびの魔法", 0, False)]
+        (0, "ひなたぼっこ", 0, True),
+        (1, "気まぐれハート", 0, False),
+        (2, "せのびの魔法", 0, False),
+    ]
     assert [c["center"][0] for c in f["candidates"]] == [223, 362, 500]
     assert (f["recommended"], f["rerolls_left"], f["excludes_left"], f["complete"]) == (0, None, None, True)
 

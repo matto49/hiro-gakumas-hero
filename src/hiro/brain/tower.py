@@ -63,7 +63,7 @@ def choose_subs(lex: dict, main: dict, pool: list[dict], k: int) -> list[dict]:
         improved = False
         for i in range(len(out)):
             for m in list(left):
-                trial = out[:i] + [m] + out[i + 1:]
+                trial = out[:i] + [m] + out[i + 1 :]
                 if total(trial) > total(out):
                     left.append(out[i])
                     left.remove(m)
@@ -117,7 +117,11 @@ def lost_ssr_count(deck: list) -> int | None:
             row = catalog().card(cid, int(u or 0))
         except Exception:  # noqa: BLE001
             continue
-        if row and row.get("rarity") == "ProduceCardRarity_Ssr" and row.get("playMovePositionType") == "ProduceCardMovePositionType_Lost":
+        if (
+            row
+            and row.get("rarity") == "ProduceCardRarity_Ssr"
+            and row.get("playMovePositionType") == "ProduceCardMovePositionType_Lost"
+        ):
             n += 1
     return n
 
@@ -217,7 +221,12 @@ def rank_key(s: dict) -> tuple:
 
 def clearly_better(a: dict, b: dict) -> bool:
     """第一名是否明显好过第二名（> 2 个标准误），按 三星概率 → 拿第 1 的概率 → 平均分 依次比：前一项差在噪声内才比下一项。"""
-    for k, kse, floor in (("p3", "p3_se", 1e-9), ("est3", "est3_se", 1e-9), ("first", "first_se", 1e-9), ("mean", "se", 1.0)):
+    for k, kse, floor in (
+        ("p3", "p3_se", 1e-9),
+        ("est3", "est3_se", 1e-9),
+        ("first", "first_se", 1e-9),
+        ("mean", "se", 1.0),
+    ):
         if a.get(k) is None or b.get(k) is None:
             continue
         se = math.hypot(a.get(kse) or 0, b.get(kse) or 0)

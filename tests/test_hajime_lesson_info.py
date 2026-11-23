@@ -4,10 +4,10 @@
 from pathlib import Path
 from types import SimpleNamespace as NS
 
+from hiro.contracts import Action, Decision
+
 import cv2
 import pytest
-
-from hiro.contracts import Action, Decision
 
 FIXP = Path(__file__).with_name("fixtures") / "pages"
 IDOL = "i_card-shro-3-007"  # 广（plan2）
@@ -103,15 +103,19 @@ def test_exam_session_has_lesson_field():
 
     st = GameState()
     st.exam_session.lesson = {"kind": "normal"}
-    assert GameState.from_dict(st.to_dict()).exam_session.lesson == {"kind": "normal"} if hasattr(GameState, "from_dict") else True
+    assert (
+        GameState.from_dict(st.to_dict()).exam_session.lesson == {"kind": "normal"}
+        if hasattr(GameState, "from_dict")
+        else True
+    )
 
 
 # ---------------------------------------------------------------- 相談開始確認（P 少）
 def _rt(last, produce=None):
+    from hiro.contracts import GameState
+
     from test_runtime import frame as fake_frame
     from test_runtime import runtime
-
-    from hiro.contracts import GameState
 
     rt, _ = runtime([fake_frame()])
     rt.session = NS(last_decision=last, state=GameState(produce=produce))
@@ -134,7 +138,7 @@ def test_consult_confirm_always_cancels_and_declines_shop(last):
     """相談開始確認（P 不够）：一律点キャンセル（3940a9 11-18：进去也只能直接离开，这一周白费），记 declined_options=shop（同一周）。"""
     rt = _rt(last, produce={"mode": "produce-001", "step": 4})
     assert "キャンセル" in _check(rt)
-    (x, y), = rt.raw_device.taps
+    ((x, y),) = rt.raw_device.taps
     assert x < 300 and abs(y - 1160) < 20
     assert rt.session.state.produce["declined_options"] == {"options": ["shop"], "step": 4}
 
@@ -167,7 +171,10 @@ def test_declined_options_same_week_then_dropped():
 def test_consult_delete_price_recorded():
     from hiro.contracts import GameState
 
-    st = _reduce(GameState(produce={"mode": "produce-001"}), _obs(1, "CONSULT", {"services": {"delete": {"price": 100, "available": True}}}))
+    st = _reduce(
+        GameState(produce={"mode": "produce-001"}),
+        _obs(1, "CONSULT", {"services": {"delete": {"price": 100, "available": True}}}),
+    )
     assert st.produce["consult_delete_price"] == 100 and st.sources["produce.consult_delete_price"].origin == "screen"
     st = _reduce(st, _obs(2, "CONSULT", {"services": {"delete": {"price": None, "available": True}}}))
     assert st.produce["consult_delete_price"] == 100  # 读不到不覆盖
@@ -242,13 +249,15 @@ def test_lesson_from_trace(tmp_path):
     assert core._lesson_from_trace("hajime-lesson-vo") is None  # 上一段停在别的课：不沿用
 
 
-@pytest.mark.parametrize(("ocr_text", "tpl", "want"), [("11", 1, 11), ("19", 6, 6), ("12", None, 12), ("6", 6, 6), ("2+1", 2, 3)])
+@pytest.mark.parametrize(
+    ("ocr_text", "tpl", "want"), [("11", 1, 11), ("19", 6, 6), ("12", None, 12), ("6", 6, 6), ("2+1", 2, 3)]
+)
 def test_lesson_turns_two_digit_cross_check(monkeypatch, ocr_text, tpl, want):
-    import numpy as np
-
     import hiro.exec.exam as ex
     import hiro.vision.ocr as ocr_mod
     from hiro.vision import hajime as hv
+
+    import numpy as np
 
     monkeypatch.setattr(ocr_mod, "ocr", lambda img, scale=2: [(ocr_text, 1.0)])
     monkeypatch.setattr(ex, "_hud_int", lambda img, a, b: tpl)

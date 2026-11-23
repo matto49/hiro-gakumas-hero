@@ -53,9 +53,13 @@ def check_tap(screen: Screen, x: int, y: int, dialog_words: tuple[str, ...] = ()
     word = word_at(f, x, y)
     if f.has_dialog and (d := f.dialog) is not None and not (word and any(s in word for s in SAFE_ON_DANGER)):
         if d["danger"]:
-            raise DangerBlocked(f"危险弹窗「{d['title']}」开着，只能点キャンセル：拦下 ({x}, {y}) {word or '（空白处）'}")
+            raise DangerBlocked(
+                f"危险弹窗「{d['title']}」开着，只能点キャンセル：拦下 ({x}, {y}) {word or '（空白处）'}"
+            )
         if hit := next((w for w in dialog_words if w in d["title"] or w in d.get("body", "")), None):
-            raise DangerBlocked(f"弹窗「{d['title']}」含「{hit}」，只能点キャンセル：拦下 ({x}, {y}) {word or '（空白处）'}")
+            raise DangerBlocked(
+                f"弹窗「{d['title']}」含「{hit}」，只能点キャンセル：拦下 ({x}, {y}) {word or '（空白处）'}"
+            )
     if word and (hit := next((w for w in HARD_WORDS if w in word), None)):
         raise DangerBlocked(f"要点的「{word}」含「{hit}」：拦下 ({x}, {y})")
 
@@ -71,7 +75,9 @@ class GuardedDevice:
         self._device, self._screen, self._dialog_words = device, screen, dialog_words
         self.name = device.name
         self.on_tap = None  # on_tap(x, y)：过了拦截、真点之前调（开局阶段存帧用，hiro.runtime.opening.new_produce）；出错不影响点击
-        if hasattr(device, "real_tap"):  # 只有 MaaToolsDevice 有（PlayCover 真实鼠标兜底）；调用方按 getattr(dev, "real_tap", None) 判断
+        if hasattr(
+            device, "real_tap"
+        ):  # 只有 MaaToolsDevice 有（PlayCover 真实鼠标兜底）；调用方按 getattr(dev, "real_tap", None) 判断
             self.real_tap = self._real_tap
 
     def tap(self, x: int, y: int) -> None:
@@ -86,7 +92,7 @@ class GuardedDevice:
 
     def _notify(self, x: int, y: int) -> None:
         if self.on_tap is not None:
-            try:
+            try:  # noqa: SIM105
                 self.on_tap(x, y)
             except Exception:  # noqa: BLE001  存帧之类的旁路出错不影响点击
                 pass

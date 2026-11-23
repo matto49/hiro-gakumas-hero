@@ -20,7 +20,9 @@ POLICIES = ("llm", "expert", "shadow")
 # E1：饮料比最好的非饮料动作多不到 1 个标准误时不喝。bench（专家 + 社区续打，32 局配对）第九局 R1 +5.1 万 ± 1.8 万、R2 +10.4 万 ± 3.4 万、
 # 第十局 R1 +1.9 万 ± 1.3 万，详见 reports/analysis/p1-community-rollout.md
 EXPERT_DRINK_SE = True
-EXPERT_DRINK_RULE = "R1"  # 饮料阶段预算：剩余 >4 回合时每回合最多喝 1 瓶（None 关闭；R1d = 抽牌类不受限）。见 drink_budget_blocks
+EXPERT_DRINK_RULE = (
+    "R1"  # 饮料阶段预算：剩余 >4 回合时每回合最多喝 1 瓶（None 关闭；R1d = 抽牌类不受限）。见 drink_budget_blocks
+)
 # 核心兑现牌最早在剩几回合时打（剩余回合 > 它时专家不打，有别的动作可选时）。第十局本战 R1：剩 9 回合、元気 0 时打出
 # せのびの魔法+，R1 只有 46,570。续打（当时的 heuristic；2026-11-02 起一律社区打法）不会在后段安排 せのび，「留着」被估得一文不值（和饮料是同一类偏差，长期靠 P1）
 # **默认关闭**：bench（第十局本战牌组 R1 / R2 合成开局，专家 32 局配对）里，留到剩 ≤5（せのび）/ ≤2（届いて）/ ≤3（約束）
@@ -30,7 +32,9 @@ EXPERT_DRINK_RULE = "R1"  # 饮料阶段预算：剩余 >4 回合时每回合最
 # E3（用户 2026-11-01）：届いて 留到剩 ≤2 回合（bench 在噪声内，按用户决定合入）。E2（せのび 留到剩 ≤5）两轮 bench 都显著为负，不合入
 EXPERT_CASH_HOLD: dict = {"p_card-02-act-3_039": 2}
 # E3 的方式（总控 2026-11-02 第十八局本战复盘）：hold 现状（剩 > 2 一律不打）/ off 关掉 / cycle 按抽回概率（抽不回来就现在兑现）
-EXPERT_CASH_MODE = "cycle"  # 2026-11-03 重测（32 局 × 4 考题，去泄漏）：cycle 合并 +2.2k ± 2.2k、选拔③ +13.0k ± 5.2k，不更差 → 默认
+EXPERT_CASH_MODE = (
+    "cycle"  # 2026-11-03 重测（32 局 × 4 考题，去泄漏）：cycle 合并 +2.2k ± 2.2k、选拔③ +13.0k ± 5.2k，不更差 → 默认
+)
 CASH_GENKI_GROWTH = 1.3  # 终结牌留到后面时元気的大致增长
 # 用户 q11 批注归纳的打法硬规则（datasets/annotations/notes.jsonl；docs/tasks/决策-09-q11批注.md）。名字在集合里才生效；
 # 合入标准（用户 2026-11-01）：bench 显著为正或在噪声内才开，显著为负不开、报数据。各条 bench 结果见 docs/tasks/决策-09-q11批注.md §3
@@ -51,7 +55,9 @@ STUCK_FETCH_EXEMPT = False  # 协调 2026-11-04 定不开：#236 实测 T1 喝 �
 STUCK_BY_PREVIEW = False
 # 只作数据（协调 2026-11-04）：空手豁免只在剩余回合 ≤ N 时放行（None = 现行，不限）。空手豁免是用户规则，没有用户同意不改默认
 STUCK_EMPTY_MAX_REM: int | None = None
-PREVIEW_BUDGET_S = 7.5  # 专家 / shadow 模式下每步预演的时间预算（preview_actions 的 deadline）；p90 约为它 +0.2 s（离线验收）
+PREVIEW_BUDGET_S = (
+    7.5  # 专家 / shadow 模式下每步预演的时间预算（preview_actions 的 deadline）；p90 约为它 +0.2 s（离线验收）
+)
 
 # 退回 llm 的原因（记 exam_policy_fallback）
 FALLBACK_REASONS = ("sim_unsupported", "save_unavailable", "save_mismatch", "no_previews", "blocked_or_unmapped")
@@ -102,7 +108,11 @@ def expert_pick(state, live_why: str | None = None) -> ExpertPick:
     blocked = drink_budget_blocks(state)
     if blocked:
         rows_now = list(cands)
-        apply("drink_budget", lambda r: not r["legal_action"].startswith("drink") or _budget_exempt(state, r["legal_action"], rows_now), blocked)
+        apply(
+            "drink_budget",
+            lambda r: not r["legal_action"].startswith("drink") or _budget_exempt(state, r["legal_action"], rows_now),
+            blocked,
+        )
     if EXPERT_DRINK_SE and cands and cands[0]["legal_action"].startswith("drink"):
         # E1：饮料只比最好的非饮料动作多不到 1 个标准误：不喝（协调 4a / 用户：噪声里的差不能作为喝的理由）
         alt = next((r for r in cands if not r["legal_action"].startswith("drink")), None)
@@ -194,7 +204,9 @@ def _preview_stuck(rows: list | None) -> bool:
     if not rows:
         return False
     end = next((r["期望终局分"] for r in rows if r.get("legal_action") == "skip"), None)
-    return end is not None and all(r["期望终局分"] <= end for r in rows if str(r.get("legal_action", "")).startswith("play:"))
+    return end is not None and all(
+        r["期望终局分"] <= end for r in rows if str(r.get("legal_action", "")).startswith("play:")
+    )
 
 
 def _stuck(state) -> bool:
@@ -218,7 +230,9 @@ def cash_hold_blocks(state, action: str) -> str | None:
         # 不打的话回合末进弃牌堆，之后还能抽回的概率 P（redraw_chance，只用公开牌堆）；「P × 元気增长 × 之后最高倍率」不如现在的倍率就放行
         from hiro.brain.state import redraw_chance
 
-        p_back = redraw_chance(state.piles, card.name, [(c.name, c.tags.once) for c in state.hand], state.remaining_turns - 1)
+        p_back = redraw_chance(
+            state.piles, card.name, [(c.name, c.tags.once) for c in state.hand], state.remaining_turns - 1
+        )
         now = state.now_turn_permil or state.multiplier_permil
         future = max([state.final_turn_permil or 0] + list((state.attr_permils or {}).values()))
         if now and future and p_back * CASH_GENKI_GROWTH * future < now:
@@ -320,7 +334,10 @@ def rule_r2(state, cands):
     if not free:
         return None
     keep = {r["legal_action"] for r in free}
-    return lambda r: r["legal_action"] in keep, f"不耗行动的 {free[0].get('动作')} 先打（{best.get('动作')} 会用掉行动）"
+    return (
+        lambda r: r["legal_action"] in keep,
+        f"不耗行动的 {free[0].get('动作')} 先打（{best.get('动作')} 会用掉行动）",
+    )
 
 
 def _gives_genki(card) -> bool:
@@ -330,7 +347,13 @@ def _gives_genki(card) -> bool:
 
 def _pure_yaruki(card) -> bool:
     """只叠 やる気、不加元気的牌（止められない想い、ゆめみごこち、ワクワクが止まらない、思い出し笑い）。"""
-    return card is not None and card.category != "trouble" and "やる気+" in card.text and "元気+" not in card.text and not is_cash(card)
+    return (
+        card is not None
+        and card.category != "trouble"
+        and "やる気+" in card.text
+        and "元気+" not in card.text
+        and not is_cash(card)
+    )
 
 
 def rule_r9(state, cands):
@@ -347,7 +370,10 @@ def rule_r9(state, cands):
     if not first:
         return None
     keep = {r["legal_action"] for r in first}
-    return lambda r: r["legal_action"] in keep, f"先叠やる気：{first[0].get('动作')} 打完还剩行动，{best.get('动作')}（加元気）放后面"
+    return (
+        lambda r: r["legal_action"] in keep,
+        f"先叠やる気：{first[0].get('动作')} 打完还剩行动，{best.get('动作')}（加元気）放后面",
+    )
 
 
 BOOST_DRINK_TURNS = 4  # 加分饮料（パラメータ上昇量増加N%（Nターン））留到剩这么多回合以内
@@ -381,8 +407,17 @@ def rule_r3(state, cands):
         kind = drink_purpose(d)
         if kind == "boost" and rem is not None and rem > BOOST_DRINK_TURNS:
             why[r["legal_action"]] = f"{d.name} 留到剩 {BOOST_DRINK_TURNS} 回合以内（现在剩 {rem}）"
-        elif kind == "recover" and rem is not None and rem > 1 and state.hp is not None and state.max_hp and state.hp > state.max_hp * RECOVER_HP_FRAC:
-            why[r["legal_action"]] = f"{d.name} 留到末回合 / 体力 ≤{RECOVER_HP_FRAC:.0%}（现在 {state.hp}/{state.max_hp}）"
+        elif (
+            kind == "recover"
+            and rem is not None
+            and rem > 1
+            and state.hp is not None
+            and state.max_hp
+            and state.hp > state.max_hp * RECOVER_HP_FRAC
+        ):
+            why[r["legal_action"]] = (
+                f"{d.name} 留到末回合 / 体力 ≤{RECOVER_HP_FRAC:.0%}（现在 {state.hp}/{state.max_hp}）"
+            )
         elif kind == "draw" and useful and R3_DRAW_DRINK:
             why[r["legal_action"]] = f"{d.name} 手里还有能打的牌，先不喝"
     if not why or cands[0]["legal_action"] not in why:
@@ -403,7 +438,10 @@ def rule_r6(state, cands):
     useful = builders or useful
     if useful:
         keep = {r["legal_action"] for r in useful}
-        return lambda r: r["legal_action"] in keep, f"有能打的 {useful[0].get('动作')}，不{'结束回合' if _is_skip(best) else '打眠気'}"
+        return (
+            lambda r: r["legal_action"] in keep,
+            f"有能打的 {useful[0].get('动作')}，不{'结束回合' if _is_skip(best) else '打眠気'}",
+        )
     if _is_skip(best):
         sleep = [r for r in cands if (c := _card(state, r["legal_action"])) is not None and c.tags.is_sleep]
         if sleep:
@@ -447,7 +485,9 @@ def shadow_record(pick: ExpertPick, chosen: Decision, state) -> dict:
     }
 
 
-def decide_with_policy(policy: str, state, memory, brain, live_off: str | None = None) -> tuple[Decision, ExpertPick | None]:
+def decide_with_policy(
+    policy: str, state, memory, brain, live_off: str | None = None
+) -> tuple[Decision, ExpertPick | None]:
     """按决策源出一步：expert 且专家可用 → 专家；否则 BattleBrain.decide（llm / shadow / 专家不可用时退回）。
     返回 (决策, 专家的选择或 None)；调用方据此记 exam_policy_fallback / exam_shadow。"""
     pick = expert_pick(state, live_off) if policy != "llm" else None
@@ -462,11 +502,14 @@ def decide_with_policy(policy: str, state, memory, brain, live_off: str | None =
 def llm_blocks(state, action: str) -> str | None:
     """LLM / 规则层（没有预演）选的动作是否被硬规则禁止：只用看局面就能判的那几条——饮料预算、E3（届いて 留到剩 ≤2）、
     R3 的加分 / 回血饮料（以及开着时的追加行动饮料）。需要预演即时结果的（R1 R2 R6 R8、R3 抽牌饮料）判不了，不拦。返回原因或 None。"""
-    legal = [a for a in state.legal_actions()]
+    legal = list(state.legal_actions())
     if action not in legal:
         return None
     # 没有预演：把它当成期望最高、其余并列，跑一遍专家的规则链，看规则会不会改选（E1 在这些占位行上不会触发：差 1 分、标准误 0）
-    rows = [{"legal_action": a, "动作": a, "期望终局分": 1 if a == action else 0, "即时结果": "无变化", "比最佳标准误": 0} for a in legal]
+    rows = [
+        {"legal_action": a, "动作": a, "期望终局分": 1 if a == action else 0, "即时结果": "无变化", "比最佳标准误": 0}
+        for a in legal
+    ]
     saved = state.action_previews
     state.action_previews = rows
     try:
@@ -486,7 +529,10 @@ def llm_forced(state, action: str) -> tuple[str, str] | None:
     legal = list(state.legal_actions())
     if action not in legal:
         return None
-    rows = [{"legal_action": a, "动作": a, "期望终局分": 1 if a == action else 0, "即时结果": "无变化", "比最佳标准误": 0} for a in legal]
+    rows = [
+        {"legal_action": a, "动作": a, "期望终局分": 1 if a == action else 0, "即时结果": "无变化", "比最佳标准误": 0}
+        for a in legal
+    ]
     saved = state.action_previews
     state.action_previews = rows
     try:

@@ -5,9 +5,9 @@ import os
 import subprocess
 import sys
 
-import numpy as np
-
 from hiro.vision import classify as c
+
+import numpy as np
 
 
 def test_landscape_is_live_and_no_input_is_unknown():
@@ -38,7 +38,9 @@ def test_old_entry_maps_new_names(monkeypatch):
     """旧主循环（scene.classify_current）拿到的还是旧名字：开局二选一 → IDLE，横屏 → unknown。"""
     from hiro.vision import scene
 
-    monkeypatch.setattr(scene, "device", type("D", (), {"screenshot": staticmethod(lambda: np.zeros((1280, 720, 3), np.uint8))}))
+    monkeypatch.setattr(
+        scene, "device", type("D", (), {"screenshot": staticmethod(lambda: np.zeros((1280, 720, 3), np.uint8))})
+    )
     monkeypatch.setattr(scene, "classify_scene", lambda img: c.PageHit("INITIAL_CHOICE", "template"))
     assert scene.classify_current().scene == "IDLE"
     monkeypatch.setattr(scene, "classify_scene", lambda img: c.PageHit("LIVE", "landscape"))
@@ -47,7 +49,13 @@ def test_old_entry_maps_new_names(monkeypatch):
 
 
 def test_classify_imports_no_kaa():
-    code = "import sys, hiro.vision.classify; print([m for m in sys.modules if m.split('.')[0] in ('kaa', 'kotonebot')])"
-    env = {k: v for k, v in os.environ.items() if k != "HIRO_KAA_GAME_DATA"}  # 设了它 hiro.vision 会给 KAA 指主数据目录（KAA 还在时要）
-    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, env=env).stdout.strip()
+    code = (
+        "import sys, hiro.vision.classify; print([m for m in sys.modules if m.split('.')[0] in ('kaa', 'kotonebot')])"
+    )
+    env = {
+        k: v for k, v in os.environ.items() if k != "HIRO_KAA_GAME_DATA"
+    }  # 设了它 hiro.vision 会给 KAA 指主数据目录（KAA 还在时要）
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True, env=env
+    ).stdout.strip()
     assert out == "[]"

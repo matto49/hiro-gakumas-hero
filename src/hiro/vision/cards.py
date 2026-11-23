@@ -9,11 +9,12 @@ import json
 import re
 from functools import lru_cache
 
+from hiro import master
+from hiro.vision.ocr import Box as Rect  # 框：x1 y1 x2 y2 / w / h（OCR 文字框、模板命中、字母框同一种）
+
 import cv2
 import numpy as np
 from cv2.typing import MatLike
-from hiro import master
-from hiro.vision.ocr import Box as Rect  # 框：x1 y1 x2 y2 / w / h（OCR 文字框、模板命中、字母框同一种）
 
 UPGRADE_RED_MIN = 20  # 实测：强化 55–62，未强化 0–1
 # 红色占满检测框的比例上限：「+」只占一小块（选卡框 52–97 / 3300 px）；卡面本身偏红（DMM dmm1m 本战 ノートの端の決意 的肤色手，
@@ -80,7 +81,11 @@ def full_text(card: master.Card) -> str:
         text = re.sub(r"</?nobr>", "", item.get("text") or "")
         effect = item.get("originProduceExamEffectId")
         trigger = item.get("originProduceExamTriggerId")
-        if item.get("produceDescriptionType") == "ProduceDescriptionType_ProduceDescription" and not effect and not trigger:
+        if (
+            item.get("produceDescriptionType") == "ProduceDescriptionType_ProduceDescription"
+            and not effect
+            and not trigger
+        ):
             flush()  # 独立标签：重複不可、レッスン中1回
             lines.append(text)
             continue

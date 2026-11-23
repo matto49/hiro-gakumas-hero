@@ -57,8 +57,10 @@ def _vision_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, floa
     import Vision
     from Foundation import NSData
 
-    ok, buf = cv2.imencode(".png", img)
-    handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(NSData.dataWithBytes_length_(buf.tobytes(), len(buf)), None)
+    _ok, buf = cv2.imencode(".png", img)
+    handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(
+        NSData.dataWithBytes_length_(buf.tobytes(), len(buf)), None
+    )
     request = Vision.VNRecognizeTextRequest.alloc().init()
     request.setRecognitionLevel_(0)  # accurate
     request.setRecognitionLanguages_(list(languages))
@@ -69,12 +71,21 @@ def _vision_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, floa
         cand = obs.topCandidates_(1)[0]
         bb = obs.boundingBox()  # 归一化坐标，原点在左下
         x1, y1 = bb.origin.x * w, (1 - bb.origin.y - bb.size.height) * h
-        out.append((str(cand.string()), float(cand.confidence()), (round(x1), round(y1), round(x1 + bb.size.width * w), round(y1 + bb.size.height * h))))
+        out.append(
+            (
+                str(cand.string()),
+                float(cand.confidence()),
+                (round(x1), round(y1), round(x1 + bb.size.width * w), round(y1 + bb.size.height * h)),
+            )
+        )
     return out
 
 
 RAPID_DIR = Path(__file__).resolve().parents[3] / "cache" / "rapidocr"
-RAPID_MODELS = {"ja": "japan_PP-OCRv3_rec_infer.onnx", "en": "en_PP-OCRv3_rec_infer.onnx"}  # 识别模型；检测用 rapidocr_onnxruntime 自带的
+RAPID_MODELS = {
+    "ja": "japan_PP-OCRv3_rec_infer.onnx",
+    "en": "en_PP-OCRv3_rec_infer.onnx",
+}  # 识别模型；检测用 rapidocr_onnxruntime 自带的
 RAPID_PAD = 631  # 小图居中补白到 631×631 再识别（PaddleOCR 模型图太小准确率低；与原先经 kotonebot 调用时一致）
 _rapid: dict = {}
 
@@ -111,7 +122,11 @@ def _pad_to(img: MatLike, size: int) -> tuple[MatLike, int, int]:
     if not ph and not pw:
         return img, 0, 0
     top, left = ph // 2, pw // 2
-    return cv2.copyMakeBorder(img, top, ph - top, left, pw - left, cv2.BORDER_CONSTANT, value=(255, 255, 255)), left, top
+    return (
+        cv2.copyMakeBorder(img, top, ph - top, left, pw - left, cv2.BORDER_CONSTANT, value=(255, 255, 255)),
+        left,
+        top,
+    )
 
 
 def _rapid_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, tuple[int, int, int, int]]]:
@@ -123,8 +138,13 @@ def _rapid_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, 
     out = []
     for box, text, conf in res or []:
         xs, ys = [int(p[0]) - ox for p in box], [int(p[1]) - oy for p in box]
-        out.append((sanitize(text), float(conf),
-                    (round(min(xs) / scale), round(min(ys) / scale), round(max(xs) / scale), round(max(ys) / scale))))
+        out.append(
+            (
+                sanitize(text),
+                float(conf),
+                (round(min(xs) / scale), round(min(ys) / scale), round(max(xs) / scale), round(max(ys) / scale)),
+            )
+        )
     return out
 
 
@@ -191,7 +211,7 @@ def _win_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, tu
     eng, loop = _win_engine(languages)
     bgra = cv2.cvtColor(img, cv2.COLOR_GRAY2BGRA if img.ndim == 2 else cv2.COLOR_BGR2BGRA)
     h, w = bgra.shape[:2]
-    if min(h, w) < 40:   # 太小的图 Windows OCR 读不出，向右下补到 40（不影响原坐标）
+    if min(h, w) < 40:  # 太小的图 Windows OCR 读不出，向右下补到 40（不影响原坐标）
         bgra = cv2.copyMakeBorder(bgra, 0, max(0, 40 - h), 0, max(0, 40 - w), cv2.BORDER_REPLICATE)
         h, w = bgra.shape[:2]
     dw = DataWriter()
@@ -200,7 +220,10 @@ def _win_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, tu
     res = loop.run_until_complete(eng.recognize_async(bmp))
     out = []
     for line in res.lines:
-        ws = [(wd.text, (wd.bounding_rect.x, wd.bounding_rect.y, wd.bounding_rect.width, wd.bounding_rect.height)) for wd in line.words]
+        ws = [
+            (wd.text, (wd.bounding_rect.x, wd.bounding_rect.y, wd.bounding_rect.width, wd.bounding_rect.height))
+            for wd in line.words
+        ]
         if not ws:
             continue
         ws.sort(key=lambda t: t[1][0])
@@ -209,16 +232,22 @@ def _win_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, tu
             y1 = min(b[1] for _, b in seg)
             x2 = max(b[0] + b[2] for _, b in seg)
             y2 = max(b[1] + b[3] for _, b in seg)
-            out.append((_join_words(seg), 1.0, (round(x1 / scale), round(y1 / scale), round(x2 / scale), round(y2 / scale))))
+            out.append(
+                (_join_words(seg), 1.0, (round(x1 / scale), round(y1 / scale), round(x2 / scale), round(y2 / scale)))
+            )
     return out
 
 
 # 只在简体中文里出现、日文不用的字 → 日文写法（PP-OCRv5 中日混合模型的读法；两边写法相同的字不收）
-_SIMPLIFIED = str.maketrans(dict(zip(
-    "强换查选择认识确战试验费结气动习课讲获领张级时间开关闭门问题说话读买卖价钱饮剧场进还对应实际现发处务员东车运转轮输边过达连补态优胜败负记录设计让训练绩续继绝经给线红约纪细终组织编缘网罗义书页顶项顺须预频颜风飞饰马驱鱼鸟乐兴举产亲亿传伤众华单卫历压变叶听启园围图圣坏块报备头夺奋宽导层岁岛带广库废异弹归忆怀总恶惊惯戏户扩扫护损据挥摄敌无显晓暂术机杂权极构标样树桥检欢测济满灵烧热爱猎环电疗盘盖监码础种积稳竞笔简类紧纯纸绘统维综绿缓缩罚职联脑艺节范药营虑见观规视览觉议许论访证评诉词译诗该详语误请诸谁调谈谢谱贝贡财责贤货质贩贯贵贴贸资赏赖赞赠跃践轻载较辅辈迁远违适递遗邮邻释钟钢银锁锐错键镜长闪闻阳阶阵陆险隐难额馆骑鲜鸣",
-    "強換査選択認識確戦試験費結気動習課講獲領張級時間開関閉門問題説話読買売価銭飲劇場進還対応実際現発処務員東車運転輪輸辺過達連補態優勝敗負記録設計譲訓練績続継絶経給線紅約紀細終組織編縁網羅義書頁頂項順須預頻顔風飛飾馬駆魚鳥楽興挙産親億伝傷衆華単衛歴圧変葉聴啓園囲図聖壊塊報備頭奪奮寛導層歳島帯広庫廃異弾帰憶懐総悪驚慣戯戸拡掃護損拠揮摂敵無顕暁暫術機雑権極構標様樹橋検歓測済満霊焼熱愛猟環電療盤蓋監碼礎種積穏競筆簡類緊純紙絵統維総緑緩縮罰職聯脳芸節範薬営慮見観規視覧覚議許論訪証評訴詞訳詩該詳語誤請諸誰調談謝譜貝貢財責賢貨質販貫貴貼貿資賞頼賛贈躍践軽載較輔輩遷遠違適逓遺郵隣釈鐘鋼銀鎖鋭錯鍵鏡長閃聞陽階陣陸険隠難額館騎鮮鳴",
-    strict=True,
-)))
+_SIMPLIFIED = str.maketrans(
+    dict(
+        zip(
+            "强换查选择认识确战试验费结气动习课讲获领张级时间开关闭门问题说话读买卖价钱饮剧场进还对应实际现发处务员东车运转轮输边过达连补态优胜败负记录设计让训练绩续继绝经给线红约纪细终组织编缘网罗义书页顶项顺须预频颜风飞饰马驱鱼鸟乐兴举产亲亿传伤众华单卫历压变叶听启园围图圣坏块报备头夺奋宽导层岁岛带广库废异弹归忆怀总恶惊惯戏户扩扫护损据挥摄敌无显晓暂术机杂权极构标样树桥检欢测济满灵烧热爱猎环电疗盘盖监码础种积稳竞笔简类紧纯纸绘统维综绿缓缩罚职联脑艺节范药营虑见观规视览觉议许论访证评诉词译诗该详语误请诸谁调谈谢谱贝贡财责贤货质贩贯贵贴贸资赏赖赞赠跃践轻载较辅辈迁远违适递遗邮邻释钟钢银锁锐错键镜长闪闻阳阶阵陆险隐难额馆骑鲜鸣",
+            "強換査選択認識確戦試験費結気動習課講獲領張級時間開関閉門問題説話読買売価銭飲劇場進還対応実際現発処務員東車運転輪輸辺過達連補態優勝敗負記録設計譲訓練績続継絶経給線紅約紀細終組織編縁網羅義書頁頂項順須預頻顔風飛飾馬駆魚鳥楽興挙産親億伝傷衆華単衛歴圧変葉聴啓園囲図聖壊塊報備頭奪奮寛導層歳島帯広庫廃異弾帰憶懐総悪驚慣戯戸拡掃護損拠揮摂敵無顕暁暫術機雑権極構標様樹橋検歓測済満霊焼熱愛猟環電療盤蓋監碼礎種積穏競筆簡類緊純紙絵統維総緑緩縮罰職聯脳芸節範薬営慮見観規視覧覚議許論訪証評訴詞訳詩該詳語誤請諸誰調談謝譜貝貢財責賢貨質販貫貴貼貿資賞頼賛贈躍践軽載較輔輩遷遠違適逓遺郵隣釈鐘鋼銀鎖鋭錯鍵鏡長閃聞陽階陣陸険隠難額館騎鮮鳴",
+            strict=True,
+        )
+    )
+)
 _pp: dict = {}
 
 
@@ -254,12 +283,19 @@ def _pp_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, tup
     out = []
     for box, text, conf in zip(res.boxes, res.txts, res.scores, strict=False):
         xs, ys = [p[0] for p in box], [p[1] for p in box]
-        out.append((str(text).translate(_SIMPLIFIED), float(conf),
-                    (round(min(xs) / scale), round(min(ys) / scale), round(max(xs) / scale), round(max(ys) / scale))))
+        out.append(
+            (
+                str(text).translate(_SIMPLIFIED),
+                float(conf),
+                (round(min(xs) / scale), round(min(ys) / scale), round(max(xs) / scale), round(max(ys) / scale)),
+            )
+        )
     return out
 
 
-def ocr_boxes(img: MatLike, *, scale: float = 3.0, languages=("ja-JP", "en-US")) -> list[tuple[str, float, tuple[int, int, int, int]]]:
+def ocr_boxes(
+    img: MatLike, *, scale: float = 3.0, languages=("ja-JP", "en-US")
+) -> list[tuple[str, float, tuple[int, int, int, int]]]:
     """每段文字、置信度和它在 img 中的外接框 (x1, y1, x2, y2)。空图（裁剪框落到画面外）返回 []，不抛异常（Mac h8 11-15：
     弹窗标题条贴着画面底边，正文裁出空图，cv2.resize 报 !ssize.empty()，主循环崩溃）。"""
     if img is None or getattr(img, "size", 0) == 0 or min(img.shape[:2]) < 1:

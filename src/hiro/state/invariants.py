@@ -27,7 +27,6 @@ verdict：read_error（读数不合理，丢弃重读）/ model_gap（读数合�
 - deck_delta       牌组张数变化 = 本步事件的增减（需传 events 且观测里有 deck；没有不判）
 """
 
-
 from hiro.contracts import Check
 from hiro.loop.reduce import SECTION
 
@@ -64,6 +63,7 @@ def _merge(events: list[dict], kinds: set[str], cls) -> list[dict]:
         groups.setdefault(key, {}).setdefault(src, []).append(e)
     out = []
     for by_src in groups.values():
+
         def rank(item):
             (observed, _), es = item
             return len(es), all((x.get("args") or {}).get("price") is not None for x in es), not observed
@@ -91,7 +91,9 @@ _HAS_NOTE = "note" in Check.__dataclass_fields__
 def _check(seq, field, predicted, observed, verdict, rule, note=None) -> Check:
     action = {"read_error": "discard_reread", "model_gap": "mark_pending", "consistent": "accept"}[verdict]
     extra = {"note": note} if _HAS_NOTE else {}
-    return Check(seq=seq, field=field, predicted=predicted, observed=observed, verdict=verdict, rule=rule, action=action, **extra)
+    return Check(
+        seq=seq, field=field, predicted=predicted, observed=observed, verdict=verdict, rule=rule, action=action, **extra
+    )
 
 
 def _path(page: str, key: str) -> str:
@@ -162,8 +164,12 @@ def _rank_check(seq: int, f: dict, prev_exam: dict, same: bool) -> list[Check]:
     me, rank, npcs = f.get("score"), f.get("my_rank_index"), f.get("npc_scores")
     if me is None or rank is None or not npcs or any(v is None for v in npcs):
         return []
-    if any(a < b for a, b in zip(npcs, npcs[1:], strict=False)):
-        return [_check(seq, "exam.npc_scores", "按名次不增", npcs, "read_error", "rank_consistency", "对手分数顺序与名次矛盾")]
+    if any(a < b for a, b in zip(npcs, npcs[1:], strict=False)):  # noqa: RUF007
+        return [
+            _check(
+                seq, "exam.npc_scores", "按名次不增", npcs, "read_error", "rank_consistency", "对手分数顺序与名次矛盾"
+            )
+        ]
     above = npcs[: rank - 1]
     below = npcs[rank - 1 :]
     lo = max(below) if below else 0
@@ -176,7 +182,17 @@ def _rank_check(seq: int, f: dict, prev_exam: dict, same: bool) -> list[Check]:
     if me_ok and bad_npcs:
         return [_check(seq, "exam.npc_scores", {"rank": rank, "score": me}, npcs, "read_error", "rank_consistency",
                        f"玩家分数与上一帧连续，对手第 {[i + 1 for i in bad_npcs]} 个分数突变")]  # fmt: skip
-    return [_check(seq, "exam.score", {"min": lo, "max": hi}, me, "read_error", "rank_consistency", f"第 {rank} 名应在 {lo}..{hi}")]
+    return [
+        _check(
+            seq,
+            "exam.score",
+            {"min": lo, "max": hi},
+            me,
+            "read_error",
+            "rank_consistency",
+            f"第 {rank} 名应在 {lo}..{hi}",
+        )
+    ]
 
 
 def check_invariants(prev, obs, *, events: list[dict] | None = None, debug: bool = False) -> list[Check]:
@@ -225,7 +241,14 @@ def check_invariants(prev, obs, *, events: list[dict] | None = None, debug: bool
             judge(pp < 0, "produce.produce_point", {"min": 0}, pp, "range")
             old = produce.get("produce_point")
             if old is not None:
-                judge(_dropped_digit(old, pp, suffix_only=True), "produce.produce_point", old, pp, "digit_count", note="末位掉位")
+                judge(
+                    _dropped_digit(old, pp, suffix_only=True),
+                    "produce.produce_point",
+                    old,
+                    pp,
+                    "digit_count",
+                    note="末位掉位",
+                )
                 if events:
                     _p_delta(seq, old, pp, events, out, ok, debug)
 
@@ -239,7 +262,14 @@ def check_invariants(prev, obs, *, events: list[dict] | None = None, debug: bool
             judge(score < old, "exam.score", {"min": old}, score, "score_monotonic")
         genki, old_genki = f.get("genki"), exam.get("genki")
         if genki is not None and same and old_genki is not None:
-            judge(_genki_lost_head(old_genki, genki), "exam.genki", old_genki, genki, "digit_count", note="四位数首位掉位（1388→388）")
+            judge(
+                _genki_lost_head(old_genki, genki),
+                "exam.genki",
+                old_genki,
+                genki,
+                "digit_count",
+                note="四位数首位掉位（1388→388）",
+            )
         rank_bad = _rank_check(seq, f, exam, same)
         out.extend(rank_bad)
         if debug and not rank_bad and score is not None and f.get("my_rank_index") is not None:
@@ -247,9 +277,29 @@ def check_invariants(prev, obs, *, events: list[dict] | None = None, debug: bool
         now, last = f.get("remaining_turns"), exam.get("remaining_turns")
         if same and now is not None and last is not None:
             if now == last + 1:
-                out.append(_check(seq, "exam.remaining_turns", last, now, "model_gap", "turn_step", "回合 +1：加回合效果，待事件确认"))
+                out.append(
+                    _check(
+                        seq,
+                        "exam.remaining_turns",
+                        last,
+                        now,
+                        "model_gap",
+                        "turn_step",
+                        "回合 +1：加回合效果，待事件确认",
+                    )
+                )
             elif now < last - 1:
-                out.append(_check(seq, "exam.remaining_turns", {"min": last - 1}, now, "model_gap", "turn_step", f"一次少了 {last - now} 回合：中间回合没观测到"))
+                out.append(
+                    _check(
+                        seq,
+                        "exam.remaining_turns",
+                        {"min": last - 1},
+                        now,
+                        "model_gap",
+                        "turn_step",
+                        f"一次少了 {last - now} 回合：中间回合没观测到",
+                    )
+                )
             elif debug:
                 ok.append(_check(seq, "exam.remaining_turns", last, now, "consistent", "turn_step"))
         brief = prev.exam_session.brief_permil if prev is not None else None
@@ -294,11 +344,31 @@ def _brief_check(seq: int, attr: str | None, mp: int | None, brief: dict | None,
     want = brief[attr]
     if abs(mp - want) <= want * MULT_TOL:
         if ok is not None:
-            ok.append(_check(seq, "exam.multiplier_permil", want, mp, "consistent", "attr_multiplier", _pct_diff(mp, want) if mp != want else None))
+            ok.append(
+                _check(
+                    seq,
+                    "exam.multiplier_permil",
+                    want,
+                    mp,
+                    "consistent",
+                    "attr_multiplier",
+                    _pct_diff(mp, want) if mp != want else None,
+                )
+            )
         return []
     others = [a for a, v in brief.items() if a != attr and v == mp]
     if len(others) == 1 and list(brief.values()).count(want) == 1:
-        return [_check(seq, "exam.attr", others[0], attr, "read_error", "attr_multiplier", f"倍率 {mp} 是说明页 {others[0]} 的值")]
+        return [
+            _check(
+                seq,
+                "exam.attr",
+                others[0],
+                attr,
+                "read_error",
+                "attr_multiplier",
+                f"倍率 {mp} 是说明页 {others[0]} 的值",
+            )
+        ]
     return [_check(seq, "exam.multiplier_permil", {"attr": attr, "value": want}, mp, "read_error", "attr_multiplier",
                    f"说明页 {attr} = {want}，{_pct_diff(mp, want)}")]  # fmt: skip
 
@@ -321,7 +391,9 @@ def _p_delta(seq, old, new, events, out, ok, debug) -> None:
     gain = sum(int((e.get("args") or {}).get("points") or 0) for e in events)
     want = old - spend + gain
     if new != want:
-        out.append(_check(seq, "produce.produce_point", want, new, "model_gap", "p_delta", f"花费 {spend}、获得 {gain}"))
+        out.append(
+            _check(seq, "produce.produce_point", want, new, "model_gap", "p_delta", f"花费 {spend}、获得 {gain}")
+        )
     elif debug:
         ok.append(_check(seq, "produce.produce_point", want, new, "consistent", "p_delta"))
 

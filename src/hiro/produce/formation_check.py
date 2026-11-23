@@ -30,7 +30,11 @@ def check_support_step2(read: dict | None, plan: dict) -> tuple[list[str], list[
     slots = read.get("slots") or []
     seen = [s.get("support_card_id") for s in slots if s.get("support_card_id")]
     unknown = len(slots) - len(seen)
-    extra = [s.get("name") or s["support_card_id"] for s in slots if s.get("support_card_id") and s["support_card_id"] not in own]
+    extra = [
+        s.get("name") or s["support_card_id"]
+        for s in slots
+        if s.get("support_card_id") and s["support_card_id"] not in own
+    ]
     if extra:
         problems.append(f"编成里有方案外的卡：{'、'.join(extra)}")
     names = {o["support_card_id"]: o.get("name") or o["support_card_id"] for o in sup.get("own") or []}
@@ -97,15 +101,22 @@ def check_memory_cards(reads: list[dict], plan: dict, names: dict | None = None)
         i = r.get("slot", 0) + 1
         if not r.get("known"):
             unknown += 1
-            warnings.append(f"第 {i} 格回忆的卡认不出" + (f"（最像 {nm(r['card'])}，分 {r['score']}）" if r.get("card") else "（没有卡面素材）"))
+            warnings.append(
+                f"第 {i} 格回忆的卡认不出"
+                + (f"（最像 {nm(r['card'])}，分 {r['score']}）" if r.get("card") else "（没有卡面素材）")
+            )
             continue
         if r["card"] in expect:
             continue
         exp = {card_key(k): v for k, v in (r.get("expect_scores") or {}).items()}
         best_k = min(exp, key=exp.get) if exp else None
         gap = exp[best_k] - r["score"] if best_k else float("inf")
-        msg = f"第 {i} 格回忆像 {nm(r['card'])}（分 {r['score']}），不是方案里的卡" + (f"（方案里最像的 {nm(best_k)} 分 {exp[best_k]}）" if best_k else "")
-        (problems if gap >= CONFIDENT_MARGIN else warnings).append(msg if gap >= CONFIDENT_MARGIN else msg + "，差距不大，不拦")
+        msg = f"第 {i} 格回忆像 {nm(r['card'])}（分 {r['score']}），不是方案里的卡" + (
+            f"（方案里最像的 {nm(best_k)} 分 {exp[best_k]}）" if best_k else ""
+        )
+        (problems if gap >= CONFIDENT_MARGIN else warnings).append(
+            msg if gap >= CONFIDENT_MARGIN else msg + "，差距不大，不拦"
+        )
     if reads and unknown == len(reads):
         # 一格都认不出不能当「没认错」放行（11-17 Mac p15c：翻编成号的动画还没完就读了，四格分 28–40，照样开局）
         problems.append("四格回忆都认不出（画面还在切换，或第 3 步布局变了、图标位置要重新标定），不能确认是方案的回忆")

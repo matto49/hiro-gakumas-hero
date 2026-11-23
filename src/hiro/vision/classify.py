@@ -14,10 +14,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from hiro.vision.ui_templates import PACK, box, tpl
+
 import cv2
 import numpy as np
-
-from hiro.vision.ui_templates import PACK, box, tpl
 
 
 @dataclass(frozen=True)
@@ -38,7 +38,10 @@ def loading(img) -> bool:
     """加载画面：上方 35% 二值化后只剩不超过 2 种颜色（同 KAA tasks.actions.loading）。"""
     top = cv2.threshold(img, 127, 255, cv2.THRESH_BINARY)[1][: int(img.shape[0] * 0.35)]
     b, g, r = cv2.split(top)
-    return len(np.unique(b.astype(np.int64) + 1000 * (g.astype(np.int64) + 1) + 1000 * 1000 * (r.astype(np.int64) + 1))) <= 2
+    return (
+        len(np.unique(b.astype(np.int64) + 1000 * (g.astype(np.int64) + 1) + 1000 * 1000 * (r.astype(np.int64) + 1)))
+        <= 2
+    )
 
 
 def at_home(img) -> bool:
@@ -88,7 +91,10 @@ def option_regions(img) -> list:
         if not (350 < w < 660 and h > 60):
             continue
         is_button = 60 < h < 100
-        white = (cv2.threshold(cv2.cvtColor(crop[y : y + h, x : x + w], cv2.COLOR_BGR2GRAY), 190, 255, cv2.THRESH_BINARY)[1] == 255).mean()
+        white = (
+            cv2.threshold(cv2.cvtColor(crop[y : y + h, x : x + w], cv2.COLOR_BGR2GRAY), 190, 255, cv2.THRESH_BINARY)[1]
+            == 255
+        ).mean()
         regions.append([y, is_button, is_button and white < 0.5, Box(x1 + x, y1 + y, x1 + x + w, y1 + y + h)])
     regions.sort(key=lambda r: r[0])
     if regions and any(r[2] for r in regions):
@@ -108,7 +114,12 @@ def _any(img, *names) -> bool:
     return any(tpl(n).exists(img) for n in names)
 
 
-SELECT_TITLE_BOX = (230, 590, 370, 670)  # 三选一弹窗标题「スキルカード / Pアイテム / Pドリンク」的位置（KAA 模板原位 (247,613) 107x32）
+SELECT_TITLE_BOX = (
+    230,
+    590,
+    370,
+    670,
+)  # 三选一弹窗标题「スキルカード / Pアイテム / Pドリンク」的位置（KAA 模板原位 (247,613) 107x32）
 
 
 def _title(img, name: str) -> bool:
@@ -247,7 +258,9 @@ def classify_scene(img) -> PageHit:
     from hiro.vision.tower import is_tower_exam
 
     if is_tower_exam(img):
-        return PageHit("TOWER_EXAM", "tower_ocr")  # 偶像之路考试页：先于 KAA 的 EXAM 模板（否则会当成 H.I.F 考试进 run_exam 的 H.I.F 流程）
+        return PageHit(
+            "TOWER_EXAM", "tower_ocr"
+        )  # 偶像之路考试页：先于 KAA 的 EXAM 模板（否则会当成 H.I.F 考试进 run_exam 的 H.I.F 流程）
     if is_hif_result(img):
         return PageHit("HIF_EXAM_RESULT", "exam_ocr")
     if is_select_pitem(img):
@@ -265,12 +278,19 @@ def classify_scene(img) -> PageHit:
         return PageHit("home", "template", "outside")
     scene = template_scene(img)
     if scene == "SELECT_PITEM" and (hit := classify_page(img)) is not None and hit[0] == "PRODUCE_LOG":
-        return PageHit("PRODUCE_LOG", "page_ocr")  # H.I.F 的 P 道具选择页上面已判过；到这里多半是行动记录（「Pアイテム…を獲得」）
+        return PageHit(
+            "PRODUCE_LOG", "page_ocr"
+        )  # H.I.F 的 P 道具选择页上面已判过；到这里多半是行动记录（「Pアイテム…を獲得」）
     if scene in (None, "IDLE"):
         if (selecting := selecting_dialog(img)) is not None:
             return PageHit(selecting, "pixel")
         if (hit := classify_page(img)) is not None:  # 模板认不出的 H.I.F 页面（弹窗、获得演出、考前说明、定制、菜单…）
-            return PageHit(hit[0], "page_ocr", "outside" if hit[0] == "MENU" and hit[1].get("kind") == "home" else "produce", hit[1])
+            return PageHit(
+                hit[0],
+                "page_ocr",
+                "outside" if hit[0] == "MENU" and hit[1].get("kind") == "home" else "produce",
+                hit[1],
+            )
     if scene in ACQUIRE_OVER and acquire_over(img) is not None:
         return PageHit("ACQUIRE", "page_ocr")  # 相談购买后的获得演出盖在货架上，模板仍判 CONSULT
     if scene is not None:

@@ -28,7 +28,14 @@ DRINKS = [("Boost", "パラメータ上昇量増加50%（3ターン）"), ("Tea"
 
 
 def card(slot: int, name: str, text: str) -> dict:
-    return {"slot": slot, "name": name, "text": text, "available": True, "upgrade": 0, "tags": {"once": "レッスン中1回" in text}}
+    return {
+        "slot": slot,
+        "name": name,
+        "text": text,
+        "available": True,
+        "upgrade": 0,
+        "tags": {"once": "レッスン中1回" in text},
+    }
 
 
 def main() -> None:
@@ -43,7 +50,9 @@ def main() -> None:
         for k in range(2 if rem > 1 else 1):
             # 前段先叠元気 / やる気，后段兑现，最后一回合打终结牌
             want = ("Finale", "Spark") if rem <= 2 else ("Warm-up", "Focus", "Encore")
-            pick = next((c for c in hand if c["name"] in want and c is not getattr(main, "_last", None)), hand[k % len(hand)])
+            pick = next(
+                (c for c in hand if c["name"] in want and c is not getattr(main, "_last", None)), hand[k % len(hand)]
+            )
             main._last = pick
             base = 40_000 + 9_000 * turn
             previews = []

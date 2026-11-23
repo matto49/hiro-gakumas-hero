@@ -49,7 +49,11 @@ def screen_fields(raw: dict, session=None, img=None) -> dict:
 
 def hand_mismatch(a: list, b: list) -> list[str]:
     """张数相同时，两边卡 ID 不同的槽位（「识别名≠执行器名」）。"""
-    return [f"{i}:{x.name}≠{y.name}" for i, (x, y) in enumerate(zip(a, b)) if x.card_id and y.card_id and x.card_id != y.card_id]
+    return [
+        f"{i}:{x.name}≠{y.name}"
+        for i, (x, y) in enumerate(zip(a, b))
+        if x.card_id and y.card_id and x.card_id != y.card_id
+    ]
 
 
 def screen_state(memory: ExamMemory, profile, exam_fields: dict, frame=None, *, target_score: int | None = None,
@@ -57,13 +61,17 @@ def screen_state(memory: ExamMemory, profile, exam_fields: dict, frame=None, *, 
     """GameState.exam（+ 执行器的帧）→ BattleState（截图来源）。"""
     kw = exam_kwargs(exam_fields)
     if frame is not None:
-        loc_hand = [card_view(i, c.card if c else None, available=bool(c and c.available)) for i, c in enumerate(frame.cards)]
+        loc_hand = [
+            card_view(i, c.card if c else None, available=bool(c and c.available)) for i, c in enumerate(frame.cards)
+        ]
         recognized = exam_fields.get("hand") is not None and len(kw["hand"]) == len(loc_hand)
         if not recognized and getattr(frame, "hand", None) is not None:
             kw["hand"], recognized = frame.hand_views(), True
         if not recognized:
             if conflicts is not None:
-                conflicts.append(f"考试手牌：识别 {[c.name for c in kw['hand']]} ≠ 执行器 {[c.name for c in loc_hand]}，采用执行器（点击按它的槽位）")
+                conflicts.append(
+                    f"考试手牌：识别 {[c.name for c in kw['hand']]} ≠ 执行器 {[c.name for c in loc_hand]}，采用执行器（点击按它的槽位）"
+                )
             kw["hand"] = loc_hand
             kw["drinks"] = [drink_view(i, dr) for i, (dr, _) in enumerate(frame.drinks)]
         else:

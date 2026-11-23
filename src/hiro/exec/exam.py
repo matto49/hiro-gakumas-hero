@@ -24,7 +24,7 @@ from hiro.brain.cards import card_view, drink_view
 from hiro.brain.rules import Decision
 from hiro.brain.state import BattleState, ExamMemory
 from hiro.contracts import Action, ExecutionResult
-from hiro.contracts import Decision as DecisionContract
+from hiro.contracts import Decision as DecisionContract  # noqa: F401
 from hiro.devices.active import Loop, device, sleep
 from hiro.exec import schedule_probe
 from hiro.perception.lesson import _read_int
@@ -628,7 +628,7 @@ def _handle_dialogs(img=None, *, slow: bool = False, select: bool = True) -> boo
     """处理出牌过程中会弹出的对话框（读最近一次截图 img）。返回是否处理了什么。
     处理后等弹窗区域变化 / 画面稳定再返回，不固定睡 2s。"""
     img = img if img is not None else device.screenshot()
-    if tpl("InProduce.IconTitleSkillCardMove").exists(img):
+    if tpl("InProduce.IconTitleSkillCardMove").exists(img):  # noqa: SIM102
         if _skill_card_move():
             ops.wait_stable(timeout=DIALOG_SETTLE)
             return True

@@ -19,16 +19,15 @@
 
 from __future__ import annotations
 
-from hiro.vision.textnorm import contains, contains_any
-
 import json
+import logging
 import os
 import time
 from collections.abc import Callable
 from pathlib import Path
 
-import logging
 from hiro import imgio
+from hiro.vision.textnorm import contains, contains_any
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +83,9 @@ def check(reply: dict | None, boxes) -> tuple[dict, str | None]:
         if contains_any(text, TARGET_DANGER):
             return {"action": "stop"}, f"目标框「{text}」含危险词"
         if any(h in t for t in texts for h in CHOICE_HINTS):
-            return {"action": "stop"}, f"选择页（{next(t for t in texts if any(h in t for h in CHOICE_HINTS))}）交给决策层，不点「{text}」"
+            return {
+                "action": "stop"
+            }, f"选择页（{next(t for t in texts if any(h in t for h in CHOICE_HINTS))}）交给决策层，不点「{text}」"
         return {"action": "tap_box", "box": k, "xy": _center(boxes[k][2]), "text": text}, None
     if act == "tap_blank":
         from hiro.loop.advance import ALT_TAP, alt_clear
@@ -194,7 +195,10 @@ class Rescuer:
             rec.update(action={"action": "stop"}, blocked=f"同一画面已连续 {MAX_PER_SCREEN} 次 LLM 兜底仍没进展")
             return self._finish(rec, img)
         if len(self.times) > MAX_PER_WINDOW[0]:
-            rec.update(action={"action": "stop"}, blocked=f"{MAX_PER_WINDOW[1] / 60:.0f} 分钟内第 {len(self.times)} 次 LLM 兜底，画面在认不出的页之间打转")
+            rec.update(
+                action={"action": "stop"},
+                blocked=f"{MAX_PER_WINDOW[1] / 60:.0f} 分钟内第 {len(self.times)} 次 LLM 兜底，画面在认不出的页之间打转",
+            )
             return self._finish(rec, img)
         boxes = self.ocr(img) if boxes is None else boxes
         rec["boxes"] = [(t, list(b)) for t, _, b in boxes]
@@ -228,7 +232,11 @@ class Rescuer:
         if res.data is not None:
             rec.update(page=res.data.get("page"), reason=res.data.get("reason"))
         now_img = self.shoot()
-        if now_img is not None and float(np.abs(_thumb(now_img) - thumb).mean()) >= SAME_SCREEN_DIFF and not self._same_texts(boxes, now_img):
+        if (
+            now_img is not None
+            and float(np.abs(_thumb(now_img) - thumb).mean()) >= SAME_SCREEN_DIFF
+            and not self._same_texts(boxes, now_img)
+        ):
             rec.update(action={"action": "none"}, changed=True, skipped="等 LLM 回复期间画面已变，作废这次回复")
             self.progressed()
             return self._finish(rec, img)
@@ -246,9 +254,9 @@ class Rescuer:
         return self._finish(rec, img)
 
     def _ask(self, img, boxes, context):
-        import cv2
-
         from hiro.brain.llm import load_prompt
+
+        import cv2
 
         small = cv2.resize(img, IMAGE_SIZE, interpolation=cv2.INTER_AREA)
         _, buf = cv2.imencode(".jpg", small, [cv2.IMWRITE_JPEG_QUALITY, 80])
@@ -301,13 +309,15 @@ class Rescuer:
                        f"；{rec['skipped']}" if rec.get("skipped") else "")  # fmt: skip
         if self.out_dir is not None:
             try:
-                import cv2
+                import cv2  # noqa: F401
 
                 d = self.out_dir / f"{time.strftime('%Y%m%d-%H%M%S')}-{len(self.log)}"
                 d.mkdir(parents=True, exist_ok=True)
                 imgio.imwrite(str(d / "screen.jpg"), img)
                 rec["dir"] = str(d)
-                (d / "record.json").write_text(json.dumps(rec, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+                (d / "record.json").write_text(
+                    json.dumps(rec, ensure_ascii=False, indent=1, default=str), encoding="utf-8"
+                )
             except Exception:
                 logger.warning("LLM 兜底留档失败", exc_info=True)
         self.log.append(rec)

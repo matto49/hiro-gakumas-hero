@@ -3,13 +3,13 @@
 import json
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 import hiro.vision.hif as hif
 from hiro.vision.digits import read_int, read_number
 from hiro.vision.offline import load
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "hif_hud"
 

@@ -24,11 +24,11 @@ import os
 import time
 from pathlib import Path
 
-import cv2
-import numpy as np
-
 from hiro.loop.errors import ResumeBlocked
 from hiro.runtime import nav, opening
+
+import cv2
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,9 @@ STAGES = ("nia-mid1", "nia-mid2", "nia-final")
 
 
 # ---------------------------------------------------------------- 开局
-def choose_difficulty(rt, difficulty: str, timeout: float = opening.MODE_TIMEOUT, *, words: tuple[str, ...] | None = None) -> None:
+def choose_difficulty(
+    rt, difficulty: str, timeout: float = opening.MODE_TIMEOUT, *, words: tuple[str, ...] | None = None
+) -> None:
     """剧本页点难度按钮（OCR 找「プロ / PRO」），直到进了第 1 步。AP 不足只喝 APドリンク（同 opening.choose_mode）。
     words：按钮字样（初的「レギュラー / REGULAR」由 hiro.runtime.hajime 传），不给按 DIFFICULTY_WORDS。"""
     from hiro.loop import ap_refill
@@ -64,7 +66,10 @@ def choose_difficulty(rt, difficulty: str, timeout: float = opening.MODE_TIMEOUT
             state["refilled"] = True
             return None
         lo, hi = DIFFICULTY_BAND
-        btn = next((t for t in f.texts if lo <= t.rect.center.y <= hi and any(w == t.text.replace(" ", "") for w in words)), None)
+        btn = next(
+            (t for t in f.texts if lo <= t.rect.center.y <= hi and any(w == t.text.replace(" ", "") for w in words)),
+            None,
+        )
         if btn is not None:
             logger.info("剧本页难度：点「%s」%s", btn.text, tuple(btn.rect.center))
             rt.device.tap(*btn.rect.center)
@@ -89,7 +94,12 @@ class Sampler:
     """包住 classify：存帧（画面或页面名变了）；TOWER_EXAM 当考试（N.I.A 试镜可能被偶像之路的考试判据认中），其余 TOWER_* 当认不出。"""
 
     def __init__(self, classify, out: Path, clock=time.monotonic, *, nia: bool = True):
-        self.classify, self.out, self.clock, self.nia = classify, Path(out), clock, nia  # nia=False：不整帧 OCR 找 N.I.A 特有页（初用）
+        self.classify, self.out, self.clock, self.nia = (
+            classify,
+            Path(out),
+            clock,
+            nia,
+        )  # nia=False：不整帧 OCR 找 N.I.A 特有页（初用）
         self.out.mkdir(parents=True, exist_ok=True)
         self.index = self.out / "frames.jsonl"
         self.seq = sum(1 for _ in self.index.open(encoding="utf-8")) if self.index.exists() else 0
@@ -177,7 +187,9 @@ def make_advance(sampler: Sampler, stop_s: float = UNKNOWN_STOP_S):
             return False
         if now - state["since"] >= stop_s:
             shot = _save_stop_frame(rt, sampler, frame, hit)
-            raise ResumeBlocked(f"N.I.A 采样：{hit.name} 页 {now - state['since']:.0f}s 认不出 / 没有处理器，存帧 {shot}，停下交人")
+            raise ResumeBlocked(
+                f"N.I.A 采样：{hit.name} 页 {now - state['since']:.0f}s 认不出 / 没有处理器，存帧 {shot}，停下交人"
+            )
         return False
 
     return advance
@@ -221,7 +233,11 @@ def _connecting(img) -> bool:
     """右下角「CONNECTING」（游戏通信中）。普通页面加载时也会闪，所以只在认不出的画面上当加载用，不改通用判页。"""
     from hiro.vision.ui_templates import tpl
 
-    return img is not None and img.shape[:2] == (1280, 720) and tpl("Common.TextConnecting").find(img, threshold=0.9) is not None
+    return (
+        img is not None
+        and img.shape[:2] == (1280, 720)
+        and tpl("Common.TextConnecting").find(img, threshold=0.9) is not None
+    )
 
 
 ART_BANDS = ((0, 380), (520, 820), (900, 1280))  # 上 / 中 / 下
@@ -283,7 +299,9 @@ def nia_core(scenario_mode: str):
     from hiro.produce.hif import HifCore
 
     class NiaSampleCore(HifCore):
-        nia_audition_number = None  # 试镜选档页选的档（NiaPages 设）：标签带上「#audition-N」，8a3a1e7 的中转层按它查战斗配置
+        nia_audition_number = (
+            None  # 试镜选档页选的档（NiaPages 设）：标签带上「#audition-N」，8a3a1e7 的中转层按它查战斗配置
+        )
         nia_stage = None  # 试镜选档页左上读到的场次（mid1 / mid2 / final）；读不到才按进了几场数
         next_exam_file = None  # NiaPages 选档时写的文件（resume 后内存里的场次丢了，从这里读）
 
@@ -296,7 +314,10 @@ def nia_core(scenario_mode: str):
 
                 try:
                     saved = json.loads(self.next_exam_file.read_text(encoding="utf-8"))
-                    self.nia_stage, self.nia_audition_number = saved.get("stage"), self.nia_audition_number or saved.get("audition_number")
+                    self.nia_stage, self.nia_audition_number = (
+                        saved.get("stage"),
+                        self.nia_audition_number or saved.get("audition_number"),
+                    )
                     self.next_exam_file.unlink()
                 except (OSError, ValueError) as e:
                     logger.warning("N.I.A：读下一场考试的场次失败：%s", e)
@@ -319,6 +340,7 @@ def set_mode(session, mode: str) -> None:
 
 def run(args) -> int:
     from hiro import kaa_env
+    from hiro.brain import guides
     from hiro.contracts import TraceWriter
     from hiro.devices import active, open_device
     from hiro.devices.base import DeviceError
@@ -328,7 +350,6 @@ def run(args) -> int:
     from hiro.runtime import finish, play
     from hiro.runtime.loop import Runtime
     from hiro.vision.classify import classify
-    from hiro.brain import guides
 
     guides.refresh_if_stale()  # 偶像卡攻略包：没有或超过 24 小时就下载，失败不阻塞（协调 11-20）
     kaa_env.apply_formation_plan(args.idol)
@@ -340,9 +361,17 @@ def run(args) -> int:
     mode = MODES[args.difficulty]
     from hiro.runtime.segments import trace_name
 
-    session = Session(TraceWriter(name=trace_name("nia", args.command, args.trace)))  # 续跑接上一段（体力 / P / 属性 / step 打底）
+    session = Session(
+        TraceWriter(name=trace_name("nia", args.command, args.trace))
+    )  # 续跑接上一段（体力 / P / 属性 / step 打底）
     Core = nia_core(mode)
-    for k, v in {"session": session, "use_llm": not args.no_llm, "llm_spec": args.llm, "main_attr": args.main_attr, "exams_done": 0}.items():
+    for k, v in {
+        "session": session,
+        "use_llm": not args.no_llm,
+        "llm_spec": args.llm,
+        "main_attr": args.main_attr,
+        "exams_done": 0,
+    }.items():
         setattr(Core, k, v)
     core = Core(scenario="qualify", idol=args.idol)
     set_mode(session, mode)
@@ -367,6 +396,7 @@ def run(args) -> int:
         f = raw_shot()
         sampler.save(f.img, PageHit("opening", "opening"))
         return f
+
     try:
         rt.screen.shot = opening_shot
         if args.command == "new":

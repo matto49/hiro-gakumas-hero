@@ -7,39 +7,147 @@
 # tier：S/A/B（社区原评级）；must：缺了分数上不去 [game8]（デイドリーミング 由决策-07 升为本战核心，用户 2026-10-31 批准）；
 # loop：末段循环核心 [game8]；role：本战得分里的角色（ROLES）；protect：换卡 / 删卡时不动（社区没评级、但实机证明有用的卡）
 YARUKI_CARDS = {
-    "p_card-02-act-3_186": dict(name="せのびの魔法", tier="S", must=True, role="delayed", keep=2,
-                                note="倒数第4–5回合用特製ハツボシエキス复制；定制优先元气；第二张也要（R2 +4.3 万 ± 1.6 万，决策-17 §3；不清零元気，两张能叠）"),
-    "p_card-02-act-3_039": dict(name="届いて！", tier="S", must=True, loop=True, role="finisher", note="最后一回合打；定制优先火力，不必复制"),
-    "p_card-02-men-3_040": dict(name="夢色リップ", tier=None, note="用户 2026-10-31 判断：不到必拿，有更好的卡（game8 曾列为道中必拿）"),
-    "p_card-02-act-2_062": dict(name="きらきら紙吹雪", tier="S", loop=True, role="loop", note="末段连打+抽牌，帮最后一回合抽到届いて！"),
-    "p_card-02-act-1_037": dict(name="デイドリーミング", tier="S", must=True, role="sustained",
-                                note="本战持续得分核心（决策-07；夺冠局两层覆盖第 9–12 回合）；倒数第4回合用最强，与せのび 抢时机时优先せのび"),
-    "p_card-02-men-3_002": dict(name="私がスター", tier="S", role="extend", note="追加 1 回合；道中容易拿到"),
-    "p_card-00-men-3_003": dict(name="アイドル魂", tier="S", role="compress", note="防ハツボシエキス 的体力消耗增加；共通卡，不易拿到"),
-    "p_card-00-men-3_005": dict(name="仕切り直し", tier="S", role="compress", note="抽牌+使用数，压缩牌组；共通卡，不易拿到"),
-    "p_card-00-men-2_012": dict(name="アイドル宣言", tier="S", role="compress", note="抽牌+使用数，压缩牌组；共通卡，不易拿到"),
-    "p_card-02-men-2_004": dict(name="ワクワクが止まらない", tier="A", role="motivation", note="开局入手定制非常强"),
-    "p_card-02-men-2_111": dict(name="成長痛", tier="A", role="motivation", note="强但会生成眠気；末段循环里最多容忍 1 张眠気"),
-    "p_card-02-act-3_045": dict(name="あのときの約束", tier="A", role="cash", note="普通地强"),
-    "p_card-00-men-3_012": dict(name="テレビ出演", tier="B", role="genki", note="定制「使用数+1」后才强"),
-    "p_card-00-men-3_011": dict(name="叶えたい夢", tier="B", role="genki", note="能攒元气"),
-    "p_card-02-men-2_057": dict(name="ゆめみごこち", tier=None, loop=True, role="loop", note="末段循环，攒やる気 [game8]"),
-    "p_card-02-act-2_049": dict(name="みんな大好き", tier=None, role="loop", note="PLv 低、火力牌少时的末段循环卡 [game8]"),
-    "p_card-02-men-2_056": dict(name="止められない想い", tier=None, role="hp", note="广专属高相性：扣体力且不占行动 [seesaa]"),
-    "p_card-02-men-2_052": dict(name="ひなたぼっこ", tier=None, role="hp", note="体力消耗大 [もりし]；广可用来强行压到半血 [seesaa]"),
-    "p_card-02-men-1_031": dict(name="えいえいおー", tier=None, role="item", protect=True, keep=2, value=6.0,
-                                note="广固有 P 道具的触发牌（エウレカ 靠它压血），第二张更稳；换卡 / 删卡保留 2 张（main8-r1 被换掉）；定制优先やる気+ [seesaa]"),
-    "p_card-02-act-1_071": dict(name="がむしゃら", tier=None, role="cash", protect=True,
-                                note="不清零元气的兑现牌（第 2 局选拔② 末回合兑现）；第 4 局本战被 KAA 盲换掉，换卡保护名单要有它"),
-    "p_card-02-ido-3_105": dict(name="エウレカ！", tier=None, role="idol", protect=True,
-                                note="Campus 広 固有卡：半血时按元气 40% 得分；删卡 / 换卡永远不动（决策-08）"),
-    "p_card-00-sup-3_093": dict(name="紅葉ランニング", tier=None, role="compress", note="压缩效率高，やる気 推荐获得 [wiki]"),
+    "p_card-02-act-3_186": {
+        "name": "せのびの魔法",
+        "tier": "S",
+        "must": True,
+        "role": "delayed",
+        "keep": 2,
+        "note": "倒数第4–5回合用特製ハツボシエキス复制；定制优先元气；第二张也要（R2 +4.3 万 ± 1.6 万，决策-17 §3；不清零元気，两张能叠）",
+    },
+    "p_card-02-act-3_039": {
+        "name": "届いて！",
+        "tier": "S",
+        "must": True,
+        "loop": True,
+        "role": "finisher",
+        "note": "最后一回合打；定制优先火力，不必复制",
+    },
+    "p_card-02-men-3_040": {
+        "name": "夢色リップ",
+        "tier": None,
+        "note": "用户 2026-10-31 判断：不到必拿，有更好的卡（game8 曾列为道中必拿）",
+    },
+    "p_card-02-act-2_062": {
+        "name": "きらきら紙吹雪",
+        "tier": "S",
+        "loop": True,
+        "role": "loop",
+        "note": "末段连打+抽牌，帮最后一回合抽到届いて！",
+    },
+    "p_card-02-act-1_037": {
+        "name": "デイドリーミング",
+        "tier": "S",
+        "must": True,
+        "role": "sustained",
+        "note": "本战持续得分核心（决策-07；夺冠局两层覆盖第 9–12 回合）；倒数第4回合用最强，与せのび 抢时机时优先せのび",
+    },
+    "p_card-02-men-3_002": {"name": "私がスター", "tier": "S", "role": "extend", "note": "追加 1 回合；道中容易拿到"},
+    "p_card-00-men-3_003": {
+        "name": "アイドル魂",
+        "tier": "S",
+        "role": "compress",
+        "note": "防ハツボシエキス 的体力消耗增加；共通卡，不易拿到",
+    },
+    "p_card-00-men-3_005": {
+        "name": "仕切り直し",
+        "tier": "S",
+        "role": "compress",
+        "note": "抽牌+使用数，压缩牌组；共通卡，不易拿到",
+    },
+    "p_card-00-men-2_012": {
+        "name": "アイドル宣言",
+        "tier": "S",
+        "role": "compress",
+        "note": "抽牌+使用数，压缩牌组；共通卡，不易拿到",
+    },
+    "p_card-02-men-2_004": {
+        "name": "ワクワクが止まらない",
+        "tier": "A",
+        "role": "motivation",
+        "note": "开局入手定制非常强",
+    },
+    "p_card-02-men-2_111": {
+        "name": "成長痛",
+        "tier": "A",
+        "role": "motivation",
+        "note": "强但会生成眠気；末段循环里最多容忍 1 张眠気",
+    },
+    "p_card-02-act-3_045": {"name": "あのときの約束", "tier": "A", "role": "cash", "note": "普通地强"},
+    "p_card-00-men-3_012": {"name": "テレビ出演", "tier": "B", "role": "genki", "note": "定制「使用数+1」后才强"},
+    "p_card-00-men-3_011": {"name": "叶えたい夢", "tier": "B", "role": "genki", "note": "能攒元气"},
+    "p_card-02-men-2_057": {
+        "name": "ゆめみごこち",
+        "tier": None,
+        "loop": True,
+        "role": "loop",
+        "note": "末段循环，攒やる気 [game8]",
+    },
+    "p_card-02-act-2_049": {
+        "name": "みんな大好き",
+        "tier": None,
+        "role": "loop",
+        "note": "PLv 低、火力牌少时的末段循环卡 [game8]",
+    },
+    "p_card-02-men-2_056": {
+        "name": "止められない想い",
+        "tier": None,
+        "role": "hp",
+        "note": "广专属高相性：扣体力且不占行动 [seesaa]",
+    },
+    "p_card-02-men-2_052": {
+        "name": "ひなたぼっこ",
+        "tier": None,
+        "role": "hp",
+        "note": "体力消耗大 [もりし]；广可用来强行压到半血 [seesaa]",
+    },
+    "p_card-02-men-1_031": {
+        "name": "えいえいおー",
+        "tier": None,
+        "role": "item",
+        "protect": True,
+        "keep": 2,
+        "value": 6.0,
+        "note": "广固有 P 道具的触发牌（エウレカ 靠它压血），第二张更稳；换卡 / 删卡保留 2 张（main8-r1 被换掉）；定制优先やる気+ [seesaa]",
+    },
+    "p_card-02-act-1_071": {
+        "name": "がむしゃら",
+        "tier": None,
+        "role": "cash",
+        "protect": True,
+        "note": "不清零元气的兑现牌（第 2 局选拔② 末回合兑现）；第 4 局本战被 KAA 盲换掉，换卡保护名单要有它",
+    },
+    "p_card-02-ido-3_105": {
+        "name": "エウレカ！",
+        "tier": None,
+        "role": "idol",
+        "protect": True,
+        "note": "Campus 広 固有卡：半血时按元气 40% 得分；删卡 / 换卡永远不动（决策-08）",
+    },
+    "p_card-00-sup-3_093": {
+        "name": "紅葉ランニング",
+        "tier": None,
+        "role": "compress",
+        "note": "压缩效率高，やる気 推荐获得 [wiki]",
+    },
 }
 
 # 本战得分里的角色（决策-07 方案 §2）：选拔③ 之前 finisher / delayed / sustained 各至少 1 张，loop 尽量 1–2 张
-ROLES = {"finisher": "终结（届いて！）", "delayed": "延迟兑现（せのびの魔法）", "sustained": "持续兑现（デイドリーミング）",
-         "loop": "循环 / 抽牌（紙吹雪、ゆめみごこち）", "compress": "压缩（仕切り直し、アイドル宣言、紅葉ランニング）", "extend": "加回合",
-         "cash": "不清零兑现", "motivation": "やる気", "genki": "元気", "hp": "控血", "item": "道具触发", "idol": "偶像固有卡", "conflict": "冲突"}
+ROLES = {
+    "finisher": "终结（届いて！）",
+    "delayed": "延迟兑现（せのびの魔法）",
+    "sustained": "持续兑现（デイドリーミング）",
+    "loop": "循环 / 抽牌（紙吹雪、ゆめみごこち）",
+    "compress": "压缩（仕切り直し、アイドル宣言、紅葉ランニング）",
+    "extend": "加回合",
+    "cash": "不清零兑现",
+    "motivation": "やる気",
+    "genki": "元気",
+    "hp": "控血",
+    "item": "道具触发",
+    "idol": "偶像固有卡",
+    "conflict": "冲突",
+}
 CORE_ROLES = ("finisher", "delayed", "sustained", "loop")
 
 # ---- 饮料：按主数据效果自动归类（用户 2026-11-02 第十六局复盘：取代 4 瓶的静态优先表） ----
@@ -47,25 +155,40 @@ CORE_ROLES = ("finisher", "delayed", "sustained", "loop")
 # 这些都是默认参考（用户更正 2026-11-02）：完整对局模拟显著更好（> 2 个标准误）时可以调整，跨档也可以（hiro.brain.drinks）。
 # 档位 0「优先」：第一瓶复制、前 BURST_MUST 瓶爆发——由 hiro.brain.drinks 按持有组合判断；这里给的是这一类的默认档位与同档内的默认顺序（order 小的先）。
 DRINK_CLASSES = {
-    "copy": dict(label="复制", tier=1, order=0, note="下一张主动卡再发动一次：高价值；复制哪张由考试预演按收益定（社区默认 せのび 倒数 4–5 回合，约束 / デイドリ / 紙吹雪 也可能）[もなみ][wiki]"),
-    "draw": dict(label="抽牌", tier=1, order=1, note="抽牌找 せのび / 届いて；限量（喝早会转乱牌堆，用户批注）[もなみ][playbook]"),
-    "action": dict(label="加行动", tier=1, order=2, note="使用数 +1：兑现回合多打一张 [playbook]"),
-    "burst": dict(label="爆发", tier=1, order=3, note="参数上升量增加：配大额兑现 [playbook]"),
-    "yaruki": dict(label="やる気", tier=2, order=0, note="やる気 路线的资源"),
-    "fetch": dict(label="检索", tier=2, order=1, note="把固有卡拿到手里"),
-    "card": dict(label="生成卡", tier=2, order=2, note="生成强化 SSR 卡"),
-    "swap": dict(label="换手", tier=2, order=3, note="手牌全换：也会转乱牌堆，算进抽牌限量"),
-    "upgrade": dict(label="强化手牌", tier=3, order=0, note="手牌レッスン中强化 + 少量回复"),
-    "recover": dict(label="回复", tier=3, order=1, note="回体力"),
-    "genki": dict(label="元気", tier=3, order=2, note="少量元気"),
-    "param": dict(label="平加", tier=3, order=3, note="参数 +N"),
-    "other": dict(label="其他", tier=3, order=4, note="未归类"),
-    "impression": dict(label="好印象", tier=4, order=0, note="好印象 路线用，对 やる気 无用"),
+    "copy": {
+        "label": "复制",
+        "tier": 1,
+        "order": 0,
+        "note": "下一张主动卡再发动一次：高价值；复制哪张由考试预演按收益定（社区默认 せのび 倒数 4–5 回合，约束 / デイドリ / 紙吹雪 也可能）[もなみ][wiki]",
+    },
+    "draw": {
+        "label": "抽牌",
+        "tier": 1,
+        "order": 1,
+        "note": "抽牌找 せのび / 届いて；限量（喝早会转乱牌堆，用户批注）[もなみ][playbook]",
+    },
+    "action": {"label": "加行动", "tier": 1, "order": 2, "note": "使用数 +1：兑现回合多打一张 [playbook]"},
+    "burst": {"label": "爆发", "tier": 1, "order": 3, "note": "参数上升量增加：配大额兑现 [playbook]"},
+    "yaruki": {"label": "やる気", "tier": 2, "order": 0, "note": "やる気 路线的资源"},
+    "fetch": {"label": "检索", "tier": 2, "order": 1, "note": "把固有卡拿到手里"},
+    "card": {"label": "生成卡", "tier": 2, "order": 2, "note": "生成强化 SSR 卡"},
+    "swap": {"label": "换手", "tier": 2, "order": 3, "note": "手牌全换：也会转乱牌堆，算进抽牌限量"},
+    "upgrade": {"label": "强化手牌", "tier": 3, "order": 0, "note": "手牌レッスン中强化 + 少量回复"},
+    "recover": {"label": "回复", "tier": 3, "order": 1, "note": "回体力"},
+    "genki": {"label": "元気", "tier": 3, "order": 2, "note": "少量元気"},
+    "param": {"label": "平加", "tier": 3, "order": 3, "note": "参数 +N"},
+    "other": {"label": "其他", "tier": 3, "order": 4, "note": "未归类"},
+    "impression": {"label": "好印象", "tier": 4, "order": 0, "note": "好印象 路线用，对 やる気 无用"},
     # 按当时的 好印象 加分（おしゃれハーブティー「好印象の100%分パラメータ上昇」）：一次性兑现、不叠加，好印象 高时喝才有值，不进 S0
     # （第二十五局 R2 开局被 S0 强制先喝，好印象 约 0，专家估 −2.7 万）
-    "impression_cash": dict(label="好印象兑现", tier=4, order=1, note="按当时 好印象 加分：好印象 高时喝，不开局喝"),
+    "impression_cash": {
+        "label": "好印象兑现",
+        "tier": 4,
+        "order": 1,
+        "note": "按当时 好印象 加分：好印象 高时喝，不开局喝",
+    },
     # 识别读不出的持有饮料（drink_id=None，第十八局选拔）：按中等价值算——不当空位，也不优先丢它，宁可先丢已知的差饮料（回复 / 好印象 / 超限抽牌）
-    "unknown": dict(label="未知", tier=2, order=9, note="识别没认出：按中等价值"),
+    "unknown": {"label": "未知", "tier": 2, "order": 9, "note": "识别没认出：按中等价值"},
 }
 DRAW_CLASSES = ("draw", "swap")  # 算进抽牌限量的类
 # 抽牌饮料默认上限（用户：最多 1–2 瓶、不能占满饮料栏；模拟显著更好时可调整）：选拔 1 瓶（もなみ：センブリ 带 1 瓶找 せのび）；本战 2 瓶（playbook：R1 一爆发 + 两抽牌、R2 两爆发 + 两抽牌）
@@ -192,10 +315,25 @@ EFFECT_JA = {"ExamCardPlayAggressive": "やる気", "ExamReview": "好印象", "
 #   えいえいおー やる気 1/2/3 级 +2.5k/+6.5k/+19.3k（只有做满才值，40+40+70P）、届いて 1 级 +10.7k（100P）、
 #   紙吹雪 第 2 级 +6.9k（70P）、デイドリ 第 2 级（70%→80%）+3.4k（40P）。总控 2026-11-02：えいえいおー 的 やる気 定制优先做满。
 CUSTOMIZE_PRIORITY = [
-    ("p_card-02-men-1_031", "えいえいおー", ["aggressive_add"], "定制 やる気+，做满 3 级（只有满级才值：+19.3k）[seesaa][决策-11]"),
+    (
+        "p_card-02-men-1_031",
+        "えいえいおー",
+        ["aggressive_add"],
+        "定制 やる気+，做满 3 级（只有满级才值：+19.3k）[seesaa][决策-11]",
+    ),
     ("p_card-02-act-3_039", "届いて！", ["lesson_depend_block_add"], "火力定制（元気%）优先 [もりし][seesaa]"),
-    ("p_card-02-act-2_062", "きらきら紙吹雪", ["lesson_depend_block_add"], "パラメータ+ 定制（110% → 130% → 170%）[もりし]"),
-    ("p_card-02-act-1_037", "デイドリーミング", ["p_card-02-act-1_037-enc"], "持续效果定制（60% → 80%）；本战持续核心 [もりし]"),
+    (
+        "p_card-02-act-2_062",
+        "きらきら紙吹雪",
+        ["lesson_depend_block_add"],
+        "パラメータ+ 定制（110% → 130% → 170%）[もりし]",
+    ),
+    (
+        "p_card-02-act-1_037",
+        "デイドリーミング",
+        ["p_card-02-act-1_037-enc"],
+        "持续效果定制（60% → 80%）；本战持续核心 [もりし]",
+    ),
     ("p_card-02-act-3_186", "せのびの魔法", ["exam_block"], "元気定制优先 [もりし]"),
     ("p_card-02-men-2_004", "ワクワクが止まらない", ["initial_add"], "开局入手定制非常强 [もりし][seesaa]"),
     ("p_card-00-men-3_012", "テレビ出演", ["playable_value_add"], "定制「使用数+1」后才强 [もりし]"),
@@ -205,7 +343,11 @@ CUSTOMIZE_PRIORITY = [
 # 每张卡在菜单里最多做 3 级（「合計あと3回」，可分到不同项），实行后这张卡本次就结束了，回不来升级。所以多级的目标要在一个动作里一次做完（levels）。
 # 卡 → (目标级数, 是否必须做满才做)。えいえいおー：やる気+ 每级 40P，1/2/3 级 +2.5k/+6.5k/+19.3k，只有满级才值；
 # 紙吹雪 第 2 级（130% → 170%）+6.9k、デイドリ 第 2 级（70% → 80%）+3.4k（决策-11 §5）。没列的按 1 级
-CUSTOMIZE_LEVELS = {"p_card-02-men-1_031": (3, True), "p_card-02-act-2_062": (2, False), "p_card-02-act-1_037": (2, False)}
+CUSTOMIZE_LEVELS = {
+    "p_card-02-men-1_031": (3, True),
+    "p_card-02-act-2_062": (2, False),
+    "p_card-02-act-1_037": (2, False),
+}
 
 
 # ---- 编成（支援卡 / 记忆）[seesaa][もりし][もなみ][game8] ----
@@ -246,11 +388,35 @@ def interval_p_value(p_at_interval: float, deck_size: int | None) -> float:
 
 # 记忆：社区点名要带进来的卡与定制（定制关键字见 CUSTOMIZE_PRIORITY 的说明），权重越大越重要。
 MEMORY_WANT = [  # 决策-07：先按 game8（やる気型持ち込みメモリー）准备，用户回忆编成待确认
-    ("p_card-02-act-1_037", "デイドリーミング", 5, ["initial_add", "p_card-02-act-1_037-enc"], "开局入手 / 持续效果定制；本战持续核心 [game8][もりし]"),
-    ("p_card-02-act-2_062", "きらきら紙吹雪", 4, ["lesson_depend_block_add", "initial_add"], "定制后是循环核心；开局入手让选拔①轻松 [game8][もりし]"),
+    (
+        "p_card-02-act-1_037",
+        "デイドリーミング",
+        5,
+        ["initial_add", "p_card-02-act-1_037-enc"],
+        "开局入手 / 持续效果定制；本战持续核心 [game8][もりし]",
+    ),
+    (
+        "p_card-02-act-2_062",
+        "きらきら紙吹雪",
+        4,
+        ["lesson_depend_block_add", "initial_add"],
+        "定制后是循环核心；开局入手让选拔①轻松 [game8][もりし]",
+    ),
     ("p_card-00-men-3_005", "仕切り直し", 3, [], "SSR 共通卡，选拔里很难拿到，优先带入 [game8]"),
-    ("p_card-00-men-3_003", "アイドル魂", 3, ["cost_reduce"], "SSR 共通卡，选拔里很难拿到，优先带入；降费定制 [game8][もりし]"),
-    ("p_card-02-act-3_039", "届いて！", 2, ["lesson_depend_block_add"], "パラメータ+ 定制；必拿，但在候选池里能找 [もりし]"),
+    (
+        "p_card-00-men-3_003",
+        "アイドル魂",
+        3,
+        ["cost_reduce"],
+        "SSR 共通卡，选拔里很难拿到，优先带入；降费定制 [game8][もりし]",
+    ),
+    (
+        "p_card-02-act-3_039",
+        "届いて！",
+        2,
+        ["lesson_depend_block_add"],
+        "パラメータ+ 定制；必拿，但在候选池里能找 [もりし]",
+    ),
     ("p_card-02-act-3_186", "せのびの魔法", 2, ["exam_block"], "元気定制；必拿，但在候选池里能找 [もりし]"),
     ("p_card-02-men-2_004", "ワクワクが止まらない", 2, ["initial_add"], "开局入手定制非常强 [もりし][seesaa][もなみ]"),
     ("p_card-00-men-2_012", "アイドル宣言", 2, [], "抽牌 + 使用数；不在候选池，适合记忆带入 [もりし]"),
@@ -304,7 +470,11 @@ def is_conflict(card_id: str | None) -> bool:
 
 def protected_card_ids() -> set[str]:
     """换卡 / 删卡时不动的卡：核心、必拿、末段循环、S / A 级、protect、记忆想带的卡。执行侧 kaa_patches 用它。"""
-    ids = {cid for cid, k in YARUKI_CARDS.items() if k.get("must") or k.get("loop") or k.get("protect") or k.get("tier") in ("S", "A")}
+    ids = {
+        cid
+        for cid, k in YARUKI_CARDS.items()
+        if k.get("must") or k.get("loop") or k.get("protect") or k.get("tier") in ("S", "A")
+    }
     return ids | CORE_CARDS | {m[0] for m in MEMORY_WANT}
 
 

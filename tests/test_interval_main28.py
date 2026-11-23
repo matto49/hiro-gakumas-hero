@@ -5,13 +5,13 @@ import copy
 import json
 from pathlib import Path
 
-import pytest
-
 import hiro.sim  # noqa: F401
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import ActionKind, GameState
 from hiro.sim import interval as iv
+
+import pytest
 
 FIX = json.loads((Path(__file__).parent / "fixtures" / "interval" / "main28_interval.json").read_text(encoding="utf-8"))
 GAINS = {k: tuple(v) for k, v in FIX["gains"].items()}
@@ -39,4 +39,3 @@ def test_main28_plan_drinks_go_through_drink_step(env):
     dec = ProduceDeciders(CAMPUS_HIRO, None)
     d = dec.decide("HIF_ROUND_INTERVAL", st(75))
     assert d.action.kind is ActionKind.REROLL, d.reason  # 实机：按方案买了 7 号格 ミックススムージー
-

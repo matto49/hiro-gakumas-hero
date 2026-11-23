@@ -293,10 +293,7 @@ def pitem_names(db: sqlite3.Connection | None = None) -> dict[str, str]:
     db = db or _master_db()
     if db is None:
         return {}
-    return {
-        n: a
-        for n, a in db.execute("select name, assetId from ProduceItem where name != '' and assetId != ''").fetchall()
-    }
+    return dict(db.execute("select name, assetId from ProduceItem where name != '' and assetId != ''").fetchall())
 
 
 def _resolve(name: str, choices: list[str]) -> str | None:

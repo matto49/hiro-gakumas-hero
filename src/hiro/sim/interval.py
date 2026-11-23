@@ -23,20 +23,25 @@ import statistics
 import time
 import uuid
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-import hiro.sim  # noqa: F401  引擎路径
-from hiro.sim import FIXTURES
+from typing import TYPE_CHECKING  # noqa: E402
+
+import hiro.sim  # noqa: E402, F401  引擎路径
+from hiro.sim import FIXTURES  # noqa: E402
+
+if TYPE_CHECKING:
+    from collections import OrderedDict
 
 TEMPLATE = "campus-20261019/r2-opening"
 STAR_BASELINE_R2 = 800  # 本战 R2 审查基准 [wiki]
 WAPPEN_STAR = 15  # 轮间买一张卡用掉一枚ワッペン：星星 +15（第八局实况：两张 +30）
 
 
-@lru_cache(maxsize=None)
+@cache
 def _template(name: str = TEMPLATE) -> dict:
     return json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
 
@@ -55,7 +60,9 @@ class R2Setup:
     fill: bool = True  # R2 模板时按応援棒补到 22 张（借 R2 模板模拟选拔考试时关掉）
     # 这一局的编成（任务 ②：搜索起点不能带模板那一局的 P 道具 / 支援卡 / 回忆附魔）。None = 沿用模板（评估类用途照旧）。
     items: tuple | None = None  # P 道具 master ID
-    supports: tuple | None = None  # 支援卡 supportCardList 项（dict：_supportCardId / _filterParameterType / _cardSearchId / _produceCardUpgradePermil）
+    supports: tuple | None = (
+        None  # 支援卡 supportCardList 项（dict：_supportCardId / _filterParameterType / _cardSearchId / _produceCardUpgradePermil）
+    )
     skills: tuple | None = None  # 开考附魔的回忆技能 p_memory_skill-…
     # 応援棒补卡用的卡池 ((card_id, 权重), …)：None = 按 OUENBOU_BASICS 固定轮换（旧做法）；给了就按这个偶像流派的真实卡池按权重补
     # （ouenbou_pool，HIRO_SIM_OUENBOU_POOL=1 时 screen_source 给）
@@ -64,9 +71,19 @@ class R2Setup:
     def key(self) -> tuple:
         deck = tuple(sorted(tuple(tuple(x) if isinstance(x, list) else x for x in c) for c in self.deck))
         sup = None if self.supports is None else tuple(tuple(sorted(x.items())) for x in self.supports)
-        return (deck, tuple(sorted(self.drinks)), self.hp, self.max_hp, tuple(sorted(self.permil.items())), self.template, self.fill,
-                None if self.items is None else tuple(sorted(self.items)), sup, None if self.skills is None else tuple(sorted(self.skills)),
-                self.ouenbou_pool)
+        return (
+            deck,
+            tuple(sorted(self.drinks)),
+            self.hp,
+            self.max_hp,
+            tuple(sorted(self.permil.items())),
+            self.template,
+            self.fill,
+            None if self.items is None else tuple(sorted(self.items)),
+            sup,
+            None if self.skills is None else tuple(sorted(self.skills)),
+            self.ouenbou_pool,
+        )
 
 
 # H.I.F応援棒（R1 结束后获得）：R2 开考时山札不满 22 张，用名字含「基本」的随机卡补到 22 张 [wiki][もなみ][いおん ep07]。
@@ -90,7 +107,7 @@ def ouenbou_fill(deck: list, pool: tuple | None = None) -> list:
     quota = [(cid, n * w / total) for cid, w in pool]
     got = {cid: int(q) for cid, q in quota}
     left = n - sum(got.values())
-    for cid, q in sorted(quota, key=lambda x: (-(x[1] - int(x[1])), -x[1], x[0]))[:left]:
+    for cid, _q in sorted(quota, key=lambda x: (-(x[1] - int(x[1])), -x[1], x[0]))[:left]:
         got[cid] += 1
     for cid, _ in sorted(pool, key=lambda x: (-x[1], x[0])):
         out += [(cid, 0)] * got[cid]
@@ -109,8 +126,14 @@ def ouenbou_pool(idol_card_id: str | None) -> tuple | None:
         from hiro.bench_bridge.tower import master  # 带字符串枚举的 catalog（引擎 master 里 examEffectType 是数字）
 
         m = master()
-        idol = next((r for r in m.rows("IdolCard") if r.get("id") == str(idol_card_id).replace("i_card-skin-", "i_card-")), None)
-        style = re.sub(r"(?<!^)(?=[A-Z])", "_", str((idol or {}).get("examEffectType", "")).replace("ProduceExamEffectType_Exam", "")).lower()
+        idol = next(
+            (r for r in m.rows("IdolCard") if r.get("id") == str(idol_card_id).replace("i_card-skin-", "i_card-")), None
+        )
+        style = re.sub(
+            r"(?<!^)(?=[A-Z])",
+            "_",
+            str((idol or {}).get("examEffectType", "")).replace("ProduceExamEffectType_Exam", ""),
+        ).lower()
         if not style:
             return None
         ids = (f"p_random_pool-produce_007-create_set-{style}", f"p_random_pool-produce_007-{style}")
@@ -122,16 +145,16 @@ def ouenbou_pool(idol_card_id: str | None) -> tuple | None:
     return tuple((e["id"], int(e["ratio"])) for e in row["produceCardRatios"] if int(e.get("upgradeCount") or 0) == 0)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _custom_reactions(item_id: str) -> int:
     """定制 P 道具育成中的触发次数（_reactionCount，永久附魔按它叠层）：画面读不到，按主数据的上限（produceEffectTriggerCount）算——
     到本战时一般已触发满（验证 2：リボンくま 「以降の試験開始時 好印象+3・やる気+3（プロデュース中2回）」真值叠 2 层）。非定制道具 0。"""
     if not str(item_id).startswith("customize_pitem-"):
         return 0
     try:
-        from gakumas_exam.master import shared
-
         from hiro.sim.engine import master_commit
+
+        from gakumas_exam.master import shared
 
         row = next((r for r in shared(master_commit()).table("ProduceCustomizeItem") if r["id"] == item_id), None)
         return max(1, int((row or {}).get("produceEffectTriggerCount") or 1))
@@ -149,14 +172,18 @@ def loadout_into(o: dict, *, items=None, supports=None, skills=None) -> None:
         o["supports"] = [dict(x) for x in supports]
     if skills is not None:
         keep = [st for st in o.get("active_statuses") or [] if not (st.get("data") or {}).get("_startEnchantOriginId")]
-        o["active_statuses"] = keep + [{"type": {"class": "TriggerEffectStatusEffect"}, "data": {"_startEnchantOriginId": sk}} for sk in skills]
+        o["active_statuses"] = keep + [
+            {"type": {"class": "TriggerEffectStatusEffect"}, "data": {"_startEnchantOriginId": sk}} for sk in skills
+        ]
 
 
 def r2_opening(setup: R2Setup) -> dict:
     o = copy.deepcopy(_template(setup.template))
     tmpl = next(iter(o["cards"].values()))
     o["cards"], o["zones"] = {}, {k: [] for k in o["zones"]}
-    deck = ouenbou_fill(setup.deck, setup.ouenbou_pool) if setup.template == TEMPLATE and setup.fill else setup.deck  # 只有 R2 有応援棒
+    deck = (
+        ouenbou_fill(setup.deck, setup.ouenbou_pool) if setup.template == TEMPLATE and setup.fill else setup.deck
+    )  # 只有 R2 有応援棒
     for entry in deck:
         cid, up = entry[0], entry[1]
         counts = list(entry[2]) if len(entry) > 2 else [0, 0, 0]  # 定制：按卡的 produceCardCustomizeIds 顺序的次数
@@ -191,7 +218,7 @@ def _env(setup: R2Setup, seed: int):
     return _episode(setup, _exam_cached(setup.key(), obs), seed)
 
 
-_EPISODES: "OrderedDict" = None  # type: ignore[assignment]
+_EPISODES: OrderedDict = None  # type: ignore[assignment]
 EPISODE_CACHE = 512  # 每个进程缓存的开局数（同一组合 × 种子）
 
 
@@ -255,7 +282,13 @@ def _couple(env, base_env, seed: int) -> None:
     env.zones["hand"], env.zones["deck"] = insts[:h], insts[h:]
 
 
-DRINK_TARGETS = ("p_card-02-act-3_186", "p_card-02-act-1_037", "p_card-02-act-3_039", "p_card-02-act-2_062", "p_card-02-act-3_045")  # 复制饮料值得接的主动卡
+DRINK_TARGETS = (
+    "p_card-02-act-3_186",
+    "p_card-02-act-1_037",
+    "p_card-02-act-3_039",
+    "p_card-02-act-2_062",
+    "p_card-02-act-3_045",
+)  # 复制饮料值得接的主动卡
 CASH_OPS = ("shield_score",)
 
 
@@ -275,10 +308,12 @@ def drink_allowed(env, action: dict, rule: str, drunk_this_turn: int) -> bool:
     ops = {e.get("op") for e in env.drink_definitions[env.drinks[action["id"]]]["effects"]}
     hand = [env.cards[i].split("@")[0] for i in env.zones["hand"]]
     playable = {a["id"] for a in env.legal_actions() if a.get("kind") == "play"}
-    cash = any(any(e.get("op") in CASH_OPS for e in env.definition(i)["effects"]) for i in env.zones["hand"] if i in playable)
+    cash = any(
+        any(e.get("op") in CASH_OPS for e in env.definition(i)["effects"]) for i in env.zones["hand"] if i in playable
+    )
     if "repeat_card" in ops:
         return any(c in DRINK_TARGETS for c in hand) and env.actions > 0
-    if "extra_action" in ops or "timed_score_boost" in ops and "draw" not in ops:
+    if "extra_action" in ops or ("timed_score_boost" in ops and "draw" not in ops):
         return cash
     return drunk_this_turn < 1
 
@@ -328,7 +363,11 @@ def play(setup: R2Setup, seed: int, policy: str = "community", worlds: int = 4, 
             continue
         # 固定计算量、不设时间预算：同一局面两次打出来完全一样，方案之间才能按同一种子配对（带 deadline 时机器负载会改变结果）
         ranked = preview_actions(env, exam.meta, worlds=worlds, seed=seed * 1000 + env.play_count, depth=depth)
-        allowed = [r for r in ranked if drink_allowed(env, r.action, drink_rule, drunk) and card_allowed(env, r.action, card_rule)] or ranked[:1]
+        allowed = [
+            r
+            for r in ranked
+            if drink_allowed(env, r.action, drink_rule, drunk) and card_allowed(env, r.action, card_rule)
+        ] or ranked[:1]
         if drink_se and allowed[0].action.get("kind") == "drink":
             alt = next((r for r in allowed if r.action.get("kind") != "drink"), None)
             if alt is not None and allowed[0].expected - alt.expected < alt.vs_best_se:
@@ -370,7 +409,7 @@ def _pool(workers: int):
     """常驻进程池（协调 2026-11-03：选拔饮料模拟每次 10–47 秒，其中每次新开进程、每个进程重新编译考试约 5.7 秒）。
     进程里的考试编译缓存（_exam_cached）跨调用复用；池坏了（BrokenProcessPool）由调用方重建。"""
     global _POOL, _POOL_N
-    if _POOL is None or _POOL_N != workers:
+    if _POOL is None or workers != _POOL_N:
         from concurrent.futures import ProcessPoolExecutor
 
         if _POOL is not None:
@@ -418,9 +457,19 @@ def evaluate(setups: list, seeds, policy: str = "expert", workers: int = 4, **kw
     scores = [scores[j * m + i] for i in range(m) for j in range(len(seeds))]  # 回到「方案 × 种子」顺序
     out, n = [], len(seeds)
     for i, st in enumerate(setups):
-        xs = [x * star_factor(st.star) / 2.0 for x in scores[i * n:(i + 1) * n]]  # 模板倍率按「正好基准 = 2 倍」算；星星按社区曲线放大
+        xs = [
+            x * star_factor(st.star) / 2.0 for x in scores[i * n : (i + 1) * n]
+        ]  # 模板倍率按「正好基准 = 2 倍」算；星星按社区曲线放大
         se = statistics.stdev(xs) / math.sqrt(n) if n > 1 else 0.0
-        out.append({"mean": round(statistics.fmean(xs)), "se": round(se), "star_factor": round(star_factor(st.star), 4), "n": n, "scores": xs})
+        out.append(
+            {
+                "mean": round(statistics.fmean(xs)),
+                "se": round(se),
+                "star_factor": round(star_factor(st.star), 4),
+                "n": n,
+                "scores": xs,
+            }
+        )
     if out:  # 与第一个（基准）配对的差：同一种子相减
         b = out[0]["scores"]
         for r in out:
@@ -481,13 +530,16 @@ def options(shelf: dict, setup: R2Setup, p: int, *, wappen_left: int = 2, junk: 
             continue
         # 用户 2026-11-01（第九局复盘）：ワッペン / 星星不能单独作为买卡理由。评估买卡时不算星星加成，只算这张卡进牌组的效果
         out.append(Option(f"card{it['index']}", f"买卡 {it.get('name')}", it["price"],
-                          lambda s, c=(it["card_id"], it.get("upgrade") or 0): _with(s, deck=s.deck + [c]),
+                          lambda s, c=(it["card_id"], it.get("upgrade") or 0): _with(s, deck=s.deck + [c]),  # noqa: B008
                           [("IntervalBuy", {"index": it["index"]})], group="wappen", card_id=it["card_id"]))  # fmt: skip
     for it in shelf.get("changes") or []:
         if it.get("purchased") or not it.get("card_id") or not junk:
             continue
         old = junk[0]
-        new = (it["card_id"], 0 if old[0] == "p_card-00-acc-0_002" else old[1])  # 眠気 チェンジ 后必为未强化 [wiki]；其余继承强化
+        new = (
+            it["card_id"],
+            0 if old[0] == "p_card-00-acc-0_002" else old[1],
+        )  # 眠気 チェンジ 后必为未强化 [wiki]；其余继承强化
         out.append(Option(f"change{it['index']}", f"チェンジ {old[0]} → {it.get('name')}", it["price"],
                           lambda s, o=old, n=new: _with(s, deck=_replace(s.deck, o, n)), [("IntervalBuy", {"index": it["index"], "change": old[0]})]))  # fmt: skip
     up = shelf.get("upgrade") or {}
@@ -500,8 +552,20 @@ def options(shelf: dict, setup: R2Setup, p: int, *, wappen_left: int = 2, junk: 
 
 
 def _with(s: R2Setup, **kw) -> R2Setup:
-    d = dict(deck=list(s.deck), drinks=list(s.drinks), hp=s.hp, max_hp=s.max_hp, permil=dict(s.permil), star=s.star, template=s.template, fill=s.fill,
-             items=s.items, supports=s.supports, skills=s.skills, ouenbou_pool=s.ouenbou_pool)
+    d = {
+        "deck": list(s.deck),
+        "drinks": list(s.drinks),
+        "hp": s.hp,
+        "max_hp": s.max_hp,
+        "permil": dict(s.permil),
+        "star": s.star,
+        "template": s.template,
+        "fill": s.fill,
+        "items": s.items,
+        "supports": s.supports,
+        "skills": s.skills,
+        "ouenbou_pool": s.ouenbou_pool,
+    }
     d.update(kw)
     return R2Setup(**d)
 
@@ -554,7 +618,9 @@ def search(setup: R2Setup, opts: list[Option], p: int, *, drink_capacity: int = 
     rows = [{"options": [], "labels": ["什么都不做（直接结束）"], "cost": 0, **base}]
     rows += [{"options": [o.key], "labels": [o.label], "cost": o.cost, **r} for o, _, r in single]
     if multi:
-        for c, r in zip(multi, evaluate([setup] + [apply_all(setup, c) for c in multi], seeds, policy, workers, **kw)[1:]):
+        for c, r in zip(
+            multi, evaluate([setup] + [apply_all(setup, c) for c in multi], seeds, policy, workers, **kw)[1:]
+        ):
             rows.append({"options": [o.key for o in c], "labels": [o.label for o in c], "cost": sum(o.cost for o in c),
                          "additive_est": round(base["mean"] + sum(gain[o.key] for o in c)), **r})  # fmt: skip
     rows = [r for r in rows if feasible([o for o in opts if o.key in r["options"]])]
@@ -568,14 +634,16 @@ def search(setup: R2Setup, opts: list[Option], p: int, *, drink_capacity: int = 
 def plan_actions(best: dict, opts: list[Option]) -> list:
     """最佳组合 → 执行顺序：先回体力（不受后面买东西影响），再饮料、卡、チェンジ、强化。"""
     order = {"hp": 0, "drink": 1, "card": 2, "change": 3, "upgrade": 4}
-    chosen = sorted((o for o in opts if o.key in best["options"]), key=lambda o: order.get(o.group or o.key.rstrip("0123456789"), 5))
+    chosen = sorted(
+        (o for o in opts if o.key in best["options"]), key=lambda o: order.get(o.group or o.key.rstrip("0123456789"), 5)
+    )
     return [a for o in chosen for a in o.actions]
 
 
 # ---------------------------------------------------------------- 实机接线
 
 # 开源版：本战上下文的记账在 hiro.state.finals_context（考试循环调用它的 note_exam），这里是同一个对象
-from hiro.state.finals_context import CONTEXT, CONTEXT_FILE  # noqa: E402
+from hiro.state.finals_context import CONTEXT, CONTEXT_FILE  # noqa: E402, F401
 
 
 def note_exam(label: str, *, deck=None, drinks=None, permil=None, max_hp=None, trace_dir=None) -> None:
@@ -633,7 +701,11 @@ def upgrade_target(deck: list) -> tuple | None:
 
     owned = {c[0] for c in deck if c[1] == 0}
     order = [c for c in UPGRADE_ORDER if c in owned]
-    order += [c for c, k in YARUKI_CARDS.items() if c in owned and c not in order and (k.get("must") or k.get("tier") in ("S", "A"))]
+    order += [
+        c
+        for c, k in YARUKI_CARDS.items()
+        if c in owned and c not in order and (k.get("must") or k.get("tier") in ("S", "A"))
+    ]
     for cid in order:
         try:
             catalog().card(cid, 1)
@@ -754,9 +826,8 @@ def _card_rule_key(card_id: str, owned: set) -> tuple:
     """轮间补卡的社区默认顺序（大的先）：缺的必拿卡 > 一次性的再动 / 加使用数卡（いおん ep08：优先用一次性再动卡补张数）> 社区评级 / 卡牌价值。"""
     from hiro.brain.cards import description_text
     from hiro.brain.deciders import _card_priority
-    from hiro.state.knowledge import is_once
     from hiro.state.context import catalog
-    from hiro.state.knowledge import YARUKI_CARDS
+    from hiro.state.knowledge import YARUKI_CARDS, is_once
 
     know = YARUKI_CARDS.get(card_id) or {}
     try:
@@ -786,9 +857,7 @@ def rule_plan(shelf: dict, setup: R2Setup, opts: list[Option], p: int, *, target
     # 本战瘦牌组（用户 2026-11-02）：不再为凑 22 张买卡——不满 22 张由応援棒在 R2 开考时补「基本」卡（模拟里按 OUENBOU_BASICS 补）；
     # 只买核心卡（缺的必拿 / S·A / 核心角色）。依据：第十六局轮间（24 张牌组）买 イメトレ+ / トキメキ+ / 本番前夜+ / ゆるふわ+
     # 比不买（応援棒补基础卡）−1.3 万 ~ −3.1 万；牌组越大，せのび / 届いて 越难在关键回合抽到
-    from hiro.brain.deciders import _is_core_card
-
-    from hiro.brain.deciders import wants_copy
+    from hiro.brain.deciders import _is_core_card, wants_copy
 
     count = lambda cid: sum(1 for c in setup.deck if c[0] == cid)  # noqa: E731
     if INTERVAL_RECOVER_FIRST and setup.hp < recover_target(setup.max_hp):
@@ -843,18 +912,35 @@ def rule_plan(shelf: dict, setup: R2Setup, opts: list[Option], p: int, *, target
                 chosen.append(o)
                 tiers[o.key] = tier
                 left -= o.cost
-        skipped = [o.label for o in opts if o.group == "wappen" and o.card_id and o not in seen and all(o.card_id != c for c, _ in order)]
-        notes.append(f"牌组 {len(setup.deck)} 张：补到 {OUENBOU_SIZE} 张，买 {'、'.join(o.label + ('（不够才补的可复用卡）' if tiers[o.key] else '') for o in chosen) or '无'}"
-                     + (f"；不买冲突卡 {'、'.join(skipped)}" if skipped else "") + f"（还差 {max(0, need - len(chosen))} 张）")
+        skipped = [
+            o.label
+            for o in opts
+            if o.group == "wappen" and o.card_id and o not in seen and all(o.card_id != c for c, _ in order)
+        ]
+        notes.append(
+            f"牌组 {len(setup.deck)} 张：补到 {OUENBOU_SIZE} 张，买 {'、'.join(o.label + ('（不够才补的可复用卡）' if tiers[o.key] else '') for o in chosen) or '无'}"
+            + (f"；不买冲突卡 {'、'.join(skipped)}" if skipped else "")
+            + f"（还差 {max(0, need - len(chosen))} 张）"
+        )
     else:
-        cards = [o for o in opts if o.group == "wappen" and o.card_id and not unwanted(o.card_id) and _is_core_card(o.card_id) and wants_copy(o.card_id, count(o.card_id))]
+        cards = [
+            o
+            for o in opts
+            if o.group == "wappen"
+            and o.card_id
+            and not unwanted(o.card_id)
+            and _is_core_card(o.card_id)
+            and wants_copy(o.card_id, count(o.card_id))
+        ]
         cards.sort(key=lambda o: _card_rule_key(o.card_id, owned), reverse=True)
         limit = len(cards) if wappen_left is None else min(len(cards), max(wappen_left, 0))
         for o in cards[:limit]:
             if o.cost <= left:
                 chosen.append(o)
                 left -= o.cost
-        notes.append(f"牌组 {len(setup.deck)} 张：不为凑 22 张买卡（不满由応援棒补基础卡）；核心卡 {'买 ' + '、'.join(o.label for o in chosen) if chosen else '货架上没有'}")
+        notes.append(
+            f"牌组 {len(setup.deck)} 张：不为凑 22 张买卡（不满由応援棒补基础卡）；核心卡 {'买 ' + '、'.join(o.label for o in chosen) if chosen else '货架上没有'}"
+        )
     bought, held, left = buy_drinks(list(setup.drinks), left, reserve)
     chosen += bought
     notes.append(f"R2 饮料：买 {'、'.join(o.label for o in bought) or '无'}，持有 {dk.describe(held, 'r2')}")
@@ -931,23 +1017,37 @@ def plan_tiered(shelf: dict, *, hp: int, max_hp: int, p: int, star: int | None, 
         hit = next((c for c in deck if c[0] == cid and c[1] == 0), None)
         if hit is not None:
             deck = _replace(deck, hit, (cid, 1))
-    setup = R2Setup(deck=deck, drinks=list(CONTEXT.get("drinks") or []) + list(extra_drinks), hp=hp, max_hp=max_hp, permil=permil, star=star)
+    setup = R2Setup(
+        deck=deck,
+        drinks=list(CONTEXT.get("drinks") or []) + list(extra_drinks),
+        hp=hp,
+        max_hp=max_hp,
+        permil=permil,
+        star=star,
+    )
     per2 = (shelf.get("recover") or {}).get("price_per_2hp") or 10
     opts = options(shelf, setup, p, per2=per2, upgrade_target=upgrade_target(deck))
     # 「不回满」是硬约束（用户：控制在半血以上就好、不回满；协调 2026-11-02：社区续打对体力估值偏高，第十七局 B3 选回满 33，专家核对只是噪声）。
     # 续打第 2、3 步改好复测前，回满这一档不进模拟候选，模拟显著也不偏离到回满
     opts = [o for o in opts if not (o.group == "hp" and int(o.key[2:]) >= max_hp)]
     # 瘦牌组：非核心卡不进模拟候选（模拟显著也不偏离到买废卡）
-    from hiro.brain.deciders import _is_core_card
-
-    from hiro.brain.deciders import wants_copy
+    from hiro.brain.deciders import _is_core_card, wants_copy
 
     all_cards = [o for o in opts if o.group == "wappen"]
-    opts = [o for o in opts if not (o.group == "wappen" and not (_is_core_card(o.card_id) and wants_copy(o.card_id, sum(1 for c in deck if c[0] == o.card_id))))]
+    opts = [
+        o
+        for o in opts
+        if not (
+            o.group == "wappen"
+            and not (_is_core_card(o.card_id) and wants_copy(o.card_id, sum(1 for c in deck if c[0] == o.card_id)))
+        )
+    ]
     exe = [o for o in opts if o.key.startswith(("hp", "drink", "card", "upgrade"))]
     # ① 补到 22 张：非核心的补卡（一次性等）不进模拟候选，但社区默认方案要用（fill_order 决定买哪几张）
     rule_exe = exe + [o for o in all_cards if o not in exe] if INTERVAL_FILL_22 else exe
-    rule, notes = rule_plan(shelf, setup, rule_exe, p, target_hp=target_hp, drink_capacity=drink_capacity, wappen_left=wappen_left)
+    rule, notes = rule_plan(
+        shelf, setup, rule_exe, p, target_hp=target_hp, drink_capacity=drink_capacity, wappen_left=wappen_left
+    )
     # 初筛只用来挑候选方案（偏离要过下面的配对检验），48 局够用（协调 2026-11-03 轮间提速：原来 200 局，第二十二局一次方案 105s）
     run = search(setup, opts, p, drink_capacity=drink_capacity, wappen_left=OUENBOU_SIZE if wappen_left is None else wappen_left,
                  seeds=list(seeds)[:SCREEN_SEEDS], policy=policy, workers=workers, log=log, **kw)  # fmt: skip
@@ -957,7 +1057,9 @@ def plan_tiered(shelf: dict, *, hp: int, max_hp: int, p: int, star: int | None, 
     # 第十九局 R2 开局快照 64 局配对：17 比 24 −0.9 万 ± 1.3 万（不显著），16（不回）−3.5 万 ± 1.2 万，12 −4.3 万 ± 1.2 万（决策-17 §5）
     same = {o.key for o in sim} == {o.key for o in rule}
     unsure = alt = None
-    pair, n_used = _pair_adaptive([setup, apply_all(setup, rule)] + ([] if same else [apply_all(setup, sim)]), list(seeds), policy, workers, **kw)
+    pair, n_used = _pair_adaptive(
+        [setup, apply_all(setup, rule)] + ([] if same else [apply_all(setup, sim)]), list(seeds), policy, workers, **kw
+    )
     r_rule = pair[1]
     pick, deviation = rule, None
     if not same:
@@ -970,16 +1072,28 @@ def plan_tiered(shelf: dict, *, hp: int, max_hp: int, p: int, star: int | None, 
             deviation = {"where": "HIF_ROUND_INTERVAL", "rule": [o.label for o in rule], "pick": [o.label for o in sim], "gain": round(d),
                          "gain_se": round(se), "policy": policy, "seeds": n_used,
                          "has_hp": any(o.group == "hp" for o in sim) and {o.key for o in sim if o.group == "hp"} != {o.key for o in rule if o.group == "hp"}}  # fmt: skip
-        notes.append(f"模拟方案 {'、'.join(o.label for o in sim) or '不买'} 比社区默认 {d:+,.0f} ± {se:,.0f}"
-                     + ("（> 2 个标准误：偏离社区默认）" if deviation else "（不到 2 个标准误：按社区默认）"))
+        notes.append(
+            f"模拟方案 {'、'.join(o.label for o in sim) or '不买'} 比社区默认 {d:+,.0f} ± {se:,.0f}"
+            + ("（> 2 个标准误：偏离社区默认）" if deviation else "（不到 2 个标准误：按社区默认）")
+        )
         # 决策点补全：模拟方案更好但在噪声内 → 拿不准，交 LLM 二选一（deciders._interval_ask）。回体力超过角色目标的模拟方案不算
         # （用户「控制在半血以上就好」：多回体力要单独显著，这里没有检验）
-        if deviation is None and d > 0 and not any(o.group == "hp" and int(o.key[2:]) > max(target_hp, hp) for o in sim):
+        if (
+            deviation is None
+            and d > 0
+            and not any(o.group == "hp" and int(o.key[2:]) > max(target_hp, hp) for o in sim)
+        ):
             unsure = f"模拟方案 {'、'.join(o.label for o in sim) or '不买'} 比社区默认 {d:+,.0f} ± {se:,.0f}，在噪声内"
-            alt = {"target_hp": max([hp] + [int(o.key[2:]) for o in sim if o.group == "hp"]),
-                   "buy": [a[1]["index"] for o in sim if o.group != "hp" for a in o.actions if "index" in a[1]],
-                   "upgrade": next((o.card_id for o in sim if o.key == "upgrade"), None) or next((o.card_id for o in rule if o.key == "upgrade"), None),
-                   "labels": [o.label for o in sim], "gain": r_sim["gain"], "gain_se": r_sim["gain_se"], "cost": sum(o.cost for o in sim)}
+            alt = {
+                "target_hp": max([hp] + [int(o.key[2:]) for o in sim if o.group == "hp"]),
+                "buy": [a[1]["index"] for o in sim if o.group != "hp" for a in o.actions if "index" in a[1]],
+                "upgrade": next((o.card_id for o in sim if o.key == "upgrade"), None)
+                or next((o.card_id for o in rule if o.key == "upgrade"), None),
+                "labels": [o.label for o in sim],
+                "gain": r_sim["gain"],
+                "gain_se": r_sim["gain_se"],
+                "cost": sum(o.cost for o in sim),
+            }
     else:
         notes.append("模拟方案与社区默认一致")
     r_pick = pair[1] if pick is rule else pair[2]
@@ -988,7 +1102,9 @@ def plan_tiered(shelf: dict, *, hp: int, max_hp: int, p: int, star: int | None, 
         # 强化单独过检验（协调 2026-11-04，第二十五局：「回体力 + 强化」合并估 +7.2 万，强化单独约 +0.6 万）：
         # 同一批种子配对「方案 − 方案去掉强化」，> DEVIATE_SE 个标准误才把强化留在模拟方案里；否则去掉，强化回到社区默认的「剩下的 P 再强化」
         rest = [o for o in pick if o.key != "upgrade"]
-        ru = evaluate([apply_all(setup, rest), apply_all(setup, pick)], list(seeds)[:max(n_used, 32)], policy, workers, **kw)
+        ru = evaluate(
+            [apply_all(setup, rest), apply_all(setup, pick)], list(seeds)[: max(n_used, 32)], policy, workers, **kw
+        )
         du = [b - a for a, b in zip(ru[0]["scores"], ru[1]["scores"])]
         gu, su = statistics.fmean(du), (statistics.stdev(du) / math.sqrt(len(du)) if len(du) > 1 else 0.0)
         if gu > DEVIATE_SE * max(su, 1):
@@ -1008,13 +1124,19 @@ def plan_tiered(shelf: dict, *, hp: int, max_hp: int, p: int, star: int | None, 
         # > DEVIATE_SE 个标准误才回到更高；否则只回到目标（省下的 P 交给 drink_step 刷新找目标饮料）
         base_hp = next((o for o in opts if o.key == f"hp{target_hp}"), None) if target_hp > hp else None
         alt = [o for o in pick if o.group != "hp"] + ([base_hp] if base_hp else [])
-        rh = evaluate([apply_all(setup, alt), apply_all(setup, pick)], list(seeds)[:max(n_used, 32)], policy, workers, **kw)
+        rh = evaluate(
+            [apply_all(setup, alt), apply_all(setup, pick)], list(seeds)[: max(n_used, 32)], policy, workers, **kw
+        )
         dh = [b - a for a, b in zip(rh[0]["scores"], rh[1]["scores"])]
         gh, sh = statistics.fmean(dh), (statistics.stdev(dh) / math.sqrt(len(dh)) if len(dh) > 1 else 0.0)
         if gh > DEVIATE_SE * max(sh, 1):
-            notes.append(f"回体力到 {over[0].key[2:]}（比只回到 {target_hp} 多）单独 {gh:+,.0f} ± {sh:,.0f}（> 2 个标准误：保留）")
+            notes.append(
+                f"回体力到 {over[0].key[2:]}（比只回到 {target_hp} 多）单独 {gh:+,.0f} ± {sh:,.0f}（> 2 个标准误：保留）"
+            )
         else:
-            notes.append(f"回体力到 {over[0].key[2:]}（比只回到 {target_hp} 多）单独 {gh:+,.0f} ± {sh:,.0f}（不到 2 个标准误：只回到目标 {target_hp}）")
+            notes.append(
+                f"回体力到 {over[0].key[2:]}（比只回到 {target_hp} 多）单独 {gh:+,.0f} ± {sh:,.0f}（不到 2 个标准误：只回到目标 {target_hp}）"
+            )
             gain = gain - round(gh)
             pick = alt
             if {o.key for o in pick} == {o.key for o in rule}:
@@ -1037,7 +1159,9 @@ def plan_tiered(shelf: dict, *, hp: int, max_hp: int, p: int, star: int | None, 
     target = max([hp] + [int(o.key[2:]) for o in pick if o.group == "hp"])
     buy = [a[1]["index"] for o in pick if o.group != "hp" for a in o.actions if "index" in a[1]]
     # 强化永远最后执行（饮料停了才用剩下的钱，deciders._interval_drink_step）；模拟方案没留强化时用社区默认的强化目标
-    up = next((o.card_id for o in pick if o.key == "upgrade"), None) or next((o.card_id for o in rule if o.key == "upgrade"), None)
+    up = next((o.card_id for o in pick if o.key == "upgrade"), None) or next(
+        (o.card_id for o in rule if o.key == "upgrade"), None
+    )
     return {"target_hp": target, "buy": buy, "upgrade": up, "labels": [o.label for o in pick], "gain": gain, "gain_se": gain_se,
             "cost": sum(o.cost for o in pick), "significant": True, "final": True, "rule_labels": [o.label for o in rule], "rule_notes": notes,
             "deviation": deviation, "unsure": unsure, "alt": alt, "rows": run["combos"], "seconds": round(time.monotonic() - t0, 1), "policy": policy, "seeds": list(seeds)[:n_used]}  # fmt: skip
@@ -1058,7 +1182,7 @@ GAIN_SIG = 1.5  # 一瓶饮料的增益要超过几个标准误才算「值得�
 SPARE_P_VALUE = 20
 
 
-@lru_cache(maxsize=None)
+@cache
 def drink_price(drink_id: str) -> int:
     from hiro.state.context import catalog
 
@@ -1071,12 +1195,16 @@ def drink_price(drink_id: str) -> int:
 GAIN_BATCHES = (32, 64, 100)  # 增益表分批：每瓶「肯定值得买 / 肯定不值得」就不再加局（协调 2026-11-03 轮间提速）
 
 
-def drink_gains(setup: R2Setup, pool=SHOP_DRINK_POOL, seeds=range(100), policy: str = "community", workers: int = 4) -> dict:
+def drink_gains(
+    setup: R2Setup, pool=SHOP_DRINK_POOL, seeds=range(100), policy: str = "community", workers: int = 4
+) -> dict:
     """见 drink_gains_table（测试里 conftest 会把这个入口换掉，不跑续打）。"""
     return drink_gains_table(setup, pool=pool, seeds=seeds, policy=policy, workers=workers)
 
 
-def drink_gains_table(setup: R2Setup, pool=SHOP_DRINK_POOL, seeds=range(100), policy: str = "community", workers: int = 4) -> dict:
+def drink_gains_table(
+    setup: R2Setup, pool=SHOP_DRINK_POOL, seeds=range(100), policy: str = "community", workers: int = 4
+) -> dict:
     """持有 setup.drinks 时，再加池里每一瓶的 R2 增益 {drink_id: (gain, se)}（社区续打配对，按种类和阶段用饮料）。
     分批（GAIN_BATCHES，最多 len(seeds)）：一瓶的「增益 − 2 × se」已经高过买它的门槛（GAIN_SIG × se 和 价格 × SPARE_P_VALUE），
     或「增益 + 2 × se」低于价格 × SPARE_P_VALUE，就定了；没定的继续加局。和一次跑满相比只是少跑定了的那些。"""
@@ -1089,7 +1217,9 @@ def drink_gains_table(setup: R2Setup, pool=SHOP_DRINK_POOL, seeds=range(100), po
     done = 0
     for n in batches:
         batch = seeds[done:n]
-        rs = evaluate([setup] + [_with(setup, drinks=setup.drinks + [d]) for d in open_], batch, policy, workers=workers)
+        rs = evaluate(
+            [setup] + [_with(setup, drinks=setup.drinks + [d]) for d in open_], batch, policy, workers=workers
+        )
         for s, x in zip(batch, rs[0]["scores"]):
             base_scores[s] = x
         for d, r in zip(open_, rs[1:]):
@@ -1212,7 +1342,24 @@ def _good(gains: dict, d: str) -> bool:
 
 # 第 17–26 局轮间 / 相談货架实测（45 个货架、117 瓶，.temp/simcov/shelf_freq.py；协调 2026-11-04 第二十六局：等概率假设高估了刷到目标的机会）。
 # 每格按（次数 + 1）加权（拉普拉斯平滑，没见过的也留一点概率）。抽牌 センブリ 只见过 2 次（1.7%），爆发 ブースト 7 次（6.0%）。
-SHELF_COUNTS = {"pdrink_02-2-006": 16, "pdrink_00-3-001": 12, "pdrink_02-3-010": 11, "pdrink_00-2-004": 10, "pdrink_02-3-006": 10, "pdrink_02-3-007": 9, "pdrink_00-2-003": 8, "pdrink_00-3-005": 8, "pdrink_00-2-008": 7, "pdrink_00-2-009": 6, "pdrink_00-1-004": 5, "pdrink_02-1-008": 5, "pdrink_02-1-006": 3, "pdrink_00-2-001": 3, "pdrink_00-1-001": 2, "pdrink_00-2-010": 2}
+SHELF_COUNTS = {
+    "pdrink_02-2-006": 16,
+    "pdrink_00-3-001": 12,
+    "pdrink_02-3-010": 11,
+    "pdrink_00-2-004": 10,
+    "pdrink_02-3-006": 10,
+    "pdrink_02-3-007": 9,
+    "pdrink_00-2-003": 8,
+    "pdrink_00-3-005": 8,
+    "pdrink_00-2-008": 7,
+    "pdrink_00-2-009": 6,
+    "pdrink_00-1-004": 5,
+    "pdrink_02-1-008": 5,
+    "pdrink_02-1-006": 3,
+    "pdrink_00-2-001": 3,
+    "pdrink_00-1-001": 2,
+    "pdrink_00-2-010": 2,
+}
 SHELF_COUNTS_PRIOR = 1
 
 
@@ -1230,7 +1377,11 @@ class RefreshDP:
         第二十六局：把 ハーブティー / 烏龍茶 等也算进去，继续刷新的价值一直为正，连刷 5 次 110P 没刷到目标）。"""
         from collections import Counter
 
-        good = {d: (gains[d][0] - SPARE_P_VALUE * drink_price(d), drink_price(d)) for d in pool if _good(gains, d) and (buyable is None or buyable(d))}
+        good = {
+            d: (gains[d][0] - SPARE_P_VALUE * drink_price(d), drink_price(d))
+            for d in pool
+            if _good(gains, d) and (buyable is None or buyable(d))
+        }
         cnt = Counter()
         w = {d: shelf_weight(d) for d in pool}
         total = sum(w.values()) ** 2
@@ -1256,7 +1407,7 @@ class RefreshDP:
             for i, (v1, p1) in enumerate(items):
                 if f >= 1 and p1 <= s:
                     best = max(best, v1 + self.C(f - 1, s - p1, c))
-                    for v2, p2 in items[i + 1:]:
+                    for v2, p2 in items[i + 1 :]:
                         if f >= 2 and p1 + p2 <= s:
                             best = max(best, v1 + v2 + self.C(f - 2, s - p1 - p2, c))
             total += pr * best
@@ -1387,8 +1538,16 @@ def calibrated_gains(gains: dict) -> dict:
     return out
 
 
-def drink_step(shelf: list, gains: dict, holding: list, free: int, spare: int, price: int | None, dp: RefreshDP | None = None,
-               rerolls: int = 0) -> dict:
+def drink_step(
+    shelf: list,
+    gains: dict,
+    holding: list,
+    free: int,
+    spare: int,
+    price: int | None,
+    dp: RefreshDP | None = None,
+    rerolls: int = 0,
+) -> dict:
     """当前货架 [(index, drink_id, price)] 上下一步：买哪瓶 / 刷新 / 停。
     adv = 这瓶净值 + 买后继续刷新的价值 − 不买继续刷新的价值（栏位和 P 的机会成本，RefreshDP）。
     - 目标饮料（社区 R2 目标组合还缺的：第一瓶复制、两瓶爆发、两瓶抽牌、一瓶加行动）：看到就买，除非模拟显著不划算（adv + 2 SE < 0，记偏离）；
@@ -1398,22 +1557,32 @@ def drink_step(shelf: list, gains: dict, holding: list, free: int, spare: int, p
     from hiro.state.knowledge import BURST_MUST, DRAW_CAP, DRAW_CLASSES, DRINK_CLASSES, drink_class
 
     gains = calibrated_gains(gains)
-    dp = dp or RefreshDP(gains, buyable=lambda d: DRINK_CLASSES.get(drink_class(d), DRINK_CLASSES["other"])["tier"] <= 2)
+    dp = dp or RefreshDP(
+        gains, buyable=lambda d: DRINK_CLASSES.get(drink_class(d), DRINK_CLASSES["other"])["tier"] <= 2
+    )
     cls = [drink_class(d) for d in holding if d]
-    missing = ("copy" not in cls) or cls.count("burst") < BURST_MUST["r2"] or sum(c in DRAW_CLASSES for c in cls) < DRAW_CAP["r2"]
+    missing = (
+        ("copy" not in cls)
+        or cls.count("burst") < BURST_MUST["r2"]
+        or sum(c in DRAW_CLASSES for c in cls) < DRAW_CAP["r2"]
+    )
     TARGET_COUNT = {"copy": 1, "burst": BURST_MUST["r2"], "draw": DRAW_CAP["r2"], "action": 1}
     can_refresh = price is not None and free > 0 and spare >= price
     c_now = dp.C(free, spare, price) if can_refresh else 0.0
     budget_left = can_refresh and spare >= price + TARGET_MIN_PRICE  # 社区刷新止损：P 还够「刷新 + 一瓶目标」
     if REROLL_FILL_GUARD and free >= 2:
-        budget_left = budget_left and spare >= price + TARGET_MIN_PRICE + CHEAP_DRINK_PRICE  # 还要留一瓶便宜饮料的钱填空位
+        budget_left = (
+            budget_left and spare >= price + TARGET_MIN_PRICE + CHEAP_DRINK_PRICE
+        )  # 还要留一瓶便宜饮料的钱填空位
     # 继续刷新价值的误差：按会被买的那些饮料增益的平均标准误粗估（同 reroll_ev）
     se_c = statistics.fmean([max(gains[d][1], 1) for d in dp.good]) if dp.good and c_now > 0 else 0.0
     # 社区刷新止损（手册「不为单瓶目标无限刷新」，历史反例刷 5 次 120P；第二十六局刷 5 次 110P 没刷到目标）：
     # 社区默认最多刷 REROLL_COMMUNITY_CAP 次；超过之后只有模拟说继续刷新的价值 > 2 SE 才刷（记偏离）
     capped = rerolls >= REROLL_COMMUNITY_CAP
     community_refresh = budget_left and missing and (not capped or REROLL_FOR_TARGETS)
-    refresh_ok = can_refresh and (community_refresh or (c_now > 2 * se_c and not REROLL_HARD_CAP if capped else c_now > 0))
+    refresh_ok = can_refresh and (
+        community_refresh or (c_now > 2 * se_c and not REROLL_HARD_CAP if capped else c_now > 0)
+    )
     cands, skipped = [], []
     for idx, d, pr in shelf:
         if free <= 0 or pr > spare or d not in gains:
@@ -1429,11 +1598,21 @@ def drink_step(shelf: list, gains: dict, holding: list, free: int, spare: int, p
         have = sum(c in DRAW_CLASSES for c in cls) if k in DRAW_CLASSES else cls.count(k)
         target = tier <= 1 and have < TARGET_COUNT.get("draw" if k in DRAW_CLASSES else k, 1)
         name = DRINK_CLASSES.get(k, DRINK_CLASSES["other"])["label"]
-        row = {"index": idx, "drink_id": d, "price": pr, "gain": g, "se": se, "adv": round(adv), "class": name, "tier": tier, "after": round(after)}
+        row = {
+            "index": idx,
+            "drink_id": d,
+            "price": pr,
+            "gain": g,
+            "se": se,
+            "adv": round(adv),
+            "class": name,
+            "tier": tier,
+            "after": round(after),
+        }
         if target:
             # 复制不按模拟跳过：社区续打只在手里有大额兑现时喝复制，增益表低估它（第十九局 R2 专家续打 第 3 瓶 特製 +6.6 万 ± 1.8 万，
             # 第二十五局社区续打增益表 +0.1 万 ± 0.6 万）
-            sd = math.sqrt(se ** 2 + se_c ** 2)
+            sd = math.sqrt(se**2 + se_c**2)
             if k != "copy" and adv + 2 * sd < 0:
                 skipped.append(f"{name} {d} 模拟显著不划算（栏位机会成本后 {adv:+,.0f} ± {sd:,.0f}）")
                 continue
@@ -1442,11 +1621,18 @@ def drink_step(shelf: list, gains: dict, holding: list, free: int, spare: int, p
             if _good(gains, d) and adv > 0:
                 cands.append((1, -adv, row, None))
         elif _good(gains, d):
-            sd = math.sqrt(se ** 2 + se_c ** 2)
+            sd = math.sqrt(se**2 + se_c**2)
             if not budget_left or not refresh_ok:
                 cands.append((2, -net, row, None))  # 刷新预算用尽：补位
             elif adv > 2 * sd:
-                cands.append((1, -adv, row, f"弱饮料（{name}·{tier}档）刷新预算没用尽就买：栏位机会成本后 {adv:+,.0f} ± {sd:,.0f} > 2 SE"))
+                cands.append(
+                    (
+                        1,
+                        -adv,
+                        row,
+                        f"弱饮料（{name}·{tier}档）刷新预算没用尽就买：栏位机会成本后 {adv:+,.0f} ± {sd:,.0f} > 2 SE",
+                    )
+                )
     if cands:
         pri, _, row, dev = min(cands, key=lambda x: (x[0], x[1]))
         how = {0: "社区目标饮料（复制 / 爆发 / 抽牌 / 加行动）", 1: "比继续刷新划算", 2: "刷新预算用尽，补位"}[pri]
@@ -1457,16 +1643,43 @@ def drink_step(shelf: list, gains: dict, holding: list, free: int, spare: int, p
                f" 对 不买：剩 {free} 格继续刷新 {c_now:+,.0f}，差 {row['adv']:+,}）")  # fmt: skip
         return {"kind": "buy", "index": row["index"], "why": why, "deviation": dev, "value": c_now, "skipped": skipped}
     if refresh_ok:
-        dev = None if community_refresh else (f"已刷 {rerolls} 次（社区止损 {REROLL_COMMUNITY_CAP} 次），模拟继续刷新的价值 {c_now:+,.0f} > 2 SE（{se_c:,.0f}）" if capped
-                                              else f"R2 目标已齐 / P 不够目标饮料，按模拟继续刷新（价值 {c_now:+,.0f}）")
-        why = (f"刷新估值：继续刷新的价值 {c_now:+,.0f}（剩 {free} 格、可花 {spare}P（不为强化预留）、刷新 {price}P）"
-               + ("；社区默认：R2 目标没齐、P 够刷新 + 一瓶目标" if community_refresh else ""))
+        dev = (
+            None
+            if community_refresh
+            else (
+                f"已刷 {rerolls} 次（社区止损 {REROLL_COMMUNITY_CAP} 次），模拟继续刷新的价值 {c_now:+,.0f} > 2 SE（{se_c:,.0f}）"
+                if capped
+                else f"R2 目标已齐 / P 不够目标饮料，按模拟继续刷新（价值 {c_now:+,.0f}）"
+            )
+        )
+        why = (
+            f"刷新估值：继续刷新的价值 {c_now:+,.0f}（剩 {free} 格、可花 {spare}P（不为强化预留）、刷新 {price}P）"
+            + ("；社区默认：R2 目标没齐、P 够刷新 + 一瓶目标" if community_refresh else "")
+        )
         return {"kind": "reroll", "why": why, "deviation": dev, "value": c_now, "skipped": skipped}
-    why = "饮料栏满" if free <= 0 else (f"刷新不划算（价值 {c_now:+,.0f}），货架上没有值得补位的饮料" if can_refresh else "P 不够刷新，货架上没有值得补位的饮料")
+    why = (
+        "饮料栏满"
+        if free <= 0
+        else (
+            f"刷新不划算（价值 {c_now:+,.0f}），货架上没有值得补位的饮料"
+            if can_refresh
+            else "P 不够刷新，货架上没有值得补位的饮料"
+        )
+    )
     return {"kind": "stop", "why": why, "deviation": None, "value": c_now, "skipped": skipped}
 
 
-def reroll_ev(gains: dict, free: int, spare: int, price: int, current_value: float, *, pool=SHOP_DRINK_POOL, n: int = 4000, seed: int = 0) -> dict:
+def reroll_ev(
+    gains: dict,
+    free: int,
+    spare: int,
+    price: int,
+    current_value: float,
+    *,
+    pool=SHOP_DRINK_POOL,
+    n: int = 4000,
+    seed: int = 0,
+) -> dict:
     """刷新一次的价值 = 新货架（每格从商品池等概率抽）的期望最优买法价值 − 当前货架最优价值。刷新价格从 spare 里扣（spare 已扣掉轮间需要量，
     剩下的 P 在最后一个轮间之后没用，所以价格本身不再计价）。返回 {ev, se, p_good}（p_good：新货架至少有一瓶值得买的概率）。"""
     import random as _r
@@ -1480,6 +1693,8 @@ def reroll_ev(gains: dict, free: int, spare: int, price: int, current_value: flo
         vals.append(shelf_value(shelf, gains, free, spare - price)[0])
     mean = statistics.fmean(vals)
     # 误差主要来自增益估计：按「被选中的增益」的标准误粗估（单瓶增益的平均标准误 × 选中概率）
-    sel = [d for d in pool if gains[d][0] > GAIN_SIG * max(gains[d][1], 1) and gains[d][0] > SPARE_P_VALUE * drink_price(d)]
+    sel = [
+        d for d in pool if gains[d][0] > GAIN_SIG * max(gains[d][1], 1) and gains[d][0] > SPARE_P_VALUE * drink_price(d)
+    ]
     se = statistics.fmean([gains[d][1] for d in sel]) if sel else 0.0
     return {"ev": mean - current_value, "se": se, "p_good": sum(v > 0 for v in vals) / n}

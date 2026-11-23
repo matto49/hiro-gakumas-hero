@@ -11,24 +11,39 @@ Campus 広（やる気）走 deciders 原来的路径（YARUKI_CARDS / SMALL_DEC
 from __future__ import annotations
 
 import re
-from functools import lru_cache
+from functools import cache, lru_cache  # noqa: F401
 
 # 偶像拿手 buff → 同一种プラン里会冲突的 buff（主打它的卡对这个偶像没用）
 OTHER_BUFFS = {"やる気": ("好印象",), "好印象": ("やる気",), "好調": ("集中",), "集中": ("好調",)}
 
 # 循环件 [g8-NIAM]「効果別のループパーツ例」：examEffectType → 卡 id
 LOOP_PARTS = {
-    "ProduceExamEffectType_ExamCardPlayAggressive": ("p_card-02-men-2_057", "p_card-02-act-2_062"),  # ゆめみごこち、きらきら紙吹雪
-    "ProduceExamEffectType_ExamReview": ("p_card-02-act-2_049", "p_card-02-men-2_060", "p_card-02-act-2_046"),  # みんな大好き、オトメゴコロ、ラブリーウインク
-    "ProduceExamEffectType_ExamParameterBuff": ("p_card-01-men-2_037", "p_card-01-act-2_001", "p_card-01-act-3_185"),  # 存在感、シュプレヒコール、脚光
+    "ProduceExamEffectType_ExamCardPlayAggressive": (
+        "p_card-02-men-2_057",
+        "p_card-02-act-2_062",
+    ),  # ゆめみごこち、きらきら紙吹雪
+    "ProduceExamEffectType_ExamReview": (
+        "p_card-02-act-2_049",
+        "p_card-02-men-2_060",
+        "p_card-02-act-2_046",
+    ),  # みんな大好き、オトメゴコロ、ラブリーウインク
+    "ProduceExamEffectType_ExamParameterBuff": (
+        "p_card-01-men-2_037",
+        "p_card-01-act-2_001",
+        "p_card-01-act-3_185",
+    ),  # 存在感、シュプレヒコール、脚光
     "ProduceExamEffectType_ExamLessonBuff": ("p_card-01-men-2_037", "p_card-01-act-2_001", "p_card-01-act-3_185"),
-    "ProduceExamEffectType_ExamConcentration": ("p_card-03-men-1_050", "p_card-03-act-2_102", "p_card-03-act-3_188"),  # 巻き返し、オーバードライブ、エンターテイナー
+    "ProduceExamEffectType_ExamConcentration": (
+        "p_card-03-men-1_050",
+        "p_card-03-act-2_102",
+        "p_card-03-act-3_188",
+    ),  # 巻き返し、オーバードライブ、エンターテイナー
     "ProduceExamEffectType_ExamFullPower": ("p_card-03-act-3_053", "p_card-03-act-3_189"),  # 輝け！、羽ばたけ！
 }
 STRONG_WEIGHT = 80  # 流派优先表里权重 ≥ 它的算「社区强卡」
 
 
-@lru_cache(maxsize=None)
+@cache
 def exam_effect(idol_card_id: str | None) -> str | None:
     if not idol_card_id:
         return None
@@ -40,7 +55,7 @@ def exam_effect(idol_card_id: str | None) -> str | None:
         return None
 
 
-@lru_cache(maxsize=None)
+@cache
 def flow(idol_card_id: str | None) -> str | None:
     """偶像 → 流派键（memory_priority.PROFILES）；查不到 None。"""
     if not idol_card_id:
@@ -75,7 +90,7 @@ def loop_parts(idol_card_id: str | None) -> tuple[str, ...]:
 _MAIN = (r"{w}の\d+%分パラメータ上昇", r"{w}が\d+以上の場合、使用可", r"以降.*{w}\+", r"{w}増加量増加")
 
 
-@lru_cache(maxsize=None)
+@cache
 def buff_main(card_id: str, word: str) -> bool:
     """卡的主要得分 / 使用条件挂在 word（好印象 / やる気 / 好調 / 集中）上：「wのN%分パラメータ上昇」「wがN以上の場合、使用可」
     「以降…w+」「w増加量増加」。只消費 w、顺带加 w 的不算。"""

@@ -64,7 +64,9 @@ def idol_card_id(title: str | None, code: str | None) -> str | None:
 
     if not title or not code:
         return None
-    row = next(iter(master.rows("SELECT id FROM IdolCard WHERE name = ? AND characterId = ?", title.strip(), code)), None)
+    row = next(
+        iter(master.rows("SELECT id FROM IdolCard WHERE name = ? AND characterId = ?", title.strip(), code)), None
+    )
     return row[0] if row else None
 
 
@@ -93,14 +95,17 @@ def find_idol(idols: list[dict], want: str) -> dict | None:
     named = [i for i in idols if i.get("name")]
     if (hit := next((i for i in named if _name_key(i["name"]) == key), None)) is not None:
         return hit
-    scored = sorted(((SequenceMatcher(None, _name_key(i["name"]), key).ratio(), n) for n, i in enumerate(named)), reverse=True)
+    scored = sorted(
+        ((SequenceMatcher(None, _name_key(i["name"]), key).ratio(), n) for n, i in enumerate(named)), reverse=True
+    )
     return named[scored[0][1]] if scored and scored[0][0] >= 0.75 else None
 
 
 def contest_page(texts) -> bool:
     """コンテスト页（判页会判成 commu）：中间偏下的大卡片写着「コンテスト」（y≈894），左边圆形按钮写着「アイドル / への道」。"""
     return any("コンテスト" in t.text and 840 <= t.rect.center.y <= 950 for t in texts) and any(
-        "への道" in t.text or t.text.strip() == "アイドル" for t in texts if t.rect.center.y < 1000)
+        "への道" in t.text or t.text.strip() == "アイドル" for t in texts if t.rect.center.y < 1000
+    )
 
 
 def tower_classify(img):
@@ -160,11 +165,15 @@ class TowerPlay:
         self.finished = False
         self.loadout: dict | None = None  # 现在 HIRO_TOWER_LOADOUT 指的那份（编成页写的，或从缓存读的）
         self.exam_draws: dict | None = None  # 刚考完那场的抽牌（tower_cache.infer_draws），名次页补上对手分数后存盘
-        self._acted: tuple[str, float] | None = None  # (页面, 时刻)：这一页刚点过，页面换了之前不再点（ACT_WAIT_S 后还没换才再点）
+        self._acted: tuple[str, float] | None = (
+            None  # (页面, 时刻)：这一页刚点过，页面换了之前不再点（ACT_WAIT_S 后还没换才再点）
+        )
         self._partial_since: float | None = None  # 再挑戦确认框按钮没读全从什么时候开始
         self._nav_reset()
         self.exam_no = 0  # 本段打过几场考试：结果页按场次只记一次
-        self._counted: tuple | None = None  # (场次, 结论, 时刻)：这一场的结果已经记过（g9 11-17：再挑戦确认框淡出时结果页又被认出、又记一次）
+        self._counted: tuple | None = (
+            None  # (场次, 结论, 时刻)：这一场的结果已经记过（g9 11-17：再挑戦确认框淡出时结果页又被认出、又记一次）
+        )
         self.result_handled = False  # 这一次的结果页已经处理过（点了再挑戦 / 一覧に戻る）：等页面换了再处理下一次（实机 r2：同一张结果页处理了两次）
         if run.tower_id is None and (code := idol_code(idol_name)):
             run.tower_id = f"{TOWER_NO}-{code}"  # 没经过编成页（从名次页 / 结果页续跑）也有路线
@@ -197,7 +206,9 @@ class TowerPlay:
     def on_list(self, rt, f, hit):
         idol = find_idol(hit.fields.get("idols") or [], self.idol_name)
         if idol is None:
-            raise ResumeBlocked(f"偶像之路列表里没找到「{self.idol_name}」（读到 {[i.get('name') for i in hit.fields.get('idols') or []]}）")
+            raise ResumeBlocked(
+                f"偶像之路列表里没找到「{self.idol_name}」（读到 {[i.get('name') for i in hit.fields.get('idols') or []]}）"
+            )
         rt.device.tap(*idol["center"])
         return DONE
 
@@ -208,8 +219,15 @@ class TowerPlay:
         self._acted = (page, _now(rt))
 
     def _nav_reset(self) -> None:
-        self.nav = {"seen": {}, "start": None, "px": getattr(self, "nav", {}).get("px", NAV_PX0), "pending": None, "at": None, "moves": 0,
-                    "nobtn": None}
+        self.nav = {
+            "seen": {},
+            "start": None,
+            "px": getattr(self, "nav", {}).get("px", NAV_PX0),
+            "pending": None,
+            "at": None,
+            "moves": 0,
+            "nobtn": None,
+        }
 
     def _playable(self, stage: int, stars: int, locked: bool) -> bool:
         run = self.run
@@ -245,13 +263,19 @@ class TowerPlay:
         if fields.get("stage") is None:
             return STAY  # 还没读全：等下一帧
         if fields.get("challenge") is None and nv.get("nobtn") != fields["stage"]:
-            nv["nobtn"] = fields["stage"]  # 没有「挑戦する」（最前沿以上的层，或者按钮还没出来）：再看一帧，还没有才当锁着
+            nv["nobtn"] = fields[
+                "stage"
+            ]  # 没有「挑戦する」（最前沿以上的层，或者按钮还没出来）：再看一帧，还没有才当锁着
             return STAY
         stage, stars, locked = int(fields["stage"]), int(fields.get("stars") or 0), bool(fields.get("locked"))
         if nv["pending"] is not None:  # 上一次滑动挪了几层：校准每层的距离
             old, dist = nv["pending"]
             moved = abs(stage - old)
-            nv["px"] = min(NAV_PX_MAX, nv["px"] * 1.6) if moved == 0 else min(NAV_PX_MAX, max(NAV_PX_MIN, (nv["px"] + dist / moved) / 2))
+            nv["px"] = (
+                min(NAV_PX_MAX, nv["px"] * 1.6)
+                if moved == 0
+                else min(NAV_PX_MAX, max(NAV_PX_MIN, (nv["px"] + dist / moved) / 2))
+            )
             nv["pending"] = None
         if nv["start"] is None:
             nv["start"] = stage
@@ -266,7 +290,9 @@ class TowerPlay:
         target = self._nav_target()
         seen = {n: f"{st}星{'锁' if lk else ''}" for n, (st, lk) in sorted(nv["seen"].items())}
         if target is None:
-            raise ResumeBlocked(f"层选择页上没有能打的层（看过 {seen}；三星 / 锁着 / 今天次数用完 / 放弃三星 / 超过上限），停下报告")
+            raise ResumeBlocked(
+                f"层选择页上没有能打的层（看过 {seen}；三星 / 锁着 / 今天次数用完 / 放弃三星 / 超过上限），停下报告"
+            )
         if nv["moves"] >= NAV_MAX_MOVES:
             raise ResumeBlocked(f"层选择页滑了 {nv['moves']} 次还没到第 {target} 层（看过 {seen}），停下报告")
         diff = target - stage
@@ -309,7 +335,9 @@ class TowerPlay:
             lo["produce_cards"] = list(self.deck["cards"])  # 基本 2 张由中转层按偶像补（8a3a1e7 069d34c）
             if self.deck.get("unread"):
                 logger.warning("偶像之路编成：牌组里有 %d 张亮着但认不出，没写进 produce_cards", self.deck["unread"])
-        sig = tower_cache.signature(lo.get("idol_card_id"), fields.get("memory_ratings") or p1.get("memory_ratings"), p1.get("params"))
+        sig = tower_cache.signature(
+            lo.get("idol_card_id"), fields.get("memory_ratings") or p1.get("memory_ratings"), p1.get("params")
+        )
         if sig:
             lo["formation_signature"] = sig
         self._use_loadout(lo)
@@ -339,7 +367,11 @@ class TowerPlay:
             return self.loadout
         lo = tower_cache.load_loadout(self.run.tower_id, layer)
         if lo is None:
-            logger.warning("偶像之路：%s 第 %s 层没有缓存的编成，HIRO_TOWER_LOADOUT 不设（出牌只按画面读数）", self.run.tower_id, layer)
+            logger.warning(
+                "偶像之路：%s 第 %s 层没有缓存的编成，HIRO_TOWER_LOADOUT 不设（出牌只按画面读数）",
+                self.run.tower_id,
+                layer,
+            )
             return None
         self._use_loadout(lo)
         self.layer = self.layer or lo.get("layer")
@@ -378,9 +410,23 @@ class TowerPlay:
             logger.warning("偶像之路：编成签名 / 层号不全（%s / %s），这场的抽牌不记", sig, layer)
             self.exam_draws = None
             return
-        draws, skipped, why = tower_cache.infer_draws(tower_cache.exam_steps(steps_jsonl, label, after_seq), self._deck_ids())
-        logger.info("偶像之路第 %s 层抽牌：记下 %d 张、跳过生成卡 %d 张%s", layer, len(draws), skipped, f"，停在：{why}" if why else "（全程）")
-        self.exam_draws = {"tower_id": self.run.tower_id, "layer": layer, "sig": sig, "draws": draws, "skipped": skipped}
+        draws, skipped, why = tower_cache.infer_draws(
+            tower_cache.exam_steps(steps_jsonl, label, after_seq), self._deck_ids()
+        )
+        logger.info(
+            "偶像之路第 %s 层抽牌：记下 %d 张、跳过生成卡 %d 张%s",
+            layer,
+            len(draws),
+            skipped,
+            f"，停在：{why}" if why else "（全程）",
+        )
+        self.exam_draws = {
+            "tower_id": self.run.tower_id,
+            "layer": layer,
+            "sig": sig,
+            "draws": draws,
+            "skipped": skipped,
+        }
         self._save_draws([])  # 先存一份；名次页读到对手分数再覆盖
 
     def _save_draws(self, rivals: list[int]) -> None:
@@ -401,8 +447,8 @@ class TowerPlay:
 
     def on_exam(self, rt, f, hit):
         """考试：同 HifCore.on_exam_entered，只是标签按层、不走 H.I.F 的再挑戦（重试由结果页按 TowerRun 规则定）。"""
-        from hiro.exec.exam import run_exam
         from hiro.devices.active import device
+        from hiro.exec.exam import run_exam
 
         core = self.core
         self.exam_no += 1
@@ -433,7 +479,12 @@ class TowerPlay:
         pos = fields.get("retry") if verdict == "retry" else fields.get("back")
         if pos is None:
             return STAY
-        logger.info("偶像之路：第 %s 层这一场的结果页 %.0fs 后还在，照上次的结论（%s）再点一次，不再计数", self.layer, now - at, verdict)
+        logger.info(
+            "偶像之路：第 %s 层这一场的结果页 %.0fs 后还在，照上次的结论（%s）再点一次，不再计数",
+            self.layer,
+            now - at,
+            verdict,
+        )
         rt.device.tap(*pos)
         self.result_handled = True
         self._counted = (self._counted[0], verdict, now)
@@ -451,9 +502,18 @@ class TowerPlay:
         verdict = self.run.after_result(layer, bool(fields.get("cleared")), int(fields.get("stars") or 0))
         self._counted = (self.exam_no, verdict, _now(rt))
         tower_cache.save_progress(self.run)  # 跨进程记次数：重启后「每层最多 3 次」照样管
-        logger.info("偶像之路第 %s 层结果：过关=%s 星=%s → %s（%s）", layer, fields.get("cleared"), fields.get("stars"), verdict, self.run.summary())
+        logger.info(
+            "偶像之路第 %s 层结果：过关=%s 星=%s → %s（%s）",
+            layer,
+            fields.get("cleared"),
+            fields.get("stars"),
+            verdict,
+            self.run.summary(),
+        )
         if verdict == "stop":
-            raise ResumeBlocked(f"偶像之路第 {layer} 层 {self.run.tries.get(layer)} 次都没过关，停下报告（{self.run.summary()}）")
+            raise ResumeBlocked(
+                f"偶像之路第 {layer} 层 {self.run.tries.get(layer)} 次都没过关，停下报告（{self.run.summary()}）"
+            )
         if verdict == "retry":
             if fields.get("retry") is None:
                 raise ResumeBlocked("结果页没读到「再挑戦」，停下")
@@ -495,14 +555,24 @@ class TowerPlay:
             return STAY  # 刚点过再挑戦 / 一覧に戻る：确认框 / 下一页还没出来，不再算一次
         if self._counted is not None and self._counted[0] == self.exam_no:
             return self._redo_result(rt, fields)  # 这一场已经记过（名次也记过）：不再记
-        mine = next((r for r in fields.get("rows") or [] if r.get("name") == (self.idol_name or "").replace(" ", "")), None)
+        mine = next(
+            (r for r in fields.get("rows") or [] if r.get("name") == (self.idol_name or "").replace(" ", "")), None
+        )
         my_rank = mine["rank"] if mine else None
-        self.run.rankings.setdefault(self.layer, []).append({"my_rank": my_rank, "rows": fields.get("rows"), "failed": True})
+        self.run.rankings.setdefault(self.layer, []).append(
+            {"my_rank": my_rank, "rows": fields.get("rows"), "failed": True}
+        )
         logger.info("偶像之路第 %s 层不合格：第 %s 名（%s）", self.layer, my_rank, fields.get("rows"))
         if self.exam_draws is not None:
             self._save_draws(rivals({**fields, "my_rank": my_rank}, self.idol_name))
             self.exam_draws = None
-        res = {"cleared": False, "layer": self.layer, "stars": 0, "retry": fields.get("retry"), "back": fields.get("back")}
+        res = {
+            "cleared": False,
+            "layer": self.layer,
+            "stars": 0,
+            "retry": fields.get("retry"),
+            "back": fields.get("back"),
+        }
         return self.on_result(rt, None, SimpleNamespace(fields=res))
 
     def on_retry_confirm(self, rt, f, hit):
@@ -521,7 +591,9 @@ class TowerPlay:
                 self._partial_since = now
             if now - self._partial_since < PARTIAL_WAIT_S:
                 return STAY
-            raise ResumeBlocked(f"再挑戦确认框 {now - self._partial_since:.0f}s 都没读全（同じ編成で再挑戦 / OK），不点，停下")
+            raise ResumeBlocked(
+                f"再挑戦确认框 {now - self._partial_since:.0f}s 都没读全（同じ編成で再挑戦 / OK），不点，停下"
+            )
         self._partial_since = None
         rt.device.tap(*fields["same"])  # 同编成再打（换编成等回忆选择页接上后再做）
         rt.sleep(0.5)
@@ -541,6 +613,7 @@ class TowerPlay:
         hs = {"home": self.on_home, "TOWER_CONTEST": self.on_contest, "TOWER_LIST": self.on_list, "TOWER_LAYERS": self.on_layers, "TOWER_LAYER_INFO": self.on_layer_info,
                 "TOWER_FORMATION": self.on_formation, "TOWER_MEMORY_SELECT": self.on_memory_select, "TOWER_EXAM": self.on_exam,
                 "TOWER_RANKING": self.on_ranking, "TOWER_RESULT": self.on_result, "TOWER_RETRY_CONFIRM": self.on_retry_confirm}  # fmt: skip
+
         def track(page, fn):
             def h(rt, f, hit):
                 if self._acted is not None and self._acted[0] != page:
@@ -599,7 +672,11 @@ def main(argv=None) -> int:
     ap.add_argument("--no-llm", action="store_true")
     ap.add_argument("--llm", default=os.environ.get("HIRO_LLM"))
     ap.add_argument("--trace", default=None)
-    ap.add_argument("--reset-progress", action="store_true", help="清掉这条路线今天记下的每层挑战次数（tower_cache.progress_path）再开始")
+    ap.add_argument(
+        "--reset-progress",
+        action="store_true",
+        help="清掉这条路线今天记下的每层挑战次数（tower_cache.progress_path）再开始",
+    )
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s")
     return run(ap.parse_args(argv))
 

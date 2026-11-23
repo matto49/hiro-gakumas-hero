@@ -82,8 +82,11 @@ def input_method(name: str, enum) -> int:
 
 def find_window(toolkit, title: str = WINDOW_TITLE):
     """游戏窗口：标题是 gakumas 的 Unity 窗口（DMM 版只有一个）；找不到就讲清楚。"""
-    wins = [w for w in toolkit.find_desktop_windows()
-            if (w.window_name or "").strip().lower() == title and (w.class_name or "") == WINDOW_CLASS]
+    wins = [
+        w
+        for w in toolkit.find_desktop_windows()
+        if (w.window_name or "").strip().lower() == title and (w.class_name or "") == WINDOW_CLASS
+    ]
     if not wins:
         raise RuntimeError(f"找不到游戏窗口（标题 {title!r}、类 {WINDOW_CLASS}）：先从 DMM Game Player 启动学マス")
     return wins[0]
@@ -92,7 +95,9 @@ def find_window(toolkit, title: str = WINDOW_TITLE):
 class MaaFwWin32Impl:
     """kotonebot Screenshotable + Touchable：经 MaaFramework 的 Win32 控制器截图与点击，坐标是缩放到短边 720 的截图像素。"""
 
-    def __init__(self, device, *, screencap: str | None = None, input_name: str | None = None, title: str = WINDOW_TITLE):
+    def __init__(
+        self, device, *, screencap: str | None = None, input_name: str | None = None, title: str = WINDOW_TITLE
+    ):
         self.device = device
         self.title = title
         self.screencap = screencap or os.environ.get("HIRO_MAAFW_SCREENCAP") or DEFAULT_SCREENCAP
@@ -110,17 +115,23 @@ class MaaFwWin32Impl:
         self._ctrl = None
 
     def _connect(self) -> None:
-        Win32Controller, S, I, Toolkit = _maa()
+        Win32Controller, S, I, Toolkit = _maa()  # noqa: E741
         log_dir = os.environ.get("HIRO_MAAFW_LOG") or os.path.join(tempfile.gettempdir(), "hiro-maafw")
         os.makedirs(log_dir, exist_ok=True)
         Toolkit.init_option(log_dir)  # 框架自己的日志写这里（debug/maa.log）
         win = find_window(Toolkit, self.title)
-        ctrl = Win32Controller(win.hwnd, screencap_method=screencap_flags(self.screencap, S),
-                               mouse_method=input_method(self.input_name, I), keyboard_method=input_method(self.input_name, I))
+        ctrl = Win32Controller(
+            win.hwnd,
+            screencap_method=screencap_flags(self.screencap, S),
+            mouse_method=input_method(self.input_name, I),
+            keyboard_method=input_method(self.input_name, I),
+        )
         ctrl.set_screenshot_target_short_side(SHORT_SIDE)
         if not ctrl.post_connection().wait().succeeded:
-            raise RuntimeError(f"MaaFramework 连不上游戏窗口（截图 {self.screencap}、输入 {self.input_name}）；"
-                               "日志见 " + os.path.join(log_dir, "debug", "maa.log"))
+            raise RuntimeError(
+                f"MaaFramework 连不上游戏窗口（截图 {self.screencap}、输入 {self.input_name}）；"
+                "日志见 " + os.path.join(log_dir, "debug", "maa.log")
+            )
         self._ctrl, self._hwnd = ctrl, win.hwnd
         logger.info("MaaFramework Win32：窗口 %s，截图 %s，输入 %s", win.hwnd, self.screencap, self.input_name)
 
@@ -173,7 +184,7 @@ class MaaFwWin32Impl:
         for i in range(1, steps + 1):
             t = i / steps
             time.sleep(1 / SWIPE_FPS)
-            self._job(lambda c: c.post_touch_move(round(x1 + (x2 - x1) * t), round(y1 + (y2 - y1) * t)), "拖动")
+            self._job(lambda c: c.post_touch_move(round(x1 + (x2 - x1) * t), round(y1 + (y2 - y1) * t)), "拖动")  # noqa: B023
         end = time.monotonic() + self.swipe_hold
         while time.monotonic() < end:
             time.sleep(1 / SWIPE_FPS)

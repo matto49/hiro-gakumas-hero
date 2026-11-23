@@ -44,6 +44,12 @@ def test_unmodeled_deck_event_sets_pending_review():
     from hiro.loop.events import apply_event
 
     st = GameState(produce={"deck": [{"card_id": "c0", "upgrade": 0}]})
-    ev = Event(seq=1, kind="UNMODELED_CHANGE", origin="inferred", args={"field": "produce.deck", "why": "跳过剧情"}, basis="observe_only")
+    ev = Event(
+        seq=1,
+        kind="UNMODELED_CHANGE",
+        origin="inferred",
+        args={"field": "produce.deck", "why": "跳过剧情"},
+        basis="observe_only",
+    )
     st2, _ = apply_event(st, ev)
     assert "produce.deck" in st2.pending_review and st2.produce["deck"] == st.produce["deck"]

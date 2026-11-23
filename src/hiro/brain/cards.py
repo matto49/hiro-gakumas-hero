@@ -8,7 +8,8 @@ KAA 的 effect_display_text 会省掉持续回合数与使用条件（如「元�
 import json
 import re
 from dataclasses import asdict, dataclass, field
-from functools import lru_cache
+from functools import cache, lru_cache  # noqa: F401
+
 
 def select(sql: str, *args):
     """主数据单行查询（hiro.master.rows）；拿不到主数据时返回 None。"""
@@ -53,7 +54,9 @@ class CardTags:
     is_sleep: bool = False  # 眠気本身
     genki_score_pct: int = 0  # 打出时立刻按元气 N% 得分（きらきら紙吹雪 110、届いて！ 400…）；持续 / 延迟 / 附魔的不算
     impression_score_pct: int = 0  # 打出时立刻按好印象 N% 得分（みんな大好き 90…）
-    score_condition: str | None = None  # 即时得分的附加条件原文，例如「除外以外にあるトラブルカードが2枚以上」（がむしゃら）
+    score_condition: str | None = (
+        None  # 即时得分的附加条件原文，例如「除外以外にあるトラブルカードが2枚以上」（がむしゃら）
+    )
     score_condition_troubles: int | None = None  # 条件为「…トラブルカードが N 枚以上」时的 N
     genki_min: int | None = None  # 使用条件「元気がN以上の場合、使用可」
 
@@ -63,7 +66,9 @@ def parse_tags(name: str, text: str, *, once: bool = False) -> CardTags:
     t.clears_genki = "元気を0にする" in text
     t.halves_genki = "元気を半分" in text
     t.extra_actions = sum(int(n) for n in re.findall(r"スキルカード使用数追加\+?(\d+)", text))
-    t.draws = sum(int(n) for n in re.findall(r"スキルカードを(\d+)枚引く", text)) + len(re.findall(r"スキルカードを引く", text))
+    t.draws = sum(int(n) for n in re.findall(r"スキルカードを(\d+)枚引く", text)) + len(
+        re.findall(r"スキルカードを引く", text)
+    )
     t.adds_turn = "ターン追加" in text
     # 只认按元气得分的持续效果；夢色リップ 的「ターン開始時、好印象1.1倍」不算
     if m := re.search(r"以降の(\d+)ターンの間、ターン開始時、元気の", text):
@@ -170,7 +175,7 @@ class DrinkView:
         return cls(**d)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _drink_text(drink_id: str) -> str:
     row = select("SELECT produceDescriptions FROM ProduceDrink WHERE id = ?;", drink_id)
     return description_text(row[0]) if row else ""

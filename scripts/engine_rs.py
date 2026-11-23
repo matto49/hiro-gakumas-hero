@@ -99,7 +99,7 @@ def install(python: str | None = None, base: str | None = None, key: str | None 
         manifest = json.loads(_fetch(f"{base}/{tag}/manifest.json"))
     except (urllib.error.URLError, OSError, ValueError) as e:
         return False, f"没有找到预编译包 {tag}（当前源码还没出包或网络不通：{e}）"
-    if manifest.get("source_hash") != tag[len(TAG_PREFIX):]:
+    if manifest.get("source_hash") != tag[len(TAG_PREFIX) :]:
         return False, f"预编译包 {tag} 的源码哈希对不上（{manifest.get('source_hash')}），不装"
     entry = (manifest.get("wheels") or {}).get(key)
     if not entry:
@@ -118,10 +118,16 @@ def install(python: str | None = None, base: str | None = None, key: str | None 
         try:
             r = subprocess.run(cmd, capture_output=True, text=True)
         except FileNotFoundError:  # 没有 uv：用 pip
-            r = subprocess.run([py, "-m", "pip", "install", "-q", "--force-reinstall", str(wheel)], capture_output=True, text=True)
+            r = subprocess.run(
+                [py, "-m", "pip", "install", "-q", "--force-reinstall", str(wheel)], capture_output=True, text=True
+            )
         if r.returncode != 0:
             return False, f"安装 {entry['file']} 失败：{(r.stderr or r.stdout).strip()[-300:]}"
-    check = subprocess.run([python or sys.executable, "-c", "import gakumas_exam_rs as m; assert hasattr(m, 'Exam')"], capture_output=True, text=True)
+    check = subprocess.run(
+        [python or sys.executable, "-c", "import gakumas_exam_rs as m; assert hasattr(m, 'Exam')"],
+        capture_output=True,
+        text=True,
+    )
     if check.returncode != 0:
         return False, f"装上了但导入失败：{check.stderr.strip()[-300:]}"
     return True, f"已装预编译 Rust 后端 {entry['file']}（{tag}，{key}）"

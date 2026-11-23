@@ -12,10 +12,10 @@
 
 from __future__ import annotations
 
+from hiro.vision.digits import read_number
+
 import cv2
 import numpy as np
-
-from hiro.vision.digits import read_number
 
 RIGHT, NPC_W, ME_W, GAP, DIVIDER = 710, 69, 127, 2, 13
 SCORE_Y = (126, 168)
@@ -70,7 +70,10 @@ def is_tower_exam(img: np.ndarray) -> bool:
 
     if hif._match(img, "hif_exam_remaining_turns", (0, 0, 160, 45))[0] < TURNS_MIN:
         return False
-    if hif.is_finals_strip(img) or hif._match_white(img, "hif_exam_breakthrough", hif.TOP_STRIP)[0] >= hif.BREAKTHROUGH_MIN:
+    if (
+        hif.is_finals_strip(img)
+        or hif._match_white(img, "hif_exam_breakthrough", hif.TOP_STRIP)[0] >= hif.BREAKTHROUGH_MIN
+    ):
         return False
     return my_rank(img)[0] is not None
 
@@ -103,17 +106,34 @@ def _list_fields(boxes) -> dict:
     import re
 
     idols, used = [], set()
-    progs = sorted(((t, b) for t, b in boxes if re.fullmatch(r"\d+/\d+", t) and _center(b)[1] > 600), key=lambda x: (_center(x[1])[1] // 40, _center(x[1])[0]))
+    progs = sorted(
+        ((t, b) for t, b in boxes if re.fullmatch(r"\d+/\d+", t) and _center(b)[1] > 600),
+        key=lambda x: (_center(x[1])[1] // 40, _center(x[1])[0]),
+    )
     for pt, pb in progs:
         px, py = _center(pb)
         name = next(((t, b) for t, b in boxes if abs(_center(b)[0] - px) < 90 and 30 <= py - _center(b)[1] <= 100 and len(t) >= 2
                      and not re.search(r"\d", t)), None)  # fmt: skip
-        st = next(((t, b) for t, b in boxes if re.fullmatch(r"STAGE(\d+)", t) and abs(_center(b)[0] - px) < 110 and 230 <= py - _center(b)[1] <= 320), None)
+        st = next(
+            (
+                (t, b)
+                for t, b in boxes
+                if re.fullmatch(r"STAGE(\d+)", t) and abs(_center(b)[0] - px) < 110 and 230 <= py - _center(b)[1] <= 320
+            ),
+            None,
+        )
         if st is not None:
             used.add(id(st[1]))
         anchor = name[1] if name is not None else (st[1] if st is not None else None)
         center = list(_center(anchor)) if anchor is not None else [px, py - 60]
-        idols.append({"stage": int(st[0][5:]) if st else None, "name": name[0] if name else None, "progress": pt, "center": center})
+        idols.append(
+            {
+                "stage": int(st[0][5:]) if st else None,
+                "name": name[0] if name else None,
+                "progress": pt,
+                "center": center,
+            }
+        )
     for t, b in boxes:  # 名字在屏幕外的卡：只有 STAGE
         if (m := re.fullmatch(r"STAGE(\d+)", t)) and id(b) not in used:
             idols.append({"stage": int(m.group(1)), "name": None, "progress": None, "center": list(_center(b))})
@@ -131,8 +151,18 @@ def _formation_fields(boxes, img: np.ndarray | None = None) -> dict:
     turn_label = _find(boxes, "ターン", (60, 130))
     if turn_label is not None:
         tx = _center(turn_label)[0]
-        out["turns"] = next((int(t) for t, b in boxes if t.isdigit() and abs(_center(b)[0] - tx) < 30 and 30 <= _center(b)[1] <= 80), None)
-    pcts = sorted(((_center(b)[1], int(m.group(1))) for t, b in boxes if (m := re.fullmatch(r"\D?(\d{2,5})%", t)) and _center(b)[0] > 560), key=lambda x: x[0])
+        out["turns"] = next(
+            (int(t) for t, b in boxes if t.isdigit() and abs(_center(b)[0] - tx) < 30 and 30 <= _center(b)[1] <= 80),
+            None,
+        )
+    pcts = sorted(
+        (
+            (_center(b)[1], int(m.group(1)))
+            for t, b in boxes
+            if (m := re.fullmatch(r"\D?(\d{2,5})%", t)) and _center(b)[0] > 560
+        ),
+        key=lambda x: x[0],
+    )
     if len(pcts) == 3:
         out["score_bonus_permils"] = [p * 10 for _, p in pcts]
         # 同一行左边的属性值（「2348」「•1701」「A611」：前面的评价记号 OCR 常读成杂字，只取数字）
@@ -152,12 +182,23 @@ def _formation_fields(boxes, img: np.ndarray | None = None) -> dict:
         out["memory_ratings"] = ratings
     hp = _find(boxes, "体力", (500, 600))
     if hp is not None:
-        out["max_stamina"] = next((int(t) for t, b in boxes if t.isdigit() and abs(_center(b)[0] - _center(hp)[0]) < 30 and 15 <= _center(b)[1] - _center(hp)[1] <= 50), None)
+        out["max_stamina"] = next(
+            (
+                int(t)
+                for t, b in boxes
+                if t.isdigit()
+                and abs(_center(b)[0] - _center(hp)[0]) < 30
+                and 15 <= _center(b)[1] - _center(hp)[1] <= 50
+            ),
+            None,
+        )
     for key, word in (("challenge", "挑戦する"), ("omakase", "おまかせ"), ("reset", "リセット")):
         if (b := _find(boxes, word, (1000, 1280))) is not None:
             out[key] = _center(b)  # おまかせ 只记位置，绝不点（用户 11-14：编成走我们的决策）
     # 第 1 / 2 页（「1/2」「2/2」，两边是左右翻页箭头，间距约 97）：第 2 页整副牌组直接显示
-    if (pg := next(((t, b) for t, b in boxes if re.fullmatch(r"([12])/2", t) and 600 <= _center(b)[1] <= 720), None)) is not None:
+    if (
+        pg := next(((t, b) for t, b in boxes if re.fullmatch(r"([12])/2", t) and 600 <= _center(b)[1] <= 720), None)
+    ) is not None:
         out["page"] = int(pg[0][0])
         cx, cy = _center(pg[1])
         out["next_page"], out["prev_page"] = [cx + 97, cy], [cx - 97, cy]
@@ -170,9 +211,13 @@ LAYER_BOX = (280, 385, 440, 470)
 
 
 # 编成页第 2/2 页的牌组（协调 11-14 第二批采样 38 号帧）：3 排，第 1 排主回忆 6 张（x 70 起、间隔 90），第 2、3 排是サブ1 / サブ2
-#（前面一个「+」，x 195 起）。灰掉的（「重複」「制限」）不进考试（8a3a1e7 拿 GKMS 6 局开局对过），按亮度跳过：灰 102–141、亮 181–239。
+# （前面一个「+」，x 195 起）。灰掉的（「重複」「制限」）不进考试（8a3a1e7 拿 GKMS 6 局开局对过），按亮度跳过：灰 102–141、亮 181–239。
 # 强化看右上角的红「+」（卡中心右上约 +25..+40、-20..0）；左上角的数字是等级不是强化。基本 2 张页面上不显示，由中转层按偶像补。
-DECK_ROWS = ((415, (70, 160, 250, 340, 430, 520)), (515, (195, 285, 375, 465, 555, 645)), (607, (195, 285, 375, 465, 555, 645)))
+DECK_ROWS = (
+    (415, (70, 160, 250, 340, 430, 520)),
+    (515, (195, 285, 375, 465, 555, 645)),
+    (607, (195, 285, 375, 465, 555, 645)),
+)
 DECK_HALF = 42
 DECK_DIM_V = 160  # 卡面平均亮度低于这个算灰掉（重複 / 制限）
 DECK_PLUS_MIN = 15  # 右上角红色像素：强化 20–60，没强化 ≤ 8
@@ -210,9 +255,25 @@ def read_formation_deck(img: np.ndarray) -> dict:
             cell = hsv[y - DECK_HALF : y + DECK_HALF, x - DECK_HALF : x + DECK_HALF]
             dim = float(cell[..., 2].mean()) < DECK_DIM_V
             corner = hsv[y - 22 : y + 2, x + 15 : x + 45]
-            upgrade = int(int((((corner[..., 0] <= 8) | (corner[..., 0] >= 172)) & (corner[..., 1] >= 150) & (corner[..., 2] >= 170)).sum()) >= DECK_PLUS_MIN)
+            upgrade = int(
+                int(
+                    (
+                        ((corner[..., 0] <= 8) | (corner[..., 0] >= 172))
+                        & (corner[..., 1] >= 150)
+                        & (corner[..., 2] >= 170)
+                    ).sum()
+                )
+                >= DECK_PLUS_MIN
+            )
             card = None if dim else _deck_card(img[y - DECK_HALF : y + DECK_HALF, x - DECK_HALF : x + DECK_HALF])
-            row.append({"name": card.name if card else None, "card_id": card._id if card else None, "upgrade": upgrade, "dim": dim})
+            row.append(
+                {
+                    "name": card.name if card else None,
+                    "card_id": card._id if card else None,
+                    "upgrade": upgrade,
+                    "dim": dim,
+                }
+            )
             if not dim:
                 if card is None:
                     unread += 1
@@ -222,7 +283,10 @@ def read_formation_deck(img: np.ndarray) -> dict:
     return {"cards": cards, "rows": rows, "unread": unread}
 
 
-RESULT_TITLES = ("CLEAR", "PERFECT")  # 过关结果页的大标题：三星（1 位）是「PERFECT」（Mac 手毬 14 层 11-15，原来判成 unknown）
+RESULT_TITLES = (
+    "CLEAR",
+    "PERFECT",
+)  # 过关结果页的大标题：三星（1 位）是「PERFECT」（Mac 手毬 14 层 11-15，原来判成 unknown）
 
 
 def _result_title(boxes):
@@ -235,7 +299,10 @@ def _result_fields(img: np.ndarray, boxes) -> dict:
     stars = 0
     for x in STAR_X:  # 三颗星：拿到的粉色（约 0.46–0.50），没拿到的灰色（0）
         cell = hsv[:, x - 45 : x + 45]
-        stars += int((((cell[..., 0] >= 150) | (cell[..., 0] <= 8)) & (cell[..., 1] >= 80) & (cell[..., 2] >= 150)).mean() >= STAR_PINK_MIN)
+        stars += int(
+            (((cell[..., 0] >= 150) | (cell[..., 0] <= 8)) & (cell[..., 1] >= 80) & (cell[..., 2] >= 150)).mean()
+            >= STAR_PINK_MIN
+        )
     layer = read_number(img, LAYER_BOX)  # 「CLEAR」下面的大号层号
     out = {"cleared": _result_title(boxes) is not None, "layer": layer, "stars": stars}
     for key, word in (("retry", "再挑戦"), ("back", "一覧に戻る"), ("next", "次へ")):
@@ -255,13 +322,19 @@ def _layers_fields(img: np.ndarray, boxes) -> dict:
     居中的是最前沿以上的层时没有「挑戦する」（实机帧 25：19 层）：challenge=None、locked=True。"""
     b = _find(boxes, "挑戦する", (900, 1100))
     name = next((t for t, bb in boxes if _center(bb)[1] < 200 and _center(bb)[0] < 220 and len(t) >= 3), None)
-    layer = next((int(t) for t, bb in boxes if t.isdigit() and 690 <= _center(bb)[1] <= 745 and 380 <= _center(bb)[0] <= 560), None)
+    layer = next(
+        (int(t) for t, bb in boxes if t.isdigit() and 690 <= _center(bb)[1] <= 745 and 380 <= _center(bb)[0] <= 560),
+        None,
+    )
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     y1, y2 = NODE_STAR_Y
     stars = 0
     for x in NODE_STAR_X:
         cell = hsv[y1:y2, x - 30 : x + 30]
-        stars += int((((cell[..., 0] >= 150) | (cell[..., 0] <= 8)) & (cell[..., 1] >= 90) & (cell[..., 2] >= 150)).mean() >= STAR_PINK_MIN)
+        stars += int(
+            (((cell[..., 0] >= 150) | (cell[..., 0] <= 8)) & (cell[..., 1] >= 90) & (cell[..., 2] >= 150)).mean()
+            >= STAR_PINK_MIN
+        )
     if b is None:
         return {"idol": name, "stage": layer, "stars": stars, "locked": True, "challenge": None}
     cx, cy = _center(b)
@@ -280,7 +353,10 @@ def _ranking_fields(boxes) -> dict:
     分数是 OCR 读的，偶尔错一位（105,438 → 105,458），只做记录；星数以结果页为准。"""
     import re
 
-    pts = sorted(((b[1], int(m.group(1).replace(",", ""))) for t, b in boxes if (m := re.fullmatch(PT_RE, t))), key=lambda x: x[0])
+    pts = sorted(
+        ((b[1], int(m.group(1).replace(",", ""))) for t, b in boxes if (m := re.fullmatch(PT_RE, t))),
+        key=lambda x: x[0],
+    )
     labels = [(_center(b)[1], {"I": 1, "l": 1, "S": 5}.get(m.group(1)) or int(m.group(1))) for t, b in boxes
               if _center(b)[0] < 150 and (m := re.fullmatch(RANK_RE, t))]  # fmt: skip
     names = sorted(((b[1], t) for t, b in boxes if 200 <= _center(b)[0] <= 400 and not re.fullmatch(PT_RE, t) and not re.search(r"\d", t)
@@ -290,7 +366,9 @@ def _ranking_fields(boxes) -> dict:
         name = next((t for ny, t in names if 0 < y - ny < 70), None)
         rank = next((r for ly, r in labels if -60 < ly - y < 30), i + 1)
         rows.append({"rank": rank, "name": name, "score": score})
-    badge = next((int(t) for t, b in boxes if t.isdigit() and len(t) == 1 and _center(b)[1] < 260 and _center(b)[0] < 200), None)
+    badge = next(
+        (int(t) for t, b in boxes if t.isdigit() and len(t) == 1 and _center(b)[1] < 260 and _center(b)[0] < 200), None
+    )
     nxt = _find(boxes, "次へ", (1080, 1260))
     return {"my_rank": badge, "rows": rows, "next": _center(nxt) if nxt else None}
 
@@ -310,7 +388,12 @@ def tower_dialog(dialog: dict, boxes) -> tuple[str, dict] | None:
                                      "close": _center(c) if (c := _find(boxes, "閉じる", (1080, 1260))) else None}  # fmt: skip
     if "再挑戦" in title and "ステージを再挑戦" in body + "".join(t for t, _ in boxes):
         out = {"cost": retry_cost(dialog)}
-        for key, word in (("rebuild", "編成して再挑戦"), ("same", "同じ編成で再挑戦"), ("cancel", "キャンセル"), ("ok", "OK")):
+        for key, word in (
+            ("rebuild", "編成して再挑戦"),
+            ("same", "同じ編成で再挑戦"),
+            ("cancel", "キャンセル"),
+            ("ok", "OK"),
+        ):
             if (b := _find(boxes, word, (900, 1260))) is not None:
                 out[key] = _center(b)
         return "TOWER_RETRY_CONFIRM", out
@@ -321,7 +404,9 @@ def tower_page(img: np.ndarray, boxes) -> tuple[str, dict] | None:
     """偶像之路的非弹窗页面（考试页由 is_tower_exam 判）。"""
     if _find(boxes, "アイドルへの道", (0, 120)) and _find(boxes, "STAGE", (600, 1100)):
         return "TOWER_LIST", _list_fields(boxes)
-    if _find(boxes, "ステージ別ランキング") and (_find(boxes, "挑戦する", (900, 1100)) or _find(boxes, "STAGE", (660, 720))):
+    if _find(boxes, "ステージ別ランキング") and (
+        _find(boxes, "挑戦する", (900, 1100)) or _find(boxes, "STAGE", (660, 720))
+    ):
         # 「STAGE」小字在居中大节点的层号上面（y≈690）；左栏「STAGE15 報酬」在 y≈745，不算
         return "TOWER_LAYERS", _layers_fields(img, boxes)
     if _find(boxes, "応援/トラブル", (0, 60)) and _find(boxes, "審査基準") and _find(boxes, "ターン", (60, 130)):
@@ -332,10 +417,16 @@ def tower_page(img: np.ndarray, boxes) -> tuple[str, dict] | None:
     if _find(boxes, "編成中") and _find(boxes, "審査基準"):
         dec = next((b for t, b in boxes if "決定" in t and _center(b)[1] > 1050), None)
         return "TOWER_MEMORY_SELECT", {"decide": _center(dec) if dec else None}
-    if _find(boxes, "次へ", (1080, 1260)) and _find(boxes, "位", (130, 260)) and sum(1 for t, _ in boxes if t.lower().endswith("pt")) >= 3:
+    if (
+        _find(boxes, "次へ", (1080, 1260))
+        and _find(boxes, "位", (130, 260))
+        and sum(1 for t, _ in boxes if t.lower().endswith("pt")) >= 3
+    ):
         return "TOWER_RANKING", _ranking_fields(boxes)
     if _find(boxes, "再挑戦確認") or _find(boxes, "ステージを再挑戦"):
-        return None  # 再挑戦确认框正在弹出（标题条还没认出来）：结果页在框后面还看得见，不能当结果页再处理一次（实机 r2）
+        return (
+            None  # 再挑戦确认框正在弹出（标题条还没认出来）：结果页在框后面还看得见，不能当结果页再处理一次（实机 r2）
+        )
     if (_find(boxes, "不合格", (100, 260)) and sum(1 for t, _ in boxes if __import__("re").fullmatch(PT_RE, t)) >= 3
             and (_find(boxes, "一覧に戻る", (1080, 1260)) or _find(boxes, "再挑戦", (1080, 1260)))):  # fmt: skip
         # 没过关的名次页（左上「不合格」，4–6 位）：没有「次へ」也没有 CLEAR 结果页，再挑戦 / 一覧に戻る 直接在这一页（Mac 稳定性测试 11-14）

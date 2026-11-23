@@ -29,7 +29,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src"))
 
-import hiro  # noqa: F401  兼容层
+import hiro  # noqa: E402, F401  兼容层
 
 TASKS = ("activity_funds", "presents", "assignment", "contest", "mission_reward", "club_reward")
 OWN_TASKS = ("activity_funds", "presents", "mission_reward", "club_reward")  # hiro.daily 已迁的（顺序同 TASKS）
@@ -101,11 +101,11 @@ def _error(rec: dict, err: BaseException) -> None:
 
 def run_own(names: list[str], timeout: float, out: Path) -> list[dict]:
     """hiro.daily：设备 hiro.devices（HIRO_DEVICE），Runtime 的中断层带 Popup（说明框 / ジュエル框）和 Deadline（单项超时）。"""
-    import cv2
-
     from hiro.daily import TASKS as OWN
     from hiro.daily import Deadline, Popup, TaskTimeout, make_runtime
     from hiro.devices import open_device
+
+    import cv2
 
     dev = open_device()
     dev.connect()
@@ -152,14 +152,14 @@ def run_own(names: list[str], timeout: float, out: Path) -> list[dict]:
 
 
 def run_kaa(names: list[str], timeout: float, out: Path) -> list[dict]:
+    from hiro.daily_guard import PopupGuard, run_with_timeout
+    from hiro.device import connect
+    from hiro.produce.ops import ocr_boxes
+
     import cv2
     from kotonebot import device
     from kotonebot.backend.context import init_context, manual_context
     from kotonebot.backend.context import vars as kvars
-
-    from hiro.daily_guard import PopupGuard, run_with_timeout
-    from hiro.device import connect
-    from hiro.produce.ops import ocr_boxes
 
     _config()
     dev = connect()

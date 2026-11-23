@@ -7,15 +7,21 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from hiro.devices.active import sleep as _sleep
+
 from hiro import imgio
+from hiro.devices.active import sleep as _sleep
 
 CLOSE_TEXTS = ("閉じる",)
 CLOSE_TAP = (360, 1160)  # 一览底部「閉じる」（识屏：KAA OwnedSkillCardsDialog.ButtonClose）
 RETAP_AFTER = 5.0  # 点了牌组按钮这么久一览还没出来、画面还是原页面：再点一次
 LATE_WATCH = 4.0  # 放弃读牌后再盯这么久，一览晚出来就关掉
 OPEN_TIMEOUT = 12.0  # 第二十局开局：一览 6 秒后才弹出（转场后第一次点），读牌放弃后一览留在画面上
-LIST_SWIPE = (360, 950, 360, 650)  # 一览卡格视口（LIST_VIEW y 395–1010）里滑 300px ≈ 2 行（行距约 154，一屏整 3 行）：每两屏重叠 1 行，任何张数都能按行拼（识屏建议）
+LIST_SWIPE = (
+    360,
+    950,
+    360,
+    650,
+)  # 一览卡格视口（LIST_VIEW y 395–1010）里滑 300px ≈ 2 行（行距约 154，一屏整 3 行）：每两屏重叠 1 行，任何张数都能按行拼（识屏建议）
 MAX_SCREENS = 6
 SAME_SCREEN_DIFF = 2.0  # 视口灰度平均差小于这个 = 滑不动了（到底）
 # 滑完等列表停稳再截：先等 SWIPE_SETTLE，之后每 STILL_EVERY 截一张，相邻两张差 < SAME_SCREEN_DIFF 算停稳，最多等 STILL_MAX。
@@ -27,10 +33,10 @@ SAVE_DIR = None  # 每屏截图存这里（识屏要核对第一次实机的一�
 
 
 def _view_diff(a, b) -> float:
+    from hiro.vision.deck import LIST_VIEW
+
     import cv2
     import numpy as np
-
-    from hiro.vision.deck import LIST_VIEW
 
     x1, y1, x2, y2 = LIST_VIEW
     ga, gb = (cv2.cvtColor(i[y1:y2, x1:x2], cv2.COLOR_BGR2GRAY).astype(np.float32) for i in (a, b))
@@ -41,7 +47,7 @@ def _save(imgs) -> None:
     if SAVE_DIR is None:
         return
     try:
-        import cv2
+        import cv2  # noqa: F401
 
         SAVE_DIR.mkdir(parents=True, exist_ok=True)
         stamp = time.strftime("%Y%m%d-%H%M%S")
@@ -145,7 +151,9 @@ def review_deck(*, shoot: Callable, click: Callable[[int, int], None], swipe: Ca
             out["problems"].append(f"逐屏拼接不对（{first}），按标签 {size} 张回到顶 / 滑到底重读，按行号拼对了")
             page = retry
         else:
-            out["problems"].append(f"逐屏拼接不对（{first}），按标签重读也没拼对（{'；'.join(retry.get('problems') or [])}），不写牌组")
+            out["problems"].append(
+                f"逐屏拼接不对（{first}），按标签重读也没拼对（{'；'.join(retry.get('problems') or [])}），不写牌组"
+            )
     _save(imgs)
     out["page"] = page
     out["screens"] = len(imgs)

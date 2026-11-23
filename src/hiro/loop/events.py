@@ -93,7 +93,9 @@ def _memory_upgrade(state: GameState, event: Event) -> Event:
         return event
     up = int(a.get("upgrade") or 0)
     deck = (state.produce or {}).get("deck") or []
-    lower = [int(c.get("upgrade") or 0) for c in deck if c.get("card_id") == a["card_id"] and int(c.get("upgrade") or 0) < up]
+    lower = [
+        int(c.get("upgrade") or 0) for c in deck if c.get("card_id") == a["card_id"] and int(c.get("upgrade") or 0) < up
+    ]
     if not up or not lower:
         return event
     return dataclasses.replace(event, kind="CARD_UPGRADE", args={"card_id": a["card_id"], "upgrade": max(lower), "source": "memory"},
@@ -165,7 +167,9 @@ def _apply_deck(s: GameState, e: Event) -> None:
 _CHANGE_IN: dict = {}
 
 
-def events_from_step(page: str | None, action: dict, ok: bool, page_fields: dict, produce: dict | None, *, seq: int) -> list[Event]:
+def events_from_step(
+    page: str | None, action: dict, ok: bool, page_fields: dict, produce: dict | None, *, seq: int
+) -> list[Event]:
     """已执行成功的决策 → action 事件（hiro.loop.ledger 的规则，改为产出事件）。"""
     if not ok or not action:
         return []
@@ -237,7 +241,11 @@ def events_from_step(page: str | None, action: dict, ok: bool, page_fields: dict
         if isinstance(chosen, dict) and chosen.get("pitem_id"):
             # 初 / N.I.A 的 P 道具三选一（有名字、认得出 ID 的道具，不是 H.I.F 的定制背包）：选中就记获得
             E("PITEM_ACQUIRE", item_id=chosen["pitem_id"])
-        p = pitem.parse(chosen) if chosen is not None and not (isinstance(chosen, dict) and chosen.get("pitem_id")) else None
+        p = (
+            pitem.parse(chosen)
+            if chosen is not None and not (isinstance(chosen, dict) and chosen.get("pitem_id"))
+            else None
+        )
         new = pitem.custom_id(p) if p else None
         if new:
             old = next((x for x in (produce or {}).get("items") or [] if str(x).startswith("customize_pitem-")), None)
@@ -291,7 +299,13 @@ def builtin_invariants(state: GameState, obs: Observation) -> list[Check]:
         elif path == "exam.score" and v < old:
             out.append(Check(seq=obs.seq, field=path, predicted={"min": old}, observed=v, verdict="read_error", rule="score_monotonic",
                              action="discard_reread"))  # fmt: skip
-        elif path in ("produce.produce_point", "produce.star") and old >= 100 and v > 0 and len(str(int(v))) < len(str(int(old))) - 0 and v < old * 0.5:
+        elif (
+            path in ("produce.produce_point", "produce.star")
+            and old >= 100
+            and v > 0
+            and len(str(int(v))) < len(str(int(old))) - 0
+            and v < old * 0.5
+        ):
             out.append(Check(seq=obs.seq, field=path, predicted={"value": old}, observed=v, verdict="read_error", rule="digit_count",
                              action="discard_reread"))  # fmt: skip
     return out
@@ -323,7 +337,9 @@ def check(state: GameState, obs: Observation, predictions: list[Prediction]) -> 
                              action="accept" if ok else "mark_pending"))  # fmt: skip
     for path, v in flat.items():
         if v is not None and path not in bad and path not in seen:
-            out.append(Check(seq=obs.seq, field=path, observed=v, verdict="unpredicted", rule="prediction", action="accept"))
+            out.append(
+                Check(seq=obs.seq, field=path, observed=v, verdict="unpredicted", rule="prediction", action="accept")
+            )
     return out
 
 
@@ -357,7 +373,9 @@ def mark(state: GameState, checks: list[Check]) -> GameState:
             if c.field not in s.pending_review:
                 s.pending_review.append(c.field)
         elif c.verdict == "read_error":
-            s.conflicts.append(f"seq {c.seq}: {c.field} 读数 {c.observed!r} 违反 {c.rule}（参考 {c.predicted!r}），丢弃")
+            s.conflicts.append(
+                f"seq {c.seq}: {c.field} 读数 {c.observed!r} 违反 {c.rule}（参考 {c.predicted!r}），丢弃"
+            )
             del s.conflicts[:-20]
         elif s.field_status.get(c.field) not in ("verified", "pending"):
             s.field_status[c.field] = "observed"

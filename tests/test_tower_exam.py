@@ -47,7 +47,11 @@ def test_status_turn_count_not_misread():
     """好調「12ターン」：ddddocr 把单位的「タ」读成 5（125）。先用整行 OCR 认「数字 + 单位」。"""
     from hiro.vision.status import read_status_column
 
-    st = {e["key"]: e["value"] for e in read_status_column(_img("exam-status-12turn-mac15.jpg"), cache=None) if e.get("key")}
+    st = {
+        e["key"]: e["value"]
+        for e in read_status_column(_img("exam-status-12turn-mac15.jpg"), cache=None)
+        if e.get("key")
+    }
     assert st["examparameterbuff"] == 12 and st["examlessonbuff"] == 15
 
 

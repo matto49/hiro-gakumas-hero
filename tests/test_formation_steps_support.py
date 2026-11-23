@@ -1,9 +1,9 @@
 """开局第 2 步支援卡核对（hiro.produce.formation_steps.check_support）：等翻页动画停、全认不出不算通过（账号 2 11-16）。"""
 
-import pytest
-
 from hiro.produce import formation_steps
 from hiro.produce.formation_check import FormationMismatch
+
+import pytest
 
 PLAN = {"support": {"set": 20, "own": [{"support_card_id": f"s{i}"} for i in range(5)]}}
 

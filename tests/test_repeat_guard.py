@@ -1,11 +1,11 @@
 """通用防空转（hiro.loop.repeat_guard）：同一局面同一动作连续 3 次 → 禁用 / 停机；画面和局面 3 分钟没进展 → 停机报警。"""
 
-import numpy as np
-import pytest
-
 from hiro.contracts import Action, ActionKind, Decision, ExecutionResult, TraceWriter
 from hiro.loop import repeat_guard as rg
 from hiro.loop.session import Session
+
+import numpy as np
+import pytest
 
 
 def _session(tmp_path, t):

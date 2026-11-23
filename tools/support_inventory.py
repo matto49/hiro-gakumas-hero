@@ -28,7 +28,9 @@ TILE_KEYS = ("support_card_id", "name", "type", "attr", "rarity", "level", "brea
 
 def _load(path: str):
     img = cv2.imread(path)
-    return cv2.resize(img, (720, 1280), interpolation=cv2.INTER_CUBIC) if img is not None and img.shape[1] != 720 else img
+    return (
+        cv2.resize(img, (720, 1280), interpolation=cv2.INTER_CUBIC) if img is not None and img.shape[1] != 720 else img
+    )
 
 
 def aggregate(formations: list[dict]) -> dict:
@@ -51,7 +53,12 @@ def aggregate(formations: list[dict]) -> dict:
                                            for f in formations], "unknown": unknown}  # fmt: skip
 
 
-LIST_SWIPE = (360, 960, 360, 685)  # 网格内上滑约 2 行（行距 137.5）：每张卡至少有一屏落在中间完整可见（上滑 2.5 行时有 3 张只出现在被盖住的首末行）
+LIST_SWIPE = (
+    360,
+    960,
+    360,
+    685,
+)  # 网格内上滑约 2 行（行距 137.5）：每张卡至少有一屏落在中间完整可见（上滑 2.5 行时有 3 张只出现在被盖住的首末行）
 LIST_SETTLE, LIST_MAX_SCREENS = 1.2, 40
 
 
@@ -65,9 +72,19 @@ def aggregate_list(screens: list[dict]) -> dict:
                 continue
             cid = c.get("support_card_id")
             if not cid:
-                unknown.append({"screen": n, "page": scr.get("page"), "level": c.get("level"), "breaks": c.get("breaks"), "attr": c.get("attr")})
+                unknown.append(
+                    {
+                        "screen": n,
+                        "page": scr.get("page"),
+                        "level": c.get("level"),
+                        "breaks": c.get("breaks"),
+                        "attr": c.get("attr"),
+                    }
+                )
                 continue
-            e = cards.setdefault(cid, {k: c.get(k) for k in TILE_KEYS} | {"new": c.get("new"), "seen_in": ["list"], "pages": []})
+            e = cards.setdefault(
+                cid, {k: c.get(k) for k in TILE_KEYS} | {"new": c.get("new"), "seen_in": ["list"], "pages": []}
+            )
             for k in ("level", "breaks"):
                 if e[k] is None and c.get(k) is not None:
                     e[k] = c[k]  # 被底部按钮压住的那一屏读不到等级，换一屏补上
@@ -97,7 +114,13 @@ def list_scan() -> list[dict]:
             screens.append(r)
             new = {c["support_card_id"] for c in r["cards"] if c.get("support_card_id")} - seen
             seen |= new
-            print(page, len(screens), f"+{len(new)}", [(c["name"], c["level"], c["breaks"]) for c in r["cards"] if not c["partial"]], flush=True)
+            print(
+                page,
+                len(screens),
+                f"+{len(new)}",
+                [(c["name"], c["level"], c["breaks"]) for c in r["cards"] if not c["partial"]],
+                flush=True,
+            )
             idle = idle + 1 if not new else 0
             if idle >= 2:
                 break
@@ -152,15 +175,34 @@ def main() -> None:
     g.add_argument("--list-offline", nargs="+", metavar="PNG", help="「選択」列表截图离线汇总")
     ap.add_argument("--formations", type=int, default=20)
     ap.add_argument("--out", default="reports/live/support-inventory.json")
+    ap.add_argument(
+        "--from-home",
+        action="store_true",
+        help="和 --list 一起用：从首页 / 编成菜单开始，先进支援卡编成页、点第 1 格打开「選択」列表",
+    )
     a = ap.parse_args()
     if a.list or a.list_offline:
         from hiro.vision.support_screens import read_support_list
 
-        screens = list_scan() if a.list else [r for p in a.list_offline if (r := read_support_list(_load(p))) is not None]
+        if a.list and a.from_home:
+            from hiro.produce import formation_menu
+            from hiro.tool_device import open_tool_device
+            from hiro.vision.support_screens import read_support_formation
+
+            formation_menu.open_picker(formation_menu.tool_device(open_tool_device()), "support",
+                                       ready=lambda img: read_support_list(img) is not None, read_formation=read_support_formation)  # fmt: skip
+        screens = (
+            list_scan() if a.list else [r for p in a.list_offline if (r := read_support_list(_load(p))) is not None]
+        )
         inv = {"generated": time.time(), "source": "list", **aggregate_list(screens)}
     else:
         formations = offline(a.offline) if a.offline else live(a.formations)
-        inv = {"generated": time.time(), "source": "formations", "note": "只含编成里出现过的卡；全量用 --list", **aggregate(formations)}
+        inv = {
+            "generated": time.time(),
+            "source": "formations",
+            "note": "只含编成里出现过的卡；全量用 --list",
+            **aggregate(formations),
+        }
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(json.dumps(inv, ensure_ascii=False, indent=1), encoding="utf-8")
     print("wrote", a.out, len(inv["cards"]), "cards")

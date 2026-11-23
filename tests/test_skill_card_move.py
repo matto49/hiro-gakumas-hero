@@ -20,7 +20,9 @@ def _setup(monkeypatch, dialog_frames: int, letters: dict):
         shots[0] += 1
         return shots[0]
 
-    monkeypatch.setattr(ex, "device", NS(screenshot=screenshot, double_click=lambda x, y: clicks.append((x, y)), click=lambda *a: None))
+    monkeypatch.setattr(
+        ex, "device", NS(screenshot=screenshot, double_click=lambda x, y: clicks.append((x, y)), click=lambda *a: None)
+    )
     monkeypatch.setattr(ex, "sleep", lambda s: t.__setitem__(0, t[0] + s))
     monkeypatch.setattr(ex.time, "monotonic", lambda: t[0])
 

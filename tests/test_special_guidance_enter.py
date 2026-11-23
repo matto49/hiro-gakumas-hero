@@ -6,7 +6,9 @@ import importlib.util as _iu
 import numpy as np
 import pytest
 
-pytestmark = pytest.mark.skipif(_iu.find_spec("kotonebot") is None or _iu.find_spec("kaa") is None, reason="要装 KAA / kotonebot")
+pytestmark = pytest.mark.skipif(
+    _iu.find_spec("kotonebot") is None or _iu.find_spec("kaa") is None, reason="要装 KAA / kotonebot"
+)
 
 
 def _enter(gone_at: float):
@@ -55,8 +57,15 @@ def test_leave_retaps_end_when_first_tap_missed():
 
     t = [0.0]
     taps = []
-    grid = [("カスタマイズ可能スキルカード あと2枚", 1.0, (170, 1000, 550, 1030)), ("終了", 1.0, (620, 1070, 690, 1100))]
-    menu = [("カスタマイズメニュー", 1.0, (250, 760, 470, 790)), ("一覧に戻る", 1.0, (230, 1070, 400, 1100)), ("終了", 1.0, (620, 965, 690, 990))]
+    grid = [
+        ("カスタマイズ可能スキルカード あと2枚", 1.0, (170, 1000, 550, 1030)),
+        ("終了", 1.0, (620, 1070, 690, 1100)),
+    ]
+    menu = [
+        ("カスタマイズメニュー", 1.0, (250, 760, 470, 790)),
+        ("一覧に戻る", 1.0, (230, 1070, 400, 1100)),
+        ("終了", 1.0, (620, 965, 690, 990)),
+    ]
     state = {"page": "menu"}
 
     def ocr(img):
@@ -76,7 +85,9 @@ def test_name_in_keeps_real_kanji_one():
 
     region = (150, 150, 720, 520)
     assert sg._name_in([("一番星を目指して+", 1.0, (200, 170, 400, 200))], "一番星を目指して", region)
-    assert sg._name_in([("ー番星を目指して", 1.0, (200, 170, 400, 200))], "一番星を目指して", region)  # OCR 反过来读错也能对上
+    assert sg._name_in(
+        [("ー番星を目指して", 1.0, (200, 170, 400, 200))], "一番星を目指して", region
+    )  # OCR 反过来读错也能对上
     assert not sg._name_in([("一番星を目指して", 1.0, (200, 170, 400, 200))], "二番星を目指して", region)
 
 

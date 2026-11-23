@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from functools import cached_property
 
-import numpy as np
-
 from hiro.vision.ocr import Text, screen_texts
+
+import numpy as np
 
 
 class Frame:

@@ -33,8 +33,12 @@ def _env_dir(name: str, default: str) -> Path:
 
 
 class PublicAssetSource:
-    def __init__(self, kaa_game_data: str | Path | None = None, user_assets: str | Path | None = None,
-                 bundled_assets: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        kaa_game_data: str | Path | None = None,
+        user_assets: str | Path | None = None,
+        bundled_assets: str | Path | None = None,
+    ) -> None:
         self.kaa = Path(kaa_game_data) if kaa_game_data else _env_dir("HIRO_KAA_GAME_DATA", "resources/game_data")
         self.user = Path(user_assets) if user_assets else _env_dir("HIRO_USER_ASSETS", "resources/user_assets")
         self.bundled = self._bundled_dir(bundled_assets)
@@ -132,7 +136,9 @@ class PublicAssetSource:
 
     def card_catalog(self) -> dict[str, dict[str, Any]] | None:
         """卡 id（含强化次数后缀 @n）→ {name, rarity, plan, category, cost_type, cost, asset, initial}。"""
-        rows = self._rows("select id, upgradeCount, name, rarity, planType, category, costType, costValue, assetId, isInitial from ProduceCard")
+        rows = self._rows(
+            "select id, upgradeCount, name, rarity, planType, category, costType, costValue, assetId, isInitial from ProduceCard"
+        )
         if rows is None:
             return None
         return {f"{r['id']}@{r['upgradeCount']}": {"id": r["id"], "upgrade": r["upgradeCount"], "name": r["name"], "rarity": r["rarity"],
@@ -144,15 +150,26 @@ class PublicAssetSource:
         rows = self._rows("select id, name, rarity, planType, assetId from ProduceDrink")
         if rows is None:
             return None
-        return {r["id"]: {"name": r["name"], "rarity": r["rarity"], "plan": r["planType"], "asset": r["assetId"]} for r in rows}
+        return {
+            r["id"]: {"name": r["name"], "rarity": r["rarity"], "plan": r["planType"], "asset": r["assetId"]}
+            for r in rows
+        }
 
     def pitem_catalog(self) -> dict[str, dict[str, Any]] | None:
         rows = self._rows("select id, name, rarity, planType, assetId from ProduceItem")
         if rows is None:
             return None
-        return {r["id"]: {"name": r["name"], "rarity": r["rarity"], "plan": r["planType"], "asset": r["assetId"]} for r in rows}
+        return {
+            r["id"]: {"name": r["name"], "rarity": r["rarity"], "plan": r["planType"], "asset": r["assetId"]}
+            for r in rows
+        }
 
-    SCENARIO: ClassVar[dict[str, str]] = {"qualify": "produce-007", "main": "produce-008", "produce-007": "produce-007", "produce-008": "produce-008"}
+    SCENARIO: ClassVar[dict[str, str]] = {
+        "qualify": "produce-007",
+        "main": "produce-008",
+        "produce-007": "produce-007",
+        "produce-008": "produce-008",
+    }
 
     def schedule(self, scenario: str) -> list[dict[str, Any]] | None:
         """H.I.F 培育日程（选拔 20 项 / 本战 9 项，位置从 1 起；选行动页必需）。scenario：qualify / main 或 produce-007 / produce-008。
@@ -167,7 +184,9 @@ class PublicAssetSource:
                     return [dict(st) for st in stages]
         return None
 
-    def support_effects(self, support_id: str, level: int, *, limit_rank: str | None = None, plan: str | None = None) -> list[dict[str, Any]] | None:
+    def support_effects(
+        self, support_id: str, level: int, *, limit_rank: str | None = None, plan: str | None = None
+    ) -> list[dict[str, Any]] | None:
         """支援卡技能：用培育层公式 gakumas_produce.supports.compile_card 从社区公开 master 编译（和主仓库同一套）。
         主数据没构建（vendor/gakumas-player/scripts/fetch_master.py）或编不出来时 None，编成按属性张数 / 等级排。"""
         try:
@@ -187,7 +206,9 @@ class PublicAssetSource:
         if limit_rank is not None:
             ranks = [limit_rank]
         else:  # 等级够得着的突破段，从低到高试（和主仓库 formation._skills 一样）
-            rows = sorted(c.by_id("SupportCardLevelLimit", card["supportCardLevelLimitId"]), key=lambda r: r["levelLimit"])
+            rows = sorted(
+                c.by_id("SupportCardLevelLimit", card["supportCardLevelLimitId"]), key=lambda r: r["levelLimit"]
+            )
             ranks = [r["rank"] for r in rows if r["levelLimit"] >= level]
         for rank in ranks:
             try:
@@ -220,9 +241,9 @@ class PublicAssetSource:
 
             if not _sim_ready():
                 return None
+            from gakumas_exam.catalog import Catalog
             from gakumas_produce import multiplier
             from gakumas_produce.attributes import assessment, hif_preview
-            from gakumas_exam.catalog import Catalog
         except Exception:  # noqa: BLE001  引擎导入失败
             return None
         import threading
@@ -236,9 +257,13 @@ class PublicAssetSource:
             return c
 
         return {
-            "preview": lambda mode, position, params, idol_card_id: hif_preview(mode, position, params, idol_card_id=idol_card_id, catalog=cat()),
+            "preview": lambda mode, position, params, idol_card_id: hif_preview(
+                mode, position, params, idol_card_id=idol_card_id, catalog=cat()
+            ),
             "assessment": lambda value, requirement: assessment(value, requirement, 110, 110),
-            "star_baseline": lambda mode, position, idol_card_id: multiplier.star_baseline(mode, position, idol_card_id, cat()),
+            "star_baseline": lambda mode, position, idol_card_id: multiplier.star_baseline(
+                mode, position, idol_card_id, cat()
+            ),
             "star_factor": multiplier.star_factor,
             "exam_bonus": multiplier.exam_bonus,
         }

@@ -28,11 +28,17 @@ DIALOG_KINDS = (
     ("使用確認", "drink_use_confirm"),  # 考试：Pドリンク使用確認（效果对象不存在）
     ("ドリンク詳細", "drink_detail"),  # 考试：点饮料后的详情（使う / 捨てる）
     ("相談終了", "consult_end"),
-    ("インターバル終了", "interval_end"),  # 本战轮间还剩 P 时点「終了」：「インターバル終了確認」→「本戦へ」(500,1160)（mainz4 11-18）
+    (
+        "インターバル終了",
+        "interval_end",
+    ),  # 本战轮间还剩 P 时点「終了」：「インターバル終了確認」→「本戦へ」(500,1160)（mainz4 11-18）
     ("カスタマイズ確認", "customize_confirm"),
     ("カスタマイズを実行", "customize_confirm"),
     ("特別指導終了", "guidance_end"),  # 还有可定制次数时点「終了」：「特別指導終了確認」→「終了する」(500,1160)
-    ("カスタマイズ", "customize_confirm"),  # 特別指導「カスタマイズ実行確認」（OCR 常把「実」读成「美」）→「実行する」(500,1160)
+    (
+        "カスタマイズ",
+        "customize_confirm",
+    ),  # 特別指導「カスタマイズ実行確認」（OCR 常把「実」读成「美」）→「実行する」(500,1160)
     ("交換確認", "exchange"),  # 相談购买确认（hiro.vision.deck.read_confirm_dialog）
     ("削除", "delete"),  # スキルカード削除确认
     ("リタイア", "retire"),  # プロデュース・リタイア確認：绝不能点确认
@@ -40,17 +46,34 @@ DIALOG_KINDS = (
     ("所持上限", "pdrink_max"),
     ("報酬スキップ", "reward_skip"),
     ("リフレッシュ", "refresh_confirm"),
-    ("通信エラー", "comm_error"),  # 「通信エラー」：confirm = read_comm_error（リトライ可选 / 时间太久只能閉じる回标题）
+    (
+        "通信エラー",
+        "comm_error",
+    ),  # 「通信エラー」：confirm = read_comm_error（リトライ可选 / 时间太久只能閉じる回标题）
     ("通信工ラー", "comm_error"),  # OCR 常把「エ」读成「工」
-    ("再挑戦", "retry_confirm"),  # 本战敗退后「再挑戦確認」：confirm = read_retry_confirm（免费 / 券 / ジュエル），决定 / キャンセル
-    ("再開", "produce_resume"),  # 首页「プロデュース再開」：标题条右侧有「リタイア」按钮，不算危险框（点「再開する」）  # 轮间 / 相談刷新货架「リフレッシュ確認」（P 10 → 更新する；confirm 见 read_refresh_confirm）
+    (
+        "再挑戦",
+        "retry_confirm",
+    ),  # 本战敗退后「再挑戦確認」：confirm = read_retry_confirm（免费 / 券 / ジュエル），决定 / キャンセル
+    (
+        "再開",
+        "produce_resume",
+    ),  # 首页「プロデュース再開」：标题条右侧有「リタイア」按钮，不算危险框（点「再開する」）  # 轮间 / 相談刷新货架「リフレッシュ確認」（P 10 → 更新する；confirm 见 read_refresh_confirm）
 )
 
 DANGER_KINDS = {"retire", "data_discard"}
 CONFIRM_DIALOG_KINDS = {"exchange", "delete"}  # 这两种弹窗另读 confirm（hiro.vision.deck.read_confirm_dialog）
-REFRESH_CANCEL, REFRESH_OK = (215, 1160), (505, 1160)  # 「リフレッシュ確認」按钮（第十八局本战轮间实测）；OCR 读到时用读到的位置
+REFRESH_CANCEL, REFRESH_OK = (
+    (215, 1160),
+    (505, 1160),
+)  # 「リフレッシュ確認」按钮（第十八局本战轮间实测）；OCR 读到时用读到的位置
 DANGER_WORDS = ("リタイア", "破棄")
-DIALOG_BODY_KINDS = (("リタイア", "retire"), ("破棄", "data_discard"), ("削除しますか", "delete"), ("交換しますか", "exchange"))
+DIALOG_BODY_KINDS = (
+    ("リタイア", "retire"),
+    ("破棄", "data_discard"),
+    ("削除しますか", "delete"),
+    ("交換しますか", "exchange"),
+)
 
 
 def _bands(frac: np.ndarray, keep: float) -> list[tuple[int, int]]:
@@ -74,7 +97,9 @@ def _header_bands(img: MatLike) -> list[tuple[int, int]]:
     if not any(_title_white(img, y1, y2) for y1, y2 in out):
         # 一条带白字标题的都没有时才放宽（滞回）：开始仍要 ≥ HEADER_MIN_FRAC，之后 ≥ HEADER_KEEP_FRAC 就算同一条。
         # 原算法认得出的框结果不变（全帧放宽会把标题条和下方橙色区域连成一片、超高被丢，61 帧回退）
-        out = [(y1, y2) for y1, y2 in _bands(frac, HEADER_KEEP_FRAC) if _white_body(img, y2)]  # 放宽后还要求下方是白色框体（砖墙背景的误检没有）
+        out = [
+            (y1, y2) for y1, y2 in _bands(frac, HEADER_KEEP_FRAC) if _white_body(img, y2)
+        ]  # 放宽后还要求下方是白色框体（砖墙背景的误检没有）
     if not any(_title_white(img, y1, y2) for y1, y2 in out):
         # 再放宽一级：标题很长、白字占满整条（N.I.A「NEXT IDOL AUDITIONライブ設定」11-17：中间几行橙色只占 0.36–0.53，
         # 标题条被切成几段、每段都不够 HEADER_H，整个框认不出，中断层看不到）。同样要求下方是白色框体
@@ -146,10 +171,14 @@ def read_dialog(img: MatLike) -> dict | None:
         # 正文总要读：标题 OCR 偶尔乱码（实测「プロデュース・リタイア確認」→「ーメリダイノ唯談」），
         # 危险弹窗不能只靠标题。danger=True 时执行侧一律只点キャンセル（不依赖 kind 判没判对）
         crop = img[y2 : min(img.shape[0], y2 + 450), 20:700]
-        body = "".join(t for t, _ in ocr(crop)).replace(" ", "") if crop.size else ""  # 标题条贴着画面底边：没有正文可读
+        body = (
+            "".join(t for t, _ in ocr(crop)).replace(" ", "") if crop.size else ""
+        )  # 标题条贴着画面底边：没有正文可读
         if kind == "other":
             kind = next((k for key, k in DIALOG_BODY_KINDS if key in body), "other")
-        danger = kind in DANGER_KINDS or (kind != "produce_resume" and any(w in title or w in body for w in DANGER_WORDS))
+        danger = kind in DANGER_KINDS or (
+            kind != "produce_resume" and any(w in title or w in body for w in DANGER_WORDS)
+        )
         return {"kind": kind, "title": title, "body": body, "danger": danger, "y": int((y1 + y2) // 2)}
     return None
 
@@ -169,7 +198,14 @@ def _has(boxes, word: str, y_range: tuple[int, int] = (0, 1280)) -> tuple | None
         # 长音「ー」常读成「一」，再错一个字就超出容错（DMM qualifydmm1-00340「ス夕一性獲得」）：先统一长音再比
         word = word.translate(_DASHES)
         boxes = [(t.translate(_DASHES), b) for t, b in boxes]
-    return next((b for t, b in boxes if (word in t or (loose and _contains_near(t, word))) and y_range[0] <= (b[1] + b[3]) // 2 <= y_range[1]), None)
+    return next(
+        (
+            b
+            for t, b in boxes
+            if (word in t or (loose and _contains_near(t, word))) and y_range[0] <= (b[1] + b[3]) // 2 <= y_range[1]
+        ),
+        None,
+    )
 
 
 _DASHES = str.maketrans({"一": "ー", "－": "ー", "-": "ー", "―": "ー", "ｰ": "ー"})
@@ -217,11 +253,17 @@ def page_fields(page: str, img: MatLike) -> dict:
     if page == "DIALOG" and hit[1].get("kind") in CONFIRM_DIALOG_KINDS:
         from hiro.vision.deck import read_confirm_dialog
 
-        return {**hit[1], "confirm": read_confirm_dialog(img)}  # 交換確認 / 削除确认：买 / 删的是哪件、价格（事件 SHOP_BUY / CARD_DELETE）
+        return {
+            **hit[1],
+            "confirm": read_confirm_dialog(img),
+        }  # 交換確認 / 削除确认：买 / 删的是哪件、价格（事件 SHOP_BUY / CARD_DELETE）
     if page == "DIALOG" and hit[1].get("kind") == "comm_error":
         return {**hit[1], "confirm": read_comm_error(img, hit[1].get("y"))}  # 通信エラー：按钮位置 / 能不能リトライ
     if page == "DIALOG" and hit[1].get("kind") == "retry_confirm":
-        return {**hit[1], "confirm": read_retry_confirm(img, hit[1].get("y"))}  # 再挑戦確認：免费 / 券 / ジュエル / 剩余次数
+        return {
+            **hit[1],
+            "confirm": read_retry_confirm(img, hit[1].get("y")),
+        }  # 再挑戦確認：免费 / 券 / ジュエル / 剩余次数
     if page == "DIALOG" and hit[1].get("kind") == "refresh_confirm":
         return {**hit[1], "confirm": read_refresh_confirm(img, hit[1].get("y"))}  # 刷新确认：P 前后 / ジュエル / 按钮
     return hit[1]
@@ -264,19 +306,25 @@ def _classify_page(img: MatLike) -> tuple[str, dict] | None:
     if _has(boxes, "リタイア", (900, 1200)) and (_has(boxes, "P手帳", (900, 1200)) or _has(boxes, "中断", (900, 1200))):
         return "MENU", {"kind": "produce"}  # 培育中右下「≡」菜单（中断 / P手帳 / リタイア…）：关掉即可，绝不点リタイア
     if any(re.search(r"\d+日目$", t) and b[3] <= LOG_HEADER_MAX_Y for t, b in boxes) and _log_close(img):
-        return "PRODUCE_LOG", {"close": list(LOG_CLOSE)}  # 行动记录（底栏文档图标打开）：点 ✕ 关闭；KAA 会因「Pアイテム…を獲得」判成 SELECT_PITEM
+        return "PRODUCE_LOG", {
+            "close": list(LOG_CLOSE)
+        }  # 行动记录（底栏文档图标打开）：点 ✕ 关闭；KAA 会因「Pアイテム…を獲得」判成 SELECT_PITEM
     from hiro.vision.customize import is_special_guidance, read_customize_result, read_special_guidance
 
     done = "".join(texts)
     if "カスタマイズしまし" in done:
         line = next((t for t in texts if "をカスタマイズ" in t), done)
-        return "CUSTOMIZE_RESULT", read_customize_result(line)  # 「〜をカスタマイズしました」：点一下回到定制菜单（左上标签还在，先判这个）
+        return "CUSTOMIZE_RESULT", read_customize_result(
+            line
+        )  # 「〜をカスタマイズしました」：点一下回到定制菜单（左上标签还在，先判这个）
     if is_special_guidance(boxes):
         return "SPECIAL_GUIDANCE", read_special_guidance(img, boxes)
     if _has(boxes, "プロフィール") and _has(boxes, "名刺"):
         return "MENU", {"kind": "home"}
     # 箱子名牌上的偶像名是大字（OCR 实测只读到「篠澤」，「さん」常读不出）
-    if _has(boxes, "差し入れ", (0, 100)) and any(b[3] - b[1] >= 50 and 800 <= (b[1] + b[3]) // 2 <= 1000 for _, b in boxes):
+    if _has(boxes, "差し入れ", (0, 100)) and any(
+        b[3] - b[1] >= 50 and 800 <= (b[1] + b[3]) // 2 <= 1000 for _, b in boxes
+    ):
         return "GIFT", read_gift(img)  # 差し入れ礼物箱：点发光的礼物袋开箱（第四局 r4 在此停了 63 s）
     upgraded = next((t for t in texts if t.endswith("を強化しました")), None)
     if upgraded is not None:
@@ -293,7 +341,10 @@ EVENT_SPEAKER_Y = (880, 980)  # 台词框左上的名字条（N.I.A 星南独白
 EVENT_LINE_Y = (960, 1130)  # 台词行
 EVENT_TAP = (360, 1030)  # 点台词框推进
 EVENT_BLOCK = ("SKIP", "早送", "AUTO", "ログ", "キャンセル", "決定", "次へ", "閉じる", "OK", "選択", "受け取")
-EVENT_BUTTON_Y = (1070, 1170)  # 台词框下面按钮的位置：这里有字（淡入中的「受け取る」等）就不是单纯台词，不点（点台词框会落在弹窗的勾选框附近）
+EVENT_BUTTON_Y = (
+    1070,
+    1170,
+)  # 台词框下面按钮的位置：这里有字（淡入中的「受け取る」等）就不是单纯台词，不点（点台词框会落在弹窗的勾选框附近）
 
 
 def event_dialogue(boxes) -> dict | None:
@@ -304,8 +355,21 @@ def event_dialogue(boxes) -> dict | None:
         return None
     if any(EVENT_BUTTON_Y[0] <= (b[1] + b[3]) // 2 <= EVENT_BUTTON_Y[1] for _, b in boxes):
         return None
-    speaker = next((t for t, b in boxes if 1 <= len(t.strip()) <= 8 and b[2] < 300 and EVENT_SPEAKER_Y[0] <= (b[1] + b[3]) // 2 <= EVENT_SPEAKER_Y[1]), None)
-    lines = [t for t, b in boxes if EVENT_LINE_Y[0] <= (b[1] + b[3]) // 2 <= EVENT_LINE_Y[1] and b[0] < 200 and len(t.strip()) >= 6]
+    speaker = next(
+        (
+            t
+            for t, b in boxes
+            if 1 <= len(t.strip()) <= 8
+            and b[2] < 300
+            and EVENT_SPEAKER_Y[0] <= (b[1] + b[3]) // 2 <= EVENT_SPEAKER_Y[1]
+        ),
+        None,
+    )
+    lines = [
+        t
+        for t, b in boxes
+        if EVENT_LINE_Y[0] <= (b[1] + b[3]) // 2 <= EVENT_LINE_Y[1] and b[0] < 200 and len(t.strip()) >= 6
+    ]
     if speaker is None or not lines:
         return None
     fields = {"kind": "event_dialogue", "speaker": speaker.strip(), "text": "".join(lines)}
@@ -320,12 +384,16 @@ def _transition_kind(boxes) -> str | None:
         return "bonus_animation"
     # 换日：「選抜試験1まで 5日」大字居中（选行动页左上角的同样文字很小、在 y<80）。要求同一框里有「試験」和「まで」：
     # 台词「いつまでも続けばいいのに」也含「まで」（数据确认 00016 误判）
-    if any("試験" in t and "まで" in t and 90 <= (b[1] + b[3]) // 2 <= 200 for t, b in boxes) and not _has(boxes, "審査基準"):
+    if any("試験" in t and "まで" in t and 90 <= (b[1] + b[3]) // 2 <= 200 for t, b in boxes) and not _has(
+        boxes, "審査基準"
+    ):
         return "day_countdown"
     if _has(boxes, "選抜試験", (650, 820)) and any(re.fullmatch(r"第\d回", t) for t in texts):
         return "exam_title"
     # 考场入场的「選抜試験1」大字：RapidOCR 常读不出艺术字数字，只剩「選抜試験」（大字高度和位置已经够区分）
-    if any(re.fullmatch(r"選抜試験\d?", t) and b[3] - b[1] >= 40 and 560 <= (b[1] + b[3]) // 2 <= 720 for t, b in boxes):
+    if any(
+        re.fullmatch(r"選抜試験\d?", t) and b[3] - b[1] >= 40 and 560 <= (b[1] + b[3]) // 2 <= 720 for t, b in boxes
+    ):
         return "exam_title"
     if any(t in ("突破", "敗退") and b[3] - b[1] >= 60 and 820 <= (b[1] + b[3]) // 2 <= 1000 for t, b in boxes):
         return "exam_result_anim"  # 结算前的「突破」大字动画
@@ -345,7 +413,9 @@ def read_star_gain(img: MatLike) -> dict:
     from hiro.vision.ocr import ocr_boxes
 
     x1, y1, x2, y2 = STAR_GAIN_BOX
-    boxes = [(t.replace(" ", ""), (a + x1, b + y1, c + x1, d + y1)) for t, _, (a, b, c, d) in ocr_boxes(img[y1:y2, x1:x2])]
+    boxes = [
+        (t.replace(" ", ""), (a + x1, b + y1, c + x1, d + y1)) for t, _, (a, b, c, d) in ocr_boxes(img[y1:y2, x1:x2])
+    ]
     gains = [(b[3] - b[1], int(m.group(1))) for t, b in boxes
              if (m := re.fullmatch(r"[+＋](\d+)", t)) and 180 <= (b[0] + b[2]) // 2 <= 330 and 590 <= (b[1] + b[3]) // 2 <= 740]  # fmt: skip
     # 累计星数单独裁数字那一块读：左边的橙色星形图标会被认成「1」（90→190），右边的光圈弧线会被认成「-1」
@@ -353,7 +423,9 @@ def read_star_gain(img: MatLike) -> dict:
 
     shown = None
     for scale in (None, 2):  # 默认放大读不出时（RapidOCR 在 00320 上什么都没读到）换 2 倍再读一次
-        text = "".join(t for t, _ in (ocr(img[775:840, 352:520]) if scale is None else ocr(img[775:840, 352:520], scale=scale)))
+        text = "".join(
+            t for t, _ in (ocr(img[775:840, 352:520]) if scale is None else ocr(img[775:840, 352:520], scale=scale))
+        )
         if m := re.fullmatch(r"(\d{1,4})[)）]?", text.replace(" ", "")):
             shown = int(m.group(1))
             break
@@ -398,13 +470,23 @@ def read_exam_briefing(img: MatLike, boxes) -> dict:
         row = [(t, b) for t, b in boxes if abs((b[1] + b[3]) // 2 - cy) <= 30]
         p = next((int(t) for t, b in row if re.fullmatch(r"\d{2,4}", t) and b[0] < 230), None)
         # 「%」可能被漏认（RapidOCR：「1413%」→「1413」）；倍率列靠横坐标 260–340 限定，和左边的属性值（< 230）分得开
-        hit = next(((mm.group(1), b) for t, b in row if (mm := re.match(r"(\d{2,6})%?$", t.strip())) and 260 <= b[0] <= 340), None)
+        hit = next(
+            ((mm.group(1), b) for t, b in row if (mm := re.match(r"(\d{2,6})%?$", t.strip())) and 260 <= b[0] <= 340),
+            None,
+        )
         params[attr], mult[attr] = p, _brief_pct(img, *hit) if hit else None
-    star = next((int(t) for t, b in boxes if re.fullmatch(r"\d{1,4}", t) and abs((b[1] + b[3]) // 2 - 852) <= 25 and b[0] < 230), None)
+    star = next(
+        (
+            int(t)
+            for t, b in boxes
+            if re.fullmatch(r"\d{1,4}", t) and abs((b[1] + b[3]) // 2 - 852) <= 25 and b[0] < 230
+        ),
+        None,
+    )
     # 「親愛度ボーナス」演出中倍率在往上跳（314% → 471% → 1413%），这时的数不是最终值
     animating = _has(boxes, "ボーナス") is not None
     if animating:
-        mult = {k: None for k in mult}
+        mult = dict.fromkeys(mult)
     exam_no = int(exam.group(1)) if exam else None
     if exam_no is None and rank_line is not None:
         # RapidOCR 把「選抜試験1突破ライン」读成「選抜試験突破ライン」（q17-123）：选拔三场的参赛人数固定 128 / 64 / 32
@@ -422,7 +504,12 @@ def read_upgrade_result(text: str) -> dict:
     card = card_from_name(name)
     if card:  # 认出了就用主数据卡名（RapidOCR 长音读成「一」：「えいえいお一」），保留 OCR 读到的「+」
         name = card["name"] + "+" * card["upgrade"]
-    return {"name": name, "card_id": card["card_id"] if card else None, "upgrade": card["upgrade"] + 1 if card else None, "text": text}
+    return {
+        "name": name,
+        "card_id": card["card_id"] if card else None,
+        "upgrade": card["upgrade"] + 1 if card else None,
+        "text": text,
+    }
 
 
 LOG_HEADER_MAX_Y = 220  # 行动记录顶部「1日目」标题条（实测 y 137–166）
@@ -459,11 +546,13 @@ def read_finals_ranking_page(img: MatLike, boxes) -> dict:
     还没演出时玩家卡在「NEXT」下面、没有分数。
     {entries: [{rank, score, me}], next: 有「NEXT」, my_score, rank（玩家已演出才有）, finals_round: 1 / 2 / None}。
     finals_round 按 NPC 目标分落在主数据哪一轮的区间（hif.finals_round_from_npc）。"""
-    from hiro.vision.hif import _result_score, finals_round_from_npc, read_retry
+    from hiro.vision.hif import _result_score, finals_round_from_npc, read_retry  # noqa: F401
 
     title = next((t for t, b in boxes if "ラウンド" in t and "結果" in t), None)
     if title is not None or _has(boxes, "ログ") is not None:
-        return _read_round_result(img, boxes, title)  # 演出后的结果页（轮次结果 / R2 后的最终页）：名次数字 + 分数，玩家行带「ログ」
+        return _read_round_result(
+            img, boxes, title
+        )  # 演出后的结果页（轮次结果 / R2 后的最终页）：名次数字 + 分数，玩家行带「ログ」
     rows = sorted(((b[1] + b[3]) // 2, int(re.sub(r"\D", "", m.group(1)))) for t, b in boxes
                   if (m := re.search(r"([\d,]{3,})\s*[pP][tT]", t)))  # fmt: skip
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
@@ -489,7 +578,9 @@ def _gain_cut(img: MatLike, box, n_total: int, n_gain: int) -> int:
     x1, y1, x2, y2 = box
     start = x1 + (x2 - x1) * 35 // 100
     hsv = cv2.cvtColor(img[y1 + 8 : y2 - 8, start:x2], cv2.COLOR_BGR2HSV)
-    blue = ((hsv[:, :, 0] >= 90) & (hsv[:, :, 0] <= 115) & (hsv[:, :, 1] >= 120) & (hsv[:, :, 2] >= 150)).sum(axis=0) >= 3
+    blue = ((hsv[:, :, 0] >= 90) & (hsv[:, :, 0] <= 115) & (hsv[:, :, 1] >= 120) & (hsv[:, :, 2] >= 150)).sum(
+        axis=0
+    ) >= 3
     cols = np.where(blue)[0]
     return start + int(cols[0]) - 2 if len(cols) else x1 + round((x2 - x1) * n_total / (n_total + n_gain)) + 4
 
@@ -504,16 +595,22 @@ def _merged_gain(img: MatLike, listed: str, box, n_total: int, n_gain: int) -> i
     from hiro.vision.digits import read_dddd
     from hiro.vision.ocr import ocr
 
-    x1, y1, x2, y2 = box
+    _x1, y1, x2, y2 = box
     cut = _gain_cut(img, box, n_total, n_gain)
     crop = img[max(0, y1 - 6) : y2 + 6, cut : min(img.shape[1], x2 + 6)]
-    again = re.sub(r"\D", "", "".join(t for t, _ in ocr(cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC), scale=1)))
+    again = re.sub(
+        r"\D",
+        "",
+        "".join(t for t, _ in ocr(cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC), scale=1)),
+    )
     dddd = read_dddd(img, (cut + GAIN_PLUS_W, max(0, y1 - 4), min(img.shape[1], x2 + 4), y2 + 4))
     d = str(dddd) if dddd is not None else None
     if d and listed and len(d) == len(listed) + 1 and d[0] == "4":
         d = d[1:]  # 「+」读成 4
     if d and listed and len(d) == len(listed):
-        return int(d)  # ddddocr 优先：另两票同为 Vision OCR、会一起错（第二十九局 R2：两票 402,477、ddddocr 462,477 才对）
+        return int(
+            d
+        )  # ddddocr 优先：另两票同为 Vision OCR、会一起错（第二十九局 R2：两票 402,477、ddddocr 462,477 才对）
     votes = [listed or None, again or None, d]
     best, n = Counter(v for v in votes if v).most_common(1)[0] if any(votes) else (None, 0)
     return int(best) if best and n >= 2 else None
@@ -526,7 +623,7 @@ def _merged_total(img: MatLike, listed: str, box, n_total: int, n_gain: int) -> 
     from hiro.vision.digits import read_dddd
     from hiro.vision.ocr import ocr
 
-    x1, y1, x2, y2 = box
+    x1, y1, _x2, y2 = box
     # 加分是蓝色小字、总分是白字：切在第一列蓝色像素之前（按字数比例估会切掉总分末位）
     # 只看框中间几行、从框宽 35% 往右找（框边缘有进度条等蓝色，总分至少占框的三分之一）
     cut = _gain_cut(img, box, n_total, n_gain)
@@ -651,7 +748,7 @@ def read_hud_resources(img: MatLike) -> dict:
         if not votes:
             return None
         best, n = Counter(votes).most_common(1)[0]
-        return best if n >= 2 or len(votes) == 1 and len(values) == 1 else None
+        return best if n >= 2 or (len(votes) == 1 and len(values) == 1) else None
 
     def font(box) -> int | None:
         t, _ = read_text(img, box)  # 「不确定」多半是斜杠 / 图标，数字本身仍可用作一票
@@ -697,7 +794,10 @@ def read_comm_error(img: MatLike, header_y: int | None = None) -> dict:
     from hiro.vision.ocr import ocr_boxes
 
     y0 = max(0, (header_y if header_y is not None else 970) + 30)
-    boxes = [(t.replace(" ", ""), (b[0], b[1] + y0, b[2], b[3] + y0)) for t, _, b in ocr_boxes(img[y0 : min(img.shape[0], y0 + 330)])]
+    boxes = [
+        (t.replace(" ", ""), (b[0], b[1] + y0, b[2], b[3] + y0))
+        for t, _, b in ocr_boxes(img[y0 : min(img.shape[0], y0 + 330)])
+    ]
 
     def button(*words: str) -> list[int] | None:
         b = max((b for t, b in boxes if any(w in t for w in words)), key=lambda b: b[1], default=None)
@@ -720,10 +820,17 @@ def read_retry_confirm(img: MatLike, header_y: int | None = None) -> dict:
     from hiro.vision.ocr import ocr_boxes
 
     y0 = max(0, (header_y if header_y is not None else 570) + 30)
-    boxes = [(t.replace(" ", ""), (b[0], b[1] + y0, b[2], b[3] + y0)) for t, _, b in ocr_boxes(img[y0 : min(img.shape[0], y0 + 650)])]
+    boxes = [
+        (t.replace(" ", ""), (b[0], b[1] + y0, b[2], b[3] + y0))
+        for t, _, b in ocr_boxes(img[y0 : min(img.shape[0], y0 + 650)])
+    ]
     texts = [t for t, _ in boxes]
     own = next((b for t, b in boxes if "所持" in t), None)
-    nums = sorted((b[0], int(t)) for t, b in boxes if re.fullmatch(r"\d{1,5}", t) and own and abs((b[1] + b[3]) // 2 - (own[1] + own[3]) // 2) <= 25)
+    nums = sorted(
+        (b[0], int(t))
+        for t, b in boxes
+        if re.fullmatch(r"\d{1,5}", t) and own and abs((b[1] + b[3]) // 2 - (own[1] + own[3]) // 2) <= 25
+    )
     frac = next((re.search(r"(\d+)/(\d+)", t) for t in texts if re.search(r"^\d+/\d+$", t)), None)
 
     def button(word: str, default: tuple[int, int]) -> list[int]:
@@ -742,12 +849,17 @@ def read_refresh_confirm(img: MatLike, header_y: int | None = None) -> dict:
     from hiro.vision.ocr import ocr_boxes
 
     y0 = max(0, (header_y if header_y is not None else 658) + 30)
-    boxes = [(t.replace(" ", ""), (b[0], b[1] + y0, b[2], b[3] + y0)) for t, _, b in ocr_boxes(img[y0 : min(img.shape[0], y0 + 600)])]
+    boxes = [
+        (t.replace(" ", ""), (b[0], b[1] + y0, b[2], b[3] + y0))
+        for t, _, b in ocr_boxes(img[y0 : min(img.shape[0], y0 + 600)])
+    ]
     nums = sorted(((b[0], int(t)) for t, b in boxes if re.fullmatch(r"\d{1,5}", t)), key=lambda x: x[0])
     before, after = (nums[0][1], nums[-1][1]) if len(nums) >= 2 else (None, None)
 
     def button(word: str, default: tuple[int, int]) -> list[int]:
-        b = max((b for t, b in boxes if word in t), key=lambda b: b[1], default=None)  # 按钮在最下面（正文也有「更新をします」）
+        b = max(
+            (b for t, b in boxes if word in t), key=lambda b: b[1], default=None
+        )  # 按钮在最下面（正文也有「更新をします」）
         return [int((b[0] + b[2]) // 2), int((b[1] + b[3]) // 2)] if b else list(default)
 
     return {"p_before": before, "p_after": after, "cost": before - after if before is not None and after is not None else None,
@@ -771,11 +883,20 @@ def read_finals_start(boxes, img: MatLike | None = None) -> dict:
     - 可在多份回忆间切换的列表 / 详情页尚无样本，qualify_memories（docs/llm-context.md「QUALIFY_MEMORY」）为 None，已列入采样清单。"""
 
     def row(y_lo: int, y_hi: int, pattern: str) -> list[tuple[int, str]]:
-        return sorted(((b[0] + b[2]) // 2, t) for t, b in boxes if y_lo <= (b[1] + b[3]) // 2 <= y_hi and re.search(pattern, t))
+        return sorted(
+            ((b[0] + b[2]) // 2, t) for t, b in boxes if y_lo <= (b[1] + b[3]) // 2 <= y_hi and re.search(pattern, t)
+        )
 
     nums = [int(re.sub(r"\D", "", t)) for _, t in row(482, 512, r"^\D?\d{2,4}$")]
     pcts = [v for _, t in row(514, 540, r"\d") if (v := _growth_pct(t)) is not None]
-    star_box = next((b for t, b in boxes if 430 <= (b[1] + b[3]) // 2 <= 465 and re.fullmatch(r"\d{2,4}", t) and 440 <= (b[0] + b[2]) // 2 <= 600), None)
+    star_box = next(
+        (
+            b
+            for t, b in boxes
+            if 430 <= (b[1] + b[3]) // 2 <= 465 and re.fullmatch(r"\d{2,4}", t) and 440 <= (b[0] + b[2]) // 2 <= 600
+        ),
+        None,
+    )
     star = next((int(t) for x, t in row(430, 465, r"^\d{2,4}$") if 440 <= x <= 600), None)
     from hiro.vision.ocr import engine
 
@@ -785,7 +906,9 @@ def read_finals_start(boxes, img: MatLike | None = None) -> dict:
 
         d = read_dddd(img, tuple(star_box))
         star = d if d is not None and 10 <= d <= 9999 else star
-    idol = next((t for t, b in boxes if b[0] >= 480 and 150 <= (b[1] + b[3]) // 2 <= 230 and not re.search(r"\d", t)), None)
+    idol = next(
+        (t for t, b in boxes if b[0] >= 480 and 150 <= (b[1] + b[3]) // 2 <= 230 and not re.search(r"\d", t)), None
+    )
     return {"selected_memory": {"idol": idol, "star": star,
                                 "params": dict(zip(("Vo", "Da", "Vi"), nums)) if len(nums) == 3 else None,
                                 "growth_pct": dict(zip(("Vo", "Da", "Vi"), pcts)) if len(pcts) == 3 else None,

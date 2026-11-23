@@ -3,13 +3,13 @@ _drink_full_skip 只认 source=rule，把有效决策当成「认不出」停机
 
 from types import SimpleNamespace as NS
 
-import pytest
-
 import hiro.produce.drink_swap as ds
 import hiro.produce.hif as hif
 from hiro.contracts import Action, ActionKind, Decision, GameState
 from hiro.produce.hif import HiroHifStrategy, UnhandledPage
 from hiro.vision.ocr import Box, Text
+
+import pytest
 
 CANDS = [{"slot": 0, "drink_id": "pdrink_kampo", "name": "パワフル漢方ドリンク"}, {"slot": 1, "drink_id": "pdrink_blend", "name": "厳選初星ブレンド"},
          {"slot": 2, "drink_id": "pdrink_aojiru", "name": "初星スペシャル青汁"}]  # fmt: skip
@@ -20,14 +20,27 @@ HELD = [{"index": i, "drink_id": d, "name": n} for i, (d, n) in enumerate([("pdr
 def _st(monkeypatch, source):
     monkeypatch.setattr(hif, "screen_texts", lambda *a, **k: [Text("Pドリンク所持上限", Box(350, 1170, 370, 1190))])
     monkeypatch.setattr(hif, "device", NS(screenshot=lambda: None, click=lambda *a: None))
-    monkeypatch.setattr(hif.dk if hasattr(hif, "dk") else __import__("hiro.brain.drinks", fromlist=["x"]), "best_incoming", lambda cands, held, stage, cap: CANDS[1])
+    monkeypatch.setattr(
+        hif.dk if hasattr(hif, "dk") else __import__("hiro.brain.drinks", fromlist=["x"]),
+        "best_incoming",
+        lambda cands, held, stage, cap: CANDS[1],
+    )
     st = HiroHifStrategy.__new__(HiroHifStrategy)
     st.s = NS(state=GameState(page_fields={"candidates": CANDS, "held": HELD}), observe=lambda **k: NS(fields={}), record=lambda *a, **k: None,
               recover=lambda *a: None)  # fmt: skip
-    d = Decision(Action(ActionKind.ACTIVATE_EFFECT, {"receive": [1], "discard": [0]}), "丢 パワフル漢方、收 厳選初星ブレンド +8,020", source, 0.8)
+    d = Decision(
+        Action(ActionKind.ACTIVATE_EFFECT, {"receive": [1], "discard": [0]}),
+        "丢 パワフル漢方、收 厳選初星ブレンド +8,020",
+        source,
+        0.8,
+    )
     st.deciders = NS(decide=lambda page, state, **kw: d)
     swapped = []
-    monkeypatch.setattr(ds, "discard_then_receive", lambda discard, slot, held=None: (swapped.append((discard, slot)), NS(ok=True, error=None))[1])
+    monkeypatch.setattr(
+        ds,
+        "discard_then_receive",
+        lambda discard, slot, held=None: (swapped.append((discard, slot)), NS(ok=True, error=None))[1],
+    )
     return st, swapped
 
 

@@ -29,7 +29,7 @@ if not FIXTURES.exists() and os.environ.get("HIRO_FIXTURES") and Path(os.environ
 HAVE_FIXTURES = FIXTURES.is_dir() and any(FIXTURES.iterdir())  # 空目录 / 断链都算没有样例
 
 if os.environ.get("HIRO_KAA_GAME_DATA"):
-    try:  # 先把 KAA 的数据目录指过去（hiro.vision 导入时做）：别的测试模块先导入 KAA 会在当前目录建空的 resources/game_data
+    try:  # 先把 KAA 的数据目录指过去（hiro.vision 导入时做）：别的测试模块先导入 KAA 会在当前目录建空的 resources/game_data  # noqa: SIM105
         import hiro.vision  # noqa: F401
     except Exception:  # noqa: BLE001 没装识别依赖：照常收集
         pass
@@ -54,8 +54,8 @@ def _has_module(name: str) -> bool:
 
 def _kaa_ok() -> bool:
     try:
-        import kotonebot  # noqa: F401
         import kaa  # noqa: F401
+        import kotonebot  # noqa: F401
 
         return True
     except Exception:  # noqa: BLE001 没装 play 组，或 macOS 上缺 hiro.compat 的补丁
@@ -64,7 +64,9 @@ def _kaa_ok() -> bool:
 
 def _top_level(src: str) -> str:
     """模块顶层语句（不缩进的行），导入时就会执行的部分。"""
-    return "\n".join(line for line in src.splitlines() if line and not line[0].isspace() and not line.startswith(("#", '"', "'")))
+    return "\n".join(
+        line for line in src.splitlines() if line and not line[0].isspace() and not line.startswith(("#", '"', "'"))
+    )
 
 
 _TOP_PATH = re.compile(r"^([A-Z_][A-Z0-9_]*)\s*=\s*(Path\(__file__\)\S.*?)\s*(?:#.*)?$", re.M)
@@ -97,11 +99,14 @@ def _collect_ignore() -> list[str]:
     out = []
     for f in sorted(TESTS.glob("test_*.py")):
         top = _top_level(f.read_text(encoding="utf-8"))
-        if any(re.search(rf"^(from|import) {re.escape(m)}\b", top, re.M) and not _has_module(m) for m in OPTIONAL_LAYERS):
-            out.append(f.name)
-        elif _missing_top_files(f, top):
-            out.append(f.name)
-        elif _top_import_missing_optional(top):
+        if (
+            any(
+                re.search(rf"^(from|import) {re.escape(m)}\b", top, re.M) and not _has_module(m)
+                for m in OPTIONAL_LAYERS
+            )
+            or _missing_top_files(f, top)
+            or _top_import_missing_optional(top)
+        ):
             out.append(f.name)
     return out
 
@@ -163,16 +168,33 @@ def _ocr_engine() -> str:
 
 
 def pytest_configure(config):
-    config.addinivalue_line("markers", "user_assets(*kinds): 需要自建素材（HIRO_USER_ASSETS）；kinds 见 hiro.vision.assets.USER_ASSETS")
+    config.addinivalue_line(
+        "markers", "user_assets(*kinds): 需要自建素材（HIRO_USER_ASSETS）；kinds 见 hiro.vision.assets.USER_ASSETS"
+    )
     config.addinivalue_line("markers", "synthetic: 只用合成图（源码里的 .png 是自己画的），不按「读样例截图」跳过")
-    config.addinivalue_line("markers", "fixtures: 要读 tests/fixtures 的截图样例（经类 / 多层辅助函数间接读，自动判断看不出来时显式标）")
-    config.addinivalue_line("markers", "kaa: 要 KAA（可选组 play）：经 hiro.produce.hif 的策略类 / kaa_patches 等在运行时才导入，自动判断看不出来时显式标")
+    config.addinivalue_line(
+        "markers", "fixtures: 要读 tests/fixtures 的截图样例（经类 / 多层辅助函数间接读，自动判断看不出来时显式标）"
+    )
+    config.addinivalue_line(
+        "markers",
+        "kaa: 要 KAA（可选组 play）：经 hiro.produce.hif 的策略类 / kaa_patches 等在运行时才导入，自动判断看不出来时显式标",
+    )
     config.addinivalue_line("markers", "master: 要主数据 game.db（经决策器 / 识别层间接查，自动判断看不出来时显式标）")
-    config.addinivalue_line("markers", "sim_master: 要真跑模拟器（vendor/gakumas-player 的主数据 catalog.sqlite 已构建）")
-    config.addinivalue_line("markers", "lowres_sample(why): 样例是低分辨率截图（360x640 / 540x960 放大），只在 Vision OCR 下断言；"
-                                       "RapidOCR（Windows / DMM 默认）读这类放大图错字多，DMM 实机帧 1081x1921 另有回归集")
-    config.addinivalue_line("markers", "vision_only(why): 测的是以 Apple Vision 为裁判的路径，非 Vision OCR 下跳过（写明为什么实机不走这条路）")
-    config.addinivalue_line("markers", "bench_on: 不关 bench 出招（其余测试一律 HIRO_BENCH_ADVISOR=0，免得装了 gkbench 时去下载模型）")
+    config.addinivalue_line(
+        "markers", "sim_master: 要真跑模拟器（vendor/gakumas-player 的主数据 catalog.sqlite 已构建）"
+    )
+    config.addinivalue_line(
+        "markers",
+        "lowres_sample(why): 样例是低分辨率截图（360x640 / 540x960 放大），只在 Vision OCR 下断言；"
+        "RapidOCR（Windows / DMM 默认）读这类放大图错字多，DMM 实机帧 1081x1921 另有回归集",
+    )
+    config.addinivalue_line(
+        "markers",
+        "vision_only(why): 测的是以 Apple Vision 为裁判的路径，非 Vision OCR 下跳过（写明为什么实机不走这条路）",
+    )
+    config.addinivalue_line(
+        "markers", "bench_on: 不关 bench 出招（其余测试一律 HIRO_BENCH_ADVISOR=0，免得装了 gkbench 时去下载模型）"
+    )
 
 
 def _missing_user_assets(kinds) -> list[str]:
@@ -207,12 +229,20 @@ def pytest_collection_modifyitems(config, items):
         low = item.get_closest_marker("lowres_sample")
         if low is not None and _ocr_engine() != "vision":
             why = low.args[0] if low.args else ""
-            item.add_marker(pytest.mark.skip(reason=f"低分辨率样例只在 Vision OCR 下断言（当前 {_ocr_engine()}）：{why}"))
+            item.add_marker(
+                pytest.mark.skip(reason=f"低分辨率样例只在 Vision OCR 下断言（当前 {_ocr_engine()}）：{why}")
+            )
         only = item.get_closest_marker("vision_only")
         if only is not None and _ocr_engine() != "vision":
-            item.add_marker(pytest.mark.skip(reason=f"只在 Vision OCR 下有意义（当前 {_ocr_engine()}）：{only.args[0] if only.args else ''}"))
+            item.add_marker(
+                pytest.mark.skip(
+                    reason=f"只在 Vision OCR 下有意义（当前 {_ocr_engine()}）：{only.args[0] if only.args else ''}"
+                )
+            )
         if item.get_closest_marker("sim_master") is not None and not _sim_master_ok():
-            item.add_marker(pytest.mark.skip(reason="需要模拟器主数据（python vendor/gakumas-player/scripts/fetch_master.py）"))
+            item.add_marker(
+                pytest.mark.skip(reason="需要模拟器主数据（python vendor/gakumas-player/scripts/fetch_master.py）")
+            )
             continue
         if item.get_closest_marker("kaa") is not None and not _kaa_ok():
             item.add_marker(pytest.mark.skip(reason="需要 KAA（pip install -e '.[play]'）"))
@@ -282,11 +312,17 @@ def _needs_exam_obs(item, src: str) -> bool:
         return False
     if EXAM_OBS.search(body):
         return '"HIF_EXAM"' in src or "battle_observation" in body or "read_hif_exam" in body
-    helpers = [m.group(1) for m in re.finditer(r"^def (\w+)\(.*?(?=^def |^@|^class |\Z)", src, re.M | re.S) if EXAM_OBS.search(m.group(0))]
+    helpers = [
+        m.group(1)
+        for m in re.finditer(r"^def (\w+)\(.*?(?=^def |^@|^class |\Z)", src, re.M | re.S)
+        if EXAM_OBS.search(m.group(0))
+    ]
     return any(re.search(rf"\b{h}\(", body) for h in helpers) and '"HIF_EXAM"' in src
 
 
-MASTER_HINT = re.compile(r"\b(master_offers|card_from_name|split_card_names|card_version|card_catalog|drink_catalog|pitem_catalog)\(")
+MASTER_HINT = re.compile(
+    r"\b(master_offers|card_from_name|split_card_names|card_version|card_catalog|drink_catalog|pitem_catalog)\("
+)
 
 
 def _master_ok() -> bool:

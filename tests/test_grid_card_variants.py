@@ -2,10 +2,10 @@
 DMM 的游戏数据里有新角色（秦谷美鈴，后缀 -hmsz）的卡图变体，KAA 的 strip_character_suffix 不认这个后缀：
 同一张卡票数被拆开、卡图相关第一第二是同一张卡（领先差 0），本战相談 2 格卡认不出、整个货架判不完整，决策直接离开。"""
 
-from test_shop_exec import frame
-
 from hiro.vision import shop
 from hiro.vision.deck import base_asset
+
+from test_shop_exec import frame
 
 
 def test_base_asset_strips_any_character_suffix():
@@ -17,7 +17,12 @@ def test_base_asset_strips_any_character_suffix():
 def test_main_consult_shelf_complete():
     r = shop.read_consult(frame("main_consult_hmsz"))
     assert r["complete"] is True
-    assert [c.get("card_id") for c in r["shelf"][:4]] == ["p_card-00-men-2_012", "p_card-00-men-3_003", "p_card-02-men-3_041", "p_card-02-act-1_028"]
+    assert [c.get("card_id") for c in r["shelf"][:4]] == [
+        "p_card-00-men-2_012",
+        "p_card-00-men-3_003",
+        "p_card-02-men-3_041",
+        "p_card-02-act-1_028",
+    ]
     assert [c["price"] for c in r["shelf"]] == [53, 70, 105, 70, 35, 100, 75, 100]
 
 
@@ -35,10 +40,10 @@ def test_card_db_merges_character_variants(monkeypatch):
 
 def test_card_db_ivf_finds_library_card():
     """整库（约 47 万个描述子）走 IVF（nprobe 16）：图库里的卡图拿去查，第一名是它自己。以前全量搜索每张 1.4 秒，换卡弹窗翻屏要几分钟。"""
+    from hiro.vision import card_db
+
     import cv2
     import pytest
-
-    from hiro.vision import card_db
 
     keys, _, index = card_db._db()
     if not keys:

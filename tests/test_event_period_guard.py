@@ -3,11 +3,11 @@
 
 from pathlib import Path
 
+from hiro.vision import quick
+
 import cv2
 import numpy as np
 import pytest
-
-from hiro.vision import quick
 
 FIX = Path(__file__).parent / "fixtures"
 BONUS = ["date_change/event-login-bonus-jewel-dmm2.png", "home/g26-login-bonus.png", "quick/login-bonus-gakumas-wed.png",
@@ -29,8 +29,14 @@ def test_real_login_bonus_still_tapped(rel):
 
 def test_purchase_words():
     assert quick.has_purchase_words(["10回引く", "ジュエル 2500"])
-    assert quick.has_purchase_words(["購入する"]) and quick.has_purchase_words(["ガシャ"]) and quick.has_purchase_words(["¥610円"])
-    assert not quick.has_purchase_words(["ジュエル", "250", "開催期間: 2026/11/18 04:59まで"])  # 登录奖励本身就送ジュエル
+    assert (
+        quick.has_purchase_words(["購入する"])
+        and quick.has_purchase_words(["ガシャ"])
+        and quick.has_purchase_words(["¥610円"])
+    )
+    assert not quick.has_purchase_words(
+        ["ジュエル", "250", "開催期間: 2026/11/18 04:59まで"]
+    )  # 登录奖励本身就送ジュエル
 
 
 def test_event_page_with_draw_button_not_tapped(monkeypatch):

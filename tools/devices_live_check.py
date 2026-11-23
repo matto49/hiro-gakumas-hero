@@ -20,9 +20,9 @@ import json
 import time
 from pathlib import Path
 
-import numpy as np
-
 from hiro.devices.maafw_win32 import MaaFwWin32Device
+
+import numpy as np
 
 
 def window_rect(hwnd):
@@ -128,11 +128,11 @@ def _scores(img) -> dict:
 
 def kaa_parity(out: Path, n: int) -> dict:
     """同一静止画面：新设备层（GDI / FramePool）和 KAA 的 DMM 截图交替各截 n 张，逐对比较。"""
+    from hiro import device as old_device
+
     import cv2
     from kaa.config.schema import KaaConfig
     from kaa.kaa_context import init as kaa_init
-
-    from hiro import device as old_device
 
     kaa_init(KaaConfig(), "hiro-parity")
     kaa = old_device.connect("dmm")

@@ -4,11 +4,11 @@
 from pathlib import Path
 from types import SimpleNamespace as NS
 
+from hiro.contracts import Action, Decision
+
 import cv2
 import numpy as np
 import pytest
-
-from hiro.contracts import Action, Decision
 
 FIXP = Path(__file__).with_name("fixtures") / "pages"
 
@@ -39,7 +39,7 @@ def _check(rt, name):
 def test_true_end_page_taps_next():
     rt = _rt()
     assert "TAPで次へ" in _check(rt, "hajime-true-end-dialog.png")
-    (x, y), = rt.raw_device.taps
+    ((x, y),) = rt.raw_device.taps
     assert abs(x - 360) < 20 and abs(y - 1147) < 20
 
 
@@ -49,13 +49,16 @@ def test_tap_next_not_on_cancel_dialogs():
     from hiro.runtime.frame import Frame
 
     rt = _rt()
-    assert interrupts.tap_next_dialog(Frame(_real("hajime-lesson-lowhp-confirm.jpg"), 0.0), rt) is None and rt.raw_device.taps == []
+    assert (
+        interrupts.tap_next_dialog(Frame(_real("hajime-lesson-lowhp-confirm.jpg"), 0.0), rt) is None
+        and rt.raw_device.taps == []
+    )
 
 
 def test_lesson_confirm_after_lesson_decision_starts():
     rt = _rt(("ACTION_SELECT", Decision(Action.produce_next("training", attr="Da"), "课程", "rule", 0.8)))
     assert "開始する" in _check(rt, "hajime-lesson-lowhp-confirm.jpg")
-    (x, y), = rt.raw_device.taps
+    ((x, y),) = rt.raw_device.taps
     assert abs(x - 515) < 30 and abs(y - 1160) < 20
 
 
@@ -63,7 +66,7 @@ def test_lesson_confirm_after_lesson_decision_starts():
 def test_lesson_confirm_otherwise_cancels(last):
     rt = _rt(last)
     assert "キャンセル" in _check(rt, "hajime-lesson-lowhp-confirm.jpg")
-    (x, y), = rt.raw_device.taps
+    ((x, y),) = rt.raw_device.taps
     assert x < 300 and abs(y - 1160) < 20
 
 
@@ -88,10 +91,10 @@ class _Guard:
 
 def test_drive_taps_tap_to_start_and_does_not_pass_live_to_step():
     """drive 的步骤（结算收尾等竖屏流程）看不到横屏 LIVE 帧：曲目页点 TAP TO START，演出中、黑屏都不交给步骤。"""
+    from hiro.runtime.frame import Frame
+
     from test_runtime import frame as fake_frame
     from test_runtime import runtime
-
-    from hiro.runtime.frame import Frame
 
     live = _real("hajime-live-tap-to-start.png")
     black = np.zeros((1280, 720, 3), np.uint8)
@@ -108,16 +111,16 @@ def test_drive_taps_tap_to_start_and_does_not_pass_live_to_step():
 
     assert rt.drive(step, 30, "结算") is True
     assert seen == [(1280, 720, 3)] and rt.landscape.ticks >= 2
-    (x, y), = rt.raw_device.taps
+    ((x, y),) = rt.raw_device.taps
     assert abs(x - 641) < 20 and abs(y - 609) < 20
 
 
 def test_drive_without_guard_passes_portrait_black_to_step():
     """没有 LandscapeGuard（或没开）的设备：竖屏黑屏照旧交给步骤（不改原行为）。"""
+    from hiro.runtime.frame import Frame
+
     from test_runtime import frame as fake_frame
     from test_runtime import runtime
-
-    from hiro.runtime.frame import Frame
 
     rt, _ = runtime([fake_frame()])
     rt.screen = NS(shot=lambda: Frame(np.zeros((1280, 720, 3), np.uint8), 0.0), frame=None)
@@ -129,11 +132,13 @@ def test_drive_without_guard_passes_portrait_black_to_step():
 def test_live_paused_resume_tapped():
     rt = _rt()
     assert "画面タップで再開" in _check(rt, "hajime-live-paused.png")
-    (x, y), = rt.raw_device.taps
+    ((x, y),) = rt.raw_device.taps
     assert abs(x - 360) < 30 and abs(y - 640) < 20
 
 
-@pytest.mark.parametrize("name", ["hajime-true-end-dialog.png", "hajime-lesson-lowhp-confirm.jpg", "hajime-live-frozen.png"])
+@pytest.mark.parametrize(
+    "name", ["hajime-true-end-dialog.png", "hajime-lesson-lowhp-confirm.jpg", "hajime-live-frozen.png"]
+)
 def test_live_resume_not_on_other_pages(name):
     from hiro.runtime import interrupts
     from hiro.runtime.frame import Frame

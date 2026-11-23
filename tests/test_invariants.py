@@ -3,11 +3,11 @@
 import sys
 from pathlib import Path
 
-import pytest
-
 from hiro.contracts import Check, GameState, Observation, PageObs
 from hiro.loop.reduce import reduce
 from hiro.state.invariants import check_invariants, filter_observation
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))  # invariants_replay
 
@@ -29,7 +29,7 @@ def rules(checks, verdict="read_error"):
     return {(c.field, c.rule) for c in checks if c.verdict == verdict}
 
 
-ACTION = dict(stamina=20, max_stamina=33, produce_point=380, star=345, param_cap=3000)
+ACTION = {"stamina": 20, "max_stamina": 33, "produce_point": 380, "star": 345, "param_cap": 3000}
 
 
 def test_param_drop_leading_digit():
@@ -62,7 +62,9 @@ def test_produce_point_spend_is_not_digit_loss():
     prev = state_after(obs(1, "ACTION_SELECT", params={"Vo": 1, "Da": 1, "Vi": 1}, **{**ACTION, "produce_point": 105}))
     assert not check_invariants(prev, obs(2, "ACTION_SELECT", **{**ACTION, "produce_point": 5}))
     prev = state_after(obs(1, "ACTION_SELECT", **ACTION))
-    assert ("produce.produce_point", "digit_count") in rules(check_invariants(prev, obs(2, "ACTION_SELECT", **{**ACTION, "produce_point": 38})))
+    assert ("produce.produce_point", "digit_count") in rules(
+        check_invariants(prev, obs(2, "ACTION_SELECT", **{**ACTION, "produce_point": 38}))
+    )
 
 
 def exam(seq, score, rank, npcs, turns):
@@ -102,16 +104,24 @@ def test_new_exam_is_not_a_score_drop():
 
 def test_turn_step():
     prev = state_after(exam(1, 100, 1, [50, 40, 30, 20], 5))
-    assert ("exam.remaining_turns", "turn_step") in rules(check_invariants(prev, exam(2, 200, 1, [60, 50, 40, 30], 6)), "model_gap")
-    assert ("exam.remaining_turns", "turn_step") in rules(check_invariants(prev, exam(2, 200, 1, [60, 50, 40, 30], 2)), "model_gap")
+    assert ("exam.remaining_turns", "turn_step") in rules(
+        check_invariants(prev, exam(2, 200, 1, [60, 50, 40, 30], 6)), "model_gap"
+    )
+    assert ("exam.remaining_turns", "turn_step") in rules(
+        check_invariants(prev, exam(2, 200, 1, [60, 50, 40, 30], 2)), "model_gap"
+    )
     assert not check_invariants(prev, exam(2, 200, 1, [60, 50, 40, 30], 4))
 
 
 def test_counters_and_drinks():
     prev = state_after(obs(1, "SELECT_CARD", rerolls_left=1, excludes_left=0))
-    assert ("page_fields.rerolls_left", "counters") in rules(check_invariants(prev, obs(2, "SELECT_CARD", rerolls_left=2, excludes_left=0)))
+    assert ("page_fields.rerolls_left", "counters") in rules(
+        check_invariants(prev, obs(2, "SELECT_CARD", rerolls_left=2, excludes_left=0))
+    )
     prev = state_after(exam(1, 100, 1, [50, 40, 30, 20], 5))
-    assert ("exam.drinks", "drink_capacity") in rules(check_invariants(prev, obs(2, "HIF_EXAM", drinks=[{"name": "烏龍茶"}] * 5, remaining_turns=5)))
+    assert ("exam.drinks", "drink_capacity") in rules(
+        check_invariants(prev, obs(2, "HIF_EXAM", drinks=[{"name": "烏龍茶"}] * 5, remaining_turns=5))
+    )
 
 
 def test_p_delta_with_events():
@@ -119,12 +129,15 @@ def test_p_delta_with_events():
     events = [{"kind": "SHOP_BUY", "args": {"price": 50}}]
     assert not check_invariants(prev, obs(2, "ACTION_SELECT", **{**ACTION, "produce_point": 330}), events=events)
     assert ("produce.produce_point", "p_delta") in rules(
-        check_invariants(prev, obs(2, "ACTION_SELECT", **{**ACTION, "produce_point": 300}), events=events), "model_gap")
+        check_invariants(prev, obs(2, "ACTION_SELECT", **{**ACTION, "produce_point": 300}), events=events), "model_gap"
+    )
 
 
 def test_debug_lists_consistent_checks():
     prev = state_after(obs(1, "ACTION_SELECT", params={"Vo": 500, "Da": 500, "Vi": 500}, **ACTION))
-    checks = check_invariants(prev, obs(2, "ACTION_SELECT", params={"Vo": 510, "Da": 500, "Vi": 500}, **ACTION), debug=True)
+    checks = check_invariants(
+        prev, obs(2, "ACTION_SELECT", params={"Vo": 510, "Da": 500, "Vi": 500}, **ACTION), debug=True
+    )
     assert checks and all(isinstance(c, Check) and c.verdict == "consistent" and not c.problems() for c in checks)
 
 
@@ -176,7 +189,10 @@ def test_drink_purchase_and_delete_with_price():
     """买饮料不进牌组；CARD_DELETE（识别侧）带 price，算 P 点花费。"""
     from hiro.state.invariants import deck_delta, p_spend
 
-    events = [ev("SHOP_BUY", "observe_only", drink_id="d1", price=60), ev("CARD_DELETE", "observe_only", card_id="c2", upgrade=1, price=50)]
+    events = [
+        ev("SHOP_BUY", "observe_only", drink_id="d1", price=60),
+        ev("CARD_DELETE", "observe_only", card_id="c2", upgrade=1, price=50),
+    ]
     assert deck_delta(events) == -1
     assert p_spend(events) == 110
 
@@ -223,7 +239,9 @@ def test_partial_brief_kept():
 def test_multiplier_first_digit_covered():
     """Vi 实际 1481%，回合转盘箭头盖住首位读成 7481%；1085% 多读一位成 11085%。"""
     assert ("exam.multiplier_permil", "attr_multiplier") in rules(check_invariants(brief_state(), mult(1, "Vo", 74810)))
-    assert ("exam.multiplier_permil", "attr_multiplier") in rules(check_invariants(brief_state(), mult(1, "Vi", 110850)))
+    assert ("exam.multiplier_permil", "attr_multiplier") in rules(
+        check_invariants(brief_state(), mult(1, "Vi", 110850))
+    )
 
 
 def test_attr_misread_when_multiplier_belongs_to_other_attr():

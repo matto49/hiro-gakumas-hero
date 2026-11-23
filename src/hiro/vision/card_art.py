@@ -9,12 +9,12 @@ KAA 的 HOG 图库对「不可打出」的卡失效：游戏会把这类卡整�
 import os
 from functools import lru_cache
 
+from hiro.vision import assets
+from hiro.vision.hand_slots import CARD_OFFSET, CARD_SCALE
+
 import cv2
 import numpy as np
 from cv2.typing import MatLike
-
-from hiro.vision import assets
-from hiro.vision.hand_slots import CARD_OFFSET, CARD_SCALE
 
 QUERY_SIZE = (28, 74)  # (w, h)，半卡区域 57x148 缩小一半
 

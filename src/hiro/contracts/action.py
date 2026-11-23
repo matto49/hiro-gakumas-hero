@@ -28,12 +28,16 @@ class ActionKind(str, Enum):
     INTERVAL_END = "IntervalEnd"  # 轮间结束
     CUSTOMIZE_CARD = "CustomizeCard"  # ProduceStepCustomizeSelectRequest(deckProduceCardIndex, produceCardCustomizeId)：特別指導 定制一张卡
     CUSTOMIZE_END = "CustomizeEnd"  # ProduceStepCustomizeEndRequest：特別指導 结束
-    SELECT_FORMATION = "SelectFormation"  # 开局编成：args {support_set, memory_set, main_attr}（KAA prepare 的编成编号 1–20）
+    SELECT_FORMATION = (
+        "SelectFormation"  # 开局编成：args {support_set, memory_set, main_attr}（KAA prepare 的编成编号 1–20）
+    )
     CHANGE_CARD = "ChangeCard"  # 授業セレクトチェンジ：阶段 1 args {stage: 1, pick_index}（换入候选序号）；阶段 2 args {stage: 2, remove_card_id, remove_index, remove_upgrade}；args {cancel: True} 表示取消换卡
     REMOVE_CARD = "RemoveCard"  # 删卡事件页（SKILL_CARD_REMOVAL）：args {card_id, index, upgrade}（卡格序号）；{cancel: True} 表示取消 / 停止，不盲选
     ENHANCE_CARD = "EnhanceCard"  # 强化事件页（SKILL_CARD_ENHANCE）：args 同 RemoveCard
     DIALOG = "Dialog"  # 确认弹窗：args {kind, confirm}，例如 PDRINK_MAX_CONFIRM 的「報酬スキップ」{kind: "reward_skip", confirm: True / False}
-    SELECT_QUALIFY_MEMORY = "SelectQualifyMemory"  # 本战用哪份选拔回忆：args {index}（回忆列表从上到下 / 从左到右，0 起）
+    SELECT_QUALIFY_MEMORY = (
+        "SelectQualifyMemory"  # 本战用哪份选拔回忆：args {index}（回忆列表从上到下 / 从左到右，0 起）
+    )
     DISCARD_DRINK = "DiscardDrink"  # ProduceDiscardDrinkRequest(drinkIndexes)：饮料满了，丢 discard（持有饮料下标）后收下新饮料；discard=[] 表示不收
     # ---- 考试内（ExamPlay）
     PLAY_CARD = "PlayCard"  # slot：手牌从左到右的位置
@@ -100,7 +104,9 @@ class Action(Contract):
 
     # ---- 培育
     @classmethod
-    def produce_next(cls, option: str, *, attr: str | None = None, sp: bool | None = None, select_number: int | None = None) -> "Action":
+    def produce_next(
+        cls, option: str, *, attr: str | None = None, sp: bool | None = None, select_number: int | None = None
+    ) -> "Action":
         """选行动页：option 为 observe 的选项名（training/class/outing/gift/shop/special_guidance/rest）。"""
         return cls(ActionKind.PRODUCE_NEXT, {"step_type": step_type(option, attr, sp), "option": option, "attr": attr, "sp": sp,
                                               "select_number": select_number})  # fmt: skip

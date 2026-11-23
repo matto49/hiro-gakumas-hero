@@ -3,10 +3,10 @@
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.produce import formation_menu as fm
 from hiro.produce.formation_writer import Device, FormationWriteError
+
+import pytest
 
 FIX = Path(__file__).parent / "fixtures" / "formation_menu"
 
@@ -46,7 +46,12 @@ def test_read_menu_on_device_frames(name, want):
 
 def test_read_memory_icons_big_row():
     """上排大图标：協調 11-17 写好的 メモリー編成 20 = 方案的四张卡；H.I.F 1 号第 4 格分数刚过线、靠领先认出。"""
-    assert [r["card"] for r in fm.read_memory_icons(_frame("hif-memory20"))] == ["men-2_004", "act-1_037", "act-3_039", "men-3_002"]
+    assert [r["card"] for r in fm.read_memory_icons(_frame("hif-memory20"))] == [
+        "men-2_004",
+        "act-1_037",
+        "act-3_039",
+        "men-3_002",
+    ]
     reads = fm.read_memory_icons(_frame("hif-memory1"))
     assert all(r["known"] for r in reads) and reads[3]["card"] == "act-3_049"
 
@@ -163,7 +168,7 @@ def test_ensure_mode_noop_when_already_there(game):
 
 def test_ensure_set_stuck_arrow_stops(game, monkeypatch):
     """点了箭头编号不变（翻不动 / 点没生效）：等一会儿就停，不乱点。"""
-    g, dev = game
+    _g, dev = game
     monkeypatch.setattr(fm, "WAIT_TRIES", 2)
     dev.click = lambda x, y: None
     with pytest.raises(FormationWriteError, match="编成号从 1 变"):
@@ -182,18 +187,25 @@ def _reads(cards):
 
 
 def test_write_memory_only_changes_wrong_slots_and_reads_back(monkeypatch):
-    seq = [_reads(["men-2_001", "act-9_999", "men-2_003", None])] * 2 + [_reads(["men-2_001", "men-2_002", "men-2_003", "men-2_004"])] * 2
+    seq = [_reads(["men-2_001", "act-9_999", "men-2_003", None])] * 2 + [
+        _reads(["men-2_001", "men-2_002", "men-2_003", "men-2_004"])
+    ] * 2
     it = iter(seq)
     monkeypatch.setattr(fm, "read_memory_icons", lambda img: next(it))
     calls = []
-    monkeypatch.setattr(fm, "fix_memory", lambda dev, plan, **kw: calls.append(kw["slots"]) or [{"slot": 1}, {"slot": 3}])
+    monkeypatch.setattr(
+        fm, "fix_memory", lambda dev, plan, **kw: calls.append(kw["slots"]) or [{"slot": 1}, {"slot": 3}]
+    )
     dev = Device(shoot=lambda: None, click=None, swipe=None, sleep=lambda s: None)
     assert fm.write_memory(dev, PLAN, make_picker=None) == [{"slot": 1}, {"slot": 3}]
     assert calls == [fm.MEMORY_TILES]
 
 
 def test_write_memory_read_back_mismatch_stops(monkeypatch):
-    it = iter([_reads(["men-2_001", None, "men-2_003", "men-2_004"])] * 2 + [_reads(["men-2_001", "act-1_001", "men-2_003", "men-2_004"])] * 2)
+    it = iter(
+        [_reads(["men-2_001", None, "men-2_003", "men-2_004"])] * 2
+        + [_reads(["men-2_001", "act-1_001", "men-2_003", "men-2_004"])] * 2
+    )
     monkeypatch.setattr(fm, "read_memory_icons", lambda img: next(it))
     monkeypatch.setattr(fm, "fix_memory", lambda dev, plan, **kw: [{"slot": 1}])
     dev = Device(shoot=lambda: None, click=None, swipe=None, sleep=lambda s: None)
@@ -205,7 +217,9 @@ def test_write_memory_dry_run_touches_nothing(monkeypatch):
     monkeypatch.setattr(fm, "read_memory_icons", lambda img: _reads(["men-2_001", "x-1_1", "men-2_003", "men-2_004"]))
     monkeypatch.setattr(fm, "fix_memory", lambda *a, **k: pytest.fail("dry-run 不该写"))
     dev = Device(shoot=lambda: None, click=lambda *a: pytest.fail("dry-run 不该点"), swipe=None, sleep=lambda s: None)
-    assert fm.write_memory(dev, PLAN, make_picker=None, dry_run=True) == [{"slot": 1, "to": "men-2_002", "dry_run": True}]
+    assert fm.write_memory(dev, PLAN, make_picker=None, dry_run=True) == [
+        {"slot": 1, "to": "men-2_002", "dry_run": True}
+    ]
 
 
 def test_write_support_uses_formation_view_and_reads_back(monkeypatch):
@@ -221,11 +235,18 @@ def test_write_support_uses_formation_view_and_reads_back(monkeypatch):
 def test_run_order_and_sets(game, monkeypatch):
     g, dev = game
     done = []
-    monkeypatch.setattr(fm, "write_support", lambda dev, plan, **kw: done.append(("support", g.mode, g.tab, g.number)) or [])
-    monkeypatch.setattr(fm, "write_memory", lambda dev, plan, mp, **kw: done.append(("memory", g.mode, g.tab, g.number)) or [])
+    monkeypatch.setattr(
+        fm, "write_support", lambda dev, plan, **kw: done.append(("support", g.mode, g.tab, g.number)) or []
+    )
+    monkeypatch.setattr(
+        fm, "write_memory", lambda dev, plan, mp, **kw: done.append(("memory", g.mode, g.tab, g.number)) or []
+    )
     out = fm.run(dev, {"support": {"set": 4}, "memory": {"set": 6}}, "nia")
-    assert done == [("support", "nia", "support", 4), ("memory", "nia", "memory", 6)] and out == {"support": [], "memory": []}
-    with pytest.raises(FormationWriteError, match="memory.set"):
+    assert done == [("support", "nia", "support", 4), ("memory", "nia", "memory", 6)] and out == {
+        "support": [],
+        "memory": [],
+    }
+    with pytest.raises(FormationWriteError, match="memory.set"):  # noqa: RUF043
         fm.run(dev, {"support": {"set": 4}, "memory": {}}, "nia", what=("memory",))
 
 
@@ -240,7 +261,11 @@ def test_open_taps_submenu_item_on_device_frame(monkeypatch):
     img = _frame("idol-submenu")
     clicks = []
     state = {"menu": False}
-    monkeypatch.setattr(fm, "read_menu", lambda im, texts: {"mode": "hajime", "tab": "support", "number": 1, "buttons": {}} if state["menu"] else None)
+    monkeypatch.setattr(
+        fm,
+        "read_menu",
+        lambda im, texts: {"mode": "hajime", "tab": "support", "number": 1, "buttons": {}} if state["menu"] else None,
+    )
 
     def click(x, y):
         clicks.append((x, y))

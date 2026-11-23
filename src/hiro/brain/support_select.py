@@ -25,9 +25,14 @@ from __future__ import annotations
 import re
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cache, lru_cache  # noqa: F401
 
-ATTR_OF = {"SupportCardType_Vocal": "Vo", "SupportCardType_Dance": "Da", "SupportCardType_Visual": "Vi", "SupportCardType_Assist": None}
+ATTR_OF = {
+    "SupportCardType_Vocal": "Vo",
+    "SupportCardType_Dance": "Da",
+    "SupportCardType_Visual": "Vi",
+    "SupportCardType_Assist": None,
+}
 NAME = {"Vo": "vocal", "Da": "dance", "Vi": "visual"}
 MAIN_ATTR = "Da"  # Campus 広：主 Da（用户 / 决策-07）
 MAIN_COUNT = 4  # 4-2-0 / 4-1-1 [ep08][playbook]
@@ -48,20 +53,44 @@ ROUTE = {
     "shop": 2,  # 相談 / 本战商店（start_shop）
     "audition": 5,  # 考试结束（选拔 3 + 本战 2）
     "customize": 4,  # 特別指導定制级数（第十五局起每次最多 2 张 × 若干级；粗估）
-    "upgrade": 4, "upgrade_mental": 2,  # 强化（相談 / 外出 / 事件）
-    "delete": 2, "delete_mental": 1, "change": 2,
-    "get_card": 14, "get_card_mental": 7, "get_card_active": 7, "get_card_aggressive": 6, "get_card_review": 1, "get_card_block": 2, "get_ssr": 1,
-    "get_item": 3, "get_drink": 20, "buy_drink": 1,
+    "upgrade": 4,
+    "upgrade_mental": 2,  # 强化（相談 / 外出 / 事件）
+    "delete": 2,
+    "delete_mental": 1,
+    "change": 2,
+    "get_card": 14,
+    "get_card_mental": 7,
+    "get_card_active": 7,
+    "get_card_aggressive": 6,
+    "get_card_review": 1,
+    "get_card_block": 2,
+    "get_ssr": 1,
+    "get_item": 3,
+    "get_drink": 20,
+    "buy_drink": 1,
 }
 SP_BASE = 0.25  # 没有 SP 率词条时主属性课程走 SP 的概率（粗估，待实机统计）
 SP_LESSON_EXTRA = 45  # SP 课程比普通课程多给的主属性（第十四局：SP Da+135 / 普通约 +90）
 GROWTH_BASE = {"Da": 1100, "Vo": 450, "Vi": 450}  # 成长率作用的基数：一局里课程 / 授業给的属性（粗估）
-MAIN_LESSONS, GROWTH_MAIN, GROWTH_OTHER = 7, 1100, 450  # 换主属性时 ROUTE["lessons"] / GROWTH_BASE 按这几个数重排（同上，粗估）
+MAIN_LESSONS, GROWTH_MAIN, GROWTH_OTHER = (
+    7,
+    1100,
+    450,
+)  # 换主属性时 ROUTE["lessons"] / GROWTH_BASE 按这几个数重排（同上，粗估）
 REVERSE_MIN_GAIN = 100  # 逆练门槛 [ep02]：别的属性当主属性总价值至少高这么多才换
 SAFE_LINES = (2000, 1400, 1100)  # 稳妥属性线（一 / 二 / 三属性）[ep08]
-VALUE_PER = {"p": 0.4, "hp": 1.5, "max_hp": 3.0, "exam_upgrade_pct": 0.08, "drink_discount": 30.0}  # 折算到属性点（粗估）
+VALUE_PER = {
+    "p": 0.4,
+    "hp": 1.5,
+    "max_hp": 3.0,
+    "exam_upgrade_pct": 0.08,
+    "drink_discount": 30.0,
+}  # 折算到属性点（粗估）
 LESSON_P_BASE = 40  # 一次课程奖励的 P 点（粗估）
-EVENT_CARD_GOOD, EVENT_CARD_BAD = 20.0, -25.0  # 事件送卡：用得上 / 污染循环（ep02：一张卡约 20 点；ep05：污染可能抵消属性）
+EVENT_CARD_GOOD, EVENT_CARD_BAD = (
+    20.0,
+    -25.0,
+)  # 事件送卡：用得上 / 污染循环（ep02：一张卡约 20 点；ep05：污染可能抵消属性）
 
 
 def _trigger_count(tid: str, sp: dict) -> float:
@@ -92,7 +121,7 @@ def _trigger_count(tid: str, sp: dict) -> float:
     return 0.0
 
 
-@lru_cache(maxsize=None)
+@cache
 def _compiled(card_id: str, level: int, limit_rank: str | None, plan: str | None = None) -> tuple:
     """(属性, ((效果类型, 效果值, 触发 ID, 次数上限), ...))。素材源给不出技能时返回 (属性, ())。"""
     from hiro.brain.formation import _support_skills
@@ -105,7 +134,7 @@ def _compiled(card_id: str, level: int, limit_rank: str | None, plan: str | None
     return attr, tuple((s["effect_type"], s.get("value"), s.get("trigger_id"), s.get("limit")) for s in skills)
 
 
-@lru_cache(maxsize=None)
+@cache
 def _events(card_id: str, level: int) -> tuple:
     """支援事件（等级够了才有）给的东西：(("param", 属性, 值) | ("card", card_id) | ("pitem", id) | ("upgrade",) | ("p", 值), ...)。"""
     from hiro.state.context import catalog
@@ -232,7 +261,18 @@ def make_slot(entry: dict, rental: bool = False) -> Slot | None:
         if etype == "ProduceEffectType_LessonSpChangeRatePermilAddition":
             for a in NAME:
                 sp[a] = sp.get(a, 0) + value
-    return Slot(cid, level, entry.get("limit_rank"), rental, entry.get("slot"), card["name"], attr, skills, _events(cid, level), sp)
+    return Slot(
+        cid,
+        level,
+        entry.get("limit_rank"),
+        rental,
+        entry.get("slot"),
+        card["name"],
+        attr,
+        skills,
+        _events(cid, level),
+        sp,
+    )
 
 
 def sp_counts(slots: list[Slot]) -> dict:
@@ -319,7 +359,10 @@ def choose(inventory: dict, *, size: int = 6) -> dict:
     if not pool:
         return {"error": "库存为空", "excluded": excluded}
     sp0 = sp_counts([])
-    single = {id(s): card_value(s, sp0)[0] + (sum(s.sp_rate.values()) / 1000 * ROUTE["lessons"][MAIN_ATTR] * SP_LESSON_EXTRA) for s in pool}
+    single = {
+        id(s): card_value(s, sp0)[0] + (sum(s.sp_rate.values()) / 1000 * ROUTE["lessons"][MAIN_ATTR] * SP_LESSON_EXTRA)
+        for s in pool
+    }
     main = sorted((s for s in pool if s.attr == MAIN_ATTR), key=lambda s: -single[id(s)])
     other = sorted((s for s in pool if s.attr != MAIN_ATTR), key=lambda s: -single[id(s)])
 
@@ -351,7 +394,7 @@ def choose(inventory: dict, *, size: int = 6) -> dict:
             for cand in pool:
                 if cand in best:
                     continue
-                trial = best[:i] + [cand] + best[i + 1:]
+                trial = best[:i] + [cand] + best[i + 1 :]
                 if not _valid(trial):
                     continue
                 v, _ = formation_value(trial)
@@ -367,7 +410,12 @@ def choose(inventory: dict, *, size: int = 6) -> dict:
     for cand in sorted(alt_pool, key=lambda s: -single[id(s)]):
         if cand not in alt and _valid(alt + [cand]):
             runner_v, _ = formation_value(alt + [cand])
-            runner = {"without": top.name, "replace_with": cand.name, "value": round(runner_v), "gap": round(best_v - runner_v)}
+            runner = {
+                "without": top.name,
+                "replace_with": cand.name,
+                "value": round(runner_v),
+                "gap": round(best_v - runner_v),
+            }
             break
     return {
         "main_attr": MAIN_ATTR, "value": round(best_v), "sp_lessons": {a: round(v, 1) for a, v in sp.items()},
@@ -411,14 +459,19 @@ def choose_main(inventory: dict, *, plan: str | None = None, default_attr: str |
         pick, why = default_attr, (f"不逆练：{best} 当主属性只高 {ok[best]['value'] - ok[default_attr]['value']}，"
                                    f"不到门槛 {min_gain:g} [ep02]")  # fmt: skip
     elif default_attr in ok and best != default_attr:
-        pick, why = best, f"逆练 {best}：比默认 {default_attr} 高 {ok[best]['value'] - ok[default_attr]['value']}（门槛 {min_gain:g} [ep02]）"
+        pick, why = (
+            best,
+            f"逆练 {best}：比默认 {default_attr} 高 {ok[best]['value'] - ok[default_attr]['value']}（门槛 {min_gain:g} [ep02]）",
+        )
     elif default_attr and default_attr not in ok:
         pick, why = best, f"默认主属性 {default_attr} 凑不出 4 张（{cands[default_attr]}），改用价值最高的 {best}"
     else:
         pick, why = best, f"主属性 {best}：价值最高"
     out = dict(ok[pick], main_attr_candidates=cands, main_attr_why=why)
     lines = dict(zip(("一", "二", "三"), SAFE_LINES))
-    out["notes"] = [f"4 张集中在 {pick}，其余属性靠课程和考试补：稳妥线 一属性 {lines['一']} / 二属性 {lines['二']} / 三属性 {lines['三']} [ep08]"]
+    out["notes"] = [
+        f"4 张集中在 {pick}，其余属性靠课程和考试补：稳妥线 一属性 {lines['一']} / 二属性 {lines['二']} / 三属性 {lines['三']} [ep08]"
+    ]
     return out
 
 

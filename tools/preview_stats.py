@@ -1,6 +1,6 @@
 """预演可观测汇总（协调 2026-11-02 预演加速一期第 5 项）：trace 里每个考试决策步的预演耗时、计划 / 实际算完的世界数、候选数。
 
-    python tools/preview_stats.py traces/my-run-*      # 一个或多个 trace 目录
+python tools/preview_stats.py traces/my-run-*      # 一个或多个 trace 目录
 """
 
 import json

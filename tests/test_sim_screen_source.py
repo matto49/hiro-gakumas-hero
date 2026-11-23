@@ -3,9 +3,9 @@
 
 import copy
 
-import pytest
-
 from hiro.brain.state import CAMPUS_HIRO
+
+import pytest
 
 pytestmark = pytest.mark.sim_master
 
@@ -52,12 +52,12 @@ def test_tracks_and_previews_along_a_sim_game():
         pv = src.previews(state)
         if pv:
             with_preview += 1
-            legal = {a for a in state.legal_actions()}
+            legal = set(state.legal_actions())
             assert all(p.action.legal_key() in legal for p in pv)
         legal = state.legal_actions()
         act = next((a for a in legal if a.startswith("play:")), "skip")
         slot = int(act.split(":")[1]) if act != "skip" else None
-        truth.step(dict(kind="play", id=truth._hand[slot]) if slot is not None else dict(kind="end_turn"))
+        truth.step({"kind": "play", "id": truth._hand[slot]} if slot is not None else {"kind": "end_turn"})
         src.executed(Action.from_legal(act), None)
     assert with_preview >= 8
     assert src.stats["lost"] == 0
@@ -117,7 +117,7 @@ def test_tracking_never_errors_on_random_effects(monkeypatch):
         legal = state.legal_actions()
         act = next((a for a in legal if a.startswith("play:")), "skip")
         slot = int(act.split(":")[1]) if act != "skip" else None
-        truth.step(dict(kind="play", id=truth._hand[slot]) if slot is not None else dict(kind="end_turn"))
+        truth.step({"kind": "play", "id": truth._hand[slot]} if slot is not None else {"kind": "end_turn"})
         src.executed(Action.from_legal(act), None)
     assert not [r for r in reasons if r[0] == "sim_error"], reasons
 
@@ -157,7 +157,7 @@ def test_card_missing_from_ledger_is_caught_not_lost():
         legal = state.legal_actions()
         act = next((a for a in legal if a.startswith("play:")), "skip")
         slot = int(act.split(":")[1]) if act != "skip" else None
-        truth.step(dict(kind="play", id=truth._hand[slot]) if slot is not None else dict(kind="end_turn"))
+        truth.step({"kind": "play", "id": truth._hand[slot]} if slot is not None else {"kind": "end_turn"})
         src.executed(Action.from_legal(act), None)
     assert src.stats["lost"] == 0
 

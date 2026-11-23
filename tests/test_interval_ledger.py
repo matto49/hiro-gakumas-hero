@@ -28,6 +28,7 @@ def _state(seq):
 def _setup(monkeypatch, plans):
     # 这里测账本记账（买了什么、重进不推翻方案），饮料按方案编号买：drink_step 关（开着时方案里的饮料交给 drink_step，见 test_interval_main25–28）
     monkeypatch.setattr(ProduceDeciders, "INTERVAL_DRINK_STEP", False)
+
     def plan(*a, **k):
         plans.append(k)
         return {"target_hp": 24, "buy": [6, 7], "upgrade": "p_card-02-act-3_186", "labels": ["回体力到 24/33", "买饮料 ブーストエキス", "买饮料 初星スペシャル青汁", "强化 せのび"],
@@ -35,8 +36,14 @@ def _setup(monkeypatch, plans):
                 "rows": [], "seconds": 1.0, "policy": "community", "seeds": [0]}  # fmt: skip
 
     monkeypatch.setattr(iv, "plan_tiered", plan)
-    monkeypatch.setattr(iv, "drink_gains", lambda *a, **k: {d: (GAINS.get(d, 0), 1 if GAINS.get(d, 0) < 1000 else 3000) for d in iv.SHOP_DRINK_POOL})
-    monkeypatch.setattr(iv, "CONTEXT", {"deck": FIX["finals_context"]["deck"], "permil": FIX["finals_context"]["permil"], "drinks": []})
+    monkeypatch.setattr(
+        iv,
+        "drink_gains",
+        lambda *a, **k: {d: (GAINS.get(d, 0), 1 if GAINS.get(d, 0) < 1000 else 3000) for d in iv.SHOP_DRINK_POOL},
+    )
+    monkeypatch.setattr(
+        iv, "CONTEXT", {"deck": FIX["finals_context"]["deck"], "permil": FIX["finals_context"]["permil"], "drinks": []}
+    )
 
 
 def test_main18_interval_replay(monkeypatch):
@@ -48,7 +55,9 @@ def test_main18_interval_replay(monkeypatch):
     assert dec.decide("HIF_ROUND_INTERVAL", _state(122)).action.args == {"index": 7}  # 青汁
     d = dec.decide("HIF_ROUND_INTERVAL", _state(123))  # 两格都读成 None / 已购
     assert dec._interval_ledger["drinks"] == [BOOST, AOJIRU]
-    assert "持有 空" not in d.reason and ("ブーストエキス" in d.reason or d.action.kind is not ActionKind.REROLL), d.reason
+    assert "持有 空" not in d.reason and ("ブーストエキス" in d.reason or d.action.kind is not ActionKind.REROLL), (
+        d.reason
+    )
     if d.action.kind is ActionKind.REROLL:
         d2 = dec.decide("HIF_ROUND_INTERVAL", _state(124))  # 刷新后货架两格都没认出
         assert d2.action.kind is ActionKind.WAIT, d2.reason
@@ -57,7 +66,9 @@ def test_main18_interval_replay(monkeypatch):
     n_plans = len(plans)
     d = dec.decide("HIF_ROUND_INTERVAL", _state(166))
     assert len(plans) == n_plans or plans[-1].get("extra_drinks") == [BOOST, AOJIRU]
-    assert not (d.action.kind is ActionKind.INTERVAL_BUY and d.action.args.get("index") == 4), d.reason  # 不再加买 えいえいおー+
+    assert not (d.action.kind is ActionKind.INTERVAL_BUY and d.action.args.get("index") == 4), (
+        d.reason
+    )  # 不再加买 えいえいおー+
 
 
 def test_rooibos_not_worth_50p():
@@ -91,7 +102,14 @@ def test_reference_deck_blocks_cross_tier(monkeypatch):
 
     monkeypatch.setattr(dk, "SIM", True)
     monkeypatch.setattr(dk, "log_deviation", lambda rec: None)
-    monkeypatch.setattr(rv, "_eval", lambda setups, seeds, workers=4: [{"mean": 100, "gain": 0, "gain_se": 0}, {"mean": 7000, "gain": 6386, "gain_se": 582}])
+    monkeypatch.setattr(
+        rv,
+        "_eval",
+        lambda setups, seeds, workers=4: [
+            {"mean": 100, "gain": 0, "gain_se": 0},
+            {"mean": 7000, "gain": 6386, "gain_se": 582},
+        ],
+    )
     opts = [dk.Option("skip", "不拿", [TOKUSEI, "pdrink_00-3-001", TOKUSEI, "pdrink_00-2-010"]),
             dk.Option("pick2", "拿 おしゃれハーブティー", [TOKUSEI, "pdrink_00-3-001", TOKUSEI, "pdrink_00-2-010", HERB])]  # fmt: skip
     res = dk.choose(opts, "r1", 5, sim_context={"exam": "r1", "deck": None, "hp": 33, "max_hp": 33, "permil": None})

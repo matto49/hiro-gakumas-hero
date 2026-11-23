@@ -3,8 +3,17 @@
 import importlib
 import sys
 
-MODULES = ["hiro.brain.llm", "hiro.brain.rules", "hiro.brain.state", "hiro.brain.battle", "hiro.brain.cards",
-           "hiro.brain.pick", "hiro.brain.pitem", "hiro.state.knowledge", "hiro.state.memory_priority"]
+MODULES = [
+    "hiro.brain.llm",
+    "hiro.brain.rules",
+    "hiro.brain.state",
+    "hiro.brain.battle",
+    "hiro.brain.cards",
+    "hiro.brain.pick",
+    "hiro.brain.pitem",
+    "hiro.state.knowledge",
+    "hiro.state.memory_priority",
+]
 
 
 def test_imports_without_private_deps(monkeypatch):

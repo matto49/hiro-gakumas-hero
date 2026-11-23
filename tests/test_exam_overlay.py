@@ -5,13 +5,13 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision.hif import read_hif_exam
 from hiro.vision.observe import observation
 from hiro.vision.offline import load
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "exam_overlay"
 

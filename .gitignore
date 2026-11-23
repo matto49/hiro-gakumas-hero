@@ -30,3 +30,11 @@ vendor/gakumas-player/data/master/*/manifest.json
 vendor/gakumas-player/data/master/*/build.json
 vendor/gakumas-player/**/__pycache__/
 vendor/gakumas-player/gakumas_exam_rs/target/
+
+# pip install -e . 的产物
+*.egg-info/
+
+# 覆盖率
+.coverage
+coverage.md
+coverage.xml

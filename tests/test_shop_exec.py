@@ -2,12 +2,12 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.contracts import Action, ActionKind
 from hiro.produce import ops, shop
+
+import cv2
+import pytest
 
 shop_ocr = ops.ocr_boxes
 
@@ -20,7 +20,10 @@ def frame(name: str):
 
 SHELF = [{"index": i, "kind": "card" if i < 4 else "drink", "price": 50, "purchased": False,
           "center": [65 + 155 * (i % 4) + 62, (482 if i < 4 else 668) + 62]} for i in range(8)]  # fmt: skip
-FIELDS = {"shelf": SHELF, "services": {"delete": {"price": 100, "available": True}, "upgrade": {"price": 100, "available": True}}}
+FIELDS = {
+    "shelf": SHELF,
+    "services": {"delete": {"price": 100, "available": True}, "upgrade": {"price": 100, "available": True}},
+}
 
 
 def near(xy, target, r=40):
@@ -79,8 +82,16 @@ class FakeConsult:
 
 def run(fake, action, fields=FIELDS, purchased=None):
     purchased = purchased or (lambda img, center: fake.state == "purchased01" and center == SHELF[0]["center"])
-    return shop.execute_shop(action, fields, shoot=fake.shoot, click=fake.click, clock=fake.clock, sleep=fake.sleep, purchased=purchased,
-                             calib=False)
+    return shop.execute_shop(
+        action,
+        fields,
+        shoot=fake.shoot,
+        click=fake.click,
+        clock=fake.clock,
+        sleep=fake.sleep,
+        purchased=purchased,
+        calib=False,
+    )
 
 
 # ---------------------------------------------------------------- 画面判据（实机帧）
@@ -200,7 +211,9 @@ def test_delete_service_without_choice_cancels():
     fake = FakeConsult()
     res = run(fake, Action(ActionKind.SHOP_BUY, {"service": "delete", "card_index": 3}))
     assert not res.ok and "没做成" in res.error
-    assert fake.state == "idle" and fake.clicks[0] == shop.SERVICE_TAP["delete"] and fake.clicks[-1][0] < 360  # 最后一下是左下キャンセル
+    assert (
+        fake.state == "idle" and fake.clicks[0] == shop.SERVICE_TAP["delete"] and fake.clicks[-1][0] < 360
+    )  # 最后一下是左下キャンセル
 
 
 EV = FLOW.parent.parent / "events"

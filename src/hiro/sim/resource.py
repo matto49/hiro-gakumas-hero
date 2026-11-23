@@ -28,7 +28,9 @@ SEEDS = range(100)
 POLICY = "community"
 
 
-def setup_for(exam: str, *, deck: list | None, drinks: list, hp: int, max_hp: int, permil: dict | None = None) -> tuple[iv.R2Setup, list[str]]:
+def setup_for(
+    exam: str, *, deck: list | None, drinks: list, hp: int, max_hp: int, permil: dict | None = None
+) -> tuple[iv.R2Setup, list[str]]:
     """下一场考试（selection / r1 / r2）的合成开局。返回 (setup, 近似说明)。"""
     notes = []
     d = [tuple(c) for c in deck or []]
@@ -59,7 +61,9 @@ def _eval(setups: list, seeds=SEEDS, workers: int = 4, policy: str = POLICY, **k
 BATCHES = (16, 32, 64, 100)  # 自适应：每批之后看最好的候选是否已经显著（≥ 32 局）或者到 100 局也不可能显著，就提前停
 
 
-def adaptive_eval(setups: list, *, threshold: float = 2.0, batches=BATCHES, workers: int = 4, policy: str = POLICY, **kw) -> list[dict]:
+def adaptive_eval(
+    setups: list, *, threshold: float = 2.0, batches=BATCHES, workers: int = 4, policy: str = POLICY, **kw
+) -> list[dict]:
     """和 _eval 一样的配对评估（第一个是基准），但分批跑：
     - 最好的候选已经好过 threshold 个标准误（且至少 32 局）→ 停；
     - 按现在的 t 值外推到最后一批也到不了 0.75 × threshold（t × √(最后一批 / 当前局数)）→ 停；

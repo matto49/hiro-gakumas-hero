@@ -2,10 +2,10 @@
 インターバルを終了して本戦へ進みますか？），执行器在等轮间主画面、主循环判成 DIALOG 没有处理器，247 秒后停机。
 这个框只在我们自己点了「終了」后出现（决策已定结束轮间），中断层点「本戦へ」。"""
 
-import pytest
-
 from hiro.runtime import interrupts
 from hiro.runtime.frame import Frame
+
+import pytest
 from test_runtime import frame as fake_frame
 from test_runtime import runtime
 
@@ -29,7 +29,7 @@ def test_interval_end_confirm_dialog_kind():
 def test_interval_end_confirm_taps_honsen():
     rt, _ = runtime([fake_frame()])
     assert "インターバル終了" in interrupts.check(Frame(_real("mainz4-interval-end-confirm.jpg"), 0.0), rt)
-    (x, y), = rt.raw_device.taps
+    ((x, y),) = rt.raw_device.taps
     assert x > 400 and abs(y - 1160) < 20  # 右下「本戦へ」，不是左下キャンセル
 
 

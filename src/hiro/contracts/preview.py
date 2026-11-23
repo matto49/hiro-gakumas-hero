@@ -15,13 +15,17 @@ class Preview(Contract):
     """一个候选动作的预演结果。"""
 
     action: Action
-    immediate: dict[str, Any] = field(default_factory=dict)  # 字段 → 确定值或 [最小, 最大]（考试：分数/元气/体力/干劲/好印象/剩余行动/抽牌）
+    immediate: dict[str, Any] = field(
+        default_factory=dict
+    )  # 字段 → 确定值或 [最小, 最大]（考试：分数/元气/体力/干劲/好印象/剩余行动/抽牌）
     expected: float | None = None  # 期望终局分（考试）或预演的主指标
     spread: float | None = None
     vs_best: float | None = None
     vs_best_se: float | None = None
     turn_passed: bool | None = None
-    summary: dict[str, Any] | None = None  # 给 LLM 的可读摘要（hiro.sim.preview.Preview.to_prompt 或 state.context 的行）
+    summary: dict[str, Any] | None = (
+        None  # 给 LLM 的可读摘要（hiro.sim.preview.Preview.to_prompt 或 state.context 的行）
+    )
     engine: str = "sim"  # sim（考试引擎 gakumas_exam）/ formula（主数据公式）
     # 可观测（协调 2026-11-02 预演加速一期第 5 项）：这个动作实际算了几个世界；这一步预演的总耗时 / 计划世界数 / 实际算完的世界数；
     # 没算或中途淘汰的原因（预筛 / 淘汰赛，二期起用；一期为 None）

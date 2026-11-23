@@ -2,15 +2,15 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision.extract import extract
 from hiro.vision.hif import read_hif_exam
 from hiro.vision.observe import observation
 from hiro.vision.offline import load
 from hiro.vision.scene import classify_current
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "finals"
 
@@ -26,7 +26,10 @@ def _npc_ok(got: list, want: list) -> bool:
     if engine() == "vision" or len(got) != len(want):
         return got == want
     truth = next((t for t in TRUE_NPC.values() if any(w is not None and w == t[i] for i, w in enumerate(want))), None)
-    return all(g == w or g is None or (w is None and truth is not None and g == truth[i]) for i, (g, w) in enumerate(zip(got, want)))
+    return all(
+        g == w or g is None or (w is None and truth is not None and g == truth[i])
+        for i, (g, w) in enumerate(zip(got, want))
+    )
 
 
 @pytest.mark.parametrize(
@@ -38,7 +41,13 @@ def test_finals_exam_screen(name, rnd, turns, hp, score, npc):
     img = load(cv2.imread(str(FIX / f"{name}.jpg")))
     assert classify_current().scene == "HIF_EXAM"  # 本战没有突破线，靠 1st / 2nd / 3rd 名次条认出
     r = read_hif_exam(img, cache=None)
-    assert (r["finals"], r["finals_round"], r["remaining_turns"], r["my_score"], r["my_rank_index"]) == (True, rnd, turns, score, 3)
+    assert (r["finals"], r["finals_round"], r["remaining_turns"], r["my_score"], r["my_rank_index"]) == (
+        True,
+        rnd,
+        turns,
+        score,
+        3,
+    )
     assert _npc_ok(r["npc_scores"], npc) and r["rank_line"] is None
     if hp is not None:
         assert r["hp"] == hp
@@ -82,8 +91,18 @@ def test_finals_round_result_page():
     scene = classify_current().scene
     assert scene == "HIF_FINALS_RANKING"
     raw, _ = extract(scene, img)
-    assert [(e["rank"], e["score"], e["me"]) for e in raw["entries"]] == [(1, 479574, False), (2, 365868, False), (3, 117846, True)]
-    assert (raw["my_score"], raw["rank"], raw["round_result"], raw["finals_round"], raw["next"]) == (117846, 3, 1, 1, False)
+    assert [(e["rank"], e["score"], e["me"]) for e in raw["entries"]] == [
+        (1, 479574, False),
+        (2, 365868, False),
+        (3, 117846, True),
+    ]
+    assert (raw["my_score"], raw["rank"], raw["round_result"], raw["finals_round"], raw["next"]) == (
+        117846,
+        3,
+        1,
+        1,
+        False,
+    )
     assert raw["retry"] == {"left": 3, "free": False}
     assert observation(1, 0.0, scene, raw).problems(strict=True) == []
 
@@ -95,9 +114,19 @@ def test_finals_final_result_page():
     raw, _ = extract(scene, img)
     assert scene == "HIF_FINALS_RANKING"
     assert [(e["rank"], e["score"], e["gain"], e["me"]) for e in raw["entries"]] == [
-        (1, 1078090, 598516, False), (2, 826373, 460505, False), (3, 179915, 62069, True)]
-    assert (raw["my_score"], raw["my_gain"], raw["rank"], raw["final"], raw["outcome"], raw["finals_round"], raw["passed"]) == (
-        179915, 62069, 3, True, "敗退", 2, False)
+        (1, 1078090, 598516, False),
+        (2, 826373, 460505, False),
+        (3, 179915, 62069, True),
+    ]
+    assert (
+        raw["my_score"],
+        raw["my_gain"],
+        raw["rank"],
+        raw["final"],
+        raw["outcome"],
+        raw["finals_round"],
+        raw["passed"],
+    ) == (179915, 62069, 3, True, "敗退", 2, False)
     assert raw["retry"] == {"left": 3, "free": False}
     assert observation(1, 0.0, scene, raw).problems(strict=True) == []
 
@@ -107,7 +136,14 @@ def test_round_interval_header():
     scene = classify_current().scene
     raw, _ = extract(scene, img)
     assert scene == "HIF_ROUND_INTERVAL"
-    assert raw == {"stamina": 18, "max_stamina": 33, "produce_point": 380, "interval": None, "complete": False, "dialog": None}  # 入场过场：货架没出现；通用 OCR 曾把 380 读成 580
+    assert raw == {
+        "stamina": 18,
+        "max_stamina": 33,
+        "produce_point": 380,
+        "interval": None,
+        "complete": False,
+        "dialog": None,
+    }  # 入场过场：货架没出现；通用 OCR 曾把 380 读成 580
 
 
 def test_result_score_alias():
@@ -129,7 +165,12 @@ def test_finals_start_confirm():
     assert observation(1, 0.0, scene, raw).problems(strict=True) == []
 
 
-INTERVAL_CARDS = [(0, "デイドリーミング+", 1, 30), (1, "元気な挨拶+", 1, 30), (4, "ひなたぼっこ+", 1, 50), (5, "ありがとうの言葉+", 1, 50)]
+INTERVAL_CARDS = [
+    (0, "デイドリーミング+", 1, 30),
+    (1, "元気な挨拶+", 1, 30),
+    (4, "ひなたぼっこ+", 1, 50),
+    (5, "ありがとうの言葉+", 1, 50),
+]
 
 
 @pytest.mark.parametrize(
@@ -146,9 +187,15 @@ def test_round_interval_shelf(name, hp, p, recover):
     iv = raw["interval"]
     assert [(c["index"], c["name"], c["upgrade"], c["price"]) for c in iv["cards"]] == INTERVAL_CARDS
     assert [(c["index"], c["name"], c["price"]) for c in iv["changes"]] == [(2, "成長痛", 50), (3, "アイドル宣言", 50)]
-    assert [(d["index"], d["name"], d["price"]) for d in iv["drinks"]] == [(6, "特製ハツボシエキス", 100), (7, "厳選初星ティー", 100)]
+    assert [(d["index"], d["name"], d["price"]) for d in iv["drinks"]] == [
+        (6, "特製ハツボシエキス", 100),
+        (7, "厳選初星ティー", 100),
+    ]
     assert iv["upgrade"] == {"price": 100, "available": True, "left": 1} and iv["customize"] == {"left": 2}
-    assert iv["recover"] == {"available": recover, "price_per_2hp": 10} and iv["refresh"] == {"price": 10, "available": True}
+    assert iv["recover"] == {"available": recover, "price_per_2hp": 10} and iv["refresh"] == {
+        "price": 10,
+        "available": True,
+    }
     assert not any(e["purchased"] for k in ("cards", "changes", "drinks") for e in iv[k])
     assert observation(1, 0.0, scene, raw).problems(strict=True) == []
 
@@ -214,10 +261,16 @@ def test_six_digit_badge():
     """main8 R2 最后一回合：届いて！+ 的预计得分 106,837 被读成 10,683（读取框到 cx+58，末位被切掉、切剩的半个字被过滤）。
     读取框扩到卡右缘；没有白描边的同色块（卡框角）不当作字。"""
     r = read_hif_exam(load(cv2.imread(str(FIX / "badge-6digit-main8-00155.jpg"))), cache=None)
-    assert [(c["name"], c["badge_score"]) for c in r["hand"]] == [("ゆめみごこち+", None), ("きらきら紙吹雪+", 45431), ("届いて！+", 106837)]
+    assert [(c["name"], c["badge_score"]) for c in r["hand"]] == [
+        ("ゆめみごこち+", None),
+        ("きらきら紙吹雪+", 45431),
+        ("届いて！+", 106837),
+    ]
 
 
-@pytest.mark.parametrize(("name", "bought"), [("interval-bought-main8-00097", [4, 7]), ("interval-bought-main8-00101", [0, 4, 7])])
+@pytest.mark.parametrize(
+    ("name", "bought"), [("interval-bought-main8-00097", [4, 7]), ("interval-bought-main8-00101", [0, 4, 7])]
+)
 def test_interval_after_purchase(name, bought):
     """main8 R2 轮间：买了第 0 格后连续 4 帧 complete=False（完整性只看第一格的饱和度，买过的格子变灰），interval 给 None，
     reduce 留着旧货架、决策又去买第 0 格；「交換済み」整帧 OCR 也常漏（第 4 格）。现在看没买过的格子，并用白字模板补认已购买。"""
@@ -253,10 +306,16 @@ def test_six_digit_badge_without_font(monkeypatch):
     monkeypatch.setattr(digits, "_templates", dict)
     monkeypatch.setattr(hif, "_templates", dict)
     r = read_hif_exam(load(cv2.imread(str(FIX / "badge-6digit-main8-00155.jpg"))), cache=None)
-    assert [(c["name"], c["badge_score"]) for c in r["hand"]] == [("ゆめみごこち+", None), ("きらきら紙吹雪+", 45431), ("届いて！+", 106837)]
+    assert [(c["name"], c["badge_score"]) for c in r["hand"]] == [
+        ("ゆめみごこち+", None),
+        ("きらきら紙吹雪+", 45431),
+        ("届いて！+", 106837),
+    ]
 
 
-@pytest.mark.parametrize(("name", "score"), [("score-overhang-gkms4-196", 123406), ("score-overhang-gkms4-230", 113066)])
+@pytest.mark.parametrize(
+    ("name", "score"), [("score-overhang-gkms4-196", 123406), ("score-overhang-gkms4-230", 113066)]
+)
 def test_finals_my_score_overhangs_card(name, score):
     """第 3 名时 6 位分数的末位伸出玩家卡白框约 5 像素：框只到白框右缘会掉末位（GKMS 第四局 123406 → 12340）。"""
     from hiro.vision.hif import read_finals_ranking
@@ -279,6 +338,7 @@ def test_finals_my_score_box_covers_overhang(monkeypatch):
         pytest.skip(f"需要实机截图 {f}")
     boxes = []
     monkeypatch.setattr(hif, "_ocr_int", lambda img, box: boxes.append(("ocr", box)))
+
     def font(img, box):
         boxes.append(("font", box))
         return None, {}
@@ -289,5 +349,5 @@ def test_finals_my_score_box_covers_overhang(monkeypatch):
     mine = boxes[:3]  # 前三次是玩家分数（之后是 NPC 格）
     right = hif.FINALS_ME_LEFTS[2] + hif.FINALS_ME_W  # 第 3 名白框右缘 483
     assert {k for k, _ in mine} == {"ocr", "font", "dddd"}
-    for _, (x1, y1, x2, y2) in mine:
+    for _, (_x1, _y1, x2, _y2) in mine:
         assert right + 5 <= x2 < right + 8

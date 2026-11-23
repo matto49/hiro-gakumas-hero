@@ -4,11 +4,11 @@
 
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.loop import kaa_patches, repeat_guard
 from hiro.loop.repeat_guard import Guard, Stalled, watchdog
 from hiro.produce import rental
+
+import pytest
 
 
 class Clock:
@@ -104,7 +104,9 @@ def test_single_prep_step_hanging_still_stalls():
     clock = Clock()
     s = _session(clock)
     cb = watchdog(s, every=5, clock=lambda: clock.t)
-    step = kaa_patches._prep_progress(lambda: [cb(NS(screenshot=None)) for _ in range(40) if not setattr(clock, "t", clock.t + 5)], "step2")
+    step = kaa_patches._prep_progress(
+        lambda: [cb(NS(screenshot=None)) for _ in range(40) if not setattr(clock, "t", clock.t + 5)], "step2"
+    )
     with pytest.raises(Stalled):
         step()
 

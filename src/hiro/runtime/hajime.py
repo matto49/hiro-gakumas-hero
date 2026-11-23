@@ -99,8 +99,12 @@ class LessonInfo:
             if k not in ("nth",) and saved.get(k) is not None:
                 self.d[k] = saved[k]
         if self.d["clear_target"] is not None:
-            self._limits = modes.lesson_limits(modes.lesson_levels(self.produce_id, self.idol_card_id, self.d["kind"], self.d["clear_target"]))
-        self._turns_bad = self.d["turns_total"] is None and saved.get("clear_target") is not None  # 上一段已经判过读错：不再读
+            self._limits = modes.lesson_limits(
+                modes.lesson_levels(self.produce_id, self.idol_card_id, self.d["kind"], self.d["clear_target"])
+            )
+        self._turns_bad = (
+            self.d["turns_total"] is None and saved.get("clear_target") is not None
+        )  # 上一段已经判过读错：不再读
 
     @property
     def done(self) -> bool:
@@ -115,12 +119,21 @@ class LessonInfo:
             d["turns_total"], changed = turns, True
         if hud is None:
             return changed
-        if goal == "clear" and d["clear_target"] is None and hud.get("left") is not None and hud.get("param") is not None:
+        if (
+            goal == "clear"
+            and d["clear_target"] is None
+            and hud.get("left") is not None
+            and hud.get("param") is not None
+        ):
             d["clear_target"], d["param_start"], changed = hud["left"], hud["param"], True
             levels = modes.lesson_levels(self.produce_id, self.idol_card_id, d["kind"], d["clear_target"])
             d["level_ids"] = [r["id"] for r in levels] or None
             self._limits = modes.lesson_limits(levels)
-        if goal == "perfect" and d["perfect_target"] is None and None not in (hud.get("left"), hud.get("param"), d["param_start"]):
+        if (
+            goal == "perfect"
+            and d["perfect_target"] is None
+            and None not in (hud.get("left"), hud.get("param"), d["param_start"])
+        ):
             v = hud["param"] - d["param_start"] + hud["left"]
             if v == self._pending_perfect:  # 加分动画中属性值还在跳：连续两次一样才采用
                 d["perfect_target"], changed = v, True
@@ -131,7 +144,12 @@ class LessonInfo:
                 extra = d["turns_total"] - limit_turn
                 if not 0 <= extra <= EXTRA_TURN_MAX:
                     # 追加回合离谱（续跑时 6 回合读成 19 → +13，协调 11-18）：当读错，回合数和追加回合都留空，这节课不再读
-                    logger.warning("初练习课：回合数 %s 比档位 limitTurn %s 多 %+d，当读错留空", d["turns_total"], limit_turn, extra)
+                    logger.warning(
+                        "初练习课：回合数 %s 比档位 limitTurn %s 多 %+d，当读错留空",
+                        d["turns_total"],
+                        limit_turn,
+                        extra,
+                    )
                     d["turns_total"], d["exam_extra_turn"], self._turns_bad, changed = None, None, True, True
                 else:
                     d["exam_extra_turn"] = extra
@@ -155,9 +173,12 @@ def hajime_core(scenario_mode: str):
     from hiro.vision import hajime as hv
 
     class HajimeCore(HifCore):
-        RETRY_JEWEL = ("ジュエル", "マニー")  # 再挑戦确认框要花ジュエル或用マニー买券：取消（协调 11-17：只用免费次数和已有チケット）
+        RETRY_JEWEL = (
+            "ジュエル",
+            "マニー",
+        )  # 再挑戦确认框要花ジュエル或用マニー买券：取消（协调 11-17：只用免费次数和已有チケット）
         last_action_choice = None
-        last_action_options: list = []
+        last_action_options: list = []  # noqa: RUF012
         last_exam_next = None
         _lesson_done = False  # 刚打完的练习课还有残帧：不重进，等处理过选行动页再开门
 
@@ -178,7 +199,12 @@ def hajime_core(scenario_mode: str):
             counts = self.__dict__.setdefault("_lesson_counts", {})
             counts[key] = counts.get(key, 0) + 1
             prod = self.s.state.produce or {}
-            info = LessonInfo(label, counts[key], prod.get("mode") or scenario_mode, prod.get("idol_card_id") or getattr(self.profile, "idol_id", None))
+            info = LessonInfo(
+                label,
+                counts[key],
+                prod.get("mode") or scenario_mode,
+                prod.get("idol_card_id") or getattr(self.profile, "idol_id", None),
+            )
             logger.info("初练习课：%s（第 %d 节，同种同属性第 %d 次）", label, self.lesson_count, counts[key])
             if (saved := self._lesson_from_trace(label)) is not None:
                 info.restore(saved)
@@ -230,7 +256,12 @@ def hajime_core(scenario_mode: str):
                                 last = es
                 except OSError:
                     continue
-            if last and last.get("label") == label and isinstance(last.get("lesson"), dict) and last["lesson"].get("clear_target") is not None:
+            if (
+                last
+                and last.get("label") == label
+                and isinstance(last.get("lesson"), dict)
+                and last["lesson"].get("clear_target") is not None
+            ):
                 return last["lesson"]
             return None
 
@@ -244,7 +275,12 @@ def hajime_core(scenario_mode: str):
             n = self.exam_count
             self.exam_count += 1
             type(self).exams_done = self.exam_count
-            stage = self.last_exam_next or self._exam_next_from_trace() or self._stage_by_turns() or ("mid1" if n == 0 else "final")
+            stage = (
+                self.last_exam_next
+                or self._exam_next_from_trace()
+                or self._stage_by_turns()
+                or ("mid1" if n == 0 else "final")
+            )
             return f"hajime-{stage}"
 
         def _exam_next_from_trace(self) -> str | None:
@@ -267,7 +303,9 @@ def hajime_core(scenario_mode: str):
                                 step = json.loads(line)
                             except ValueError:
                                 continue
-                            v = ((step.get("state_after") or step.get("state") or {}).get("page_fields") or {}).get("exam_next")
+                            v = ((step.get("state_after") or step.get("state") or {}).get("page_fields") or {}).get(
+                                "exam_next"
+                            )
                             last = v or last
                 except OSError:
                     continue
@@ -283,7 +321,10 @@ def hajime_core(scenario_mode: str):
                     return None
                 prod = self.s.state.produce or {}
                 idol = prod.get("idol_card_id") or getattr(self.profile, "idol_id", None)
-                turns = {st.kind: modes.audition_turns(prod.get("mode") or scenario_mode, idol, st.kind) for st in modes.auditions(prod.get("mode") or scenario_mode, idol)}
+                turns = {
+                    st.kind: modes.audition_turns(prod.get("mode") or scenario_mode, idol, st.kind)
+                    for st in modes.auditions(prod.get("mode") or scenario_mode, idol)
+                }
             except Exception:  # noqa: BLE001  识别 / 主数据不可用
                 return None
             mid = turns.get("mid1")
@@ -292,8 +333,8 @@ def hajime_core(scenario_mode: str):
         def _retry_if_failed(self, label: str, *, timeout: float = RESULT_WAIT_S) -> bool:
             """结算名次页：名次没进前 pass_rank（初前 3）就再挑戦（_click_retry：免费 / 已有チケット、每场最多 3 次、ジュエル / マニー 取消）。
             返回是否已发起再挑戦。"""
-            from hiro.vision.ocr import screen_texts
             from hiro.produce.ops import button_text
+            from hiro.vision.ocr import screen_texts
 
             deadline = time.monotonic() + timeout
             res = None
@@ -310,7 +351,13 @@ def hajime_core(scenario_mode: str):
             self.rec.log("exam_result", image=img, exam=label, result={**res, "passed": passed})
             self.s.observe(scene="HIF_EXAM_RESULT", img=img, fields={"score": res.get("score"), "rank": res["rank"], "passed": passed,
                                                                       "retry": res.get("retry")})  # fmt: skip
-            logger.info("%s 结算：第 %s 名（%s Pt），%s", label, res["rank"], res.get("score"), "过线" if passed else f"没进前 {need}")
+            logger.info(
+                "%s 结算：第 %s 名（%s Pt），%s",
+                label,
+                res["rank"],
+                res.get("score"),
+                "过线" if passed else f"没进前 {need}",
+            )
             if passed:
                 return False
             texts = screen_texts(img)
@@ -343,12 +390,17 @@ def hajime_main_attr(idol: str, mode: str, plan: dict | None) -> str | None:
         return plan["main_attr"]
     attr = default_main(idol, mode)
     if attr:
-        logger.info("初主属性：项目默认 %s%s", attr, "（编成方案不是为初生成的，没用它的主属性）" if plan and plan.get("main_attr") else "")
+        logger.info(
+            "初主属性：项目默认 %s%s",
+            attr,
+            "（编成方案不是为初生成的，没用它的主属性）" if plan and plan.get("main_attr") else "",
+        )
     return attr
 
 
 def run(args) -> int:
     from hiro import kaa_env
+    from hiro.brain import guides
     from hiro.contracts import TraceWriter
     from hiro.devices import active, open_device
     from hiro.devices.base import DeviceError
@@ -359,8 +411,6 @@ def run(args) -> int:
     from hiro.runtime.loop import Runtime
     from hiro.runtime.nia_sample import Sampler, set_mode
     from hiro.vision.classify import PageHit, classify
-
-    from hiro.brain import guides
 
     guides.refresh_if_stale()  # 偶像卡攻略包：没有或超过 24 小时就下载，失败不阻塞（协调 11-20）
     kaa_env.apply_formation_plan(args.idol)
@@ -374,9 +424,17 @@ def run(args) -> int:
         args.main_attr = hajime_main_attr(args.idol, mode, kaa_env.ACTIVE_PLAN)
     from hiro.runtime.segments import trace_name
 
-    session = Session(TraceWriter(name=trace_name("hajime", args.command, args.trace)))  # 续跑接上一段（体力 / P / 属性 / step 打底）
+    session = Session(
+        TraceWriter(name=trace_name("hajime", args.command, args.trace))
+    )  # 续跑接上一段（体力 / P / 属性 / step 打底）
     Core = hajime_core(mode)
-    for k, v in {"session": session, "use_llm": not args.no_llm, "llm_spec": args.llm, "main_attr": args.main_attr, "exams_done": 0}.items():
+    for k, v in {
+        "session": session,
+        "use_llm": not args.no_llm,
+        "llm_spec": args.llm,
+        "main_attr": args.main_attr,
+        "exams_done": 0,
+    }.items():
         setattr(Core, k, v)
     core = Core(scenario="qualify", idol=args.idol)
     set_mode(session, mode)

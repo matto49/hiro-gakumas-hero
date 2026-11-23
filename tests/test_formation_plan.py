@@ -3,15 +3,15 @@
 import json
 from pathlib import Path
 
-import cv2
-import pytest
-
 from hiro.brain import formation_plan as fp
 from hiro.brain import support_select as ss
 from hiro.brain.formation import select_memories
 from hiro.produce.formation_check import check_memory_step3, check_support_step2, memory_set_number
 from hiro.state.context import catalog
 from hiro.state.memory_priority import PROFILES, profile_for_idol
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "support"
 HIRO = "i_card-shro-3-007"
@@ -29,7 +29,9 @@ pytestmark = pytest.mark.skipif(not _have_master(), reason="需要主数据（sc
 
 
 def _need(*names):
-    return pytest.mark.skipif(not all((FIX / n).is_file() for n in names), reason="需要实机截图 tests/fixtures/support/" + "、".join(names))
+    return pytest.mark.skipif(
+        not all((FIX / n).is_file() for n in names), reason="需要实机截图 tests/fixtures/support/" + "、".join(names)
+    )
 
 
 def _max(card_id):
@@ -42,7 +44,11 @@ def _max(card_id):
 def _pool(attr, n, plan="ProducePlanType_Plan2"):
     out = []
     for r in catalog().rows("SupportCard"):
-        if r["rarity"] == "SupportCardRarity_Ssr" and ss.ATTR_OF.get(r["type"]) == attr and r["planType"] in ("ProducePlanType_Common", plan):
+        if (
+            r["rarity"] == "SupportCardRarity_Ssr"
+            and ss.ATTR_OF.get(r["type"]) == attr
+            and r["planType"] in ("ProducePlanType_Common", plan)
+        ):
             out.append(_max(r["id"]))
         if len(out) >= n:
             break
@@ -58,7 +64,11 @@ def test_using_restores_and_default_matches_original_tables():
         assert (dict(ss.GROWTH_BASE), dict(ss.ROUTE["lessons"])) == (before[2], before[3])  # 默认值下重排结果和原表一样
     with ss.using("Vo", "センス", 3):
         assert ss.MAIN_ATTR == "Vo" and ss.PLAN == "ProducePlanType_Plan1" and ss.MAIN_COUNT == 3
-        assert ss.ROUTE["lessons"]["Vo"] == ss.MAIN_LESSONS and ss.ROUTE["lessons"]["Da"] == 0 and ss.GROWTH_BASE["Vo"] == ss.GROWTH_MAIN
+        assert (
+            ss.ROUTE["lessons"]["Vo"] == ss.MAIN_LESSONS
+            and ss.ROUTE["lessons"]["Da"] == 0
+            and ss.GROWTH_BASE["Vo"] == ss.GROWTH_MAIN
+        )
     assert (ss.MAIN_ATTR, ss.PLAN, dict(ss.GROWTH_BASE), dict(ss.ROUTE["lessons"]), ss.MAIN_COUNT) == before
 
 
@@ -85,7 +95,9 @@ def test_choose_main_reverse_rule(monkeypatch, values, default, pick):
 
 def test_choose_main_real_cards_and_dict_inventory():
     cards = _pool("Da", 5) + _pool("Vo", 3) + _pool("Vi", 2)
-    inv = {"cards": {e["support_card_id"]: {k: v for k, v in e.items() if k != "support_card_id"} for e in cards}}  # tools.support_inventory 格式
+    inv = {
+        "cards": {e["support_card_id"]: {k: v for k, v in e.items() if k != "support_card_id"} for e in cards}
+    }  # tools.support_inventory 格式
     r = ss.choose_main(inv, plan="ProducePlanType_Plan2", default_attr="Da", size=5, main_count=3)
     assert "error" not in r and len(r["own"]) == 5 and r["counts"][r["main_attr"]] == 3
 
@@ -141,7 +153,9 @@ def test_upgrade_matters_for_must_upgrade_cards():
 def test_yaruki_default_unchanged():
     inv = {"memories": [_m(1, "p_card-02-men-2_004", timing="start"), _m(2, "p_card-02-act-1_037", timing="start"),
                         _m(3, "p_card-02-act-3_039"), _m(4, "p_card-00-men-3_005")]}  # fmt: skip
-    assert [c["card_id"] for c in select_memories(inv)["chosen"]] == [c["card_id"] for c in select_memories(inv, profile="yaruki")["chosen"]]
+    assert [c["card_id"] for c in select_memories(inv)["chosen"]] == [
+        c["card_id"] for c in select_memories(inv, profile="yaruki")["chosen"]
+    ]
 
 
 # ---------------------------------------------------------------- 方案文件
@@ -171,14 +185,25 @@ def test_build_plan_for_hiro(tmp_path):
 
 def test_build_without_inventories_reports_errors():
     plan = fp.build(HIRO, support_inventory=None, memory_inventory=None)
-    assert plan["support"]["error"] and plan["memory"]["error"] and plan["main_attr"] == "Da" and plan["memory"]["cards"] == []
+    assert (
+        plan["support"]["error"]
+        and plan["memory"]["error"]
+        and plan["main_attr"] == "Da"
+        and plan["memory"]["cards"] == []
+    )
     fp.format_report(plan)
 
 
 def test_kaa_env_applies_plan(tmp_path, monkeypatch):
     from hiro import kaa_env
 
-    for k, v in (("SUPPORT_SET", None), ("MEMORY_SET", None), ("MEMORY_CARDS", ()), ("ACTIVE_PLAN", None), ("PLAN_MAIN_ATTR", None)):
+    for k, v in (
+        ("SUPPORT_SET", None),
+        ("MEMORY_SET", None),
+        ("MEMORY_CARDS", ()),
+        ("ACTIVE_PLAN", None),
+        ("PLAN_MAIN_ATTR", None),
+    ):
         monkeypatch.setattr(kaa_env, k, v)  # 相当于没设 HIRO_SUPPORT_SET / HIRO_MEMORY_SET / HIRO_MEMORY_CARDS
     monkeypatch.delenv("HIRO_FORMATION_PLAN", raising=False)
     plan = _hiro_plan()
@@ -187,8 +212,10 @@ def test_kaa_env_applies_plan(tmp_path, monkeypatch):
     assert kaa_env.apply_formation_plan("i_card-skin-amao-1-001", str(path)) is None  # 别的偶像：不用
     assert kaa_env.ACTIVE_PLAN is None and kaa_env.SUPPORT_SET is None
     assert kaa_env.apply_formation_plan("i_card-skin-shro-3-007", str(path)) is not None
-    assert (kaa_env.SUPPORT_SET, kaa_env.MEMORY_SET) == (20, 20) and kaa_env.MEMORY_CARDS == tuple(plan["memory"]["cards"])
-    assert kaa_env.PLAN_MAIN_ATTR == plan["main_attr"]
+    assert (kaa_env.SUPPORT_SET, kaa_env.MEMORY_SET) == (20, 20) and tuple(
+        plan["memory"]["cards"]
+    ) == kaa_env.MEMORY_CARDS
+    assert plan["main_attr"] == kaa_env.PLAN_MAIN_ATTR
     monkeypatch.setattr(kaa_env, "SUPPORT_SET", 4)  # 环境变量写了编成号：以环境变量为准
     kaa_env.apply_formation_plan(None, str(path))
     assert kaa_env.SUPPORT_SET == 4
@@ -273,11 +300,15 @@ def test_scan_entries_keep_inventory_position():
 
 def test_support_step2_title_ocr_bo_variant():
     """第 2 步标题「2.サポート選択」被 OCR 读成「2.サボート選択」（11-16 Mac 账号 2）：也要认成 step2 页。"""
-    import numpy as np
-
     from hiro.vision.support_screens import read_support_formation
 
+    import numpy as np
+
     img = np.zeros((1280, 720, 3), np.uint8)
-    boxes = [("2.サボート選択", (56, 39, 201, 64)), ("20/20", (40, 650, 130, 680)), ("サボートカード編成 20", (30, 980, 300, 1010))]
+    boxes = [
+        ("2.サボート選択", (56, 39, 201, 64)),
+        ("20/20", (40, 650, 130, 680)),
+        ("サボートカード編成 20", (30, 980, 300, 1010)),
+    ]
     page = read_support_formation(img, boxes)
     assert page is not None and page["view"] == "step2" and page["name"] == "サポートカード編成20"

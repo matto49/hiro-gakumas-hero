@@ -1,10 +1,10 @@
 """续跑进培育、结算收尾回首页、活動支給（hiro.runtime.finish）：假设备 + 假帧（复用 test_opening 的 rig / frame）。"""
 
-import pytest
-
 from hiro.runtime import UNKNOWN, finish
 from hiro.vision.classify import PageHit
 from hiro.vision.ocr import Box, Text
+
+import pytest
 from test_opening import HOME, frame, rig  # 同目录（pytest 把测试目录放进 sys.path）
 
 
@@ -17,7 +17,10 @@ def test_resume_taps_resume_then_enters(monkeypatch):
     dlg = frame({}, [T("プロデュース再開", 360, 500), T("キャンセル", 200, 1160), T("再開する", 500, 1160)])
     rt, _ = rig(monkeypatch, [frame(HOME)], on_tap=lambda taps: [dlg] if len(taps) == 1 else [frame({})])
     assert finish.resume_produce(rt) == "resumed"
-    assert rt.raw_device.taps[0] == tuple(finish.box("Produce.BoxProduceOngoing").center) and rt.raw_device.taps[1] == (500, 1160)
+    assert rt.raw_device.taps[0] == tuple(finish.box("Produce.BoxProduceOngoing").center) and rt.raw_device.taps[1] == (
+        500,
+        1160,
+    )
 
 
 def test_resume_already_in_produce(monkeypatch):
@@ -47,11 +50,15 @@ def test_toolbar_home_template_on_real_menu_page():
     import os
     from pathlib import Path
 
-    import cv2
-
     from hiro.vision.ui_templates import tpl
 
-    path = Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures")) / "pages" / "menu-memory-formation-acct2.png"
+    import cv2
+
+    path = (
+        Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures"))
+        / "pages"
+        / "menu-memory-formation-acct2.png"
+    )
     if not path.exists():
         pytest.skip("需要实机截图 pages/menu-memory-formation-acct2.png")
     m = tpl("Common.ButtonToolbarHome").find(cv2.imread(str(path)))
@@ -92,7 +99,9 @@ def test_resume_unknown_is_not_in_produce(monkeypatch):
     seq = {1: [frame(HOME)], 2: [dlg], 3: [frame({})]}
     rt, _ = rig(monkeypatch, [popup], on_tap=lambda taps: seq.get(len(taps)))
     assert finish.resume_produce(rt) == "resumed"
-    assert rt.raw_device.taps[0] == (360, 1200) and rt.raw_device.taps[1] == tuple(finish.box("Produce.BoxProduceOngoing").center)
+    assert rt.raw_device.taps[0] == (360, 1200) and rt.raw_device.taps[1] == tuple(
+        finish.box("Produce.BoxProduceOngoing").center
+    )
 
 
 def test_resume_stops_when_never_recognized(monkeypatch):
@@ -121,7 +130,11 @@ def test_goto_home_from_tower_result(monkeypatch):
     from hiro.runtime import nav
 
     result = frame({}, [T("再挑戦", 130, 1160), T("→一覧に戻る", 351, 1160)])
-    rt, _ = rig(monkeypatch, [result], on_tap=lambda taps: [frame({"Common.ButtonToolbarHome": (85, 1211)})] if len(taps) == 1 else [frame(HOME)])
+    rt, _ = rig(
+        monkeypatch,
+        [result],
+        on_tap=lambda taps: [frame({"Common.ButtonToolbarHome": (85, 1211)})] if len(taps) == 1 else [frame(HOME)],
+    )
     nav.goto_home(rt)
     assert rt.raw_device.taps == [(351, 1160), (85, 1211)]
 
@@ -131,10 +144,10 @@ def test_tower_back_on_real_frames(name):
     import os
     from pathlib import Path
 
-    import cv2
-
     from hiro.runtime import nav
     from hiro.runtime.frame import Frame
+
+    import cv2
 
     path = Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures")) / "tower" / "pages" / name
     if not path.exists():
@@ -166,12 +179,14 @@ def test_resume_hajime_briefing_on_real_frame(monkeypatch, tmp_path):
     import os
     from pathlib import Path
 
-    import cv2
-
     from hiro.runtime.nia_sample import Sampler
     from hiro.vision.classify import classify
 
-    path = Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures")) / "pages" / "hajime-briefing-fktn.png"
+    import cv2
+
+    path = (
+        Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures")) / "pages" / "hajime-briefing-fktn.png"
+    )
     if not path.exists():
         pytest.skip("需要实机截图 pages/hajime-briefing-fktn.png")
     img = cv2.imread(str(path))
@@ -187,10 +202,10 @@ def test_resume_nia_page_on_real_frame(monkeypatch, tmp_path):
     import os
     from pathlib import Path
 
-    import cv2
-
     from hiro.runtime import nia_sample as ns
     from hiro.runtime.frame import Frame
+
+    import cv2
 
     p = Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures")) / "pages" / "nia-sales-event-3.png"
     if not p.exists():

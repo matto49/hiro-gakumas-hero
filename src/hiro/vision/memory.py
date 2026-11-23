@@ -30,7 +30,15 @@ CUSTOM_MIN_FRAC = 0.06
 
 ATTR = {"ボーカル": "Vo", "ダンス": "Da", "ビジュアル": "Vi"}
 PLAN = {"センス": "sense", "ロジック": "logic", "アノマリー": "anomaly"}
-OCR_FIX = (("ポーカル", "ボーカル"), ("ポーナス", "ボーナス"), ("バラメータ", "パラメータ"), ("ボーナXス", "ボーナス"), ("％", "%"), ("＋", "+"), (" ", ""))
+OCR_FIX = (
+    ("ポーカル", "ボーカル"),
+    ("ポーナス", "ボーナス"),
+    ("バラメータ", "パラメータ"),
+    ("ボーナXス", "ボーナス"),
+    ("％", "%"),
+    ("＋", "+"),
+    (" ", ""),
+)
 
 
 def _norm(text: str) -> str:
@@ -71,8 +79,10 @@ def read_card_page(img: MatLike, boxes) -> dict:
     from hiro.vision.deck import card_from_name
 
     texts = [(_norm(t), b) for t, b in boxes if PANEL_Y[0] <= _cy(b) <= PANEL_Y[1]]
-    timing = next(("start" if "開始時" in t else "mid" for t, _ in texts if "獲得" in t and ("開始時" in t or "後に" in t)), None)
-    x1, y1, x2, y2 = CARD_NAME_BOX
+    timing = next(
+        ("start" if "開始時" in t else "mid" for t, _ in texts if "獲得" in t and ("開始時" in t or "後に" in t)), None
+    )
+    x1, y1, _x2, y2 = CARD_NAME_BOX
     name = "".join(t for t, b in texts if y1 <= _cy(b) <= y2 and b[0] >= x1)
     card = card_from_name(name) if name else None
     plan = next((v for t, _ in texts if "のみ" in t for k, v in PLAN.items() if k in t), None)
@@ -93,9 +103,14 @@ def parse_stat(text: str) -> dict:
     if m := re.search(r"初期Pポイント\+?(\d+)|Pポイント\+(\d+)", t):
         return {"type": "produce_point", "attr": None, "value": int(m.group(1) or m.group(2)), "text": t}
     plan = re.match(r"【(センス|ロジック|アノマリー)専用】", t)
-    body = t[plan.end():] if plan else t
-    out = {"type": "passive", "attr": next((v for k, v in ATTR.items() if body.startswith(k)), None), "value": None, "text": t,
-           "plan": PLAN[plan.group(1)] if plan else None}
+    body = t[plan.end() :] if plan else t
+    out = {
+        "type": "passive",
+        "attr": next((v for k, v in ATTR.items() if body.startswith(k)), None),
+        "value": None,
+        "text": t,
+        "plan": PLAN[plan.group(1)] if plan else None,
+    }
     if m := re.search(r"(\d+)%の確率で(.+?)(\d+)(ターン)?$", body):
         out.update(chance_pct=int(m.group(1)), effect=m.group(2), value=int(m.group(3)), turns=bool(m.group(4)))
     if m := re.match(r"(.+?(?:終了時|開始時|時))、", body):
@@ -111,11 +126,17 @@ def read_ability_page(img: MatLike, boxes) -> dict:
     """第 2 页 → {ability, ability_truncated, stats: [parse_stat(...) + {active, truncated}…]}。
     较新的回忆上方有 H.I.F 专用能力蓝框，旧回忆没有（词条方块从顶部开始）。灰底「発動不可」方块（【センス専用】等其他计划 / 其他考试的被动）
     在 H.I.F 里不触发：active=False。方块文字被截断（「もっとみる」）时 truncated=True。"""
-    texts = [(_norm(t), b) for t, b in boxes if PANEL_Y[0] <= _cy(b) <= PANEL_Y[1] - 5 and not re.fullmatch(r"[12]/2", _norm(t))]
+    texts = [
+        (_norm(t), b)
+        for t, b in boxes
+        if PANEL_Y[0] <= _cy(b) <= PANEL_Y[1] - 5 and not re.fullmatch(r"[12]/2", _norm(t))
+    ]
     hint = [b for t, b in texts if _cy(b) <= ABILITY_Y[1] and any(h in t for h in ABILITY_HINTS)]
     ability, truncated, tiles_top = None, None, PANEL_Y[0]
     if hint:
-        lines = sorted(((t, b) for t, b in texts if _cy(b) <= ABILITY_Y[1] and b[0] >= 140), key=lambda tb: (_cy(tb[1]), tb[1][0]))
+        lines = sorted(
+            ((t, b) for t, b in texts if _cy(b) <= ABILITY_Y[1] and b[0] >= 140), key=lambda tb: (_cy(tb[1]), tb[1][0])
+        )
         truncated = any("もっとみる" in t for t, _ in lines)
         ability = "".join(t.replace("もっとみる", "") for t, _ in lines) or None
         tiles_top = ABILITY_Y[1] + 5
@@ -134,7 +155,9 @@ def read_ability_page(img: MatLike, boxes) -> dict:
     tiles.sort(key=lambda tile: (_cy(tile[0][1]) // 60, tile[0][1][0]))  # 先上后下、先左后右
     stats = []
     for tile in tiles:
-        text = "".join(t for t, _ in sorted(tile, key=lambda tb: (round(_cy(tb[1]) / 14), tb[1][0])))  # 同一行里红字百分比是单独的框
+        text = "".join(
+            t for t, _ in sorted(tile, key=lambda tb: (round(_cy(tb[1]) / 14), tb[1][0]))
+        )  # 同一行里红字百分比是单独的框
         inactive = "発動不可" in text
         cut = "もっとみる" in text
         stat = parse_stat(text.replace("発動不可", "").replace("もっとみる", "").replace("...", "").replace("…", ""))
@@ -156,7 +179,15 @@ def read_memory_detail(img: MatLike, boxes=None) -> dict | None:
 
 def merge_detail(card_page: dict | None, ability_page: dict | None) -> dict:
     """同一份回忆的两页拼成一条库存记录（memory-inventory.json 的一项）。"""
-    out = {"timing": None, "card": None, "plan": None, "customized": None, "ability": None, "ability_truncated": None, "stats": None}
+    out = {
+        "timing": None,
+        "card": None,
+        "plan": None,
+        "customized": None,
+        "ability": None,
+        "ability_truncated": None,
+        "stats": None,
+    }
     for part in (card_page, ability_page):
         if part:
             out.update({k: v for k, v in part.items() if k in out})

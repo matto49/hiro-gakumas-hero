@@ -1,6 +1,6 @@
 """打印示例局面的 LLM 上下文（演示用；局面是手工构造的，数值参考 run2 第 9 天）。
 
-    PYTHONPATH=src .venv/bin/python tools/state_demo.py [action_select|card_pick]
+PYTHONPATH=src .venv/bin/python tools/state_demo.py [action_select|card_pick]
 """
 
 import json

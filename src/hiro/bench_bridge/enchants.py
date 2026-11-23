@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache, lru_cache  # noqa: F401
 
 INF = -1
 CARD_ENCHANT_TYPES = ("ProduceExamEffectType_ExamStatusEnchant", "ProduceExamEffectType_ExamStatusEnchantEncore")
@@ -18,7 +18,11 @@ def _n(v) -> int:
 
 
 PLAYABLE_ADD = "ProduceExamEffectType_ExamPlayableValueAdd"
-CREATE_TO_DECK = ("ProduceCardMovePositionType_DeckRandom", "ProduceCardMovePositionType_DeckFirst", "ProduceCardMovePositionType_DeckLast")
+CREATE_TO_DECK = (
+    "ProduceCardMovePositionType_DeckRandom",
+    "ProduceCardMovePositionType_DeckFirst",
+    "ProduceCardMovePositionType_DeckLast",
+)
 
 
 class Enchants:
@@ -37,7 +41,7 @@ class Enchants:
         except Exception:  # noqa: BLE001
             return None
 
-    @lru_cache(maxsize=None)  # noqa: B019
+    @cache  # noqa: B019
     def _row(self, card_id: str, upgrade: int):
         """卡的主数据行；强化超过最高等级时按最高等级。"""
         for u in range(int(upgrade or 0), -1, -1):
@@ -46,7 +50,7 @@ class Enchants:
                 return row
         return None
 
-    @lru_cache(maxsize=None)  # noqa: B019  一局里同一张卡反复查
+    @cache  # noqa: B019  一局里同一张卡反复查
     def card(self, card_id: str, upgrade: int) -> tuple:
         """打出这张卡挂上的附魔：((附魔 id, 次数, 回合, 只第一次打出时), …)。"""
         row = self._row(card_id, upgrade)
@@ -54,21 +58,38 @@ class Enchants:
         for pe in (row or {}).get("playEffects") or ():
             e = self._get("ProduceExamEffect", pe.get("produceExamEffectId"))
             if e and e.get("effectType") in CARD_ENCHANT_TYPES and e.get("produceExamStatusEnchantId"):
-                out.append((e["produceExamStatusEnchantId"], _n(e.get("effectCount")), _n(e.get("effectTurn")), bool(pe.get("isOncePlayEffect"))))
+                out.append(
+                    (
+                        e["produceExamStatusEnchantId"],
+                        _n(e.get("effectCount")),
+                        _n(e.get("effectTurn")),
+                        bool(pe.get("isOncePlayEffect")),
+                    )
+                )
         return tuple(out)
 
-    @lru_cache(maxsize=None)  # noqa: B019
+    @cache  # noqa: B019
     def creates(self, card_id: str, upgrade: int) -> tuple:
         """打出这张卡时往山札塞的卡：((卡 id, 强化, 张数), …)（ExamCardCreateId → DeckRandom / DeckFirst，例：气まぐれハート → 眠気）。"""
         out = []
         for pe in (self._row(card_id, upgrade) or {}).get("playEffects") or ():
             e = self._get("ProduceExamEffect", pe.get("produceExamEffectId"))
-            if e and e.get("effectType") == "ProduceExamEffectType_ExamCardCreateId" and e.get("targetProduceCardId") \
-                    and e.get("movePositionType") in CREATE_TO_DECK:
-                out.append((e["targetProduceCardId"], int(e.get("targetUpgradeCount") or 0), max(1, int(e.get("effectValue1") or 0))))
+            if (
+                e
+                and e.get("effectType") == "ProduceExamEffectType_ExamCardCreateId"
+                and e.get("targetProduceCardId")
+                and e.get("movePositionType") in CREATE_TO_DECK
+            ):
+                out.append(
+                    (
+                        e["targetProduceCardId"],
+                        int(e.get("targetUpgradeCount") or 0),
+                        max(1, int(e.get("effectValue1") or 0)),
+                    )
+                )
         return tuple(out)
 
-    @lru_cache(maxsize=None)  # noqa: B019
+    @cache  # noqa: B019
     def plays_added(self, card_id: str, upgrade: int) -> tuple:
         """打出这张卡确定会加的出牌次数（スキルカード使用数追加）：((几回合后, 次数), …)。0 = 本回合（ExamPlayableValueAdd，
         次数在 effectCount）；ExamEffectTimer 链着它的是 effectValue1 回合后（「次のターン、」= 1）。带触发条件的不算（画面上判断不了）。"""
@@ -86,17 +107,17 @@ class Enchants:
                         out.append((max(1, int(e.get("effectValue1") or 0)), max(1, int(c.get("effectCount") or 0))))
         return tuple(out)
 
-    @lru_cache(maxsize=None)  # noqa: B019
+    @cache  # noqa: B019
     def end_turn_lost(self, card_id: str, upgrade: int) -> bool:
         """回合结束时还在手里就除外（isEndTurnLost，例：眠気）。"""
         return bool((self._row(card_id, upgrade) or {}).get("isEndTurnLost"))
 
-    @lru_cache(maxsize=None)  # noqa: B019
+    @cache  # noqa: B019
     def lost_on_play(self, card_id: str, upgrade: int) -> bool:
         """打出后除外（playMovePositionType = Lost：レッスン中1回、眠気…）。"""
         return (self._row(card_id, upgrade) or {}).get("playMovePositionType") == "ProduceCardMovePositionType_Lost"
 
-    @lru_cache(maxsize=None)  # noqa: B019
+    @cache  # noqa: B019
     def drink(self, drink_id: str) -> tuple:
         """喝下这瓶饮料挂上的附魔：((附魔 id, 次数, 回合), …)。"""
         row = self._get("ProduceDrink", drink_id) or {}
@@ -121,14 +142,18 @@ class Enchants:
                 pass
         return self._by_name.get(str(name).rstrip("+"))
 
-    @lru_cache(maxsize=None)  # noqa: B019
+    @cache  # noqa: B019
     def item(self, item_id: str) -> tuple:
         """P 道具带的附魔：((附魔 id, 次数, 回合), …)。"""
         row = self._get("ProduceItem", item_id) or {}
         out = []
         for eid in row.get("produceItemEffectIds") or ():
             e = self._get("ProduceItemEffect", eid)
-            if e and e.get("effectType") == "ProduceItemEffectType_ExamStatusEnchant" and e.get("produceExamStatusEnchantId"):
+            if (
+                e
+                and e.get("effectType") == "ProduceItemEffectType_ExamStatusEnchant"
+                and e.get("produceExamStatusEnchantId")
+            ):
                 out.append((e["produceExamStatusEnchantId"], _n(e.get("effectCount")), _n(e.get("effectTurn"))))
         return tuple(out)
 

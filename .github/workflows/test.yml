@@ -14,7 +14,22 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: pip install -e ".[dev]"
-      - run: PYTHONPATH=src python -m pytest -q tests
+      - name: pytest（带覆盖率）
+        run: PYTHONPATH=src python -m pytest -q tests --cov=hiro --cov-report=term:skip-covered --cov-report=markdown:coverage.md
+      - name: 覆盖率写进摘要页
+        if: always()
+        run: |
+          if [ -f coverage.md ]; then
+            echo "### 覆盖率（Python ${{ matrix.python }}）" >> "$GITHUB_STEP_SUMMARY"
+            echo "CI 没装 KAA，依赖它的测试会跳过，这里的数字偏低。完整表格见运行附件 coverage-${{ matrix.python }}。" >> "$GITHUB_STEP_SUMMARY"
+            grep -m1 '^| \*\*TOTAL' coverage.md >> "$GITHUB_STEP_SUMMARY" || true
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-${{ matrix.python }}
+          path: coverage.md
+          if-no-files-found: ignore
       - name: demo trace → 复盘页
         run: |
           python examples/make_demo_trace.py
