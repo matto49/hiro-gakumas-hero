@@ -1,6 +1,6 @@
 """对局里的 LLM 跟着控制台的模型设置走：桌面程序在确认开局时把 HIRO_LLM / OPENAI_* 交给工具层，任务子进程拿到；Key 不落盘、不进事件。"""
 
-import json
+import json  # noqa: F401
 import time
 
 import pytest
@@ -35,7 +35,7 @@ def test_model_env_reaches_the_job_but_not_disk(run_cli, service, hiro_home, mon
     monkeypatch.setenv("HIRO_LLM", "openai:deepseek-chat")
     monkeypatch.setenv("OPENAI_BASE_URL", "https://api.deepseek.com")
     monkeypatch.setenv("OPENAI_API_KEY", KEY)
-    job, events = _run_selftest(run_cli)
+    _job, events = _run_selftest(run_cli)
     logs = [e["text"] for e in events if e["type"] == "log"]
     assert "llm=openai:deepseek-chat base=https://api.deepseek.com key=set" in logs
     for p in hiro_home.rglob("*"):

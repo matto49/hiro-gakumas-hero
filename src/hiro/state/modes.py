@@ -50,6 +50,7 @@ def family(produce_id: str | None) -> str | None:
 def master():
     """引擎的主数据（gakumasu-diff 快照，vendor/gakumas-player）。不用 hiro.state 的 KAA game.db：那份太旧，新偶像卡查不到（8a3a1e7 11-17）。"""
     import hiro.sim  # noqa: F401  引擎路径
+
     from gakumas_exam.catalog import Catalog
 
     return Catalog()
@@ -62,7 +63,7 @@ def steps(produce_id: str) -> int:
 
 # ---------------------------------------------------------------- N.I.A PRO 简单模式
 # 账号偏好 ProduceNextIdolAuditionProEasyMode 打开时，N.I.A PRO 开局拿到 P 道具「N.I.Aキー（黄緑）」：对手分数 −80%
-#（主数据 Produce.easyProduceItemIds，逆向 10.4）。MASTER 没有。偏好只读，不改。
+# （主数据 Produce.easyProduceItemIds，逆向 10.4）。MASTER 没有。偏好只读，不改。
 NIA_EASY_KEY = "pitem_00-3-330-0"
 
 
@@ -82,7 +83,11 @@ def lesson_levels(produce_id: str | None, idol_card_id: str | None, kind: str, c
         rows = list(c.rows("ProduceStepLessonLevel"))
         for pid in (produce_id, *LESSON_LEVEL_FALLBACK.get((produce_id, kind), ())):
             prefix = f"p_step_lesson_level-{pid.split('-')[-1]}-plan{plan}-{kind}-"
-            hit = [r for r in rows if str(r.get("id", "")).startswith(prefix) and int(r.get("successThreshold") or -1) == int(clear)]
+            hit = [
+                r
+                for r in rows
+                if str(r.get("id", "")).startswith(prefix) and int(r.get("successThreshold") or -1) == int(clear)
+            ]
             if hit:
                 return hit
         return []
@@ -91,7 +96,7 @@ def lesson_levels(produce_id: str | None, idol_card_id: str | None, kind: str, c
 
 
 # 本模式的档位对不上画面时再查的模式：初 REGULAR 的追い込み用的是初 PRO（produce-002）的 hard 档
-#（8a3a1e7 11-18：bench 实录 5 节都是；平台两局实机 CLEAR 90 / 165 = produce-002 hard-1 / hard-2）
+# （8a3a1e7 11-18：bench 实录 5 节都是；平台两局实机 CLEAR 90 / 165 = produce-002 hard-1 / hard-2）
 LESSON_LEVEL_FALLBACK = {("produce-001", "hard"): ("produce-002",)}
 
 
@@ -133,7 +138,11 @@ def step_from_header(produce_id: str | None, stage: str | None, weeks: int | Non
 
 # ---------------------------------------------------------------- 考试 / 试镜档位
 
-STAGE_KIND = {"ProduceStepType_AuditionMid1": "mid1", "ProduceStepType_AuditionMid2": "mid2", "ProduceStepType_AuditionFinal": "final"}
+STAGE_KIND = {
+    "ProduceStepType_AuditionMid1": "mid1",
+    "ProduceStepType_AuditionMid2": "mid2",
+    "ProduceStepType_AuditionFinal": "final",
+}
 STAGE_ORDER = ("mid1", "mid2", "final")
 
 
@@ -164,7 +173,9 @@ def auditions(produce_id: str, idol_card_id: str) -> list[Stage]:
     """这个偶像卡在这个培育里的各场考试，按 mid1 → mid2 → final 排，每场的档位按编号排。偶像卡没有配置时返回空列表。"""
     c = master()
     ref = c.one("IdolCard", idol_card_id).get("produceStepAuditionDifficultyId")
-    rows = [r for r in c.rows("ProduceStepAuditionDifficulty") if r.get("id") == ref and r.get("produceId") == produce_id]
+    rows = [
+        r for r in c.rows("ProduceStepAuditionDifficulty") if r.get("id") == ref and r.get("produceId") == produce_id
+    ]
     out: list[Stage] = []
     for kind in STAGE_ORDER:
         tiers = sorted(

@@ -5,12 +5,12 @@ SELECT_PITEM → 决策「P 道具候选未识别」→ 停机。主循环快速
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-import pytest
-import cv2
-
 import hiro  # noqa: F401
 from hiro.loop.controller import DECK_LIST_CLOSE, HiroController
 from hiro.vision.deck import is_deck_list
+
+import cv2
+import pytest
 
 FRAME = Path(__file__).parent / "fixtures/deck_list/m20-deck-list-late.png"
 

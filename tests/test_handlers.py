@@ -34,12 +34,20 @@ def _run(h, page):
 def test_pages_call_core_methods():
     core = FakeCore()
     h = make_handlers(core)
-    assert _run(h, "CONSULT") is DONE and _run(h, "SKILL_CARD_REMOVAL") is DONE and _run(h, "PDRINK_MAX_CONFIRM") is DONE
+    assert (
+        _run(h, "CONSULT") is DONE and _run(h, "SKILL_CARD_REMOVAL") is DONE and _run(h, "PDRINK_MAX_CONFIRM") is DONE
+    )
     assert core.calls == ["consult", "skill_card_removal", "pdrink_max_confirm"]
-    assert _run(h, "HIF_FINALS_RANKING") is DONE and core.calls[-1] == "finals_ranking"  # 本战名次页（Mac p13 11-17 没处理）
-    assert _run(h, "OUTING_STAMINA_MAX") is DONE and core.calls[-1] == "outing_stamina_max"  # 原来没处理器（11-17 页面清单 P7b）
+    assert (
+        _run(h, "HIF_FINALS_RANKING") is DONE and core.calls[-1] == "finals_ranking"
+    )  # 本战名次页（Mac p13 11-17 没处理）
+    assert (
+        _run(h, "OUTING_STAMINA_MAX") is DONE and core.calls[-1] == "outing_stamina_max"
+    )  # 原来没处理器（11-17 页面清单 P7b）
     assert _run(h, "INITIAL_CHOICE") is DONE and core.calls[-1] == "event_choice"  # 事件选项页（O12）
-    assert _run(h, "SPECIAL_GUIDANCE") is DONE and core.calls[-1] == "special_guidance"  # 回到定制选卡页接着做（h11 11-15）
+    assert (
+        _run(h, "SPECIAL_GUIDANCE") is DONE and core.calls[-1] == "special_guidance"
+    )  # 回到定制选卡页接着做（h11 11-15）
     assert "LOADING" not in h and "unknown" not in h  # 不需要处理的页没登记，交给 advance
 
 
@@ -66,17 +74,21 @@ def test_event_commit_double_clicks_and_confirms_outing_ap_dialog(monkeypatch):
     """授業 / 外出提交（HifCore._event_commit，替换 KAA Study/OutingContext.commit）：双击第 i 个按钮；外出时 AP 已满框点确定。"""
     from types import SimpleNamespace as NS
 
-    import pytest
-
     import hiro.produce.hif as hif
     import hiro.vision.classify as cl
     from hiro.vision.ocr import Box
+
+    import pytest
 
     t = [0.0]
     clicks, taps = [], []
     monkeypatch.setattr(hif.time, "monotonic", lambda: t[0])
     monkeypatch.setattr(hif, "sleep", lambda s: t.__setitem__(0, t[0] + s))
-    monkeypatch.setattr(hif, "device", NS(screenshot=lambda: None, click=lambda x, y: None, double_click=lambda x, y: clicks.append((x, y))))
+    monkeypatch.setattr(
+        hif,
+        "device",
+        NS(screenshot=lambda: None, click=lambda x, y: None, double_click=lambda x, y: clicks.append((x, y))),
+    )
     monkeypatch.setattr(cl, "option_regions", lambda img: [Box(80, 700, 640, 780), Box(80, 820, 640, 900)])
     shown = iter([True, False, False])
     monkeypatch.setattr(hif, "tpl", lambda name: NS(exists=lambda img: next(shown, False)))
@@ -95,13 +107,23 @@ def test_produce_end_and_allowance_record_then_delegate(monkeypatch):
 
     seen = []
     core = FakeCore()
-    core.s = NS(observe=lambda **kw: seen.append(("observe", kw["scene"])) or kw["scene"], record=lambda obs, **kw: seen.append(("record", obs)))
+    core.s = NS(
+        observe=lambda **kw: seen.append(("observe", kw["scene"])) or kw["scene"],
+        record=lambda obs, **kw: seen.append(("record", obs)),
+    )
     monkeypatch.setattr(finish, "on_produce_end", lambda rt, f, hit: seen.append("finish_end") or finish.END)
     monkeypatch.setattr(finish, "on_allowance", lambda rt, f, hit: seen.append("claim") or DONE)
     h = make_handlers(core)
     assert h["ALLOWANCE"](None, None, None) is DONE
     assert h["PRODUCE_END"](None, None, None) is finish.END
-    assert seen == [("observe", "ALLOWANCE"), "claim", ("record", "ALLOWANCE"), ("observe", "PRODUCE_END"), ("record", "PRODUCE_END"), "finish_end"]
+    assert seen == [
+        ("observe", "ALLOWANCE"),
+        "claim",
+        ("record", "ALLOWANCE"),
+        ("observe", "PRODUCE_END"),
+        ("record", "PRODUCE_END"),
+        "finish_end",
+    ]
 
 
 def test_action_commit_taps_three_times_then_waits_button_gone(monkeypatch):
@@ -118,12 +140,16 @@ def test_action_commit_taps_three_times_then_waits_button_gone(monkeypatch):
     monkeypatch.setattr(ac, "sleep", lambda s: t.__setitem__(0, t[0] + s))
     present = {"InProduce.ButtonIconOuting": [True, False]}
     monkeypatch.setattr(ac, "tpl", lambda name: NS(exists=lambda img: (present.get(name) or [False]).pop(0)))
-    ac.action_commit(ActionButton("outing", None, None, Box(140, 960, 230, 1040), "InProduce.ButtonIconOuting"), clock=lambda: t[0])
+    ac.action_commit(
+        ActionButton("outing", None, None, Box(140, 960, 230, 1040), "InProduce.ButtonIconOuting"), clock=lambda: t[0]
+    )
     assert clicks == [(185, 1000)] * 3
 
     clicks.clear()
     frames = iter(["menu", "confirm", "confirm", "after"])  # 休む → 确认框出来 → 点了一次还在 → 关掉
-    monkeypatch.setattr(ac, "device", NS(screenshot=lambda: next(frames, "after"), click=lambda x, y: clicks.append((x, y))))
+    monkeypatch.setattr(
+        ac, "device", NS(screenshot=lambda: next(frames, "after"), click=lambda x, y: clicks.append((x, y)))
+    )
     where = {"InProduce.Rest": ("menu", (640, 840)), "InProduce.RestConfirmBtn": ("confirm", (500, 1160))}
 
     def tpl(name):
@@ -145,7 +171,9 @@ def test_handlers_and_core_import_no_kaa():
             "hiro.vision.scene, hiro.loop.session; "
             "print([m for m in sys.modules if m.split('.')[0] in ('kaa', 'kotonebot')])")  # fmt: skip
     env = {k: v for k, v in os.environ.items() if k != "HIRO_KAA_GAME_DATA"}
-    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True, env=env).stdout.strip()
+    out = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True, env=env
+    ).stdout.strip()
     assert out == "[]"
 
 
@@ -159,7 +187,13 @@ def test_special_guidance_reentry_continues_customizing(monkeypatch):
 
     calls = []
     monkeypatch.setattr(sg, "enter", lambda pf: calls.append("enter") or NS(ok=True))
-    monkeypatch.setattr(sg, "customize", lambda ci, ii, levels=1, cards=None: calls.append(("customize", ci)) or NS(ok=True, page_after="SPECIAL_GUIDANCE"))
+    monkeypatch.setattr(
+        sg,
+        "customize",
+        lambda ci, ii, levels=1, cards=None: (
+            calls.append(("customize", ci)) or NS(ok=True, page_after="SPECIAL_GUIDANCE")
+        ),
+    )
     monkeypatch.setattr(sg, "leave", lambda: calls.append("leave") or NS(ok=True))
     monkeypatch.setattr(hif, "sleep", lambda s: None)
     state = NS(page_fields={"cards": [{"index": 0}, {"index": 1}]})

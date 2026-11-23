@@ -58,7 +58,7 @@ def test_selftest_job_streams_events_until_done(run_cli, service):
 
 def test_second_job_is_busy(run_cli, service):
     start(run_cli, "selftest", "--seconds", "5")
-    code, env = start(run_cli, "selftest", "--seconds", "1")
+    _code, env = start(run_cli, "selftest", "--seconds", "1")
     assert env["ok"] is False and env["error"]["code"] == "busy"
     run_cli("run", "stop")
     wait_state(run_cli, {"stopped"})

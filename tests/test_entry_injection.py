@@ -45,6 +45,8 @@ def test_play_game_command(monkeypatch):
     import play_game
 
     monkeypatch.setattr(play_game.sys, "platform", "linux")
-    cmd = play_game.run_cmd("main", "main1-x", ["--idol", "i_card-skin-x", "--main-attr", "Da"], ["--expect-memory", "1,2,3"])
+    cmd = play_game.run_cmd(
+        "main", "main1-x", ["--idol", "i_card-skin-x", "--main-attr", "Da"], ["--expect-memory", "1,2,3"]
+    )
     assert cmd[1:] == ["-m", "hiro.run_hif", "new", "--mode", "main", "--idol", "i_card-skin-x", "--main-attr", "Da",
                        "--expect-memory", "1,2,3", "--trace", "main1-x"]  # fmt: skip

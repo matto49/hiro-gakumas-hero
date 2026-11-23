@@ -1,11 +1,11 @@
 """轮间按计算选（协调 4a 第八局本战分析 B3，用户确认）：选项、配对评估、R2 开局合成与决策器接线。"""
 
-import pytest
-
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import GameState
 from hiro.sim import interval as iv
+
+import pytest
 
 DECK = [("p_card-02-men-2_004", 1), ("p_card-02-act-3_186", 1), ("p_card-02-act-3_039", 1), ("p_card-02-act-1_037", 1),
         ("p_card-02-act-2_062", 1), ("p_card-00-men-3_005", 1), ("p_card-00-men-3_003", 0), ("p_card-02-men-2_057", 1),
@@ -21,7 +21,9 @@ def test_options_and_costs():
     assert {"hp19", "hp24", "hp33", "drink7", "card4"} <= set(opts)
     assert opts["hp19"].cost == 10 and opts["hp33"].cost == 80 and len(opts["hp33"].actions) == 8
     s = opts["card4"].apply(SETUP)
-    assert s.star == 865 and ("p_card-02-act-1_071", 1) in s.deck and len(s.deck) == len(DECK) + 1  # 买卡不算星星（第九局复盘）
+    assert (
+        s.star == 865 and ("p_card-02-act-1_071", 1) in s.deck and len(s.deck) == len(DECK) + 1
+    )  # 买卡不算星星（第九局复盘）
     assert opts["drink7"].apply(SETUP).drinks == ["pdrink_02-3-010"]
     assert all(o.cost <= 60 for o in iv.options(SHELF, SETUP, 60))  # 买不起的不列
 
@@ -89,12 +91,19 @@ def test_rule_fallback_targets_half_hp_and_skips_junk(monkeypatch):
 
 def test_plan_runs_with_missing_attr_permil(monkeypatch):
     """第十局续跑：读回的 R1 倍率只有 Vo / Da（画面没读到 Vi 回合），plan() 曾直接返回 None、轮间走兜底什么都没买。"""
-    monkeypatch.setattr(iv, "CONTEXT", {"deck": [list(c) for c in DECK], "drinks": [], "permil": {"Vo": 35680, "Da": 30870}})
+    monkeypatch.setattr(
+        iv, "CONTEXT", {"deck": [list(c) for c in DECK], "drinks": [], "permil": {"Vo": 35680, "Da": 30870}}
+    )
     seen = {}
 
     def fake_search(setup, opts, p, **kw):
         seen["permil"] = setup.permil
-        return {"combos": [{"options": [], "labels": [], "gain": 0, "gain_se": 0, "cost": 0, "mean": 1}], "seconds": 0, "policy": "heuristic", "seeds": [0]}
+        return {
+            "combos": [{"options": [], "labels": [], "gain": 0, "gain_se": 0, "cost": 0, "mean": 1}],
+            "seconds": 0,
+            "policy": "heuristic",
+            "seeds": [0],
+        }
 
     monkeypatch.setattr(iv, "search", fake_search)
     res = iv.plan(SHELF, hp=21, max_hp=33, p=250, star=900)
@@ -114,7 +123,12 @@ def test_final_interval_buys_every_nonnegative_option():
     gains = {"upgrade": 9000, "drink6": 4777, "hp24": 4500, "hp33": 3000, "drink7": 800, "card5": -2000, "card0": 100}
     rows = [{"options": [k], "gain": g, "gain_se": 4000} for k, g in gains.items()]
     chosen = [o.key for o, _ in iv.greedy_final(rows, opts, 389, drinks_held=0, drink_capacity=4)]
-    assert chosen == ["upgrade", "drink6", "hp24", "drink7"]  # hp33 同组只取一档；ありがとう 负期望；ハイテンション 冲突牌（小牌组）不买
+    assert chosen == [
+        "upgrade",
+        "drink6",
+        "hp24",
+        "drink7",
+    ]  # hp33 同组只取一档；ありがとう 负期望；ハイテンション 冲突牌（小牌组）不买
     assert iv.greedy_final(rows, opts, 150, drinks_held=0, drink_capacity=4)[0][0].key == "upgrade"
 
 

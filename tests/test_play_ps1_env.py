@@ -15,7 +15,9 @@ def test_state_source_kept_when_preset():
     lines = _assignments("HIRO_EXAM_STATE_SOURCE")
     assert lines, "play.ps1 应在没设时给默认 SimScreen 来源"
     for line in lines:
-        assert re.match(r"if \(-not \$env:HIRO_EXAM_STATE_SOURCE\)", line), f"无条件覆盖了 HIRO_EXAM_STATE_SOURCE：{line}"
+        assert re.match(r"if \(-not \$env:HIRO_EXAM_STATE_SOURCE\)", line), (
+            f"无条件覆盖了 HIRO_EXAM_STATE_SOURCE：{line}"
+        )
     assert "SimScreenExamStateSource" in lines[0]
 
 
@@ -42,7 +44,9 @@ def test_no_settings_check_passthrough():
 def test_play_ps1_sets_default_pause_flag():
     """DMM 版 hiro 以管理员身份跑，普通权限停不了它：play.ps1 缺省设暂停旗标路径（普通用户能写），外面设了就用外面的。"""
     s = (Path(__file__).resolve().parents[1] / "scripts" / "play.ps1").read_text(encoding="utf-8-sig")
-    assert 'if (-not $env:HIRO_PAUSE_FLAG) { $env:HIRO_PAUSE_FLAG = Join-Path $env:LOCALAPPDATA "hiro\\pause.flag" }' in s
+    assert (
+        'if (-not $env:HIRO_PAUSE_FLAG) { $env:HIRO_PAUSE_FLAG = Join-Path $env:LOCALAPPDATA "hiro\\pause.flag" }' in s
+    )
     i_admin = s.index("IsInRole(")
     assert s.index("if (-not $env:HIRO_PAUSE_FLAG)") > i_admin  # 在提权重开之后设，管理员进程里也有
 

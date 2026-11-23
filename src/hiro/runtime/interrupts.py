@@ -22,7 +22,9 @@ STOP_WORDS = ("メンテナンス中", "メンテナンスを実施", "他の端
 
 
 TAP_GAP_S = 1.5  # 同一个中断点了同一个框之后，这么久之内框还在就不再点（框淡出要时间：カスタマイズ確認 0.5 秒点了两次「決定」，h10 11-15）
-CONFIRM_FADE_S = 8.0  # 点过「決定」之后这么久内框还在、按钮读不到，当成框在淡出（DMM 有时 3–4 秒才响应，qualifyz3 11-18）
+CONFIRM_FADE_S = (
+    8.0  # 点过「決定」之后这么久内框还在、按钮读不到，当成框在淡出（DMM 有时 3–4 秒才响应，qualifyz3 11-18）
+)
 
 
 def _recently(rt, key: str, gap: float = TAP_GAP_S) -> bool:
@@ -48,7 +50,9 @@ def red_line(frame, rt) -> str | None:
         raise ResumeBlocked(f"危险弹窗「{d['title']}」：没读到「キャンセル」，不点，停机")
     rt.device.tap(*cancel.rect.center)
     if d["kind"] == "data_discard":
-        raise ResumeBlocked(f"游戏提示「{d['title']}」（其他端末有进行中的培育）：已点「キャンセル」，是否破弃由用户决定")
+        raise ResumeBlocked(
+            f"游戏提示「{d['title']}」（其他端末有进行中的培育）：已点「キャンセル」，是否破弃由用户决定"
+        )
     return f"危险弹窗「{d['title']}」：点キャンセル"
 
 
@@ -66,9 +70,9 @@ def _comm_frame(rt, f) -> str | None:
 
 def _comm_title_y(frame) -> int | None:
     """「通信エラー」字样在一条弹窗标题条上（字的那几行橙黄占比 ≥ HEADER_MIN_FRAC、字下方紧接白色正文框）时返回字的中线 y。"""
-    import cv2
-
     from hiro.vision import pages
+
+    import cv2
 
     for t in frame.texts:
         if not any(h in t.text.replace(" ", "") for h in comm_error.TITLE_HINTS):
@@ -76,7 +80,9 @@ def _comm_title_y(frame) -> int | None:
         y1, y2 = int(t.rect.y1), int(t.rect.y2)
         band = frame.img[max(0, y1) : max(y1 + 1, y2), pages.HEADER_X[0] : pages.HEADER_X[1]]
         hsv = cv2.cvtColor(band, cv2.COLOR_BGR2HSV)
-        frac = float(((hsv[:, :, 0] >= 8) & (hsv[:, :, 0] <= 30) & (hsv[:, :, 1] >= 110) & (hsv[:, :, 2] >= 190)).mean())
+        frac = float(
+            ((hsv[:, :, 0] >= 8) & (hsv[:, :, 0] <= 30) & (hsv[:, :, 1] >= 110) & (hsv[:, :, 2] >= 190)).mean()
+        )
         if frac >= pages.HEADER_MIN_FRAC and any(pages._white_body(frame.img, y) for y in range(y2, y2 + 40, 4)):
             return (y1 + y2) // 2
     return None
@@ -103,7 +109,11 @@ def comm(frame, rt) -> str | None:
         return None  # 「リトライ」不在这个弹窗里（在标题条上面）
     f2 = rt.screen.shot()  # 重截核对：弹窗还在、按钮没挪
     e2 = comm_error.comm_error(f2.boxes) if f2.has_dialog else None
-    if e2 is None or e2["kind"] != e["kind"] or (e["retry"] and (e2["retry"] is None or abs(e2["retry"][1] - e["retry"][1]) > 20)):
+    if (
+        e2 is None
+        or e2["kind"] != e["kind"]
+        or (e["retry"] and (e2["retry"] is None or abs(e2["retry"][1] - e["retry"][1]) > 20))
+    ):
         return "通信エラー：重截时弹窗不在了 / 变了，这一拍不点"
     if e2["kind"] == "retry":
         now = rt.clock() if callable(getattr(rt, "clock", None)) else 0.0
@@ -148,7 +158,9 @@ def settings(frame, rt) -> str | None:
     def ocr(img):
         return [(t.text, t.conf, tuple(t.rect)) for t in screen_texts(img)]
 
-    r = skip_settings.handle(frame.boxes, shoot=lambda: rt.screen.shot().img, ocr=ocr, click=rt.device.tap, sleep=rt.sleep)
+    r = skip_settings.handle(
+        frame.boxes, shoot=lambda: rt.screen.shot().img, ocr=ocr, click=rt.device.tap, sleep=rt.sleep
+    )
     return f"设置框 {r['kind']}" if r else None
 
 
@@ -158,11 +170,15 @@ def customize_confirm(frame, rt) -> str | None:
     只认 P 道具定制（正文带「Pアイテム」），特別指導的「カスタマイズ実行確認」由它自己的执行器处理。读不到「決定」停机。"""
     if not frame.has_dialog or (d := frame.dialog) is None or d["kind"] != "customize_confirm":
         return None
-    if not any("pアイテム" in t.text.lower() for t in frame.texts):  # RapidOCR 小窗口会读成小写「pアイテム」（qualifyz3 11-18）
+    if not any(
+        "pアイテム" in t.text.lower() for t in frame.texts
+    ):  # RapidOCR 小窗口会读成小写「pアイテム」（qualifyz3 11-18）
         return None
     if _recently(rt, "customize_confirm"):
         return f"P 道具定制确认「{d['title']}」：刚点过「決定」，等框关"
-    btn = next((t for t in frame.texts if t.text.strip() == "決定" and t.rect.center.x > 360 and t.rect.center.y > 1000), None)
+    btn = next(
+        (t for t in frame.texts if t.text.strip() == "決定" and t.rect.center.x > 360 and t.rect.center.y > 1000), None
+    )
     if btn is None:
         if _recently(rt, "customize_confirm", CONFIRM_FADE_S):
             return f"P 道具定制确认「{d['title']}」：点过「決定」，按钮已读不到，等框关"
@@ -175,7 +191,9 @@ def customize_confirm(frame, rt) -> str | None:
 # 教程框（新账号 / 新赛季第一次进 H.I.F 弹，「H.I.F開幕!」「3回の選抜試験を突破しよう」「スター性を獲得しよう」…）：
 # 白底大卡片（x 27–693）+ 卡片下面一排页码点（当前页是橙色菱形，y≈1068）+ 底部正中只有一个按钮「次へ」/「閉じる」（y≈1160）。
 # 没有橙黄标题条，走不到 has_dialog：先看像素（左右两条白边、页码点那一带白底里有少量橙色），对上了才 OCR 底部按钮。
-TUTORIAL_EDGE_WHITE = 0.98  # 卡片左右白边（x 32–60 / 662–688，y 160–1100）白色比例：教程框 0.995–1.0；声音设置页 0.976、其他全屏页更低
+TUTORIAL_EDGE_WHITE = (
+    0.98  # 卡片左右白边（x 32–60 / 662–688，y 160–1100）白色比例：教程框 0.995–1.0；声音设置页 0.976、其他全屏页更低
+)
 TUTORIAL_DOT_ORANGE = (30, 200)  # 页码点那一带（y 1040–1100）的橙色像素：教程框 81–84；声音设置页的橙色滑条 379
 TUTORIAL_BAND_WHITE = 0.97  # 同一带的白色比例：教程框 0.993；声音设置页 0.929
 TUTORIAL_BUTTONS = ("次へ", "閉じる")
@@ -196,8 +214,12 @@ def _tutorial_card(img) -> bool:
     if white(32, 60, 160, 1100) < TUTORIAL_EDGE_WHITE or white(662, 688, 160, 1100) < TUTORIAL_EDGE_WHITE:
         return False
     band = hsv[1040 - 150 : 1100 - 150, 70:650]
-    orange = int(np.count_nonzero((band[..., 0] >= 5) & (band[..., 0] <= 22) & (band[..., 1] > 120) & (band[..., 2] > 200)))
-    return TUTORIAL_DOT_ORANGE[0] <= orange <= TUTORIAL_DOT_ORANGE[1] and white(70, 650, 1030, 1100) >= TUTORIAL_BAND_WHITE
+    orange = int(
+        np.count_nonzero((band[..., 0] >= 5) & (band[..., 0] <= 22) & (band[..., 1] > 120) & (band[..., 2] > 200))
+    )
+    return (
+        TUTORIAL_DOT_ORANGE[0] <= orange <= TUTORIAL_DOT_ORANGE[1] and white(70, 650, 1030, 1100) >= TUTORIAL_BAND_WHITE
+    )
 
 
 def tutorial(frame, rt) -> str | None:
@@ -207,7 +229,11 @@ def tutorial(frame, rt) -> str | None:
     if not _tutorial_card(frame.img):
         return None
     # 按钮左边的「→」「×」图标会被读成单独的一个框：只数带假名 / 汉字的
-    bottom = [(w, t) for t in frame.texts if 1120 <= t.rect.center.y <= 1200 and (w := re.sub(r"[^\u3040-\u30ff\u4e00-\u9fff]", "", t.text))]
+    bottom = [
+        (w, t)
+        for t in frame.texts
+        if 1120 <= t.rect.center.y <= 1200 and (w := re.sub(r"[^\u3040-\u30ff\u4e00-\u9fff]", "", t.text))
+    ]
     if len(bottom) != 1 or bottom[0][0] not in TUTORIAL_BUTTONS:
         return None
     word, btn = bottom[0]
@@ -264,7 +290,10 @@ def _achievement_toast(img) -> bool:
     if white(40, 56) < 0.9 or white(124, 146) < 0.9:
         return False
     chk = hsv[60:130, 590:665]
-    return int(np.count_nonzero((chk[..., 0] >= 95) & (chk[..., 0] <= 118) & (chk[..., 1] >= 120) & (chk[..., 2] >= 180))) >= 150
+    return (
+        int(np.count_nonzero((chk[..., 0] >= 95) & (chk[..., 0] <= 118) & (chk[..., 1] >= 120) & (chk[..., 2] >= 180)))
+        >= 150
+    )
 
 
 def achievement_toast(frame, rt) -> str | None:
@@ -343,7 +372,9 @@ def live_setting(frame, rt) -> str | None:
         return None
     if _recently(rt, "live_setting"):
         return "ライブ設定：刚点过「決定」，等框关"
-    btn = next((t for t in frame.texts if t.text.strip() == "決定" and t.rect.center.x > 360 and t.rect.center.y > 1000), None)
+    btn = next(
+        (t for t in frame.texts if t.text.strip() == "決定" and t.rect.center.x > 360 and t.rect.center.y > 1000), None
+    )
     rt.device.tap(*(btn.rect.center if btn is not None else LIVE_SETTING_DECIDE))
     _tapped(rt, "live_setting")
     return "ライブ設定：默认选项，点「決定」"
@@ -359,7 +390,9 @@ def consult_end_confirm(frame, rt) -> str | None:
         return None
     if _recently(rt, "consult_end"):
         return "相談終了確認：刚点过「決定」，等框关"
-    btn = next((t for t in frame.texts if t.text.strip() == "決定" and t.rect.center.x > 360 and t.rect.center.y > 1000), None)
+    btn = next(
+        (t for t in frame.texts if t.text.strip() == "決定" and t.rect.center.x > 360 and t.rect.center.y > 1000), None
+    )
     rt.device.tap(*(btn.rect.center if btn is not None else CONSULT_END_DECIDE))
     _tapped(rt, "consult_end")
     return "相談終了確認：点「決定」"
@@ -376,13 +409,18 @@ def interval_end_confirm(frame, rt) -> str | None:
         return None
     if _recently(rt, "interval_end"):
         return "インターバル終了確認：刚点过「本戦へ」，等框关"
-    btn = next((t for t in frame.texts if "本戦へ" in t.text and t.rect.center.x > 360 and t.rect.center.y > 1000), None)
+    btn = next(
+        (t for t in frame.texts if "本戦へ" in t.text and t.rect.center.x > 360 and t.rect.center.y > 1000), None
+    )
     rt.device.tap(*(btn.rect.center if btn is not None else INTERVAL_END_GO))
     _tapped(rt, "interval_end")
     return "インターバル終了確認：点「本戦へ」"
 
 
-DRINK_DETAIL_CANCEL = (237, 1162)  # 「Pドリンク詳細」左下「キャンセル」（实拍 tests/fixtures/pages/pdrink-detail-action-select.png）
+DRINK_DETAIL_CANCEL = (
+    237,
+    1162,
+)  # 「Pドリンク詳細」左下「キャンセル」（实拍 tests/fixtures/pages/pdrink-detail-action-select.png）
 
 
 def drink_detail(frame, rt) -> str | None:
@@ -392,7 +430,9 @@ def drink_detail(frame, rt) -> str | None:
     if not frame.has_dialog:
         return None
     title = (frame.dialog or {}).get("title") or ""
-    if "Pドリンク詳細" not in title.replace(" ", "") and not any("Pドリンク詳細" in t.text.replace(" ", "") for t in frame.texts):
+    if "Pドリンク詳細" not in title.replace(" ", "") and not any(
+        "Pドリンク詳細" in t.text.replace(" ", "") for t in frame.texts
+    ):
         return None
     if _recently(rt, "drink_detail"):
         return "Pドリンク詳細：刚点过キャンセル，等框关"
@@ -473,7 +513,9 @@ def decision_confirm(frame, rt) -> str | None:
     last = getattr(getattr(rt, "session", None), "last_decision", None)
     go = bool(last) and last[0] == "ACTION_SELECT" and (last[1].action.args or {}).get("option") in opts
     if go:
-        btn = next((t for t in frame.texts if t.text.replace(" ", "").strip() == "開始する" and t.rect.center.y > 1000), None)
+        btn = next(
+            (t for t in frame.texts if t.text.replace(" ", "").strip() == "開始する" and t.rect.center.y > 1000), None
+        )
         pos = btn.rect.center if btn is not None else LESSON_CONFIRM_START
     else:
         btn = next((t for t in frame.texts if "キャンセル" in t.text and t.rect.center.y > 1000), None)
@@ -519,7 +561,11 @@ def live_resume(frame, rt) -> str | None:
     if img is None or img.shape[0] <= img.shape[1]:
         return None
     h = img.shape[0]
-    if float(img[: h * 3 // 10].mean()) > 5 or float(img[h * 7 // 10 :].mean()) > 5 or float(img[h * 4 // 10 : h * 6 // 10].mean()) < 8:
+    if (
+        float(img[: h * 3 // 10].mean()) > 5
+        or float(img[h * 7 // 10 :].mean()) > 5
+        or float(img[h * 4 // 10 : h * 6 // 10].mean()) < 8
+    ):
         return None
     btn = next((t for t in frame.texts if LIVE_RESUME in t.text.replace(" ", "")), None)
     if btn is None:
@@ -532,9 +578,27 @@ def live_resume(frame, rt) -> str | None:
 
 
 Interrupt = Callable[[object, object], "str | None"]
-DEFAULT: tuple[Interrupt, ...] = (red_line, comm, stop_notice, date_changed, settings, customize_confirm, tutorial, reroll_confirm,
-                                   achievement_toast, affection_unlock, use_limit, live_setting, consult_end_confirm, interval_end_confirm, drink_detail, rest_confirm,
-                                   decision_confirm, tap_next_dialog, live_resume)
+DEFAULT: tuple[Interrupt, ...] = (
+    red_line,
+    comm,
+    stop_notice,
+    date_changed,
+    settings,
+    customize_confirm,
+    tutorial,
+    reroll_confirm,
+    achievement_toast,
+    affection_unlock,
+    use_limit,
+    live_setting,
+    consult_end_confirm,
+    interval_end_confirm,
+    drink_detail,
+    rest_confirm,
+    decision_confirm,
+    tap_next_dialog,
+    live_resume,
+)
 
 
 def check(frame, rt, interrupts: tuple[Interrupt, ...] = DEFAULT) -> str | None:

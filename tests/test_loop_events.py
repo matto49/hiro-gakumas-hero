@@ -7,14 +7,31 @@ from hiro.loop.session import Session
 
 
 def _obs(seq, params, page="ACTION_SELECT"):
-    return Observation(seq=seq, t=0.0, page=PageObs(page, "produce", 1.0, 2), fields={"params": params, "step": 12}, source="screen")
+    return Observation(
+        seq=seq, t=0.0, page=PageObs(page, "produce", 1.0, 2), fields={"params": params, "step": 12}, source="screen"
+    )
 
 
 def test_param_monotonic_blocks_q6_290(tmp_path):
     """第六局第 12 天选行动页 Da 读成 70（前一次 Da≈1000）：param_monotonic 拦下，Da 不进状态（也就不进决策）。"""
-    s = Session(TraceWriter(tmp_path), shoot=lambda: None, classify=lambda: ("ACTION_SELECT", "produce"), extract=lambda *a: ({}, 0))
-    s.observe(scene="ACTION_SELECT", fields={"params": {"Vo": 900, "Da": 1004, "Vi": 480}, "step": 13}, ready=True, save_frame=False)
-    s.observe(scene="ACTION_SELECT", fields={"params": {"Vo": 910, "Da": 70, "Vi": 486}, "step": 12}, ready=True, save_frame=False)
+    s = Session(
+        TraceWriter(tmp_path),
+        shoot=lambda: None,
+        classify=lambda: ("ACTION_SELECT", "produce"),
+        extract=lambda *a: ({}, 0),
+    )
+    s.observe(
+        scene="ACTION_SELECT",
+        fields={"params": {"Vo": 900, "Da": 1004, "Vi": 480}, "step": 13},
+        ready=True,
+        save_frame=False,
+    )
+    s.observe(
+        scene="ACTION_SELECT",
+        fields={"params": {"Vo": 910, "Da": 70, "Vi": 486}, "step": 12},
+        ready=True,
+        save_frame=False,
+    )
     assert s.state.produce["params"]["Da"] == 1004 and s.state.produce["params"]["Vo"] == 910
     assert any("读错拦截：produce.params.Da=70" in n for n in s.notes)
     step = s.record()
@@ -43,12 +60,19 @@ def test_events_from_select_card():
 
 def test_observed_acquire_pairs_with_action(tmp_path):
     """三选一拿卡（动作事件）+ 获得弹窗（识别事件）是同一件事：牌组只加一张，两条都标 confirmed。"""
-    s = Session(TraceWriter(tmp_path), shoot=lambda: None, classify=lambda: ("ACTION_SELECT", "produce"), extract=lambda *a: ({}, 0))
+    s = Session(
+        TraceWriter(tmp_path),
+        shoot=lambda: None,
+        classify=lambda: ("ACTION_SELECT", "produce"),
+        extract=lambda *a: ({}, 0),
+    )
     s.state.produce = {"deck": []}
     s.emit(Event(seq=10, kind="CARD_ACQUIRE", origin="action", args={"card_id": "x", "upgrade": 0}))
     s.emit(Event(seq=12, kind="CARD_ACQUIRE", origin="observed", args={"card_id": "x", "upgrade": 0}))
     assert [c["card_id"] for c in s.state.produce["deck"]] == ["x"] and all(e.confirmed for e in s._events)
-    s.emit(Event(seq=30, kind="CARD_ACQUIRE", origin="observed", args={"card_id": "y", "upgrade": 1}))  # 没有对应动作（回忆效果等）
+    s.emit(
+        Event(seq=30, kind="CARD_ACQUIRE", origin="observed", args={"card_id": "y", "upgrade": 1})
+    )  # 没有对应动作（回忆效果等）
     assert [c["card_id"] for c in s.state.produce["deck"]] == ["x", "y"]
 
 
@@ -56,7 +80,11 @@ def test_deck_review_replaces_deck():
     st = GameState(produce={"deck": [{"card_id": "a", "upgrade": 0}]}, pending_review=["produce.deck"])
     s2, _ = apply_event(st, Event(seq=1, kind="DECK_REVIEW", origin="review", args={"deck": [{"card_id": "b", "upgrade": 1}]}),
                         predictor=lambda s, e: [])  # fmt: skip
-    assert s2.produce["deck"] == [{"card_id": "b", "upgrade": 1}] and s2.pending_review == [] and s2.field_status["produce.deck"] == "verified"
+    assert (
+        s2.produce["deck"] == [{"card_id": "b", "upgrade": 1}]
+        and s2.pending_review == []
+        and s2.field_status["produce.deck"] == "verified"
+    )
 
 
 def test_attr_permil_keeps_per_attr():
@@ -69,7 +97,9 @@ def test_attr_permil_keeps_per_attr():
     st = reduce(st, Observation(seq=2, t=0, page=PageObs("HIF_EXAM", "produce", 1.0, 2), fields={"attr": "Da", "multiplier_permil": 12470},
                                 source="screen"))  # fmt: skip
     assert st.exam["attr_permil"] == {"Vo": 14130, "Da": 12470, "Vi": 10850} and st.exam["multiplier_permil"] == 12470
-    st = reduce(st, Observation(seq=3, t=0, page=PageObs("HIF_EXAM", "produce", 1.0, 3), fields={"attr": "Vi"}, source="screen"))
+    st = reduce(
+        st, Observation(seq=3, t=0, page=PageObs("HIF_EXAM", "produce", 1.0, 3), fields={"attr": "Vi"}, source="screen")
+    )
     assert st.exam["multiplier_permil"] == 10850
 
 
@@ -78,8 +108,12 @@ def test_brief_permil_cleared_after_exam():
 
     st = reduce(GameState(), Observation(seq=1, t=0, page=PageObs("HIF_EXAM_BRIEFING", "produce", 1.0, 2),
                                          fields={"multiplier_pct": {"Vo": 1413, "Da": 1247, "Vi": 1085}}, source="screen"))  # fmt: skip
-    st = reduce(st, Observation(seq=2, t=0, page=PageObs("HIF_EXAM", "produce", 1.0, 2), fields={"attr": "Da"}, source="screen"))
-    st = reduce(st, Observation(seq=3, t=0, page=PageObs("HIF_EXAM_RESULT", "produce", 1.0, 2), fields={}, source="screen"))
+    st = reduce(
+        st, Observation(seq=2, t=0, page=PageObs("HIF_EXAM", "produce", 1.0, 2), fields={"attr": "Da"}, source="screen")
+    )
+    st = reduce(
+        st, Observation(seq=3, t=0, page=PageObs("HIF_EXAM_RESULT", "produce", 1.0, 2), fields={}, source="screen")
+    )
     assert st.exam_session.brief_permil is None
 
 
@@ -96,6 +130,13 @@ def test_card_change_carries_stage1_pick():
     # 阶段 2 取消：换入卡作废，下一次换卡不会误用
     events_from_step("SKILL_CARD_CHANGE_1", {"kind": "ChangeCard", "args": {"stage": 1, "pick_index": 0}}, True,
                      {"candidates": [{"card_id": "x"}]}, None, seq=9)  # fmt: skip
-    assert events_from_step("SKILL_CARD_CHANGE_2", {"kind": "ChangeCard", "args": {"cancel": True}}, True, {}, None, seq=10) == []
-    ev2 = events_from_step("SKILL_CARD_CHANGE_2", {"kind": "ChangeCard", "args": {"remove_card_id": "b"}}, True, {}, None, seq=11)
+    assert (
+        events_from_step(
+            "SKILL_CARD_CHANGE_2", {"kind": "ChangeCard", "args": {"cancel": True}}, True, {}, None, seq=10
+        )
+        == []
+    )
+    ev2 = events_from_step(
+        "SKILL_CARD_CHANGE_2", {"kind": "ChangeCard", "args": {"remove_card_id": "b"}}, True, {}, None, seq=11
+    )
     assert "card_id" not in ev2[0].args

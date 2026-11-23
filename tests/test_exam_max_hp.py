@@ -55,11 +55,50 @@ def test_battle_state_uses_memory_max_hp_not_profile():
 
 
 def test_exam_hp_above_recorded_max_raises_floor():
+    """当前体力比记下的上限大：连续两帧读到同一个数才抬（协调 11-20：单帧读错会把半血线永久抬高）。"""
     mem = ExamMemory("qualify-2")
     mem.set_max_hp(33, "produce_screen")
     st = _build(mem, 39)
-    assert mem.max_hp == 39 and st.max_hp == 39
-    assert st.max_hp_note and "39" in st.max_hp_note
+    assert mem.max_hp == 33 and "等下一帧确认" in st.max_hp_note
+    st = _build(mem, 39)
+    assert mem.max_hp == 39 and st.max_hp == 39 and mem.max_hp_source == "exam_hp_floor"
+    assert st.max_hp_note and "连续两帧" in st.max_hp_note
+
+
+def test_single_frame_misread_does_not_raise():
+    mem = ExamMemory("qualify-2")
+    mem.set_max_hp(33, "produce_screen")
+    _build(mem, 38)  # 单帧读错
+    _build(mem, 30)  # 下一帧正常
+    _build(mem, 39)  # 又一帧不同的数
+    assert mem.max_hp == 33
+
+
+def test_seed_falls_back_to_profile_known_for_hif():
+    """培育页没读出上限：H.I.F 用构筑表的已知值（广 33），来源 profile_known；初 / N.I.A 广没有已知值，留 None；读到画面以画面为准。"""
+    mem = ExamMemory("r1")
+    assert (
+        seed_max_hp(mem, _session({"stamina": 30}), profile=CAMPUS_HIRO) == 33 and mem.max_hp_source == "profile_known"
+    )
+    mem = ExamMemory("qualify-1")
+    assert seed_max_hp(mem, None, profile=CAMPUS_HIRO) == 33  # 续跑开考前没经过培育页（局面为空）也按标签认出 H.I.F
+    mem = ExamMemory("hajime-mid1")
+    assert seed_max_hp(mem, _session({"mode": "produce-002", "stamina": 20}), profile=CAMPUS_HIRO) is None
+    mem = ExamMemory("r1")
+    assert (
+        seed_max_hp(mem, _session({"max_stamina": 39}), profile=CAMPUS_HIRO) == 39
+        and mem.max_hp_source == "produce_screen"
+    )
+    assert seed_max_hp(ExamMemory("r1"), _session({}), profile=None) is None  # 没有构筑表：不猜
+
+
+def test_item_trigger_with_fallback_max_hp():
+    """兜底的 33 让固有道具（HP 高于半血才触发）照常判断，不再一律按不触发。"""
+    card = CardView(0, "えいえいおー+", "p_card-02-men-1_031", 1, True, "mental", 2, 0, None, "元気+2やる気+4")
+    mem = ExamMemory("r2", item_charges_left=5)
+    seed_max_hp(mem, _session({}), profile=CAMPUS_HIRO)
+    mem.record_play(card, hp_before=20, profile=CAMPUS_HIRO)  # 20 > 16.5：触发
+    assert mem.item_charges_left == 4
 
 
 def test_max_hp_survives_memory_round_trip():

@@ -3,11 +3,11 @@
 
 from pathlib import Path
 
-import cv2
-
+from hiro.loop import kaa_patches as kp  # noqa: F401
 from hiro.produce import card_ops
-from hiro.loop import kaa_patches as kp
 from hiro.vision.deck import read_card_dialog
+
+import cv2
 
 FIX = Path(__file__).parent / "fixtures/change_index"
 EIEIO = "p_card-02-men-1_031"
@@ -20,7 +20,7 @@ def _cards(name):
 def test_main19_picks_unupgraded_copy_by_index():
     cards = _cards("main19-eieio-three.jpg")
     assert [(c["index"], c["upgrade"]) for c in cards if c.get("card_id") == EIEIO] == [(8, 1), (9, 0), (10, 0)]
-    hit, why = card_ops.pick_change_target(cards, 0, EIEIO, protected=set(), remove_index=10, remove_upgrade=0)
+    hit, _why = card_ops.pick_change_target(cards, 0, EIEIO, protected=set(), remove_index=10, remove_upgrade=0)
     assert hit["index"] == 10 and hit["upgrade"] == 0 and tuple(hit["center"]) == (434, 992)
 
 
@@ -45,7 +45,9 @@ def test_old_behaviour_without_index():
 def test_main19_second_change_kyorikan():
     """00:04 第二次换卡（距離感の基本，remove_index 7）当时是对的，新逻辑结果不变。"""
     cards = _cards("main19-kyorikan.jpg")
-    hit, why = card_ops.pick_change_target(cards, 0, "p_card-02-men-0_039", protected=set(), remove_index=7, remove_upgrade=0)
+    hit, _why = card_ops.pick_change_target(
+        cards, 0, "p_card-02-men-0_039", protected=set(), remove_index=7, remove_upgrade=0
+    )
     assert hit is not None and hit["index"] == 7
 
 
@@ -77,7 +79,9 @@ def test_scan_dialog_deck_merges_and_returns_to_top(monkeypatch):
         pos["swipes"].append("down" if down else "up")
         pos["i"] = min(len(screens) - 1, pos["i"] + 1) if down else max(0, pos["i"] - 1)
 
-    out = card_ops.scan_dialog_deck(card_ops.CHANGE2_CARD_AREA, expected=22, shoot=lambda: None, swipe=swipe, sleep=lambda s: None)
+    out = card_ops.scan_dialog_deck(
+        card_ops.CHANGE2_CARD_AREA, expected=22, shoot=lambda: None, swipe=swipe, sleep=lambda s: None
+    )
     assert out["complete"] and len(out["cards"]) == 22 and out["screens"] > 1
     assert [c["card_id"] for c in out["cards"]] == [f"c{i:02d}" for i in range(22)] and out["cards"][21]["index"] == 21
     assert pos["i"] == 0 and pos["swipes"].count("up") >= 1  # 滑回顶部，点卡时从第一屏开始找
@@ -90,7 +94,9 @@ def test_scan_single_screen_does_not_swipe(monkeypatch):
     swipes = []
     monkeypatch.setattr(vd, "read_card_dialog", lambda img, region: {"cards": one})
     monkeypatch.setattr(vd, "dialog_scroll", lambda img, region: {"scrollable": False, "at_top": True})
-    out = card_ops.scan_dialog_deck(card_ops.CHANGE2_CARD_AREA, shoot=lambda: None, swipe=lambda *a: swipes.append(a), sleep=lambda s: None)
+    out = card_ops.scan_dialog_deck(
+        card_ops.CHANGE2_CARD_AREA, shoot=lambda: None, swipe=lambda *a: swipes.append(a), sleep=lambda s: None
+    )
     assert out["screens"] == 1 and len(out["cards"]) == 12 and swipes == []
 
 
@@ -102,18 +108,34 @@ def test_hif_hands_whole_deck_to_decision(monkeypatch):
 
     st = HiroHifStrategy.__new__(HiroHifStrategy)
     notes, recovers = [], []
-    st.s = NS(state=GameState(page_fields={"cards": _screens(_deck())[0]}), note=notes.append, recover=lambda k, d: recovers.append(k))
+    st.s = NS(
+        state=GameState(page_fields={"cards": _screens(_deck())[0]}),
+        note=notes.append,
+        recover=lambda k, d: recovers.append(k),
+    )
     st._deck_size = lambda: 22
     whole = [{**c, "index": i, "deck_index": i} for i, c in enumerate(_deck())]
-    monkeypatch.setattr(card_ops, "scan_dialog_deck", lambda region, expected=None: {"cards": whole, "complete": True, "screens": 4, "problems": []})
+    monkeypatch.setattr(
+        card_ops,
+        "scan_dialog_deck",
+        lambda region, expected=None: {"cards": whole, "complete": True, "screens": 4, "problems": []},
+    )
     assert st._scan_change_deck() is True
     pf = st.s.state.page_fields
     assert len(pf["cards"]) == 22 and pf["deck_complete"] and pf["deck_screens"] == 4
     # 拼接不可信：保留第一屏，标 deck_complete=False
     st.s.state = GameState(page_fields={"cards": _screens(_deck())[0]})
-    monkeypatch.setattr(card_ops, "scan_dialog_deck", lambda region, expected=None: {"cards": whole[:30], "complete": False, "screens": 3, "problems": ["x"]})
+    monkeypatch.setattr(
+        card_ops,
+        "scan_dialog_deck",
+        lambda region, expected=None: {"cards": whole[:30], "complete": False, "screens": 3, "problems": ["x"]},
+    )
     assert st._scan_change_deck() is False
-    assert len(st.s.state.page_fields["cards"]) == 12 and st.s.state.page_fields["deck_complete"] is False and recovers == ["missing_fields"]
+    assert (
+        len(st.s.state.page_fields["cards"]) == 12
+        and st.s.state.page_fields["deck_complete"] is False
+        and recovers == ["missing_fields"]
+    )
 
 
 def test_stage2_cancel_limit_constants():
@@ -125,7 +147,9 @@ def test_dmm_unsure_upgrade_copy_is_the_target():
     """DMM dmm1m：4 张 ゆるふわおしゃべり 实为 +1 / +1 / +1 / 0，没强化那张原图读成 None（橙色描边落在「+」区域），
     整副扫描过（不按格子号）时只认强化恰好 0 的 → 取消绕回阶段 1 十几分钟。认不准的那张就是要换的。"""
     yur = "p_card-02-act-1_028"
-    cards = [{"index": i, "card_id": yur, "upgrade": u, "name": "ゆるふわおしゃべり"} for i, u in enumerate((1, 1, 1, None))]
+    cards = [
+        {"index": i, "card_id": yur, "upgrade": u, "name": "ゆるふわおしゃべり"} for i, u in enumerate((1, 1, 1, None))
+    ]
     cards.append({"index": 4, "card_id": "p_card-02-act-1_037", "upgrade": 1, "name": "デイドリーミング"})
     hit, why = card_ops.pick_change_target(cards, 0, yur, protected=set(), remove_index=None, remove_upgrade=0)
     assert hit["index"] == 3 and "认不准" in why
@@ -144,7 +168,9 @@ def test_cancel_fallback_prefers_unsure_over_upgraded():
 
 
 # ---------------------------------------------------------------- 认不出的格子按目标卡核对（mainz3 11-18 03:47，DMM 559x993）
-HINATA = "p_card-02-men-2_052"  # ひなたぼっこ：左侧两个角标盖住卡面，票数 2:2 并列、卡图 0.494 只领先 0.086，通用识别认不出
+HINATA = (
+    "p_card-02-men-2_052"  # ひなたぼっこ：左侧两个角标盖住卡面，票数 2:2 并列、卡图 0.494 只领先 0.086，通用识别认不出
+)
 MZ3 = FIX / "mainz3-hinata-unread.jpg"
 
 
@@ -187,11 +213,17 @@ def _stage2_stub(monkeypatch, img, detail):
     monkeypatch.setattr(ops, "CALIB_DIR", Path(__file__).parent / ".calib-test")
     real_tpl = ui.tpl
     title = NS(exists=lambda im: not dev.clicks)  # 点卡前在阶段 2，点后标题消失
-    monkeypatch.setattr(ui, "tpl", lambda name: title if name == "InProduce.DialogCardChange2.Title" else real_tpl(name))
+    monkeypatch.setattr(
+        ui, "tpl", lambda name: title if name == "InProduce.DialogCardChange2.Title" else real_tpl(name)
+    )
     monkeypatch.setattr(ui, "tap", lambda *a, **k: False)
     monkeypatch.setattr(card_ops, "confirm_change_dialog", lambda im, run=None: False)
     real = vd.read_card_dialog
-    monkeypatch.setattr(vd, "read_card_dialog", lambda im, region, **kw: {**real(im, region, **kw), **({"selected_card": detail} if dev.clicks else {})})
+    monkeypatch.setattr(
+        vd,
+        "read_card_dialog",
+        lambda im, region, **kw: {**real(im, region, **kw), **({"selected_card": detail} if dev.clicks else {})},
+    )
     return dev
 
 
@@ -222,14 +254,16 @@ def test_detail_reads_expected_card_on_unread_cell():
 
     d = read_card_dialog(img, card_ops.CHANGE2_CARD_AREA, expect=HINATA, detail_box=CHANGE2_DETAIL_BOX)
     assert d["selected"] == 8 and d["selected_card"]["card_id"] == HINATA and d["agree"] is None
-    assert read_card_dialog(img, card_ops.CHANGE2_CARD_AREA)["detail"] is None  # 旧框（顶部 DETAIL_BOX）读不到换卡页的详情栏
+    assert (
+        read_card_dialog(img, card_ops.CHANGE2_CARD_AREA)["detail"] is None
+    )  # 旧框（顶部 DETAIL_BOX）读不到换卡页的详情栏
 
 
 def test_stage2_guessed_cell_end_to_end_with_real_frames(monkeypatch):
     """点卡前用 mainz3 卡格帧、点卡后用详情栏帧，读卡全走真实识别（不塞 selected_card）：应点第 9 格并完成换卡。"""
-    import pytest
-
     import hiro.vision.deck as vd
+
+    import pytest
 
     img, _ = _mz3()
     p = FIX / "mainz3-hinata-picked.jpg"

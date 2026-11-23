@@ -7,13 +7,13 @@ import copy
 import json
 from pathlib import Path
 
-import pytest
-
 import hiro.sim  # noqa: F401
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import ActionKind, GameState
 from hiro.sim import interval as iv
+
+import pytest
 
 FIX = json.loads((Path(__file__).parent / "fixtures" / "interval" / "main26_interval.json").read_text(encoding="utf-8"))
 GAINS = {k: tuple(v) for k, v in FIX["gains"].items()}
@@ -42,7 +42,9 @@ def test_main26_plan_weak_drink_goes_through_drink_step(env):
     assert dec.decide("HIF_ROUND_INTERVAL", st(74)).action.args == {"service": "recover"}
     d = dec.decide("HIF_ROUND_INTERVAL", st(75))
     assert d.action.args == {"index": 6} and "加行动" in d.reason, d.reason  # ホエイ：R2 目标里的加行动
-    d = dec.decide("HIF_ROUND_INTERVAL", st(76, p=325))  # 只剩 ビネガー（3 档）、P 够：不买，刷新（实机这里按方案买了 ビネガー）
+    d = dec.decide(
+        "HIF_ROUND_INTERVAL", st(76, p=325)
+    )  # 只剩 ビネガー（3 档）、P 够：不买，刷新（实机这里按方案买了 ビネガー）
     assert d.action.kind is ActionKind.REROLL, d.reason
 
 
@@ -78,9 +80,13 @@ def test_refresh_dp_uses_observed_shelf_and_tiers():
 
     full = iv.RefreshDP(GAINS)
     tiered = iv.RefreshDP(GAINS, buyable=lambda d: DRINK_CLASSES[drink_class(d)]["tier"] <= 2)
-    assert "pdrink_02-2-006" in full.good and "pdrink_02-2-006" not in tiered.good  # ハーブティー：只补位，不算进继续刷新
+    assert (
+        "pdrink_02-2-006" in full.good and "pdrink_02-2-006" not in tiered.good
+    )  # ハーブティー：只补位，不算进继续刷新
     assert tiered.C(3, 210, 30) < full.C(3, 210, 30)
-    assert iv.shelf_weight("pdrink_02-2-006") > iv.shelf_weight("pdrink_00-2-010")  # 实测：ハーブティー 常见、センブリ 罕见
+    assert iv.shelf_weight("pdrink_02-2-006") > iv.shelf_weight(
+        "pdrink_00-2-010"
+    )  # 实测：ハーブティー 常见、センブリ 罕见
 
 
 def test_main26_hard_cap_switch(env, monkeypatch):
@@ -90,5 +96,8 @@ def test_main26_hard_cap_switch(env, monkeypatch):
     dec = ProduceDeciders(CAMPUS_HIRO, None)
     dec.decide("HIF_ROUND_INTERVAL", st(74))
     dec.decide("HIF_ROUND_INTERVAL", st(75))
-    kinds = [dec.decide("HIF_ROUND_INTERVAL", st(line, p)).action.kind for line, p in ((76, 325), (78, None), (79, None), (80, None))]
+    kinds = [
+        dec.decide("HIF_ROUND_INTERVAL", st(line, p)).action.kind
+        for line, p in ((76, 325), (78, None), (79, None), (80, None))
+    ]
     assert kinds[:3] == [ActionKind.REROLL] * 3 and kinds[3] is not ActionKind.REROLL, kinds

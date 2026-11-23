@@ -2,10 +2,10 @@
 
 from types import SimpleNamespace as NS
 
-import numpy as np
-
 from hiro.runtime import play, scenes
 from hiro.vision.ocr import Box, Text
+
+import numpy as np
 
 
 def T(text, x, y):
@@ -39,7 +39,9 @@ def test_commu_skip_taps_recognized_skip_only(monkeypatch):
     bar = [T("早送り", 600, 1200), T("ログ", 400, 1200), T("SKIP", 200, 1200)]
     monkeypatch.setattr(scenes, "screen_texts", lambda img: bar)
     assert scenes.commu_skip(rt, frame(bar)) and rt.taps == [(200, 1200)]
-    monkeypatch.setattr(scenes, "screen_texts", lambda img: [T("早送り", 600, 1200), T("SKIP", 200, 900)])  # SKIP 不在左下：不点
+    monkeypatch.setattr(
+        scenes, "screen_texts", lambda img: [T("早送り", 600, 1200), T("SKIP", 200, 900)]
+    )  # SKIP 不在左下：不点
     assert not scenes.commu_skip(rt, frame(bar))
     assert not scenes.commu_skip(rt, frame([T("SKIP", 200, 1200)]))  # 没有「早送り」不是剧情
 
@@ -48,7 +50,11 @@ def test_first_run_settings_pick_then_confirm(monkeypatch):
     rt = FakeRt()
     boxes = [T("サポートイベント設定", 360, 400), T("強化済みで獲得する", 360, 700), T("決定", 520, 1160)]
     monkeypatch.setattr(scenes, "screen_texts", lambda img: boxes)
-    assert scenes.first_run_settings(rt, frame(boxes)) and rt.taps == [(360, 700), (520, 1160)] and rt.recovers == ["dialog"]
+    assert (
+        scenes.first_run_settings(rt, frame(boxes))
+        and rt.taps == [(360, 700), (520, 1160)]
+        and rt.recovers == ["dialog"]
+    )
 
 
 def test_advance_only_bursts_on_safe_pages(monkeypatch):
@@ -62,7 +68,9 @@ def test_advance_only_bursts_on_safe_pages(monkeypatch):
     assert play.advance(rt, frame([]), NS(name="unknown")) is True
     assert play.advance(rt, frame([]), NS(name="HIF_FINALS_RANKING")) is False  # 认得出、但没处理器的页：不乱点
     assert play.advance(rt, frame([], landscape=True), NS(name="LIVE")) is False  # 横屏演出中：不点
-    assert play.advance(rt, frame([]), NS(name="ACQUIRE", fields={"kind": "card", "name": "眠気"})) is True  # 判页认出的获得演出（不带快速判页）：连点
+    assert (
+        play.advance(rt, frame([]), NS(name="ACQUIRE", fields={"kind": "card", "name": "眠気"})) is True
+    )  # 判页认出的获得演出（不带快速判页）：连点
     assert play.advance(rt, frame([]), NS(name="DIALOG", fields={})) is False  # 弹窗交给中断层 / 处理器
     assert len(calls) == 2
 
@@ -77,7 +85,9 @@ def test_run_hif_own_branch_skips_kaa_init(monkeypatch, tmp_path):
     called = {}
     monkeypatch.setattr(rh, "init_kaa", lambda *a, **k: called.setdefault("init_kaa", True))
     monkeypatch.setattr("hiro.runtime.play.run", lambda args, session: called.setdefault("play", args.command) and 0)
-    monkeypatch.setattr(rh.manifest_mod, "collect", lambda: NS(problems=[], to_dict=lambda: {}, exam_state_source="x", exam_advisor="y"))
+    monkeypatch.setattr(
+        rh.manifest_mod, "collect", lambda: NS(problems=[], to_dict=dict, exam_state_source="x", exam_advisor="y")
+    )
     monkeypatch.setattr(rh, "_write_report", lambda trace, name: called.setdefault("report", name))
     monkeypatch.setattr(sys, "argv", ["run_hif", "resume", "--mode", "main", "--trace", "t-own"])
     assert rh.main() == 0
@@ -98,12 +108,15 @@ def _run_with(monkeypatch, new_effects, run_effects, command="new"):
             calls.append(name)
             if seq and seq.pop(0) == "date":
                 raise DateChanged("日付変更")
+
         return f
 
     monkeypatch.setattr(kaa_env, "apply_formation_plan", lambda idol: None)
     monkeypatch.setattr(kaa_env, "SUPPORT_SET", 4)
     monkeypatch.setattr(kaa_env, "MEMORY_SET", 5)
-    monkeypatch.setattr("hiro.devices.open_device", lambda: NS(connect=lambda: None, close=lambda: calls.append("close")))
+    monkeypatch.setattr(
+        "hiro.devices.open_device", lambda: NS(connect=lambda: None, close=lambda: calls.append("close"))
+    )
     rt = NS(run=effect(list(run_effects), "run"))
     monkeypatch.setattr(play, "build", lambda args, session, device: (None, rt))
     monkeypatch.setattr(active, "use", lambda r: None)
@@ -134,12 +147,19 @@ def test_quick_pages_tap_through_or_wait(monkeypatch):
     """快速判页认出的页：带 tap 直接点（ACQUIRE 获得演出：实机 own 第一局卡了 181 秒停机）；不带 tap 的等够了点兜底。"""
     rt = FakeRt()
     hit = NS(name="ACQUIRE", fields={"_quick": {"page": "ACQUIRE", "tap": (360, 1100), "dispatch": None, "fields": {}}})
-    assert play.advance(rt, NS(img=np.zeros((1280, 720, 3), np.uint8), texts=[], t=0.0), hit) and rt.taps == [(360, 1100)]
-    load = NS(name="LOADING", fields={"_quick": {"page": "LOADING", "tap": None, "dispatch": None, "fields": {"kind": None}}})
+    assert play.advance(rt, NS(img=np.zeros((1280, 720, 3), np.uint8), texts=[], t=0.0), hit) and rt.taps == [
+        (360, 1100)
+    ]
+    load = NS(
+        name="LOADING", fields={"_quick": {"page": "LOADING", "tap": None, "dispatch": None, "fields": {"kind": None}}}
+    )
     f = lambda t: NS(img=np.zeros((1280, 720, 3), np.uint8), texts=[], t=t)  # noqa: E731
     assert not play.advance(rt, f(1.0), load) and not play.advance(rt, f(10.0), load)  # 读取页：等
     assert play.advance(rt, f(17.0), load) and rt.taps[-1] == (12, 12)  # 等了 16 秒：点兜底
-    pitem = NS(name="SELECT_PITEM", fields={"_quick": {"page": "SELECT_PITEM", "tap": None, "dispatch": "SELECT_PITEM", "fields": {}}})
+    pitem = NS(
+        name="SELECT_PITEM",
+        fields={"_quick": {"page": "SELECT_PITEM", "tap": None, "dispatch": "SELECT_PITEM", "fields": {}}},
+    )
     monkeypatch.setattr(scenes, "commu_skip", lambda rt, fr: False)
     monkeypatch.setattr(scenes, "first_run_settings", lambda rt, fr: False)
     assert not play.advance(rt, f(20.0), pitem)  # 要决策的页（dispatch）不在这里点
@@ -176,4 +196,6 @@ def test_produce_end_pages_hand_off_to_finish_and_stop(monkeypatch):
     import hiro.loop.advance as adv
 
     monkeypatch.setattr(adv, "burst", lambda texts, **kw: 0)
-    assert play.advance(rt2, frame([T("次へ", 360, 1160)]), NS(name="unknown")) is False and not getattr(rt2, "finished", False)
+    assert play.advance(rt2, frame([T("次へ", 360, 1160)]), NS(name="unknown")) is False and not getattr(
+        rt2, "finished", False
+    )

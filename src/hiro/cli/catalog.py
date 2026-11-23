@@ -130,8 +130,15 @@ def _brief(kind: str, eid: str, e: dict) -> dict:
     text = e.get("text")
     if text is None and e.get("up"):
         text = next(iter(e["up"].values())).get("text")
-    return {"kind": kind, "id": eid, "name": e.get("name"), "rarity": e.get("rarity"), "plan": e.get("plan"),
-            "text": text, "asset": e.get("asset")}
+    return {
+        "kind": kind,
+        "id": eid,
+        "name": e.get("name"),
+        "rarity": e.get("rarity"),
+        "plan": e.get("plan"),
+        "text": text,
+        "asset": e.get("asset"),
+    }
 
 
 def search(q: str, kind: str | None = None, lang: str = "ja") -> list[dict]:
@@ -175,30 +182,52 @@ def _sync(a: dict) -> dict:
     return {"langs": list(LANGS), "counts": counts, "dir": str(d)}
 
 
-@command("catalog supports", Risk.READ, "本机资料库里的支援卡资料（中日文名、SP 发生率、能力、事件），界面的支援卡页用。", agent=False)
+@command(
+    "catalog supports",
+    Risk.READ,
+    "本机资料库里的支援卡资料（中日文名、SP 发生率、能力、事件），界面的支援卡页用。",
+    agent=False,
+)
 def _supports(a: dict) -> dict:
     return load_supports()
 
 
-@command("catalog lookup", Risk.READ, "按编号一次取多条记录的名字、效果文字和图名（界面给信息页配中文名和图标用）。",
-         args=(Arg("--ids", "编号，逗号分隔"),
-               Arg("--texts", "回忆能力的日文原文，一行一条：给出 --lang 那种语言的同一条（对不上的不列）"),
-               Arg("--lang", "语言", choices=LANGS, default="zh")), agent=False)
+@command(
+    "catalog lookup",
+    Risk.READ,
+    "按编号一次取多条记录的名字、效果文字和图名（界面给信息页配中文名和图标用）。",
+    args=(
+        Arg("--ids", "编号，逗号分隔"),
+        Arg("--texts", "回忆能力的日文原文，一行一条：给出 --lang 那种语言的同一条（对不上的不列）"),
+        Arg("--lang", "语言", choices=LANGS, default="zh"),
+    ),
+    agent=False,
+)
 def _lookup(a: dict) -> dict:
-    return lookup((a["ids"] or "").split(","), (a["texts"] or "").split("\n"), a["lang"])
+    return lookup(str(a["ids"] or "").split(","), str(a["texts"] or "").split("\n"), a["lang"])
 
 
-@command("catalog search", Risk.READ, "按名字或效果文字搜资料库（最多 50 条）。",
-         args=(Arg("query", "要搜的词，例如 エウレカ 或 好調"),
-               Arg("--kind", "只搜这一类", choices=KINDS),
-               Arg("--lang", "名字和效果文字用哪种语言", choices=LANGS, default="ja")))
+@command(
+    "catalog search",
+    Risk.READ,
+    "按名字或效果文字搜资料库（最多 50 条）。",
+    args=(
+        Arg("query", "要搜的词，例如 エウレカ 或 好調"),
+        Arg("--kind", "只搜这一类", choices=KINDS),
+        Arg("--lang", "名字和效果文字用哪种语言", choices=LANGS, default="ja"),
+    ),
+)
 def _search(a: dict) -> dict:
     items = search(a["query"], a["kind"], a["lang"])
     return {"query": a["query"], "items": items, "truncated": len(items) >= SEARCH_LIMIT}
 
 
-@command("catalog get", Risk.READ, "按编号取资料库里的一条完整记录。",
-         args=(Arg("id", "编号，例如 p_card-01-ido-3_105"), Arg("--lang", "语言", choices=LANGS, default="ja")))
+@command(
+    "catalog get",
+    Risk.READ,
+    "按编号取资料库里的一条完整记录。",
+    args=(Arg("id", "编号，例如 p_card-01-ido-3_105"), Arg("--lang", "语言", choices=LANGS, default="ja")),
+)
 def _get(a: dict) -> dict:
     cat = load(a["lang"])
     for k in KINDS + ("enchants",):
@@ -208,8 +237,13 @@ def _get(a: dict) -> dict:
     raise CliError("not_found", f"资料库里没有 {a['id']}", "先用 hiro catalog search 查编号")
 
 
-@command("catalog sprite", Risk.READ, "取一张小图的本机路径（没有就下载）。",
-         args=(Arg("asset", "图名，即记录里的 asset 字段"),), agent=False)
+@command(
+    "catalog sprite",
+    Risk.READ,
+    "取一张小图的本机路径（没有就下载）。",
+    args=(Arg("asset", "图名，即记录里的 asset 字段"),),
+    agent=False,
+)
 def _sprite(a: dict) -> dict:
     asset = a["asset"]
     if not _ASSET.match(asset):
@@ -227,4 +261,5 @@ def _sprite(a: dict) -> dict:
             continue
         _write_atomic(d / f"{asset}{ext}", data)
         return {"asset": asset, "path": str(d / f"{asset}{ext}")}
+    assert last is not None  # SPRITE_EXTS 不为空，走到这里一定是每种扩展名都失败了
     raise last

@@ -5,11 +5,11 @@ card_id 一直读得到；upgrade 在橙色插画的卡上常是 None：「+」�
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision.shop import read_interval_shelf
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "interval"
 

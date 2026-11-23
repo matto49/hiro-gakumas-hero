@@ -4,8 +4,8 @@
     python -m hiro.produce.idol_scan --out reports/live/idol-inventory.json
 
 一览页（720x1280 逻辑坐标，11-19 Mac 账号 2 实测）：上方是选中卡的详情（卡名 y≈39、角色名 y≈73、稀有度 x≈84 y≈58、
-プラン x≈650 y≈89、推荐效果 x>480 y≈164），下方 4 列网格（列中心 x 105 / 275 / 445 / 615），完整可见的两行中心 y≈660 / 880，
-再往下被「決定」和筛选按钮挡住。卡名 + 角色名在主数据里唯一（140 张实测无重复），入库时按资料库对上 idol_card_id。
+プラン x≈650 y≈89、推荐效果 x>480 y≈164），下方 4 列网格（列中心 x 105 / 275 / 445 / 615，可见区 y≈590–960，行距 220），
+再往下被筛选按钮（y≈975–1025）和「決定」挡住。卡名 + 角色名在主数据里唯一（140 张实测无重复），入库时按资料库对上 idol_card_id。
 输出：{scanned_at, complete, idols: [{title, character, rarity, plan, effect, idol_card_id?}]}。
 """
 
@@ -27,8 +27,11 @@ LIST_BUTTON = (75, 880)  # 偶像详情页左下「一覧」
 BACK = (85, 1210)  # 一览页左下「<<」：不点決定直接退出
 HOME = (75, 1215)  # 偶像详情页左下「⌂」
 COL_X = (105, 275, 445, 615)
-ROW_Y = (660, 880)  # 一屏完整可见的两行
-SWIPE = (360, 1000, 360, 560)  # 约两行
+GRID_TOP, GRID_BOTTOM = 590, 960  # 卡片网格可见区（上面是「現在状態」，下面是筛选按钮和「決定」）
+# 滑完卡片不一定停在固定位置（带惯性，实测挪动约为手指距离的 1.5 倍），所以每屏按 4 个高度把可见区点一遍；
+# 点到卡片之间的缝没反应，点到同一张卡靠卡名去重
+ROW_Y = (620, 730, 840, 940)
+SWIPE = (110, 900, 110, 700)  # 在最左列里滑（x=110 在筛选按钮左边），一次挪约 300 像素，小于点击覆盖的高度
 MAX_SCREENS = 40
 PLANS = {"センス": "sense", "ロジック": "logic", "アノマリー": "anomaly"}
 RARITIES = ("SSR", "SR", "R")
@@ -41,15 +44,26 @@ def _at(boxes, pred) -> list[str]:
 def read_header(boxes) -> dict | None:
     """一览页 / 详情页顶部的选中卡：{title, character, rarity, plan, effect}；卡名或角色名读不到时 None（不猜）。
     boxes：[(文字, (x1, y1, x2, y2))]，720x1280 坐标。"""
-    names = sorted(((b[1], t.strip()) for t, b in boxes if (b[1] + b[3]) // 2 < 90 and (b[0] + b[2]) // 2 > 120 and t.strip()), key=lambda x: x[0])
+    names = sorted(
+        ((b[1], t.strip()) for t, b in boxes if (b[1] + b[3]) // 2 < 90 and (b[0] + b[2]) // 2 > 120 and t.strip()),
+        key=lambda x: x[0],
+    )
     names = [t for _, t in names if t not in RARITIES and not any(p in t for p in PLANS)]
     names = [t for t in names if len(t.replace(" ", "")) >= 2]  # 详情页右上角的「L」等单字图标不是卡名
     if len(names) < 2:
         return None
-    rarity = next((r for t in _at(boxes, lambda x, y: x < 130 and y < 90) for r in RARITIES if t.replace(" ", "") == r), None)
+    rarity = next(
+        (r for t in _at(boxes, lambda x, y: x < 130 and y < 90) for r in RARITIES if t.replace(" ", "") == r), None
+    )
     plan = next((v for t in _at(boxes, lambda x, y: x > 560 and y < 110) for k, v in PLANS.items() if k in t), None)
     effect = next((t.strip() for t in _at(boxes, lambda x, y: x > 480 and 145 < y < 185) if t.strip()), None)
-    return {"title": names[0], "character": names[1].replace(" ", "").replace("　", ""), "rarity": rarity, "plan": plan, "effect": effect}
+    return {
+        "title": names[0],
+        "character": names[1].replace(" ", "").replace("　", ""),
+        "rarity": rarity,
+        "plan": plan,
+        "effect": effect,
+    }
 
 
 def card_key(c: dict) -> tuple[str, str]:
@@ -72,7 +86,15 @@ def scan(shoot, tap, swipe, ocr, sleep=_sleep, *, max_screens: int = MAX_SCREENS
                 if card_key(head) not in seen:
                     seen[card_key(head)] = head
                     new += 1
-                    logger.info("偶像卡 %d：【%s】%s %s %s %s", len(seen), head["title"], head["character"], head["rarity"], head["plan"], head["effect"])
+                    logger.info(
+                        "偶像卡 %d：【%s】%s %s %s %s",
+                        len(seen),
+                        head["title"],
+                        head["character"],
+                        head["rarity"],
+                        head["plan"],
+                        head["effect"],
+                    )
         idle = idle + 1 if new == 0 else 0
         if idle >= 2:
             complete = True

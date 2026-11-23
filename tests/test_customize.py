@@ -2,11 +2,11 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision.customize import master_offers
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "guidance"
 CONFETTI = "p_card-02-act-2_062"
@@ -28,7 +28,11 @@ def test_master_offers_confetti():
     """きらきら紙吹雪+：主数据 3 项，顺序 = 画面从左到右（やる気コスト値- / 元気分パラメータ+ / 好印象追加），元気分パラメータ+ 两级 40 → 70。"""
     offers = master_offers(CONFETTI, 1)
     assert [o["item_index"] for o in offers] == [0, 1, 2]
-    assert "cost_aggressive_reduce" in offers[0]["id"] and "lesson_depend_block_add" in offers[1]["id"] and "exam_review" in offers[2]["id"]
+    assert (
+        "cost_aggressive_reduce" in offers[0]["id"]
+        and "lesson_depend_block_add" in offers[1]["id"]
+        and "exam_review" in offers[2]["id"]
+    )
     assert [o["levels"] for o in offers] == [[40], [40, 70], [70]]
     assert master_offers(CONFETTI, 0) == [] and master_offers(None, 1) == []
 
@@ -56,7 +60,11 @@ def test_select_card_menu_preview():
     f = _obs("q10-card-selected").fields
     sel = next(c for c in f["cards"] if c["index"] == f["selected"])
     assert sel["card_id"] == f["selected_card"]["card_id"] == CONFETTI
-    assert [(o["item_index"], o["price"], o["source"]) for o in sel["customizations"]] == [(0, 40, "screen"), (1, 40, "screen"), (2, 70, "screen")]
+    assert [(o["item_index"], o["price"], o["source"]) for o in sel["customizations"]] == [
+        (0, 40, "screen"),
+        (1, 40, "screen"),
+        (2, 70, "screen"),
+    ]
     assert sel["customizations"][1]["id"] == master_offers(CONFETTI, 1)[1]["id"]
 
 
@@ -91,10 +99,16 @@ def test_customize_result_and_confirm_dialog():
     (ev,) = observed_events(obs)
     assert (ev.kind, ev.args, ev.confirmed) == ("CARD_CUSTOMIZE", {"card_id": CONFETTI, "upgrade": 1}, True)
     d = _obs("q10-exec-confirm")
-    assert (d.page.name, d.fields["kind"]) == ("DIALOG", "customize_confirm")  # 「カスタマイズ実行確認」（OCR 读成「美行」）
+    assert (d.page.name, d.fields["kind"]) == (
+        "DIALOG",
+        "customize_confirm",
+    )  # 「カスタマイズ実行確認」（OCR 读成「美行」）
 
 
-@pytest.mark.parametrize(("name", "p", "hp"), [("q11-r2-00001", 430, 20), ("q10-enter", 430, 16), ("q10-done", 390, 16), ("q10-done2", 320, 16)])
+@pytest.mark.parametrize(
+    ("name", "p", "hp"),
+    [("q11-r2-00001", 430, 20), ("q10-enter", 430, 16), ("q10-done", 390, 16), ("q10-done2", 320, 16)],
+)
 def test_produce_point(name, p, hp):
     """q11 第 19 天：特別指導页没有 P，决策「P None」一项都没定制。左上 P 栏与选行动页同一位置（OCR / 字体 / ddddocr 两票一致）。"""
     f = _obs(name).fields

@@ -2,12 +2,12 @@
 DMM 第 12 天相談刷新一次后 rerolls_left 仍按旧值 1，决策再刷、执行盲点 REROLL_TAP 点到空地。
 识别：货架完整、左下没有按钮 → rerolls_left=0；执行：相談画面上没有按钮就不点。"""
 
-from test_shop_exec import frame
-
 from hiro.contracts import Action, ActionKind
 from hiro.produce import shop
 from hiro.vision import shop as vshop
 from tests.test_interval import Fake
+
+from test_shop_exec import frame
 
 
 def test_read_consult_counts_missing_button_as_zero():

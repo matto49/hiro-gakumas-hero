@@ -11,16 +11,17 @@
 所有等待按时间封顶；截图、点击、时钟、「交換済」判定都可注入，便于离线测试。
 """
 
+import logging
 import time
 from collections.abc import Callable
 
+from hiro.contracts import Action, ActionKind, ExecutionResult
+from hiro.devices.active import device
+from hiro.devices.active import sleep as _sleep
+from hiro.produce.ops import Run, button_sv, find_text, orange_lit, roi_diff
+
 import cv2
 import numpy as np
-import logging
-from hiro.devices.active import device, sleep as _sleep
-
-from hiro.contracts import Action, ActionKind, ExecutionResult
-from hiro.produce.ops import Run, button_sv, find_text, orange_lit, roi_diff
 
 logger = logging.getLogger(__name__)
 
@@ -31,11 +32,19 @@ CONFIRM_BTN, CONFIRM_TAP = (410, 1128, 180, 60), (500, 1158)  # 交換確認 / �
 CANCEL_PILL, CANCEL_TAP = (110, 1138, 150, 44), (180, 1160)  # 选卡页 / 弹窗左下的白色「キャンセル」
 END_TAP = (640, 1085)
 SERVICE_TAP = {"upgrade": (220, 968), "delete": (535, 968)}
-SERVICE_USED_REGION = {"upgrade": (40, 940, 345, 1012), "delete": (360, 940, 690, 1012)}  # 用过的服务键上盖「交換済」（q12 第 12 天：(202,993)）
+SERVICE_USED_REGION = {
+    "upgrade": (40, 940, 345, 1012),
+    "delete": (360, 940, 690, 1012),
+}  # 用过的服务键上盖「交換済」（q12 第 12 天：(202,993)）
 SERVICE_USED = "本次相談已用过"
 SKIP_TAP = (360, 700)  # 跳过获得动画；x=360 落在货架第 2、3 列之间的空隙，回到相談后误点也不会选中商品
 IDLE_SAT, IDLE_VAL = (100, 145), (155, 200)  # 相談页没选中商品时「交換する」的灰色（实测 S 119–136 / V 171–186）
-END_PILL = (600, 1062, 90, 46)  # 「終了」白色按钮：相談主画面 S 13 / V 224；获得动画的星星层压暗到 V 181，弹窗提亮到 254
+END_PILL = (
+    600,
+    1062,
+    90,
+    46,
+)  # 「終了」白色按钮：相談主画面 S 13 / V 224；获得动画的星星层压暗到 V 181，弹窗提亮到 254
 END_SAT_MAX, END_VAL = 25, (218, 235)
 PILL_SAT_MAX, PILL_VAL_MIN = 30, 215  # 白色「キャンセル」：S 0 / V 233；相談页同位置 S 113 / V 185
 SELECT_ORANGE_MIN = 400  # 选中角框四角的橙色像素：选中 1359，未选中 ≤ 60
@@ -92,7 +101,9 @@ def _Run(action: Action, shoot, click, clock, sleep, ocr=None, calib: bool = Tru
     return Run(action, PAGE, shoot, click, clock, sleep, label="相談", ocr=ocr, calib=calib)
 
 
-P_DIGIT_FIX = str.maketrans({"ろ": "3", "る": "3", "O": "0", "o": "0", "〇": "0", "l": "1", "I": "1", "S": "5", "B": "8"})  # 数字 OCR 混淆
+P_DIGIT_FIX = str.maketrans(
+    {"ろ": "3", "る": "3", "O": "0", "o": "0", "〇": "0", "l": "1", "I": "1", "S": "5", "B": "8"}
+)  # 数字 OCR 混淆
 
 
 def read_p(img: np.ndarray, ocr) -> int | None:
@@ -145,7 +156,9 @@ def _buy(r: Run, item: dict, purchased, confirm_reader=_read_dialog) -> Executio
     p_before = read_p(before, r.ocr)
     base_val = button_sv(before, EXCHANGE_BTN)[1]
     r.tap(center)
-    w = r.wait(before, done=lambda im: selected(im, center) and orange_lit(im, EXCHANGE_BTN, base_val), timeout=LIT_TIMEOUT)
+    w = r.wait(
+        before, done=lambda im: selected(im, center) and orange_lit(im, EXCHANGE_BTN, base_val), timeout=LIT_TIMEOUT
+    )
     r.snap(w.img, "picked")
     if not w.changed:
         why = "格子已选中但「交換する」没亮（P 点不足？）" if selected(w.img, center) else "格子没有被选中"
@@ -155,7 +168,7 @@ def _buy(r: Run, item: dict, purchased, confirm_reader=_read_dialog) -> Executio
     r.snap(img, "confirm")
     if not ok:
         return r.result(False, f"点「交換する」后 {DIALOG_TIMEOUT:.0f}s 内没出现「交換確認」弹窗")
-    if confirm_reader is not None and (item.get("card_id") or item.get("drink_id")):
+    if confirm_reader is not None and (item.get("card_id") or item.get("drink_id")):  # noqa: SIM102
         if why := dialog_mismatch(item, confirm_reader(img)):
             r.tap(CANCEL_TAP)
             return r.result(False, f"货架第 {index} 格：{why}，已取消")
@@ -218,7 +231,9 @@ def settle_after_op(r: Run) -> tuple[bool, np.ndarray]:
     return back, img
 
 
-def _service(r: Run, name: str, services: dict, card_id: str | None = None, choose_card=None, deck_size: int | None = None) -> ExecutionResult:
+def _service(
+    r: Run, name: str, services: dict, card_id: str | None = None, choose_card=None, deck_size: int | None = None
+) -> ExecutionResult:
     """相談「強化 / 削除」：点服务键打开选卡页 → 读卡格 → card_id（动作给的，或 choose_card(kind, cards) 让决策选）
     → 点卡、核对选中 →「強化 / 削除」→ 确认框 →「〜しました」→ 回到相談。走 card_ops._card_op；
     选不出 / 找不到 / 选中不符时点「キャンセル」退回相談，返回 ok=False（error 写原因）。"""
@@ -242,11 +257,20 @@ def _service(r: Run, name: str, services: dict, card_id: str | None = None, choo
     back, img = settle_after_op(r)
     r.snap(img, f"{kind}-back")
     if not done:
-        return r.result(False, f"「{label}」没做成（见日志：没给 / 没找到 card_id 或选中不符，已取消）", page_after=PAGE if back else None)
+        return r.result(
+            False,
+            f"「{label}」没做成（见日志：没给 / 没找到 card_id 或选中不符，已取消）",
+            page_after=PAGE if back else None,
+        )
     return r.result(True, page_after=PAGE if back else None)
 
 
-SHOP_MARKS = ("選んでください", "交換するもの", "強化や削除", "交換する")  # 相談 / 轮间商店页自己的文字：提示条、说明行、「交換する」按钮
+SHOP_MARKS = (
+    "選んでください",
+    "交換するもの",
+    "強化や削除",
+    "交換する",
+)  # 相談 / 轮间商店页自己的文字：提示条、说明行、「交換する」按钮
 END_IDLE_WAIT = 6.0  # 点「終了」前等提示条（「〜を削除しました」）/ 强化演出 / 支援卡横幅退掉的上限
 END_LEFT_FRAMES = 2  # 连续这么多帧看不到商店页文字（也没有确认框）才算离开
 END_RETAPS = 2
@@ -298,15 +322,15 @@ def _end(r: Run) -> ExecutionResult:
         streak = [0]
 
         def confirm(im):
-            if cancel_visible(im) and r.clock() - last[0] >= SKIP_EVERY:
+            if cancel_visible(im) and r.clock() - last[0] >= SKIP_EVERY:  # noqa: B023
                 r.snap(im, "end-confirm")
                 r.tap(find_text(r.ocr(im), END_CONFIRM_TEXTS, region=(360, 1080, 720, 1240)) or CONFIRM_TAP)
-                last[0] = r.clock()
+                last[0] = r.clock()  # noqa: B023
 
         def left(im):
             gone = not cancel_visible(im) and not shop_shown(r.ocr(im))
-            streak[0] = streak[0] + 1 if gone else 0
-            return streak[0] >= END_LEFT_FRAMES
+            streak[0] = streak[0] + 1 if gone else 0  # noqa: B023
+            return streak[0] >= END_LEFT_FRAMES  # noqa: B023
 
         ok, img = r.until(left, END_TIMEOUT, tick=confirm)
         r.snap(img, "end")
@@ -339,7 +363,13 @@ SHELF_CHANGED_WEAK = 6.0  # 刷新按钮那块也变了时，货架差过这个�
 def refresh_badge(boxes) -> str:
     """左下「あと N回」+「リフレッシュ」（轮间是价格）那一块的文字，用来看刷新后它变没变。"""
     x1, y1, x2, y2 = REROLL_REGION
-    return "".join(t.replace(" ", "") for t, _, (bx1, by1, bx2, by2) in boxes if x1 <= (bx1 + bx2) / 2 <= x2 and y1 <= (by1 + by2) / 2 <= y2)
+    return "".join(
+        t.replace(" ", "")
+        for t, _, (bx1, by1, bx2, by2) in boxes
+        if x1 <= (bx1 + bx2) / 2 <= x2 and y1 <= (by1 + by2) / 2 <= y2
+    )
+
+
 REROLL_TIMEOUT = 10.0
 REROLL_GRACE = 10.0  # 点过确认框后还没换：服务器慢时再多等这么久
 
@@ -443,7 +473,14 @@ def _reroll(r: Run, scope: str, info: dict | None) -> ExecutionResult:
         waited = REROLL_TIMEOUT + (REROLL_GRACE if state["confirmed"] else 0)
         return r.result(False, f"点「リフレッシュ」后 {waited:.0f}s 内货架没换（确认框{'已' if state['confirmed'] else '没'}点，P {p0}）",
                         page_after=PAGE if consult_idle(r.shoot()) else None)  # fmt: skip
-    logger.info("刷新货架（%s）：P %s → %s，货架差 %.1f（%.1fs）", scope, p0, read_p(img, r.ocr), shelf_diff(before, img), r.clock() - r.t0)
+    logger.info(
+        "刷新货架（%s）：P %s → %s，货架差 %.1f（%.1fs）",
+        scope,
+        p0,
+        read_p(img, r.ocr),
+        shelf_diff(before, img),
+        r.clock() - r.t0,
+    )
     return r.result(True)
 
 
@@ -495,7 +532,9 @@ def execute_shop(
     if action.kind is ActionKind.REROLL:  # args {"scope": "consult"}：相談左下「リフレッシュ」（あと N回）
         left = page_fields.get("rerolls_left")
         return _reroll(r, "consult", {"available": left > 0 if isinstance(left, int) else None})
-    if action.kind is ActionKind.SHOP_UPGRADE_CARD or (action.kind is ActionKind.SHOP_BUY and args.get("service") == "upgrade"):
+    if action.kind is ActionKind.SHOP_UPGRADE_CARD or (
+        action.kind is ActionKind.SHOP_BUY and args.get("service") == "upgrade"
+    ):
         return _service(r, "upgrade", page_fields.get("services"), args.get("card_id"), choose_card, deck_size)
     if action.kind is ActionKind.SHOP_BUY and args.get("service") == "delete":
         return _service(r, "delete", page_fields.get("services"), args.get("card_id"), choose_card, deck_size)

@@ -27,9 +27,12 @@ def _info() -> dict | None:
 
 
 def _post(info: dict, path: str, body: dict, timeout: float = 30) -> dict:
-    req = urllib.request.Request(f"http://127.0.0.1:{info['port']}/{path}", data=json.dumps(body).encode("utf-8"),
-                                 headers={"X-Hiro-Token": info["token"], "Content-Type": "application/json"},
-                                 method="POST")
+    req = urllib.request.Request(
+        f"http://127.0.0.1:{info['port']}/{path}",
+        data=json.dumps(body).encode("utf-8"),
+        headers={"X-Hiro-Token": info["token"], "Content-Type": "application/json"},
+        method="POST",
+    )
     with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 本机
         return json.loads(r.read())
 
@@ -73,10 +76,20 @@ def _start_process(home) -> None:
     env = os.environ.copy()
     env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     log = open(home / "service.log", "ab")  # noqa: SIM115 交给子进程
-    kw: dict = {"start_new_session": True} if sys.platform != "win32" else {
-        "creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
-    subprocess.Popen([sys.executable, "-m", "hiro.cli.service"], stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                     env=env, cwd=home, **kw)
+    kw: dict = (
+        {"start_new_session": True}
+        if sys.platform != "win32"
+        else {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
+    )
+    subprocess.Popen(
+        [sys.executable, "-m", "hiro.cli.service"],
+        stdin=subprocess.DEVNULL,
+        stdout=log,
+        stderr=log,
+        env=env,
+        cwd=home,
+        **kw,
+    )
 
 
 def call(path: str, body: dict | None = None) -> dict:
@@ -95,15 +108,19 @@ def data(path: str, body: dict | None = None) -> dict:
     env = call(path, body)
     if not env.get("ok"):
         e = env.get("error") or {}
-        raise CliError(e.get("code", "error"), e.get("message", "服务出错"), e.get("hint", ""),
-                       exit_code=2 if e.get("code") == "bad_args" else 1)
+        raise CliError(
+            e.get("code", "error"),
+            e.get("message", "服务出错"),
+            e.get("hint", ""),
+            exit_code=2 if e.get("code") == "bad_args" else 1,
+        )
     return env["data"]
 
 
 def shutdown() -> None:
     info = _info()
     if _alive(info):
-        try:
+        try:  # noqa: SIM105
             _post(info, "shutdown", {}, timeout=5)
         except (urllib.error.URLError, OSError, http.client.HTTPException):
             pass

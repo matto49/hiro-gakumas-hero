@@ -4,9 +4,9 @@
 
 import shutil
 
-import pytest
-
 import hiro.sim  # noqa: F401  把 vendor/gakumas-player 放进 sys.path
+
+import pytest
 
 
 @pytest.mark.sim_master
@@ -31,4 +31,6 @@ def test_gitattributes_keeps_engine_data_bytes():
     from pathlib import Path
 
     text = (Path(__file__).resolve().parents[1] / ".gitattributes").read_text(encoding="utf-8")
-    assert any(line.split()[:2] == ["vendor/gakumas-player/data/**", "-text"] for line in text.splitlines() if line.strip())
+    assert any(
+        line.split()[:2] == ["vendor/gakumas-player/data/**", "-text"] for line in text.splitlines() if line.strip()
+    )

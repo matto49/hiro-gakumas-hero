@@ -4,9 +4,9 @@
 
 from pathlib import Path
 
-import pytest
-
 from hiro.vision import deck
+
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "acquire_dmm"
 
@@ -15,7 +15,9 @@ def _fake_boxes(monkeypatch, boxes):
     import hiro.vision.ocr as ocr
 
     x1 = deck.ACQUIRE_BAR[0]
-    monkeypatch.setattr(ocr, "ocr_boxes", lambda img, **k: [(t, 0.9, (cx - x1 - 20, 5, cx - x1 + 20, 30)) for t, cx in boxes])
+    monkeypatch.setattr(
+        ocr, "ocr_boxes", lambda img, **k: [(t, 0.9, (cx - x1 - 20, 5, cx - x1 + 20, 30)) for t, cx in boxes]
+    )
 
 
 @pytest.mark.master
@@ -53,15 +55,17 @@ def test_acquire_bar_retries_smaller_scale_when_empty(monkeypatch):
     RapidOCR 一个字都没读出（1.5 / 2 倍都读得出「ホットコーヒー」），整页判 unknown，180 秒停机。默认倍数读空时再用 1.5 倍读一次。"""
     from pathlib import Path
 
-    import cv2
-
     import hiro.vision.ocr as ocr_mod
     from hiro.vision import deck
+
+    import cv2
 
     p = Path(__file__).parent / "fixtures" / "pages" / "acquire-drink-pitem-banner-z7.png"
     if not p.exists():
         pytest.skip("没有 mainz7 获得演出帧")
     real = ocr_mod.ocr_boxes
-    monkeypatch.setattr(ocr_mod, "ocr_boxes", lambda img, *, scale=3.0, **kw: [] if scale == 3.0 else real(img, scale=scale, **kw))
+    monkeypatch.setattr(
+        ocr_mod, "ocr_boxes", lambda img, *, scale=3.0, **kw: [] if scale == 3.0 else real(img, scale=scale, **kw)
+    )
     got = deck.read_acquire_popup(cv2.imread(str(p)), art=False)
     assert got is not None and got["name"] == "ホットコーヒー" and got["kind"] == "drink"

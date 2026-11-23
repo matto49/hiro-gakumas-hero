@@ -24,27 +24,48 @@ from hiro.state.produce import ATTRS, ProduceState
 
 # ---------------------------------------------------------------- 第 3 条：收益是固定值还是随机（核实依据）
 GAIN_BASIS = {
-    "lesson.main_sub": ("fixed", "master ProduceStepOpenLesson.mainParameter / subParameter × growth_permil（_scale 截断），"
-                                 "SP 与否在选之前就显示在选项上；副属性开局决定、日程页可见 [wiki 公開レッスン表与 master 一致]"),
-    "lesson.sub_attr": ("random_if_unread", "副属性哪一项：开局决定、日程可见；没读到时按社区统计 75% / 25% [wikiwiki]，此时两种都给"),
+    "lesson.main_sub": (
+        "fixed",
+        "master ProduceStepOpenLesson.mainParameter / subParameter × growth_permil（_scale 截断），"
+        "SP 与否在选之前就显示在选项上；副属性开局决定、日程页可见 [wiki 公開レッスン表与 master 一致]",
+    ),
+    "lesson.sub_attr": (
+        "random_if_unread",
+        "副属性哪一项：开局决定、日程可见；没读到时按社区统计 75% / 25% [wikiwiki]，此时两种都给",
+    ),
     "lesson.stamina": ("fixed", "普通 6、SP 8 [wiki][seesaa]，master ProduceStepOpenLesson.stamina"),
     "lesson.star": ("fixed", "master ProduceStepOpenLesson.star × star_permil（截断）[wiki スター性]"),
     "lesson.produce_point": ("fixed", "HIFSchedule.stage.base_p_points（master）"),
-    "class.param": ("fixed", "选拔 3/6 日 120、10/17 日 150，本战 1/4 日 180，不套成长率 [community_rules.CLASS_PARAMETER，wiki 授業表]"),
+    "class.param": (
+        "fixed",
+        "选拔 3/6 日 120、10/17 日 150，本战 1/4 日 180，不套成长率 [community_rules.CLASS_PARAMETER，wiki 授業表]",
+    ),
     "class.stamina": ("fixed", "A / B 档体力 -5，眠気档 0 [wiki]"),
     "outing.stamina": ("fixed", "回复最大体力 60%（截断）[wiki おでかけ表，community_rules.OUTING_RECOVER_PERMIL]"),
     "outing.produce_point": ("fixed", "付费档 -50P [wiki]"),
     "gift.produce_point": ("fixed", "差し入れ +80P [community_rules.PRESENT_POINTS]"),
     "rest.stamina": ("fixed", "回复最大体力 50%（截断）[wiki 休む]"),
     "wappen.star": ("fixed", "ワッペン 每次星星 +10 × star_permil（截断）[wiki H.I.Fワッペン]"),
-    "exam.selection_star": ("fixed_formula", "社区分段公式 community_rules.selection_star_base × star_permil [wiki 选拔获得星星]"),
-    "exam.selection_params": ("formula_needs_turn_scores", "community_rules.selection_param_split：要各属性回合得分（存档 / 考试记录），"
-                                                           "缺时按合计分数给区间；未达上界部分社区只有样本 [wiki]"),
+    "exam.selection_star": (
+        "fixed_formula",
+        "社区分段公式 community_rules.selection_star_base × star_permil [wiki 选拔获得星星]",
+    ),
+    "exam.selection_params": (
+        "formula_needs_turn_scores",
+        "community_rules.selection_param_split：要各属性回合得分（存档 / 考试记录），"
+        "缺时按合计分数给区间；未达上界部分社区只有样本 [wiki]",
+    ),
     "exam.finals_star": ("samples", "本战星星只有社区样本（finals_star_base 插值），给 ±3 区间"),
     "exam.r1_points": ("samples", "R1 获得 P 点只有社区样本（r1_points 插值），给 ±5 区间"),
-    "support.bonus": ("fixed_if_known", "支援卡技能（gakumas_produce.supports）：触发时机与数值是 master 精确值，需要编成与已触发次数；"
-                                        "编成未知时用 SUPPORT_SLACK 上界"),
-    "auto_process": ("random", "选拔①② 通过后随机删 2 张「基本」卡 [wiki]：张数固定、哪两张随机 → 只给张数，牌组 pending"),
+    "support.bonus": (
+        "fixed_if_known",
+        "支援卡技能（gakumas_produce.supports）：触发时机与数值是 master 精确值，需要编成与已触发次数；"
+        "编成未知时用 SUPPORT_SLACK 上界",
+    ),
+    "auto_process": (
+        "random",
+        "选拔①② 通过后随机删 2 张「基本」卡 [wiki]：张数固定、哪两张随机 → 只给张数，牌组 pending",
+    ),
     "card_reward": ("observe_only", "三选一 / 礼物 / 外出拿到哪张卡、哪瓶饮料：由候选识别给出，不能推算"),
 }
 
@@ -54,20 +75,42 @@ GAIN_BASIS = {
 # 普通课 0；差し入れ +17；授業 ≤ +11；外出 ≤ +4。上界取实测最大值留余量。
 # 支援卡回复体力的上界（编成未知时）：第 3 局 SP 课后体力比 -8 多 +4、第 6 局 +8（「SPレッスン終了時 体力回復」类技能）
 SUPPORT_HP_SLACK = {"lesson": 8}
-SUPPORT_SLACK = {"lesson_sp": 60, "lesson": 40, "class": 25, "outing": 25, "gift": 25, "shop": 25, "card": 15, "drink": 15, "rest": 15, "exam": 25}
-
+SUPPORT_SLACK = {
+    "lesson_sp": 60,
+    "lesson": 40,
+    "class": 25,
+    "outing": 25,
+    "gift": 25,
+    "shop": 25,
+    "card": 15,
+    "drink": 15,
+    "rest": 15,
+    "exam": 25,
+}
 
 
 # ---------------------------------------------------------------- 小工具
 BASIS_OF = {"observe": "observe_only", "action": "observe_only"}  # 预测器内部的说法 → 契约 BASES
 
 
-def make_event(kind: str, args: dict | None = None, *, seq: int = 0, origin: str = "action", basis: str | None = None) -> Event:
+def make_event(
+    kind: str, args: dict | None = None, *, seq: int = 0, origin: str = "action", basis: str | None = None
+) -> Event:
     assert kind in EVENT_KINDS, kind
-    return Event(seq=seq, kind=kind, origin=origin, args=dict(args or {}), basis=BASIS_OF.get(basis, basis) or "observe_only")
+    return Event(
+        seq=seq, kind=kind, origin=origin, args=dict(args or {}), basis=BASIS_OF.get(basis, basis) or "observe_only"
+    )
 
 
-def expect(value: Any = None, *, min: Any = None, max: Any = None, exact: bool | None = None, tolerance: Any = None, note: str | None = None) -> Expect:  # noqa: A002
+def expect(
+    value: Any = None,
+    *,
+    min: Any = None,
+    max: Any = None,
+    exact: bool | None = None,
+    tolerance: Any = None,
+    note: str | None = None,
+) -> Expect:  # noqa: A002
     if exact is None:
         exact = value is not None and min is None and max is None
     return Expect(value=value, min=min, max=max, exact=exact, tolerance=tolerance, note=note)
@@ -101,7 +144,9 @@ def _ps(state) -> ProduceState | None:
         return None
 
 
-def _pred(seq: int, fields: dict, *, due: str = "ACTION_SELECT", basis: str = "master", expires_after: int | None = 3) -> list[Prediction]:
+def _pred(
+    seq: int, fields: dict, *, due: str = "ACTION_SELECT", basis: str = "master", expires_after: int | None = 3
+) -> list[Prediction]:
     """basis 只用于文档（推算依据写在 Event.basis 与 Expect.note 里），Prediction 契约没有这个字段。"""
     fields = {k: v for k, v in fields.items() if v is not None}
     if not fields:
@@ -151,7 +196,10 @@ def _params_fields(prod: dict, gains: dict, slack_kind: str | None, note: str, *
     return out
 
 
-STAR_PERMIL_RANGE = (1000, 2000)  # star_permil 未识别时的范围：亲爱度加成 1.0–1.5×，加 H.I.F 加成 / 支援卡最多到 2.0×（第 2 局 SP 课程实测 2.0×）
+STAR_PERMIL_RANGE = (
+    1000,
+    2000,
+)  # star_permil 未识别时的范围：亲爱度加成 1.0–1.5×，加 H.I.F 加成 / 支援卡最多到 2.0×（第 2 局 SP 课程实测 2.0×）
 
 
 def _star_expect(prod: dict, base: int, note: str) -> dict | None:
@@ -163,7 +211,12 @@ def _star_expect(prod: dict, base: int, note: str) -> dict | None:
     if permil:
         return expect(star + _scale(base, permil), note=note)
     lo, hi = (star + _scale(base, p) for p in STAR_PERMIL_RANGE)
-    return expect(min=lo, max=hi, exact=False, note=note + f"；星星获得倍率未识别，按 {STAR_PERMIL_RANGE[0] / 1000:g}–{STAR_PERMIL_RANGE[1] / 1000:g}×")
+    return expect(
+        min=lo,
+        max=hi,
+        exact=False,
+        note=note + f"；星星获得倍率未识别，按 {STAR_PERMIL_RANGE[0] / 1000:g}–{STAR_PERMIL_RANGE[1] / 1000:g}×",
+    )
 
 
 def _wappen_fields(prod: dict, times: int = 1) -> dict:
@@ -172,7 +225,10 @@ def _wappen_fields(prod: dict, times: int = 1) -> dict:
     if left is None or prod.get("star") is None:
         return {}
     n = min(times, left)
-    return {"produce.wappen_left": expect(left - n), "produce.star": _star_expect(prod, 10 * n, f"ワッペン ×{n}（{GAIN_BASIS['wappen.star'][1]}）")}
+    return {
+        "produce.wappen_left": expect(left - n),
+        "produce.star": _star_expect(prod, 10 * n, f"ワッペン ×{n}（{GAIN_BASIS['wappen.star'][1]}）"),
+    }
 
 
 def _stage(prod: dict) -> dict | None:
@@ -191,7 +247,9 @@ IDOL_START_CHANGE = {
 UNIQUE_CARD_PLUS_RANK = 3  # 固有卡在特訓段階 3 起为 + [wiki 固有スキル：特訓2段階までは初期。特訓3段階で+]
 
 
-def initial_deck(idol_card_id: str, produce_id: str = "produce-007", *, limit_rank: int = 6, memories: list[dict] | None = None) -> list[Prediction]:
+def initial_deck(
+    idol_card_id: str, produce_id: str = "produce-007", *, limit_rank: int = 6, memories: list[dict] | None = None
+) -> list[Prediction]:
     """开局牌组：ProduceInitialDeck（按偶像おすすめ効果）→ ExamInitialDeck 的基础卡 + 偶像固有卡（特訓≥3 为 +）
     + 偶像能力的开局换卡（IDOL_START_CHANGE）+ 记忆带入的卡（{card_id, upgrade, customizations?}）。返回 [{card_id, upgrade, customized}]。"""
     c = catalog()
@@ -200,9 +258,18 @@ def initial_deck(idol_card_id: str, produce_id: str = "produce-007", *, limit_ra
                     if r["produceId"] == produce_id and r["examEffectType"] == idol["examEffectType"]), idol.get("examInitialDeckId"))  # fmt: skip
     row = c.by_id("ExamInitialDeck", deck_id)[0]
     ups = row.get("produceCardUpgradeCounts") or []
-    deck = [{"card_id": cid, "upgrade": ups[i] if i < len(ups) else 0, "customized": False} for i, cid in enumerate(row["produceCardIds"])]
+    deck = [
+        {"card_id": cid, "upgrade": ups[i] if i < len(ups) else 0, "customized": False}
+        for i, cid in enumerate(row["produceCardIds"])
+    ]
     if idol.get("produceCardId"):
-        deck.append({"card_id": idol["produceCardId"], "upgrade": 1 if limit_rank >= UNIQUE_CARD_PLUS_RANK else 0, "customized": False})
+        deck.append(
+            {
+                "card_id": idol["produceCardId"],
+                "upgrade": 1 if limit_rank >= UNIQUE_CARD_PLUS_RANK else 0,
+                "customized": False,
+            }
+        )
     change = IDOL_START_CHANGE.get(idol["id"])
     if change:
         sources, target, up = change
@@ -210,7 +277,9 @@ def initial_deck(idol_card_id: str, produce_id: str = "produce-007", *, limit_ra
         if i is not None:
             deck[i] = {"card_id": target, "upgrade": up, "customized": False}
     for m in memories or []:
-        deck.append({"card_id": m["card_id"], "upgrade": m.get("upgrade") or 0, "customized": bool(m.get("customizations"))})
+        deck.append(
+            {"card_id": m["card_id"], "upgrade": m.get("upgrade") or 0, "customized": bool(m.get("customizations"))}
+        )
     return deck
 
 
@@ -225,7 +294,7 @@ def support_bonus(prod: dict, phase: str, context: dict | None = None) -> dict |
 
     c = catalog()
     plan = c.one("IdolCard", prod["idol_card_id"])["planType"]
-    out = {a: 0 for a in ATTRS}
+    out = dict.fromkeys(ATTRS, 0)
     for s in sups:
         try:
             card = gs.compile_card(c, _get(s, "card_id"), _get(s, "level"), _get(s, "limit_rank"), plan)
@@ -258,10 +327,15 @@ def _lesson(prod: dict, args: dict, seq: int) -> list[Prediction]:
     growth = prod.get("growth_permil") or {}
     options = []
     for s in subs:
-        row = next((r for r in rows if r["subParameterType"].endswith(enum[s]) and ("-sp-" in r["id"]) == bool(sp)), None)
+        row = next(
+            (r for r in rows if r["subParameterType"].endswith(enum[s]) and ("-sp-" in r["id"]) == bool(sp)), None
+        )
         if row is None:
             continue
-        gains = {attr: _scale(row["mainParameter"], growth.get(attr, 1000)), s: _scale(row["subParameter"], growth.get(s, 1000))}
+        gains = {
+            attr: _scale(row["mainParameter"], growth.get(attr, 1000)),
+            s: _scale(row["subParameter"], growth.get(s, 1000)),
+        }
         options.append((gains, row))
     if not options:
         return []
@@ -276,8 +350,12 @@ def _lesson(prod: dict, args: dict, seq: int) -> list[Prediction]:
             continue
         lo = min(_cap_add(params[a], g.get(a, 0) + (support or {}).get(a, 0), cap) for g, _ in options)
         hi = max(_cap_add(params[a], g.get(a, 0) + (support or {}).get(a, 0) + slack, cap) for g, _ in options)
-        note = f"{attr} {'SP' if sp else '普通'}课程（{GAIN_BASIS['lesson.main_sub'][1][:40]}…）" + ("" if sub else "；副属性未读到，两种都算")
-        fields[f"produce.params.{a}"] = expect(lo, note=note) if lo == hi else expect(min=lo, max=hi, exact=False, note=note)
+        note = f"{attr} {'SP' if sp else '普通'}课程（{GAIN_BASIS['lesson.main_sub'][1][:40]}…）" + (
+            "" if sub else "；副属性未读到，两种都算"
+        )
+        fields[f"produce.params.{a}"] = (
+            expect(lo, note=note) if lo == hi else expect(min=lo, max=hi, exact=False, note=note)
+        )
     hp, mx = prod.get("stamina"), prod.get("max_stamina")
     if hp is not None:
         lo = max(0, hp - row["stamina"])
@@ -301,14 +379,18 @@ def _study(prod: dict, args: dict, seq: int) -> list[Prediction]:
     if attr is None or value is None:
         return []
     support = support_bonus(prod, "StepEventEnd", {})
-    fields = _params_fields(prod, {attr: value}, "class", f"授業 {attr}+{value}（{GAIN_BASIS['class.param'][1][:30]}…）", support=support)
+    fields = _params_fields(
+        prod, {attr: value}, "class", f"授業 {attr}+{value}（{GAIN_BASIS['class.param'][1][:30]}…）", support=support
+    )
     hp = prod.get("stamina")
     if hp is not None and choice in ("A", "B", "trouble"):
         fields["produce.stamina"] = expect(max(0, hp - (0 if choice == "trouble" else 5)))
     gain_day = (prod.get("mode"), prod.get("step")) in rules.CLASS_GAIN_DAYS
     if _deck_known(prod):
         n = len(prod["deck"]) + (1 if gain_day else 0) + (1 if choice == "trouble" else 0)
-        fields["produce.deck_size"] = expect(n, note="获得日 +1 张（三选一另记 CARD_ACQUIRE）" if gain_day else "セレクトチェンジ：张数不变")
+        fields["produce.deck_size"] = expect(
+            n, note="获得日 +1 张（三选一另记 CARD_ACQUIRE）" if gain_day else "セレクトチェンジ：张数不变"
+        )
     fields["produce.step"] = expect(prod["step"] + 1)
     return _pred(seq, fields, basis="community")
 
@@ -321,7 +403,9 @@ def _outing(prod: dict, args: dict, seq: int) -> list[Prediction]:
     tier = args.get("tier")
     fields = {}
     if hp is not None and mx:
-        fields["produce.stamina"] = expect(min(mx, hp + _scale(mx, rules.OUTING_RECOVER_PERMIL)), note=GAIN_BASIS["outing.stamina"][1])
+        fields["produce.stamina"] = expect(
+            min(mx, hp + _scale(mx, rules.OUTING_RECOVER_PERMIL)), note=GAIN_BASIS["outing.stamina"][1]
+        )
     if prod.get("produce_point") is not None and tier is not None:
         fields["produce.produce_point"] = expect(prod["produce_point"] - (50 if tier == "paid" else 0))
     fields.update(_params_fields(prod, {}, "outing", "外出不加属性（支援卡「おでかけ終了時」技能除外）"))
@@ -336,7 +420,9 @@ def _gift(prod: dict, args: dict, seq: int) -> list[Prediction]:
 
     fields = {}
     if prod.get("produce_point") is not None:
-        fields["produce.produce_point"] = expect(prod["produce_point"] + rules.PRESENT_POINTS, note=GAIN_BASIS["gift.produce_point"][1])
+        fields["produce.produce_point"] = expect(
+            prod["produce_point"] + rules.PRESENT_POINTS, note=GAIN_BASIS["gift.produce_point"][1]
+        )
     fields.update(_params_fields(prod, {}, "gift", "差し入れ不加属性（支援卡「差し入れ開始時」技能除外）"))
     if prod.get("step") is not None:
         fields["produce.step"] = expect(prod["step"] + 1)
@@ -361,7 +447,9 @@ def _rest(prod: dict, args: dict, seq: int) -> list[Prediction]:
     return _pred(seq, fields, basis="master")
 
 
-def _deck_change(prod: dict, add: list[tuple[str, int]] = (), remove: list[tuple[str, int]] = (), note: str = "") -> dict:
+def _deck_change(
+    prod: dict, add: list[tuple[str, int]] = (), remove: list[tuple[str, int]] = (), note: str = ""
+) -> dict:
     """牌组已知时给精确多重集；未知时只给张数变化（相对值不能核对，不给）。"""
     if not _deck_known(prod):
         return {}
@@ -396,7 +484,15 @@ def _counter(prod: dict, key: str, seq: int, note: str, extra: dict | None = Non
 
 def _card_reroll(prod: dict, args: dict, seq: int) -> list[Prediction]:
     old = args.get("candidates")
-    extra = {"page_fields.candidates": expect(None, exact=False, note=f"候选应整体换掉（刷新前：{old}）；不变说明刷新没生效")} if old else {}
+    extra = (
+        {
+            "page_fields.candidates": expect(
+                None, exact=False, note=f"候选应整体换掉（刷新前：{old}）；不变说明刷新没生效"
+            )
+        }
+        if old
+        else {}
+    )
     return _counter(prod, "rerolls_left", seq, "再抽選 -1（整局不回复 [wiki]）", extra)
 
 
@@ -416,8 +512,12 @@ def _card_upgrade(prod: dict, args: dict, seq: int) -> list[Prediction]:
     src = args.get("source", "consult")
     if prod.get("produce_point") is not None and src in ("consult", "interval"):
         done = prod.get("upgrades_done") or 0
-        price = args.get("price") or (rules.service_price(done) if src == "consult" else rules.interval_upgrade_price(done))
-        fields["produce.produce_point"] = expect(prod["produce_point"] - price, note=f"{src} 强化 {price}P（community_rules）")
+        price = args.get("price") or (
+            rules.service_price(done) if src == "consult" else rules.interval_upgrade_price(done)
+        )
+        fields["produce.produce_point"] = expect(
+            prod["produce_point"] - price, note=f"{src} 强化 {price}P（community_rules）"
+        )
         if src == "consult":
             fields["produce.upgrades_done"] = expect(done + 1)
     return _pred(seq, fields, due="any", basis="community")
@@ -442,7 +542,12 @@ def _card_change(prod: dict, args: dict, seq: int) -> list[Prediction]:
     rid, rup, cid = args.get("remove_card_id"), args.get("remove_upgrade") or 0, args.get("card_id")
     if not rid or not cid:
         return []
-    return _pred(seq, _deck_change(prod, add=[(cid, rup)], remove=[(rid, rup)], note="セレクトチェンジ：强化继承"), due="any", basis="community")
+    return _pred(
+        seq,
+        _deck_change(prod, add=[(cid, rup)], remove=[(rid, rup)], note="セレクトチェンジ：强化继承"),
+        due="any",
+        basis="community",
+    )
 
 
 def _card_auto_process(prod: dict, args: dict, seq: int) -> list[Prediction]:
@@ -460,7 +565,9 @@ def _card_auto_process(prod: dict, args: dict, seq: int) -> list[Prediction]:
 def _card_customize(prod: dict, args: dict, seq: int) -> list[Prediction]:
     fields = {}
     if args.get("price") and prod.get("produce_point") is not None:
-        fields["produce.produce_point"] = expect(prod["produce_point"] - int(args["price"]), note="特別指導定制价格（画面读出）")
+        fields["produce.produce_point"] = expect(
+            prod["produce_point"] - int(args["price"]), note="特別指導定制价格（画面读出）"
+        )
     i = args.get("deck_index")
     if i is not None and _deck_known(prod) and 0 <= i < len(prod["deck"]):
         fields[f"produce.deck.{i}.customized"] = expect(True)
@@ -471,7 +578,9 @@ def _shop_buy(prod: dict, args: dict, seq: int) -> list[Prediction]:
     """SHOP_BUY {kind: card|drink, card_id|drink_id, upgrade, price}：P - 实付价；物品进牌组 / 饮料。"""
     fields = {}
     if args.get("price") is not None and prod.get("produce_point") is not None:
-        fields["produce.produce_point"] = expect(prod["produce_point"] - int(args["price"]), note="相談实付价（货架识别）")
+        fields["produce.produce_point"] = expect(
+            prod["produce_point"] - int(args["price"]), note="相談实付价（货架识别）"
+        )
     if args.get("kind") == "card" and args.get("card_id"):
         fields.update(_deck_change(prod, add=[(args["card_id"], args.get("upgrade") or 0)], note="相談买卡"))
         fields.update(_wappen_fields(prod))
@@ -489,7 +598,9 @@ def _drink_fields(prod: dict, add: str | None = None, remove: int | None = None)
     if add is not None:
         cap = prod.get("drink_capacity") or 4  # H.I.F 培育页都是 4 格（识别离线统计）
         if len(drinks) >= cap:
-            return {"produce.drinks": expect(sorted(drinks), note="饮料已满：会进 PDRINK_MAX，新饮料要另有 DRINK_DISCARD")}
+            return {
+                "produce.drinks": expect(sorted(drinks), note="饮料已满：会进 PDRINK_MAX，新饮料要另有 DRINK_DISCARD")
+            }
         drinks.append(add)
     return {"produce.drinks": expect(sorted(drinks))}
 
@@ -514,7 +625,12 @@ def _drink_discard(prod: dict, args: dict, seq: int) -> list[Prediction]:
     """DRINK_DISCARD {discard: [i], receive_drink_id?}：丢掉第 i 瓶，收下新饮料（discard 为空 = 不收）。"""
     discard = args.get("discard") or []
     if not discard:
-        return _pred(seq, {"produce.drinks": expect(sorted(prod.get("drinks") or []), note="不收新饮料")}, due="any", basis="action")
+        return _pred(
+            seq,
+            {"produce.drinks": expect(sorted(prod.get("drinks") or []), note="不收新饮料")},
+            due="any",
+            basis="action",
+        )
     fields = _drink_fields(prod, remove=discard[0])
     if args.get("receive_drink_id") and "produce.drinks" in fields:
         drinks = fields["produce.drinks"].value + [args["receive_drink_id"]]
@@ -551,7 +667,9 @@ def _exam_start(prod: dict, args: dict, seq: int) -> list[Prediction]:
     label = args.get("exam_label") or ""
     fields = {}
     if hp is not None and mx:
-        fields["exam.hp"] = expect(hp if label == "r2" else min(mx, hp + mx // 2), note="考前回复 50%（R2 不回复）[wiki]")
+        fields["exam.hp"] = expect(
+            hp if label == "r2" else min(mx, hp + mx // 2), note="考前回复 50%（R2 不回复）[wiki]"
+        )
     turns = args.get("turns") or {"r1": 9, "r2": 12}.get(label)
     if turns:
         fields["exam.remaining_turns"] = expect(turns, note="本场回合数（本战 R1 9 / R2 12 [wiki]；选拔按考试配置）")
@@ -571,7 +689,10 @@ def _exam_result(prod: dict, args: dict, seq: int) -> list[Prediction]:
     star = prod.get("star")
     if exam in (1, 2, 3):
         if star is not None:
-            fields["produce.star"] = expect(star + rules.star_gain(rules.selection_star_base(exam, score), permil), note=GAIN_BASIS["exam.selection_star"][1])
+            fields["produce.star"] = expect(
+                star + rules.star_gain(rules.selection_star_base(exam, score), permil),
+                note=GAIN_BASIS["exam.selection_star"][1],
+            )
         params = prod.get("params") or {}
         growth = prod.get("growth_permil") or {}
         if args.get("turn_scores"):
@@ -609,9 +730,13 @@ def _interval_buy(prod: dict, args: dict, seq: int) -> list[Prediction]:
     if service == "recover" and hp is not None and mx:
         gain = args.get("hp_gain") or 2
         new_hp = min(mx, hp + gain)
-        fields["produce.stamina"] = expect(new_hp, note="轮间回复：每 2 体力 10P [community_rules.interval_recover_price]")
+        fields["produce.stamina"] = expect(
+            new_hp, note="轮间回复：每 2 体力 10P [community_rules.interval_recover_price]"
+        )
         if p is not None:
-            fields["produce.produce_point"] = expect(p - (args.get("price") or rules.interval_recover_price(new_hp - hp)))
+            fields["produce.produce_point"] = expect(
+                p - (args.get("price") or rules.interval_recover_price(new_hp - hp))
+            )
     elif p is not None and args.get("price") is not None:
         fields["produce.produce_point"] = expect(p - int(args["price"]), note="轮间实付价（货架识别）")
     if service == "card" and args.get("card_id"):
@@ -686,5 +811,15 @@ def check_value(exp, observed) -> bool:
     return exp.admits(observed)
 
 
-__all__ = ["EVENT_KINDS", "GAIN_BASIS", "SUPPORT_SLACK", "check_value", "deck_keys", "expect", "initial_deck", "make_event", "predict",
-           "support_bonus"]
+__all__ = [
+    "EVENT_KINDS",
+    "GAIN_BASIS",
+    "SUPPORT_SLACK",
+    "check_value",
+    "deck_keys",
+    "expect",
+    "initial_deck",
+    "make_event",
+    "predict",
+    "support_bonus",
+]

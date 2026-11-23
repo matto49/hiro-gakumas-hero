@@ -10,16 +10,12 @@ from dataclasses import dataclass
 from functools import cache, lru_cache
 from pathlib import Path
 
-import cv2
-import numpy as np
-from cv2.typing import MatLike
 from hiro import master
-
 from hiro.vision import layout
 from hiro.vision.card_art import match_card_art
 from hiro.vision.cards import card_summary, card_version
-from hiro.vision.hand_slots import CARD_OFFSET, card_letters, hand_slots
 from hiro.vision.digits import _iou, _scale, _templates, read_dddd, read_int, read_number, read_score
+from hiro.vision.hand_slots import CARD_OFFSET, card_letters, hand_slots
 from hiro.vision.items import read_drink_slots, read_pitems
 from hiro.vision.ocr import Box, ocr, ocr_batch
 from hiro.vision.ocr import engine as ocr_engine
@@ -27,11 +23,21 @@ from hiro.vision.region_cache import RegionCache, cached
 from hiro.vision.status import read_status_column, status_summary
 from hiro.vision.ui_templates import normalize
 
+import cv2
+import numpy as np
+from cv2.typing import MatLike
+
 TEMPLATES = Path(__file__).with_name("templates")
 ATTRS = {"ボーカル": "vocal", "ダンス": "dance", "ビジュアル": "visual"}
 
 # 720x1280 逻辑坐标 (x1, y1, x2, y2)。HUD 数值取自客户端布局 + 截图校准（hiro.vision.layout），其余仍为实测
 BOX_TURNS = layout.box(layout.EXAM, "ExamAuditionTurnView/txt/TurnValue")
+# 剩余回合圆盘下面的「+n」小胶囊（白底蓝字）：加回合卡 / P 道具给的额外回合，不算在圆盘的数字里（11-19 实测：圆盘 12 + 「+1」= 13 回合）。
+# 最后一个普通回合结束后，圆盘直接变成 n、胶囊消失（用户 11-21：是「恢复」n 个回合，不是 +3 → +2 这样一个个减）。
+# 所以真实剩余 = 圆盘数字 + n，n 可以是 1–4，按 OCR 读数，不定死。
+EXTRA_PILL = (100, 120, 146, 152)  # 白底的位置（720x1280）：有胶囊时白色占比 ≥ 0.74，没有时 ≤ 0.62（5 局 343 帧）
+EXTRA_TEXT = (88, 112, 165, 162)  # OCR 的范围（比白底大一圈，「+4」也在里面）
+EXTRA_WHITE_MIN = 0.68
 BOX_ATTR = (105, 55, 230, 120)
 BOX_MY_SCORE = (222, 128, 262, 166)
 _GENKI_LAYOUT = layout.box(layout.EXAM, "GaugeRoot/GenkiGauge/IconRoot/Icon/GenkiValue")
@@ -71,7 +77,9 @@ def _match_white(img: MatLike, name: str, box) -> tuple[float, tuple[int, int]]:
 
 
 BREAKTHROUGH_MIN = 0.6  # 顶部「突破ライン」条（选拔赛）；偶像之路考试帧最高 0.38
-BREAKTHROUGH_STRONG = 0.75  # 「突破ライン」条匹配到这个分数，「残りターン」可放宽到 FINALS_TURNS_MIN（考试帧 0.80–0.82）
+BREAKTHROUGH_STRONG = (
+    0.75  # 「突破ライン」条匹配到这个分数，「残りターン」可放宽到 FINALS_TURNS_MIN（考试帧 0.80–0.82）
+)
 
 
 def is_hif_exam(img: MatLike, threshold: float = 0.6) -> bool:
@@ -136,33 +144,56 @@ def read_hif_result(img: MatLike) -> dict:
     title = "".join(t for t, _ in ocr(img[150:200, 40:240]))
     m = re.search(r"第\s*(\d+)\s*回", title)
     x0, y0, x1, y1 = RESULT_LIST
-    boxes = [(t.replace(" ", ""), (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0)) for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)]
+    boxes = [
+        (t.replace(" ", ""), (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0))
+        for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)
+    ]
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     white = cv2.inRange(hsv, (0, 0, 225), (180, 40, 255)) > 0
     entries, line = [], {"rank_line": None, "participants": None, "y": None}
     # 分数行「48,603Pt」：Vision 有时把「Pt」拆成单独的框，所以只认「像分数的数字串」，带不带 Pt 都行
-    scores = [(t, b) for t, b in boxes if b[0] >= 200 and re.fullmatch(r"\d[\d,.]*\s*(?:[pP][tT])?", t.strip()) and re.search(r"\d{2}", t)]
+    scores = [
+        (t, b)
+        for t, b in boxes
+        if b[0] >= 200 and re.fullmatch(r"\d[\d,.]*\s*(?:[pP][tT])?", t.strip()) and re.search(r"\d{2}", t)
+    ]
     for pts, (bx1, by1, bx2, by2) in scores:
         cy = (by1 + by2) // 2 - RESULT_SCORE_DY  # 行中心（= 字样中心）
-        label = next((t for t, b in boxes if t in ("突破", "敗退") and b[0] < 160 and abs((b[1] + b[3]) // 2 - cy) <= 30), None)
-        name = next((t for t, b in boxes if b[0] >= 200 and cy - 50 <= (b[1] + b[3]) // 2 < cy - 5 and not re.search(r"\d", t)), None)
+        label = next(
+            (t for t, b in boxes if t in ("突破", "敗退") and b[0] < 160 and abs((b[1] + b[3]) // 2 - cy) <= 30), None
+        )
+        name = next(
+            (t for t, b in boxes if b[0] >= 200 and cy - 50 <= (b[1] + b[3]) // 2 < cy - 5 and not re.search(r"\d", t)),
+            None,
+        )
         score, votes = _result_score(img, re.sub(r"\D", "", pts), (bx1, by1, bx2, by2))
         edge = white[max(0, cy - 50) : cy + 50, RESULT_ME_EDGE[0] : RESULT_ME_EDGE[1]]
         entries.append({"y": cy, "passed": None if label is None else label == "突破", "name": name,
                         "score": score, "score_votes": votes, "me": bool(edge.mean() >= RESULT_ME_MIN)})  # fmt: skip
     # 分数读不出（被特效盖住）的行：有「突破 / 敗退」字样就照样成行，score 为 None
-    for text, (bx1, by1, bx2, by2) in boxes:
+    for text, (bx1, by1, bx2, by2) in boxes:  # noqa: B007
         cy = (by1 + by2) // 2
         if text in ("突破", "敗退") and bx1 < 160 and all(abs(e["y"] - cy) > 30 for e in entries):
-            name = next((t for t, b in boxes if b[0] >= 200 and cy - 50 <= (b[1] + b[3]) // 2 < cy - 5 and not re.search(r"\d", t)), None)
+            name = next(
+                (
+                    t
+                    for t, b in boxes
+                    if b[0] >= 200 and cy - 50 <= (b[1] + b[3]) // 2 < cy - 5 and not re.search(r"\d", t)
+                ),
+                None,
+            )
             edge = white[max(0, cy - 50) : cy + 50, RESULT_ME_EDGE[0] : RESULT_ME_EDGE[1]]
             entries.append({"y": cy, "passed": text == "突破", "name": name, "score": None, "score_votes": None,
                             "me": bool(edge.mean() >= RESULT_ME_MIN)})  # fmt: skip
-    for text, (bx1, by1, bx2, by2) in boxes:
+    for text, (bx1, by1, bx2, by2) in boxes:  # noqa: B007
         if "人" in text and bx1 < 160:
             p = re.search(r"(\d+)", text)
             line["participants"] = int(p.group(1)) if p else None
-            above = [(t, b) for t, b in boxes if b[0] < 160 and b[3] <= by1 + 4 and by1 - 60 < b[1] and re.fullmatch(r"\d+", t)]
+            above = [
+                (t, b)
+                for t, b in boxes
+                if b[0] < 160 and b[3] <= by1 + 4 and by1 - 60 < b[1] and re.fullmatch(r"\d+", t)
+            ]
             if above:
                 line["rank_line"] = int(above[-1][0])
             line["y"] = (by1 + by2) // 2
@@ -213,7 +244,9 @@ ATTR_TAILS = {"カル": "vocal", "ンス": "dance", "ュアル": "visual"}  # �
 
 
 def _parse_attr(joined: str) -> dict:
-    attr = next((v for k, v in ATTRS.items() if k in joined), None) or next((v for k, v in ATTR_TAILS.items() if k in joined), None)
+    attr = next((v for k, v in ATTRS.items() if k in joined), None) or next(
+        (v for k, v in ATTR_TAILS.items() if k in joined), None
+    )
     # RapidOCR 常把「%」读成「:」「“」或漏掉：没有「%」时取末尾那串 3–5 位数（之后还要和 ddddocr 一致才采用）
     m = re.search(r"(\d+)\s*%", joined) or re.search(r"(\d{3,5})\D{0,2}$", joined)
     return {"attr": attr, "multiplier_pct": int(m.group(1)) if m else None}
@@ -225,7 +258,9 @@ BOX_MULT = (105, 82, 205, 120)  # 「2512%」数字行（BOX_ATTR 下半）
 _MULT_SEEN: dict[str, int] = {}  # 属性 → 最近一次两种读法一致的倍率（同一场考试里每个属性的倍率不变）
 
 
-def _vote_multiplier(img: MatLike, ocr_pct: int | None, cache: RegionCache | None, attr: str | None = None) -> tuple[int | None, list]:
+def _vote_multiplier(
+    img: MatLike, ocr_pct: int | None, cache: RegionCache | None, attr: str | None = None
+) -> tuple[int | None, list]:
     """倍率两种读法（Apple Vision 整块 OCR、ddddocr 数字行）一致才给；不一致时，若有一个读数等于该属性上次一致读到的值就用它，否则 None。
     回合转盘上的白色箭头会转到数字左边、盖住首位：OCR 把「1」读成「7」或丢掉（1481→7481 / 485），ddddocr 有时丢掉首位（1905→905）。"""
     x1, y1, x2, y2 = BOX_MULT
@@ -256,7 +291,11 @@ def _parse_breakthrough(texts: str) -> dict:
     # 选拔考的突破线是参赛人数的一半：只在「后半 = 前半 × 2」的切法唯一时取，否则仍给 None
     if d := re.search(r"(\d{3,})\s*人", texts):
         digits = d.group(1)
-        cuts = [(int(digits[:k]), int(digits[k:])) for k in range(1, len(digits)) if digits[k] != "0" and int(digits[k:]) == 2 * int(digits[:k])]
+        cuts = [
+            (int(digits[:k]), int(digits[k:]))
+            for k in range(1, len(digits))
+            if digits[k] != "0" and int(digits[k:]) == 2 * int(digits[:k])
+        ]
         if len(cuts) == 1:
             return {"rank_line": cuts[0][0], "participants": cuts[0][1]}
     return {"rank_line": None, "participants": None}
@@ -285,7 +324,11 @@ def _texts(regions: dict[str, MatLike], cache: RegionCache | None) -> dict[str, 
 
 
 RANK_STRIP = (110, 5, 720, 170)
-RANK_WHITE = (((0, 0, 235), (180, 25, 255)), ((0, 0, 215), (180, 45, 255)), ((0, 0, 200), (180, 60, 255)))  # 严格 → 放宽（实机截图外框偏灰、被遮挡断开）
+RANK_WHITE = (
+    ((0, 0, 235), (180, 25, 255)),
+    ((0, 0, 215), (180, 45, 255)),
+    ((0, 0, 200), (180, 60, 255)),
+)  # 严格 → 放宽（实机截图外框偏灰、被遮挡断开）
 
 
 RANK_CYAN_MIN_W = 50  # 玩家卡青色底宽约 80；NPC 卡是黄绿底
@@ -315,7 +358,10 @@ def is_finals_strip(img: MatLike) -> bool:
     """本战（produce-008）考试顶部是 3 人名次条（1st / 2nd / 3rd 徽章），选拔赛是突破线 + 多人分数。"""
     x1, y1, x2, y2 = FINALS_BADGE_BOX
     hsv = cv2.cvtColor(img[y1:y2, x1:x2], cv2.COLOR_BGR2HSV)
-    return int(((hsv[:, :, 0] >= 5) & (hsv[:, :, 0] <= 25) & (hsv[:, :, 1] >= 150) & (hsv[:, :, 2] >= 200)).sum()) >= FINALS_BADGE_MIN
+    return (
+        int(((hsv[:, :, 0] >= 5) & (hsv[:, :, 0] <= 25) & (hsv[:, :, 1] >= 150) & (hsv[:, :, 2] >= 200)).sum())
+        >= FINALS_BADGE_MIN
+    )
 
 
 FINALS_CARD_X0 = 223  # 名次条第一张卡左缘
@@ -324,16 +370,21 @@ FINALS_SCORE_Y = (128, 168)
 FINALS_SCORE_OVERHANG = 6  # 玩家分数框右缘超出白框的像素（见 read_finals_ranking）
 
 
-FINALS_ME_RIGHTS = tuple(FINALS_CARD_X0 + FINALS_NPC_W * k + FINALS_ME_W for k in range(3))  # 第 1 / 2 / 3 名时玩家卡右端：345 / 414 / 483
+FINALS_ME_RIGHTS = tuple(
+    FINALS_CARD_X0 + FINALS_NPC_W * k + FINALS_ME_W for k in range(3)
+)  # 第 1 / 2 / 3 名时玩家卡右端：345 / 414 / 483
 FINALS_RIGHT_TOL = 10
 
 
-FINALS_ME_LEFTS = tuple(FINALS_CARD_X0 + FINALS_NPC_W * k for k in range(3))  # 第 1 / 2 / 3 名时玩家卡左缘：223 / 292 / 361
+FINALS_ME_LEFTS = tuple(
+    FINALS_CARD_X0 + FINALS_NPC_W * k for k in range(3)
+)  # 第 1 / 2 / 3 名时玩家卡左缘：223 / 292 / 361
 FINALS_EDGE_MIN = 0.85  # 玩家卡左侧白框竖边：整列白 0.92–0.97；NPC 卡没有白边
 
 
 def _finals_me_left(img: MatLike) -> int | None:
     """玩家卡左缘：白框的左侧竖边（y 10–160 整列近乎全白）。背景亮时顶边会和背景白色连成一片，竖边不受影响。"""
+
     def edge(x: int) -> float:
         hsv = cv2.cvtColor(img[10:160, x - 4 : x + 7], cv2.COLOR_BGR2HSV)
         return float((cv2.inRange(hsv, (0, 0, 200), (180, 60, 255)) > 0).mean(axis=0).max())
@@ -418,13 +469,25 @@ def read_finals_ranking(img: MatLike) -> dict:
     votes = [_ocr_int(img, box), font, read_dddd(img, box)]
     best, n = vote_truncated(votes)
     out["my_score"] = best if n >= 2 else None
-    out["my_score_read"] = {"method": "vote", "confidence": round(n / 3, 2), "note": None if n == 3 else f"三次读数 {votes}（放大 OCR / 字体 / ddddocr）"}
-    xs = [FINALS_CARD_X0 + FINALS_NPC_W * i for i in range(left_npcs)] + [right + 2 + FINALS_NPC_W * j for j in range(2 - left_npcs)]
+    out["my_score_read"] = {
+        "method": "vote",
+        "confidence": round(n / 3, 2),
+        "note": None if n == 3 else f"三次读数 {votes}（放大 OCR / 字体 / ddddocr）",
+    }
+    xs = [FINALS_CARD_X0 + FINALS_NPC_W * i for i in range(left_npcs)] + [
+        right + 2 + FINALS_NPC_W * j for j in range(2 - left_npcs)
+    ]
     for x in xs:
         if x + FINALS_NPC_W > img.shape[1]:
             out["npc_scores"].append(None)
             continue
-        if ocr_engine() == "vision":
+        if ocr_engine() == "simd":
+            from hiro.vision.ocr import ocr_line
+
+            # 已知只有一行的框：不走文字检测，免得检测把六位数的 NPC 分数截短
+            t = ocr_line(img[y1:y2, x : x + FINALS_NPC_W + 5]).replace(",", "").replace(" ", "")
+            v = int(t) if re.fullmatch(r"[0-9]{6}", t) else None
+        elif ocr_engine() == "vision":
             v = _ocr_int(img, (x, y1, x + FINALS_NPC_W + 1, y2))
         else:
             # RapidOCR / Windows OCR 读这号小字有系统性错（596029→598029、460505→430505，换放大倍数多次读也一致地错，投票选不对），
@@ -433,8 +496,10 @@ def read_finals_ranking(img: MatLike) -> dict:
         out["npc_scores"].append(v if v is not None and FINALS_NPC_MIN <= v <= 999_999 else None)
     rnd = out["finals_round"] = finals_round_from_npc(out["npc_scores"])
     # 不在本轮区间的读数是读错的（两位互相矛盾时两位都不可信）：作废，别让决策拿 R2 的目标分打 R1
-    out["npc_scores"] = [v if v is not None and rnd is not None and npc_round(i, v) == rnd else None
-                         for i, v in enumerate(out["npc_scores"])]
+    out["npc_scores"] = [
+        v if v is not None and rnd is not None and npc_round(i, v) == rnd else None
+        for i, v in enumerate(out["npc_scores"])
+    ]
     return out
 
 
@@ -448,7 +513,9 @@ FINALS_NPC_BANDS = {1: ((397_457, 409_161), (293_847, 322_182)), 2: ((590_229, 6
 
 def npc_round(pos: int, v: int) -> int | None:
     """第 pos 位（0 / 1）NPC 的目标分属于哪一轮；不在任何一轮的区间里给 None（读错）。"""
-    return next((r for r, bands in FINALS_NPC_BANDS.items() if pos < len(bands) and bands[pos][0] <= v <= bands[pos][1]), None)
+    return next(
+        (r for r, bands in FINALS_NPC_BANDS.items() if pos < len(bands) and bands[pos][0] <= v <= bands[pos][1]), None
+    )
 
 
 def finals_round_from_npc(npc: list[int | None]) -> int | None:
@@ -474,7 +541,13 @@ def read_ranking(img: MatLike) -> dict:
         # 没有突破线也不是本战名次条：偶像之路的 6 人名次条（hiro.vision.tower）
         if (t := read_tower_ranking(img)) is not None:
             npcs = [v for i, v in enumerate(t["scores"], 1) if i != t["my_rank"]]
-            return {"my_rank_index": t["my_rank"], "my_score": t["my_score"], "npc_scores": npcs, "my_score_read": None, "tower": t}
+            return {
+                "my_rank_index": t["my_rank"],
+                "my_score": t["my_score"],
+                "npc_scores": npcs,
+                "my_score_read": None,
+                "tower": t,
+            }
     x1, y1, x2, y2 = RANK_STRIP
     strip = img[y1:y2, x1:x2]
     hsv = cv2.cvtColor(strip, cv2.COLOR_BGR2HSV)
@@ -547,7 +620,7 @@ def _asset_to_card(key: str) -> master.Card | None:
 UNAVAILABLE_LETTER_MAX = 170  # 卡名首字母框平均亮度：可用约 225，不可用（压暗）约 115
 # 过场白光（「スキルカードサポート」「もう一枚使用できます」等）叠在手牌上时，字母亮度落在中间段，可打 / 压暗分不开：
 # 第二十七局 #168 压暗的两张 182 / 177 被判可打，第二十八局 #178 可打的 イメトレ 也是 177。全部 4398 帧里 140–210 只出现在这类帧
-#（正常：压暗 90–120、可打 220–240）→ 整手牌标 hand_layout="overlay"，观测里手牌给 None（同「动画中」），等下一帧
+# （正常：压暗 90–120、可打 220–240）→ 整手牌标 hand_layout="overlay"，观测里手牌给 None（同「动画中」），等下一帧
 AMBIGUOUS_LETTER_V = (140, 210)
 
 
@@ -571,7 +644,7 @@ def _name_bar(img: MatLike, letter: Box) -> str:
 
 
 # 卡名比对前的归一化：小写假名 → 大写（OCR 常把「ティ」的「ィ」读成「イ」）、片假名 / 平假名形近字（ヘ/へ）、长音的各种写法
-_KANA_FOLD = str.maketrans({**{a: b for a, b in zip("ァィゥェォャュョッヮぁぃぅぇぉゃゅょっゎ", "アイウエオヤユヨツワあいうえおやゆよつわ")},
+_KANA_FOLD = str.maketrans({**dict(zip("ァィゥェォャュョッヮぁぃぅぇぉゃゅょっゎ", "アイウエオヤユヨツワあいうえおやゆよつわ")),
                             "へ": "ヘ", "べ": "ベ", "ぺ": "ペ", "一": "ー", "-": "ー", "−": "ー", "ｰ": "ー", "!": "！", "?": "？"})  # fmt: skip
 NAME_TRIM_MAX = 2  # 卡名末尾最多去掉几个字再按前缀找（被下一张卡盖住时末字常被读成「！」「く」「2」）
 NAME_PREFIX_MIN = 3  # 前缀至少几个字才按前缀找唯一卡名
@@ -680,7 +753,11 @@ def plus_count(crop: MatLike, *, center_x: int | None = None) -> int | None:
     m = _name_mask(crop)
     n, lab, st, _ = cv2.connectedComponentsWithStats(m.astype(np.uint8))
     h, w_all = m.shape
-    comps = sorted((st[i][0], i) for i in range(1, n) if st[i][4] >= 20 and st[i][0] > 0 and st[i][1] > 0 and st[i][1] + st[i][3] < h)
+    comps = sorted(
+        (st[i][0], i)
+        for i in range(1, n)
+        if st[i][4] >= 20 and st[i][0] > 0 and st[i][1] > 0 and st[i][1] + st[i][3] < h
+    )
     k = 0
     for _, i in reversed(comps):
         x, y, w, ch = st[i][:4]
@@ -742,7 +819,9 @@ def hand_cards(img: MatLike, *, cache: RegionCache | None = None) -> list[HandCa
     for s in hand_slots(img):
         r = s.rect
         crop = img[max(0, r.y1 - 12) : r.y2 + 12, max(0, r.x1 - 8) : r.x2 + 8]
-        card = cached(cache, f"hand-art@{r.x1}", crop, lambda r=r: _art_card(_match_shifted(img, r.x1, r.y1, r.x2, r.y2))[3])
+        card = cached(
+            cache, f"hand-art@{r.x1}", crop, lambda r=r: _art_card(_match_shifted(img, r.x1, r.y1, r.x2, r.y2))[3]
+        )
         out.append(HandCard(r, s.letter, s.available, card))
     return out
 
@@ -767,11 +846,20 @@ def _read_card(img: MatLike, slot: int, letter: Box, next_cx: int | None = None)
         found, source = art, ("art+name" if named is not None else "art")
         conf = 1.0 if named is not None else round(score, 3)
     else:
-        return {"slot": slot, "name": None, "name_text": name_text, "art_key": key, "art_score": round(score, 3), "confidence": 0.0}
+        return {
+            "slot": slot,
+            "name": None,
+            "name_text": name_text,
+            "art_key": key,
+            "art_score": round(score, 3),
+            "confidence": 0.0,
+        }
     cx = letter.x1 + letter.w // 2
     covered = next_cx is not None and next_cx - CARD_HALF_W < cx + 95
     plus = plus_count(_name_crop(img, letter, next_cx), center_x=(cx - max(0, cx - 95)) if covered else None)
-    card = card_version(found._id, plus or 0) or found  # 强化次数未知（被盖住）时按基础版给效果，plus 为 None 提示调用方
+    card = (
+        card_version(found._id, plus or 0) or found
+    )  # 强化次数未知（被盖住）时按基础版给效果，plus 为 None 提示调用方
     # 眠気等トラブル卡卡面本身就是灰的，按亮度会误判为不可打出；实测可以打出（无效果）
     available = card.category == "ProduceCardCategory_Trouble" or _available(img, letter)
     entry = {"slot": slot, "available": available, "box": [x1, y1, x2 - x1, y2 - y1], "source": source, "name_text": name_text,
@@ -786,7 +874,10 @@ def _read_card(img: MatLike, slot: int, letter: Box, next_cx: int | None = None)
 # ---------------------------------------------------------------- 预计得分徽章
 # 得分牌左上角的「预计得分」：彩色数字（Vo 粉 / Da 蓝 / Vi 橙）白描边，前面可能带一个同色属性图标，左对齐，字体同 HUD（Campus-Alphanumeric），等宽约 28.7px。
 # 位置相对卡名首字母框中心 cx（720x1280）：卡左缘约 cx-95，数字顶约 y889、底约 y921。实测 161 帧手牌 1–5 张布局一致。
-BADGE_X = (-92, 92)  # 读取框相对 cx（到卡右缘）；右端再被下一张卡的左缘（next_cx-95）截住。原来到 +58，6 位数末位被切掉（main8 #155 106837→10683）
+BADGE_X = (
+    -92,
+    92,
+)  # 读取框相对 cx（到卡右缘）；右端再被下一张卡的左缘（next_cx-95）截住。原来到 +58，6 位数末位被切掉（main8 #155 106837→10683）
 BADGE_Y = (884, 934)
 BADGE_PITCH = 28  # 字距（略小于实测 28.7，判「后面还能藏一位」时偏保守）
 BADGE_SCALE = 3
@@ -820,7 +911,9 @@ def read_badge(img: MatLike, cx: int, next_cx: int | None = None) -> dict:
     fill = cv2.morphologyEx(fill, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
     n, lab, st, _ = cv2.connectedComponentsWithStats(fill)
     kernel = np.ones((7, 7), np.uint8)
-    tpl = _templates()  # 没有数字字体（开源默认素材）时为空：白描边字形记为「#」（是数字、不知道是几），整串交给 ddddocr
+    tpl = (
+        _templates()
+    )  # 没有数字字体（开源默认素材）时为空：白描边字形记为「#」（是数字、不知道是几），整串交给 ddddocr
     glyphs = []  # (x, w, 字符或 None, 色相, 是否白描边)，原始像素
     for i in range(1, n):
         x, y, w, h, area = st[i]
@@ -909,7 +1002,9 @@ def hand_layout(xs: list[int]) -> str:
     return "shifted"
 
 
-def read_hand(img: MatLike, *, letters: list[Box] | None = None, cache: RegionCache | None = None) -> tuple[list[dict], int]:
+def read_hand(
+    img: MatLike, *, letters: list[Box] | None = None, cache: RegionCache | None = None
+) -> tuple[list[dict], int]:
     """手牌：按 KAA 的卡名首字母框定位每张卡，用灰度相关识别卡面（对压暗的不可用卡也有效），卡面没把握时用卡名栏 OCR 核对；
     每张另读左上角预计得分徽章（badge_score）。cache：某张卡（卡面 + 卡名栏 + 首字母框）/ 徽章区与上次相同则复用。"""
     if letters is None:
@@ -918,13 +1013,22 @@ def read_hand(img: MatLike, *, letters: list[Box] | None = None, cache: RegionCa
     for slot, letter in enumerate(letters):
         x2, y2 = letter.center.x, letter.top_left.y
         x1, y1 = x2 - CARD_OFFSET[0], y2 - CARD_OFFSET[1]
-        region = img[max(0, y1 - 12) : letter.y1 + 46, max(0, x1 - 8) : min(img.shape[1], letter.x1 + letter.w // 2 + 96)]
+        region = img[
+            max(0, y1 - 12) : letter.y1 + 46, max(0, x1 - 8) : min(img.shape[1], letter.x1 + letter.w // 2 + 96)
+        ]
         next_cx = letters[slot + 1].x1 + letters[slot + 1].w // 2 if slot + 1 < len(letters) else None
-        entry = cached(cache, f"card@{x2}", region, lambda slot=slot, letter=letter, nx=next_cx: _read_card(img, slot, letter, nx))
+        entry = cached(
+            cache, f"card@{x2}", region, lambda slot=slot, letter=letter, nx=next_cx: _read_card(img, slot, letter, nx)
+        )
         cx = letter.x1 + letter.w // 2
-        bx1, bx2 = max(0, cx + BADGE_X[0]), cx + BADGE_X[1] if next_cx is None else min(cx + BADGE_X[1], next_cx - NEXT_CARD_GAP)
+        bx1, bx2 = (
+            max(0, cx + BADGE_X[0]),
+            cx + BADGE_X[1] if next_cx is None else min(cx + BADGE_X[1], next_cx - NEXT_CARD_GAP),
+        )
         badge_crop = img[BADGE_Y[0] : BADGE_Y[1], bx1 : max(bx1 + 1, bx2)]
-        entry.update(cached(cache, f"badge@{cx}:{bx2 - bx1}", badge_crop, lambda cx=cx, nx=next_cx: read_badge(img, cx, nx)))
+        entry.update(
+            cached(cache, f"badge@{cx}:{bx2 - bx1}", badge_crop, lambda cx=cx, nx=next_cx: read_badge(img, cx, nx))
+        )
         entry["slot"] = slot
         hand.append(entry)
     return hand, sum(1 for c in hand if c.get("name") is None)
@@ -954,11 +1058,36 @@ def is_final_exam(img: MatLike) -> bool:
 EXAM_CACHE = RegionCache()  # 考试循环逐帧调用时复用不变区域的结果；离线评测传 cache=None
 
 
+def read_extra_turns(img: MatLike, cache: RegionCache | None = None) -> int | None:
+    """「+n」额外回合：没有胶囊 0；读出「+n」就是 n；有白色胶囊但读不出数字 None（不能猜：猜错会让剩余回合忽大忽小，被当成换回合）。"""
+    x1, y1, x2, y2 = EXTRA_PILL
+    hsv = cv2.cvtColor(img[y1:y2, x1:x2], cv2.COLOR_BGR2HSV)
+    white = float(((hsv[:, :, 1] < 40) & (hsv[:, :, 2] > 220)).mean())
+    tx1, ty1, tx2, ty2 = EXTRA_TEXT
+    crop = img[ty1:ty2, tx1:tx2]
+
+    def ocr_text() -> str:
+        from hiro.vision.ocr import ocr_boxes
+
+        return "".join(t for t, _c, _b in ocr_boxes(crop, scale=3))
+
+    if white < EXTRA_WHITE_MIN:
+        return 0  # 没有胶囊：不跑 OCR（稳定帧判断每帧都调）
+    text = str(cached(cache, "extra_turns", crop, ocr_text)) if cache is not None else ocr_text()
+    m = re.search(r"\+\s*([1-9])", text)
+    return int(m.group(1)) if m else None
+
+
+def _with_extra(base: int | None, extra: int | None) -> int | None:
+    """圆盘数字 + 额外回合；任一读不出就 None。"""
+    return None if base is None or extra is None else base + extra
+
+
 def read_hif_hud(img: MatLike, *, fallback: bool = False) -> dict:
     """考试 HUD 三个数：剩余回合、体力、元气。只用游戏字体比对（约 10–30ms），用于稳定帧判断。
     字体比对没把握（被特效遮住）时为 None；fallback=True 时退回 ddddocr（每个约 200ms）。"""
     read = read_number if fallback else read_int
-    return {"remaining_turns": read(img, BOX_TURNS, align=True), "hp": read(img, BOX_HP, align=True),
+    return {"remaining_turns": _with_extra(read(img, BOX_TURNS, align=True), read_extra_turns(img, EXAM_CACHE)), "hp": read(img, BOX_HP, align=True),
             "genki": read_genki(img) if fallback else read_int(img, BOX_GENKI, align=True)}  # fmt: skip
 
 
@@ -994,7 +1123,9 @@ def read_hif_exam(img: MatLike, *, cache: RegionCache | None = EXAM_CACHE) -> di
 def _read_hif_exam(img: MatLike, cache: RegionCache | None) -> dict:
     letters = sorted(card_letters(img), key=lambda r: r.x1)
     finals = is_finals_strip(img)  # 本战：没有突破线，顶部是 3 人名次条
-    texts = _texts({"attr": _attr_crop(img)} if finals else {"attr": _attr_crop(img), "break": _breakthrough_crop(img)}, cache)
+    texts = _texts(
+        {"attr": _attr_crop(img)} if finals else {"attr": _attr_crop(img), "break": _breakthrough_crop(img)}, cache
+    )
     hand, missing = read_hand(img, letters=letters, cache=cache)
     statuses = read_status_column(img, cache=cache)
 
@@ -1007,18 +1138,22 @@ def _read_hif_exam(img: MatLike, cache: RegionCache | None) -> dict:
     x1, y1, x2, y2 = RANK_STRIP
     drink_slots = read_drink_slots(img, cache=cache)
     out = {
-        "remaining_turns": num("turns", BOX_TURNS),
+        "remaining_turns": _with_extra(num("turns", BOX_TURNS), read_extra_turns(img, cache)),  # 含「+n」额外回合
         **_parse_attr(texts["attr"]),
         "finals_round": None,  # 本战时由 read_finals_ranking 覆盖为 1 / 2
         **cached(cache, "ranking", img[y1:y2, x1:x2], lambda: read_ranking(img)),
         **(_parse_breakthrough(texts["break"]) if not finals else {"rank_line": None, "participants": None}),
         "finals": finals,
-        "genki": cached(cache, "num:genki", img[BOX_GENKI[1] : BOX_GENKI[3], BOX_GENKI[0] : BOX_GENKI[2]], lambda: read_genki(img)),
+        "genki": cached(
+            cache, "num:genki", img[BOX_GENKI[1] : BOX_GENKI[3], BOX_GENKI[0] : BOX_GENKI[2]], lambda: read_genki(img)
+        ),
         "hp": num("hp", BOX_HP),
         "deck_count": None,  # 画面上没有山札张数（旧版读的是 P 道具剩余次数，见 pitem_charges）
         "pitem_charges": num("pitem_charges", BOX_PITEM_CHARGES),
-        "drinks": [{k: d[k] for k in ("slot", "asset", "name", "center", "score", "margin")} if d["state"] == "drink" else None
-                   for d in drink_slots],
+        "drinks": [
+            {k: d[k] for k in ("slot", "asset", "name", "center", "score", "margin")} if d["state"] == "drink" else None
+            for d in drink_slots
+        ],
         "drink_slots": drink_slots,
         "pitems": read_pitems(img, cache=cache),
         "statuses": statuses,

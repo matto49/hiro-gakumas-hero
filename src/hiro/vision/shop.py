@@ -15,13 +15,13 @@ import re
 from functools import cache
 from pathlib import Path
 
-import cv2
-import numpy as np
-from cv2.typing import MatLike
-
 from hiro.vision.items import _library
 from hiro.vision.ocr import engine as ocr_engine
 from hiro.vision.ocr import ocr_boxes
+
+import cv2
+import numpy as np  # noqa: F401
+from cv2.typing import MatLike
 
 REGION = (40, 470, 700, 1070)
 COLS = (65, 220, 375, 530)  # 各列格子左缘
@@ -51,19 +51,23 @@ def _red_plus(img: MatLike, x: int, y: int) -> tuple[int, int]:
     hsv = cv2.cvtColor(img[y + y1 : y + y2, x + x1 : x + x2], cv2.COLOR_BGR2HSV)
     h, sat, val = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
     strict = ((h <= 12) | (h >= 170)) & (sat >= 140) & (val >= 150)
-    loose = ((h <= 9) | (h >= 168)) & (sat >= 90) & (val >= 90)  # 「+」是纯红（色相 0–5）；≤14 会把橙色插画（思い出し笑い）算进来
+    loose = (
+        ((h <= 9) | (h >= 168)) & (sat >= 90) & (val >= 90)
+    )  # 「+」是纯红（色相 0–5）；≤14 会把橙色插画（思い出し笑い）算进来
     n_strict, n_loose = int(strict.sum()), int(loose.sum())
     if n_strict >= PLUS_MIN_PX and not plus_shape_ok(strict, CELL):
         return 0, max(n_loose, PLUS_MIN_PX)
     if n_strict < PLUS_MIN_PX and n_loose >= PLUS_MIN_PX and not plus_shape_ok(loose, CELL):
-        return n_strict, 0  # 宽松阈值数到的是橙红插画（ゆるふわおしゃべり、思い出し笑い），形状不像「+」：当没有（第十七～十九局 チェンジ格 upgrade None）
+        return (
+            n_strict,
+            0,
+        )  # 宽松阈值数到的是橙红插画（ゆるふわおしゃべり、思い出し笑い），形状不像「+」：当没有（第十七～十九局 チェンジ格 upgrade None）
     return n_strict, n_loose
 
 
 def _card(img: MatLike, x: int, y: int = CARD_Y) -> dict:
-    from hiro.vision.deck import match_grid_card
-
     from hiro.vision.cards import card_version
+    from hiro.vision.deck import match_grid_card
 
     card = match_grid_card(img[y : y + CELL, x : x + CELL])
     strict, loose = _red_plus(img, x, y)
@@ -71,7 +75,12 @@ def _card(img: MatLike, x: int, y: int = CARD_Y) -> dict:
     upgrade = 1 if strict >= PLUS_MIN_PX else (None if loose >= PLUS_MIN_PX else 0)
     if card is not None and upgrade:
         card = card_version(card._id, 1) or card
-    return {"kind": "card", "card_id": card._id if card else None, "name": card.name if card else None, "upgrade": upgrade if card else None}
+    return {
+        "kind": "card",
+        "card_id": card._id if card else None,
+        "name": card.name if card else None,
+        "upgrade": upgrade if card else None,
+    }
 
 
 def _drink(img: MatLike, x: int, y: int = DRINK_Y) -> dict:
@@ -96,10 +105,17 @@ def read_consult(img: MatLike) -> dict:
     """→ {"shelf": [{index, kind, card_id | drink_id, name, upgrade, price, sale, purchased, center}], "services": {...}, "rerolls_left"}。"""
     x0, y0, x1, y1 = REGION
     # 不去空格：SALE 的「75 52」会被 Vision 读成一个框，去空格就成了 7552
-    boxes = [(t, (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0)) for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)]
+    boxes = [
+        (t, (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0))
+        for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)
+    ]
 
     def texts_in(xr, yr) -> list[str]:
-        return [t for t, (bx1, by1, bx2, by2) in boxes if xr[0] <= (bx1 + bx2) / 2 <= xr[1] and yr[0] <= (by1 + by2) / 2 <= yr[1]]
+        return [
+            t
+            for t, (bx1, by1, bx2, by2) in boxes
+            if xr[0] <= (bx1 + bx2) / 2 <= xr[1] and yr[0] <= (by1 + by2) / 2 <= yr[1]
+        ]
 
     shelf = []
     for row, top in ((0, CARD_Y), (1, DRINK_Y)):
@@ -131,7 +147,11 @@ def read_consult(img: MatLike) -> dict:
     complete = any("強化や削除" in t.replace(" ", "") for t in texts_in((40, 700), HINT_BAND))
     # 说明行在、但货架被盖住（支援卡效果横幅「スキルカード強化時…」、强化 / 获得演出）：没买过的格子里 ≥2 格读不到价格或认不出物品就算不完整。
     # 第十二局 #234 横幅盖住第一行仍判完整，第 0 格读出幻影「アイドル宣言 4P」，决策去买、执行连失败 2 次。只差一格（新饮料认不出）不丢整个货架
-    unread = [e["index"] for e in shelf if not e["purchased"] and (e["price"] is None or not (e.get("card_id") or e.get("drink_id")))]
+    unread = [
+        e["index"]
+        for e in shelf
+        if not e["purchased"] and (e["price"] is None or not (e.get("card_id") or e.get("drink_id")))
+    ]
     if len(unread) >= SHELF_UNREAD_MAX:
         complete = False
     rerolls = int(m.group(1)) if m else None
@@ -140,7 +160,13 @@ def read_consult(img: MatLike) -> dict:
     # 选中货架上的饮料、饮料栏已满时「交換する」上方出红标「Pドリンク所持上限」（Mac p15-main3 11-17：账号 2 只有 3 格，
     # 选中饮料后 x 272–450、y 1036–1060；没选中饮料时不出）。page_fields.drinks_full（3940a9 8fa7fd5 按它把容量设成持有数）
     drinks_full = any("所持上限" in t for t in texts_in(DRINKS_FULL_X, DRINKS_FULL_BAND))
-    return {"shelf": shelf, "services": services, "rerolls_left": rerolls, "complete": complete, "drinks_full": drinks_full}
+    return {
+        "shelf": shelf,
+        "services": services,
+        "rerolls_left": rerolls,
+        "complete": complete,
+        "drinks_full": drinks_full,
+    }
 
 
 DRINKS_FULL_X, DRINKS_FULL_BAND = (200, 520), (1020, 1066)
@@ -188,7 +214,11 @@ def _purchased_tpl():
 
 def _purchased_mark(img: MatLike, x: int, top: int) -> bool:
     """格子上的「交換済み」白字（整帧 OCR 常漏：main8 R2 #97 / #100 / #101 第 4 格）。"""
-    cell = cv2.inRange(cv2.cvtColor(img[top + 50 : top + 115, max(0, x - 5) : x + CELL + 5], cv2.COLOR_BGR2HSV), (0, 0, 215), (180, 50, 255))
+    cell = cv2.inRange(
+        cv2.cvtColor(img[top + 50 : top + 115, max(0, x - 5) : x + CELL + 5], cv2.COLOR_BGR2HSV),
+        (0, 0, 215),
+        (180, 50, 255),
+    )
     return float(cv2.matchTemplate(cell, _purchased_tpl(), cv2.TM_CCOEFF_NORMED).max()) >= PURCHASED_MIN
 
 
@@ -201,10 +231,17 @@ def read_interval_shelf(img: MatLike) -> dict:
     """轮间货架 → {interval: {cards, changes, drinks, recover, upgrade, refresh, customize}, complete}。
     价格是画面实付价；读不到的项为 None。complete：货架上方的提示行可见（没有弹窗 / 动画盖住）。"""
     x0, y0, x1, y1 = INTERVAL_REGION
-    boxes = [(t, (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0)) for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)]
+    boxes = [
+        (t, (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0))
+        for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)
+    ]
 
     def texts_in(xr, yr) -> list[str]:
-        return [t for t, (bx1, by1, bx2, by2) in boxes if xr[0] <= (bx1 + bx2) / 2 <= xr[1] and yr[0] <= (by1 + by2) / 2 <= yr[1]]
+        return [
+            t
+            for t, (bx1, by1, bx2, by2) in boxes
+            if xr[0] <= (bx1 + bx2) / 2 <= xr[1] and yr[0] <= (by1 + by2) / 2 <= yr[1]
+        ]
 
     out = {"cards": [], "changes": [], "drinks": []}
     for row, top in enumerate(INTERVAL_ROWS):
@@ -215,7 +252,9 @@ def read_interval_shelf(img: MatLike) -> dict:
             # 价格读成 0 / 个位数（RapidOCR 把「50」读成「;0」→ 0）当没读到：轮间没有免费或几 P 的东西，转去单格补读
             nums = [n for n in _nums(texts_in(xr, INTERVAL_PRICE[top])) if n >= INTERVAL_MIN_PRICE]
             nums = nums or [n for n in _cell_price(img, x, INTERVAL_PRICE[top]) if n >= INTERVAL_MIN_PRICE]
-            purchased = any("交換済" in t.replace(" ", "") for t in texts_in(xr, (top, top + CELL))) or _purchased_mark(img, x, top)
+            purchased = any("交換済" in t.replace(" ", "") for t in texts_in(xr, (top, top + CELL))) or _purchased_mark(
+                img, x, top
+            )
             price = nums[-1] if nums else None
             d = _drink(img, x, top) if kind == "drink" else None
             # 饮料按稀有度核对（DMM 单局测试轮间：ミックススムージー 75 读成 15，决策按 15P 判「比继续刷新划算」，实扣 75）。
@@ -245,20 +284,28 @@ def read_interval_shelf(img: MatLike) -> dict:
     recover_ok = int(((btn[:, :, 1] < 30) & (btn[:, :, 2] > 235)).sum()) >= RECOVER_WHITE_MIN
     refresh = _nums(texts_in((20, 200), INTERVAL_REFRESH_BAND))
     upgrade_left = int(up_left.group(1)) if up_left else None
-    out["upgrade"] = {"price": up[-1] if up else None, "available": (upgrade_left > 0) if upgrade_left is not None else None, "left": upgrade_left}
+    out["upgrade"] = {
+        "price": up[-1] if up else None,
+        "available": (upgrade_left > 0) if upgrade_left is not None else None,
+        "left": upgrade_left,
+    }
     out["customize"] = {"left": int(cu_left.group(1)) if cu_left else None}
     out["recover"] = {"available": recover_ok, "price_per_2hp": RECOVER_PRICE_PER_2HP}
     # 「リフレッシュ」按钮（左下，y≈1070）认得出且读到价格才算可用；认不出给 None（不当作不可用）。次数上限 / 涨价离线帧里没有，等实拍补 left
     refresh_btn = any("リフレッシュ" in t for t in texts_in((0, 260), INTERVAL_REFRESH_LABEL_BAND))
     out["refresh"] = {"price": refresh[-1] if refresh else None, "available": True if refresh_btn and refresh else None}
     # 货架淡入时格子半透明（卡 / 饮料会读错、回复按钮读成灰）：要提示行可见、底部「終了」出现、且第一格不透明才算完整
-    #（数据确认 github-2c：trace 00159、reports/runs/20261031-211113/00040 淡入帧曾判 complete=True）
+    # （数据确认 github-2c：trace 00159、reports/runs/20261031-211113/00040 淡入帧曾判 complete=True）
     hint = any("Pポイントで利用する" in t.replace(" ", "") for t in texts_in((40, 700), INTERVAL_HINT_BAND))
     end_btn = any("終了" in t for t in texts_in((500, 720), INTERVAL_END_BAND))
     # 不透明度看没买过的格子里最鲜艳的一格：买过的格子是灰的（main8 R2 #98–#101 买了第 0 格后连续 4 帧 complete=False，
     # interval 给 None，reduce 留着旧货架，决策又去买第 0 格）
     sats = {e["index"]: _cell_sat(hsv, e["index"]) for k in ("cards", "changes", "drinks") for e in out[k]}
-    fresh = [v for i, v in sats.items() if not any(e["index"] == i and e["purchased"] for k in ("cards", "changes", "drinks") for e in out[k])]
+    fresh = [
+        v
+        for i, v in sats.items()
+        if not any(e["index"] == i and e["purchased"] for k in ("cards", "changes", "drinks") for e in out[k])
+    ]
     opaque = max(fresh or list(sats.values())) >= INTERVAL_OPAQUE_SAT
     return {"interval": out, "complete": hint and end_btn and opaque}
 
@@ -298,7 +345,12 @@ def _sale_split(nums: list[int]) -> list[int]:
 # 饮料只看稀有度（id 里 pdrink_XX-稀有度-NNN）：50 / 75 / 100，SALE 七折取整 35 / 52 / 70，没有例外。
 # 卡不规整：原价 35（未强化的 R2 卡，如 前途洋々、成長痛）/ 70 / 77 / 105，SALE 有 24 / 40 / 49 / 53 等几种折扣，所以卡只设下限、不给预期价。
 DRINK_PRICES = {1: 50, 2: 75, 3: 100}
-PRICE_FLOORS = {("drink", False): 50, ("drink", True): 35, ("card", False): 35, ("card", True): 20}  # 卡 SALE 实机最低 24
+PRICE_FLOORS = {
+    ("drink", False): 50,
+    ("drink", True): 35,
+    ("card", False): 35,
+    ("card", True): 20,
+}  # 卡 SALE 实机最低 24
 
 
 def expected_price(item: dict, sale: bool) -> int | None:
@@ -313,8 +365,15 @@ def price_floor(kind: str | None, sale: bool) -> int | None:
     return PRICE_FLOORS.get((kind, bool(sale)))
 
 
-def _vote_price_raw(img: MatLike, x: int, band: tuple[int, int], region_nums: list[int], *, sale: bool = False,
-                    expect: int | None = None) -> tuple[int | None, set[int], int | None]:
+def _vote_price_raw(
+    img: MatLike,
+    x: int,
+    band: tuple[int, int],
+    region_nums: list[int],
+    *,
+    sale: bool = False,
+    expect: int | None = None,
+) -> tuple[int | None, set[int], int | None]:
     """非 Vision 后端的货架价格：单格 4 倍、整块、单格 3 倍、ddddocr 四种读法各取末位数投票，平票按这个顺序。
     RapidOCR 整块读价格 80 格只对 39 格（SALE 的「49」读成「40」、「70」读成「10」，Windows 第六局 #124）；
     加上 SALE 拆分和下限后投票 80/80（win2–win6 + A5b 的 11 帧相談货架，Vision 读数作真值）。"""
@@ -324,7 +383,15 @@ def _vote_price_raw(img: MatLike, x: int, band: tuple[int, int], region_nums: li
 
     y1, y2 = band
     dddd = read_dddd(img, (x + 30, y1, x + CELL + 5, y2))
-    reads = [_sale_split(r) for r in (_cell_price(img, x, band, 4), region_nums, _cell_price(img, x, band, 3), [dddd] if dddd is not None else [])]
+    reads = [
+        _sale_split(r)
+        for r in (
+            _cell_price(img, x, band, 4),
+            region_nums,
+            _cell_price(img, x, band, 3),
+            [dddd] if dddd is not None else [],
+        )
+    ]
     last = [r[-1] for r in reads if r]
     seen_all = {v for r in reads for v in r}
     if not last:
@@ -344,7 +411,11 @@ def _vote_price_raw(img: MatLike, x: int, band: tuple[int, int], region_nums: li
             return int(max(big) * SALE_RATE), seen_all, dddd
         if votes0 not in SALE_PRICES_SEEN:
             # 连原价都没读到（Windows 第十四局 #96：70→49 读成 40，几种读法都只有 40）：已知 SALE 价里只差一位数字的唯一一个
-            near = [v for v in SALE_PRICES_SEEN if len(str(v)) == len(str(votes0)) and sum(x != y for x, y in zip(str(v), str(votes0))) == 1]
+            near = [
+                v
+                for v in SALE_PRICES_SEEN
+                if len(str(v)) == len(str(votes0)) and sum(x != y for x, y in zip(str(v), str(votes0))) == 1
+            ]
             same_head = [v for v in near if str(v)[0] == str(votes0)[0]]  # 读错多在末位：40 → 49（而不是 70）
             if len(near) == 1 or len(same_head) == 1:
                 return near[0] if len(near) == 1 else same_head[0], seen_all, dddd
@@ -368,8 +439,16 @@ def _vote_price_raw(img: MatLike, x: int, band: tuple[int, int], region_nums: li
     return tied[0], seen_all, dddd
 
 
-def _vote_price(img: MatLike, x: int, band: tuple[int, int], region_nums: list[int], *, sale: bool = False,
-                expect: int | None = None, floor: int | None = None) -> int | None:
+def _vote_price(
+    img: MatLike,
+    x: int,
+    band: tuple[int, int],
+    region_nums: list[int],
+    *,
+    sale: bool = False,
+    expect: int | None = None,
+    floor: int | None = None,
+) -> int | None:
     """_vote_price_raw 之后按已知价格核对：expect（饮料按稀有度应有的价，SALE 时是七折价）有任一读法读到过、投票结果却不是它 → 取 expect；
     结果低于这一类的最低价 floor（读丢首位：75→15、77→17）→ 有 expect 取 expect，没有就看别的读法里是否只有一个不低于下限的价，否则 None（不猜）。"""
     v, seen, _ = _vote_price_raw(img, x, band, region_nums, sale=sale, expect=expect)

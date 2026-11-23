@@ -20,8 +20,8 @@ FIELDS = (("score", "分数"), ("shield", "元气"), ("hp", "体力"), ("motivat
 
 
 def _snap(env) -> dict:
-    return dict(score=env.score, shield=env.shield, hp=env.hp, motivation=env.motivation, impression=env.impression,
-                actions=env.actions, hand=len(env.zones["hand"]), turn=env.turn, ended=env.ended)  # fmt: skip
+    return {"score": env.score, "shield": env.shield, "hp": env.hp, "motivation": env.motivation, "impression": env.impression,
+                "actions": env.actions, "hand": len(env.zones["hand"]), "turn": env.turn, "ended": env.ended}  # fmt: skip
 
 
 LAST_STATS: dict = {}  # 最近一次 preview_actions 的统计（preview_ms / worlds_planned / worlds_done / candidates / depth），实机记进 trace
@@ -56,7 +56,9 @@ class Preview:
         if d != 0:
             imm["抽牌"] = d if isinstance(d, int) else f"{d[0]}~{d[1]}"
         if self.immediate.get("hand_replaced"):
-            imm["手牌"] = "全部换掉：现有手牌进弃牌堆，再从山札抽同样张数（抽到什么随机，山札不够时弃牌堆洗回，可能抽回刚弃的牌）"
+            imm["手牌"] = (
+                "全部换掉：现有手牌进弃牌堆，再从山札抽同样张数（抽到什么随机，山札不够时弃牌堆洗回，可能抽回刚弃的牌）"
+            )
         label = {"end_turn": "结束回合（含下回合开始的结算）"}.get(self.key, self.key)
         return {
             "动作": label,
@@ -105,7 +107,9 @@ def _inturn_candidates(w, beam: int | None) -> list:
     return keep or legal[:1]
 
 
-def best_in_turn_fast(w, rng, depth: int, tt: dict | None = None, beam: int | None = BEAM, min_actions: int = MIN_ACTIONS_TO_SEARCH) -> int:
+def best_in_turn_fast(
+    w, rng, depth: int, tt: dict | None = None, beam: int | None = BEAM, min_actions: int = MIN_ACTIONS_TO_SEARCH
+) -> int:
     """best_in_turn 的剪枝版：置换表（同一世界里不同出牌顺序到同一局面只算一次）+ beam + 剩余行动少时不再穷举。"""
     turn = w.turn
     if w.ended:
@@ -204,9 +208,8 @@ def _drink_branch_ok(w, a, legal, drunk: int) -> bool:
     """INTURN_DRINK_BUDGET：这一路已经喝过非 S0 饮料、剩余 > 4 回合时不再展开饮料（卡手时抽牌类除外）。"""
     if a["kind"] != "drink" or drunk < 1 or len(w.turns) - w.turn <= 4:
         return True
-    from hiro.state.knowledge import DRAW_CLASSES, drink_class
-
     from hiro.produce import exam_policy
+    from hiro.state.knowledge import DRAW_CLASSES, drink_class
 
     stuck = not any(x["kind"] == "play" and not w.definition(x["id"]).get("trouble") for x in legal)
     if exam_policy.STUCK_EMPTY_MAX_REM is not None and len(w.turns) - w.turn > exam_policy.STUCK_EMPTY_MAX_REM:
@@ -264,7 +267,9 @@ def best_in_turn(w, rng, depth: int, cache: dict | None = None, drunk: int = 0) 
     return best
 
 
-def preview_actions(env, meta: dict | None, *, worlds: int = 16, seed: int = 0, depth: int = 3, deadline: float | None = None) -> list[Preview]:
+def preview_actions(
+    env, meta: dict | None, *, worlds: int = 16, seed: int = 0, depth: int = 3, deadline: float | None = None
+) -> list[Preview]:
     """depth：第一步之后，本回合内继续穷举的步数（0 表示直接交给推演启发式）。
     deadline：time.monotonic() 的截止时刻。按「世界」一轮一轮算（每轮把所有动作都算一遍）；第一轮总要每个动作都有一个样本，
     但截止时间到了以后，第一轮剩下的动作只用续打估（不做回合内穷举）；之后每个动作前都看截止，
@@ -278,7 +283,17 @@ def preview_actions(env, meta: dict | None, *, worlds: int = 16, seed: int = 0, 
     for a in env.legal_actions():
         uniq.setdefault(action_key(a, env), a)
     before = _snap(env)
-    acc = {key: {"finals": [], "deltas": {k: [] for k, _ in FIELDS}, "acts": [], "drawn": [], "replaced": False, "passed": False} for key in uniq}
+    acc = {
+        key: {
+            "finals": [],
+            "deltas": {k: [] for k, _ in FIELDS},
+            "acts": [],
+            "drawn": [],
+            "replaced": False,
+            "passed": False,
+        }
+        for key in uniq
+    }
     done = 0  # 完整算完的轮数
     for n, ws in enumerate(world_seeds):
         if deadline is not None and n > 0 and time.monotonic() > deadline:
@@ -340,7 +355,11 @@ def preview_actions(env, meta: dict | None, *, worlds: int = 16, seed: int = 0, 
         diffs = [a - b for a, b in zip(p.samples, best.samples)]
         p.vs_best = statistics.fmean(diffs)
         p.vs_best_se = statistics.stdev(diffs) / len(diffs) ** 0.5 if len(diffs) > 1 else 0.0
-        p.preview_ms, p.worlds_planned, p.worlds_done = ms, worlds, done  # 可观测：这一步总耗时、计划 / 实际算完的世界数
+        p.preview_ms, p.worlds_planned, p.worlds_done = (
+            ms,
+            worlds,
+            done,
+        )  # 可观测：这一步总耗时、计划 / 实际算完的世界数
     LAST_STATS.update(preview_ms=ms, worlds_planned=worlds, worlds_done=done, candidates=len(out), depth=depth)
     return sorted(out, key=lambda p: -p.expected)
 
@@ -372,4 +391,4 @@ def prompt_block(slots: dict) -> list[dict]:
     return rows
 
 
-__all__ = ["Preview", "preview_actions", "slot_previews", "prompt_block", "asdict"]
+__all__ = ["Preview", "asdict", "preview_actions", "prompt_block", "slot_previews"]

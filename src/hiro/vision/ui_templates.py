@@ -18,9 +18,9 @@ from dataclasses import dataclass, field
 from functools import cache
 from pathlib import Path
 
-import numpy as np
-
 from hiro.vision.ocr import Box, Point
+
+import numpy as np
 
 PACK = Path(__file__).resolve().parents[3] / "assets" / "pack" / "ui"
 SIZE = (720, 1280)  # 模板和坐标的基准分辨率（宽, 高）
@@ -40,7 +40,11 @@ def normalize(img: np.ndarray) -> np.ndarray:
     """截图统一到 720x1280（竖屏）；已经是就原样返回。"""
     import cv2
 
-    return img if img.shape[1] == SIZE[0] and img.shape[0] == SIZE[1] else cv2.resize(img, SIZE, interpolation=cv2.INTER_AREA)
+    return (
+        img
+        if img.shape[1] == SIZE[0] and img.shape[0] == SIZE[1]
+        else cv2.resize(img, SIZE, interpolation=cv2.INTER_AREA)
+    )
 
 
 def _gray(img: np.ndarray) -> np.ndarray:
@@ -110,7 +114,9 @@ class Template:
 def _pixels(file: str) -> np.ndarray:
     import cv2
 
-    img = cv2.imread(str(PACK / file), cv2.IMREAD_COLOR)  # 彩色读再转灰度（同 KAA；直接按灰度读分数差在千分位，并列时选点会不同）
+    img = cv2.imread(
+        str(PACK / file), cv2.IMREAD_COLOR
+    )  # 彩色读再转灰度（同 KAA；直接按灰度读分数差在千分位，并列时选点会不同）
     if img is None:
         raise FileNotFoundError(PACK / file)
     return _gray(img)
@@ -125,10 +131,17 @@ def _tuple(v):
     return tuple(v) if v is not None else None
 
 
+# 素材包阈值之外单独放宽的模板：开局第 1–4 步左上角的步骤条。DMM 小窗口（541x961 放大）时正确的那个只有 0.77 分，
+# 同一帧上别的步骤条最高 0.56（11-21 / 11-22 实测：KAA 主循环和新主循环都卡在「等第 2 步」）。KAA 的 R 模板另在 kaa_patches 放宽
+THRESHOLD_OVERRIDE = {"Produce.TextStepIndicator1": 0.7, "Produce.TextStepIndicator2": 0.7, "Produce.TextStepIndicator3": 0.7,
+                      "Produce.TextStepIndicator4Or2": 0.7}  # fmt: skip
+
+
 @cache
 def tpl(name: str) -> Template:
     e = _catalog()["templates"][name]
-    return Template(name, e["file"], _tuple(e.get("slice_rect")), e.get("threshold", 0.8), e.get("fixed", False),
+    threshold = THRESHOLD_OVERRIDE[name] if name in THRESHOLD_OVERRIDE else e.get("threshold", 0.8)
+    return Template(name, e["file"], _tuple(e.get("slice_rect")), threshold, e.get("fixed", False),
                     _tuple(e.get("region")), e.get("source", ""))  # fmt: skip
 
 

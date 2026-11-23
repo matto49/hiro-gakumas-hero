@@ -7,9 +7,9 @@ import copy
 import json
 from pathlib import Path
 
-import pytest
-
 from tools.audit import blunders as B
+
+import pytest
 
 FIX = Path(__file__).parent / "fixtures" / "blunders"
 pytestmark = pytest.mark.skipif(not FIX.is_dir(), reason="需要样例 tests/fixtures/blunders（实机片段，不随仓库发布）")
@@ -76,7 +76,9 @@ def test_select_card_real_steps_ok():
 def test_select_card_acquired_other_card():
     s = seg("select_card")
     st = next(x for x in s.steps if x["decision"] and x["decision"]["action"]["kind"] == "ActivateEffect")
-    st["observations_after"].append({"seq": 30, "page": {"name": "ACQUIRE"}, "fields": {"card_id": "p_card-02-men-2_100"}})
+    st["observations_after"].append(
+        {"seq": 30, "page": {"name": "ACQUIRE"}, "fields": {"card_id": "p_card-02-men-2_100"}}
+    )
     f = B.wrong_card_select(s)
     assert kinds(f) == ["wrong_card"] and "p_card-02-men-2_100" in f[0].detail
 
@@ -85,7 +87,9 @@ def test_hand_mismatch_from_recorder():
     ev = [{"kind": "live_hand_rebuilt", "t": 1.0, "exam": "r2", "remaining": 7, "notes": ["紅葉ランニング+ → 成長痛"]},
           {"kind": "live_hand_unfixable", "t": 2.0, "exam": "r2", "remaining": 6, "notes": ["画面 3 张、存档 4 张"]}]  # fmt: skip
     f = B.hand_mismatch(seg(None, events=ev))
-    assert kinds(f) == ["hand_mismatch"] * 2 and f[0].impact["auto_fixed"] is True and f[1].impact["auto_fixed"] is False
+    assert (
+        kinds(f) == ["hand_mismatch"] * 2 and f[0].impact["auto_fixed"] is True and f[1].impact["auto_fixed"] is False
+    )
 
 
 # ------------------------------------------------------------------ 识别
@@ -165,14 +169,22 @@ def test_selection_logs(monkeypatch):
         if time.timezone != -8 * 3600:
             pytest.skip("本平台不能切时区（没有 time.tzset），本机也不是东八区")
         s = seg("select_logs")
-        s.log.append("[2026-11-02 05:34:55,100] [INFO] [hiro.produce.battle] 出牌 (332,1010)：1.6s 内没看到 SELECT，底部文字 ['SELEC1']")
-        assert [(x.kind, x.seq) for x in B.selection_log(s)] == [("select_retap", 26), ("select_cancel", 30), ("select_not_seen", 31)]
+        s.log.append(
+            "[2026-11-02 05:34:55,100] [INFO] [hiro.produce.battle] 出牌 (332,1010)：1.6s 内没看到 SELECT，底部文字 ['SELEC1']"
+        )
+        assert [(x.kind, x.seq) for x in B.selection_log(s)] == [
+            ("select_retap", 26),
+            ("select_cancel", 30),
+            ("select_not_seen", 31),
+        ]
         return
     monkeypatch.setenv("TZ", "Asia/Shanghai")
     time.tzset()
     try:
         s = seg("select_logs")
-        s.log.append("[2026-11-02 05:34:55,100] [INFO] [hiro.produce.battle] 出牌 (332,1010)：1.6s 内没看到 SELECT，底部文字 ['SELEC1']")
+        s.log.append(
+            "[2026-11-02 05:34:55,100] [INFO] [hiro.produce.battle] 出牌 (332,1010)：1.6s 内没看到 SELECT，底部文字 ['SELEC1']"
+        )
         f = B.selection_log(s)
     finally:
         monkeypatch.undo()
@@ -237,8 +249,17 @@ def test_crash_after_produce_end_and_manual_restart():
 
 def test_manual_log(tmp_path):
     p = tmp_path / "manual.jsonl"
-    p.write_text(json.dumps({"run": "lead35-qualify12-20261101-164908", "reason": "全屏切换", "detail": "手动点了一下"}, ensure_ascii=False) + "\n", encoding="utf-8")
-    f = B.manual_log([seg(None, run={}), B.Segment("lead35-qualify12-20261101-164908-r1", Path("."), {}, [], [], [])], p)
+    p.write_text(
+        json.dumps(
+            {"run": "lead35-qualify12-20261101-164908", "reason": "全屏切换", "detail": "手动点了一下"},
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    f = B.manual_log(
+        [seg(None, run={}), B.Segment("lead35-qualify12-20261101-164908-r1", Path("."), {}, [], [], [])], p
+    )
     assert kinds(f) == ["manual_intervention"] and "全屏切换" in f[0].detail
 
 
@@ -319,5 +340,7 @@ def test_interval_drinks_corrected_by_decision():
     steps = copy.deepcopy(d["steps"])
     for st in steps:
         if (st.get("decision") or {}).get("decider") == "interval":
-            st["decision"]["warnings"] = ["轮间持有：produce.drinks [4 瓶]（未在本帧读到）和 R1 结束剩余 [] 不一致，按 R1 结束剩余"]
+            st["decision"]["warnings"] = [
+                "轮间持有：produce.drinks [4 瓶]（未在本帧读到）和 R1 结束剩余 [] 不一致，按 R1 结束剩余"
+            ]
     assert not B.interval_drinks([B.Segment(d["segment"], B.ROOT / "traces", {}, steps, [], [])])

@@ -12,16 +12,19 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
+from hiro.vision import assets
+from hiro.vision.region_cache import RegionCache, cached
+
 import cv2
 import numpy as np
 from cv2.typing import MatLike
 
-from hiro.vision import assets
-from hiro.vision.region_cache import RegionCache, cached
-
 MIN_SCORE = 0.5
 MIN_MARGIN = 0.15  # 领先次佳的幅度；背景误配时各候选分数接近
-LOW_SCORE, LOW_MARGIN = 0.42, 0.22  # 分数略低但遥遥领先也算：ミックススムージー 在培育页底栏只有 0.445、次佳 0.19（qualify6 #293 等 14 帧）
+LOW_SCORE, LOW_MARGIN = (
+    0.42,
+    0.22,
+)  # 分数略低但遥遥领先也算：ミックススムージー 在培育页底栏只有 0.445、次佳 0.19（qualify6 #293 等 14 帧）
 
 DRINK_SIZE = 56
 DRINK_CENTERS = ((62, 1200), (147, 1200), (233, 1200), (318, 1200))  # 考试页
@@ -160,7 +163,9 @@ def _read_drink_slots(img: MatLike) -> list[dict]:
         entry = {"slot": slot, "state": "unknown", "drink_id": None, "asset": None, "name": None,
                  "rect": [cx - half, cy - half, DRINK_SIZE, DRINK_SIZE], "center": [cx, cy], "available": None,
                  "score": round(score, 3), "margin": round(score - second, 3), "confidence": None}  # fmt: skip
-        if (score >= MIN_SCORE and score - second >= MIN_MARGIN) or (score >= LOW_SCORE and score - second >= LOW_MARGIN):
+        if (score >= MIN_SCORE and score - second >= MIN_MARGIN) or (
+            score >= LOW_SCORE and score - second >= LOW_MARGIN
+        ):
             drink = master.drink_by_asset(asset)
             sat = float(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)[:, :, 1].mean())
             entry.update(state="drink", drink_id=drink.id if drink else None, asset=asset, name=lib.names.get(asset) or (drink.name if drink else None),  # KAA 图库没有名称表：按主数据取
@@ -191,7 +196,9 @@ def drink_full_badge(img: MatLike) -> bool:
     x1, y1, x2, y2 = FULL_BADGE
     hsv = cv2.cvtColor(img[y1:y2, x1:x2], cv2.COLOR_BGR2HSV)
     h, sat, v = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
-    red = int((((h < 5) | (h >= 170)) & (sat >= 120) & (v >= 170)).sum())  # 红标实测 4600–4700；可点的橙色「受け取る」≤ 50
+    red = int(
+        (((h < 5) | (h >= 170)) & (sat >= 120) & (v >= 170)).sum()
+    )  # 红标实测 4600–4700；可点的橙色「受け取る」≤ 50
     return red >= FULL_BADGE_MIN_PX and any("上限" in t for t, _, _ in ocr_boxes(img[y1:y2, x1:x2]))
 
 
@@ -231,9 +238,13 @@ def read_bar_drinks(img: MatLike) -> dict:
     账号 2 饮料栏只有 3 格（Mac p15-main3 11-17），原来第 4 个位置读成「空槽」、容量写成 4，相談连买饮料都没成。
     不从底栏读「3」：获得演出 / cut-in 盖住底栏时 4 格账号也会像 3 格（fixtures 9 张）。3 格靠相談页的「Pドリンク所持上限」定。"""
     slots = read_drink_slots(img)
-    sure = all(d["state"] in ("drink", "empty") for d in slots) and all(d["drink_id"] for d in slots if d["state"] == "drink")
+    sure = all(d["state"] in ("drink", "empty") for d in slots) and all(
+        d["drink_id"] for d in slots if d["state"] == "drink"
+    )
     last = slots[-1] if slots else None
-    four = last is not None and (last["state"] == "drink" or (last["state"] == "empty" and _empty_cup(img, last["center"]) >= CUP_MIN))
+    four = last is not None and (
+        last["state"] == "drink" or (last["state"] == "empty" and _empty_cup(img, last["center"]) >= CUP_MIN)
+    )
     return {"drinks": [d["drink_id"] for d in slots if d["state"] == "drink"] if sure else None,
             "drink_capacity": len(slots) if sure and four else None}  # fmt: skip
 
@@ -256,12 +267,24 @@ def _read_pitems(img: MatLike) -> list[dict]:
     x0, y0 = PITEM_TOP_LEFT
     out = []
     for k in range(PITEM_MAX):
-        crops = [c for dy in ((0,) if k == 0 else range(-12, 13, 4)) if (c := _crop(img, x0, y0 + PITEM_PITCH * k + dy, PITEM_SIZE)) is not None]
+        crops = [
+            c
+            for dy in ((0,) if k == 0 else range(-12, 13, 4))
+            if (c := _crop(img, x0, y0 + PITEM_PITCH * k + dy, PITEM_SIZE)) is not None
+        ]
         best = max(lib.match_many(crops), key=lambda top: top[0][0]) if crops else None
         if best is None or best[0][0] < MIN_SCORE or best[0][0] - best[1][0] < MIN_MARGIN:
             break
         (score, asset), (second, _) = best
-        out.append({"slot": k, "asset": asset, "name": lib.names.get(asset), "score": round(score, 3), "margin": round(score - second, 3)})
+        out.append(
+            {
+                "slot": k,
+                "asset": asset,
+                "name": lib.names.get(asset),
+                "score": round(score, 3),
+                "margin": round(score - second, 3),
+            }
+        )
     return out
 
 
@@ -309,7 +332,10 @@ def _drink_by_effect(text: str) -> tuple[str | None, float, float]:
     norm = _norm_effect(text)
     if not norm:
         return None, 0.0, 0.0
-    sims = sorted(((difflib.SequenceMatcher(None, norm, eff).ratio(), did) for did, (_, eff) in _drink_effects().items()), reverse=True)
+    sims = sorted(
+        ((difflib.SequenceMatcher(None, norm, eff).ratio(), did) for did, (_, eff) in _drink_effects().items()),
+        reverse=True,
+    )
     (best, did), (second, _) = sims[0], sims[1]
     return (did if best >= OVERFLOW_TEXT_MIN and best - second >= OVERFLOW_TEXT_MARGIN else None), best, best - second
 
@@ -325,7 +351,13 @@ def _drinks_by_prefix(text: str) -> list[str]:
     norm = _norm_effect(text)
     if len(norm) < 4:
         return []
-    sims = sorted(((difflib.SequenceMatcher(None, norm, eff[: len(norm)]).ratio(), did) for did, (_, eff) in _drink_effects().items()), reverse=True)
+    sims = sorted(
+        (
+            (difflib.SequenceMatcher(None, norm, eff[: len(norm)]).ratio(), did)
+            for did, (_, eff) in _drink_effects().items()
+        ),
+        reverse=True,
+    )
     return [did for sim, did in sims if sim >= PREFIX_MIN]
 
 
@@ -336,7 +368,9 @@ def _match_drink_icon(img: MatLike, cx: int, cy: int) -> tuple[float, float, str
         h = size // 2
         for dx in (-12, -6, 0, 6, 12):
             for dy in (-8, 0, 8):
-                crops.append(cv2.resize(_crop(img, cx - h + dx, cy - h + dy, size), (56, 56), interpolation=cv2.INTER_AREA))
+                crops.append(
+                    cv2.resize(_crop(img, cx - h + dx, cy - h + dy, size), (56, 56), interpolation=cv2.INTER_AREA)
+                )
     (score, asset), (second, _) = max(lib.match_many(crops), key=lambda t: t[0][0])
     return score, second, asset
 
@@ -375,10 +409,11 @@ def read_pdrink_max(img: MatLike) -> dict | None:
     import re
 
     from hiro import master
-
     from hiro.vision.ocr import ocr_boxes
 
-    boxes = [(t.replace(" ", ""), b) for t, _, b in ocr_boxes(img)]  # 整屏：「あと N個選択」随弹窗高度在 y≈780–1210（原来只看 0:1150，长弹窗读不到）
+    boxes = [
+        (t.replace(" ", ""), b) for t, _, b in ocr_boxes(img)
+    ]  # 整屏：「あと N個選択」随弹窗高度在 y≈780–1210（原来只看 0:1150，长弹窗读不到）
     header = next((b for t, b in boxes if "手持ち" in t), None)
     if header is None:
         return None
@@ -406,9 +441,17 @@ def read_pdrink_max(img: MatLike) -> dict | None:
                  "center": [OVERFLOW_ICON_X, int(y)], "method": "effect" if did else None, "score": round(sim, 3), "margin": round(margin, 3)}  # fmt: skip
         if did is None:
             score, second, asset = _match_drink_icon(img, OVERFLOW_ICON_X, y)
-            drink = master.drink_by_asset(asset) if score >= OVERFLOW_MIN and score - second >= OVERFLOW_MARGIN else None
+            drink = (
+                master.drink_by_asset(asset) if score >= OVERFLOW_MIN and score - second >= OVERFLOW_MARGIN else None
+            )
             if drink is not None:
-                entry.update(drink_id=drink.id, name=lib.names.get(asset) or drink.name, method="icon", score=round(score, 3), margin=round(score - second, 3))
+                entry.update(
+                    drink_id=drink.id,
+                    name=lib.names.get(asset) or drink.name,
+                    method="icon",
+                    score=round(score, 3),
+                    margin=round(score - second, 3),
+                )
         return entry
 
     new = [r for r in rows if r[0][0] < hy]
@@ -427,4 +470,3 @@ def read_pdrink_max(img: MatLike) -> dict | None:
     m = re.search(r"あと(\d+)", left or "")
     return {"held": held, "incoming": incomings[-1] if incomings else None, "incomings": incomings, "select_left": int(m.group(1)) if m else None,
             "complete": complete}  # fmt: skip
-

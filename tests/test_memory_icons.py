@@ -2,13 +2,13 @@
 
 from pathlib import Path
 
-import cv2
-import numpy as np
-import pytest
-
 from hiro.produce.formation_check import check_memory_cards
 from hiro.vision import memory_icons
 from hiro.vision.memory_icons import DETAIL_ICON, card_key, read_icon, read_step3_icons
+
+import cv2
+import numpy as np
+import pytest
 
 FIX = Path(__file__).with_name("fixtures")
 STEP3 = FIX / "support" / "step3-memory.jpg"
@@ -17,7 +17,9 @@ STEP3_TRUTH = ["p_card-02-act-2_062", "p_card-00-men-3_012", "p_card-02-act-3_05
 
 
 def _need(*paths):
-    return pytest.mark.skipif(not all(p.is_file() for p in paths), reason="需要实机截图 tests/fixtures/（游戏画面不随仓库发布）")
+    return pytest.mark.skipif(
+        not all(p.is_file() for p in paths), reason="需要实机截图 tests/fixtures/（游戏画面不随仓库发布）"
+    )
 
 
 NEED_STEP3 = _need(STEP3)
@@ -121,9 +123,13 @@ def test_step3_check_waits_for_icons_to_settle(monkeypatch):
     first, settled = _img(a), _img(b)
     plan = _plan(P15C_PLAN)
     plan["memory"]["set"] = 20
-    monkeypatch.setattr("hiro.produce.formation_check.check_memory_step3", lambda n, plan: ([], []))  # 编成号另有用例，这里只看卡面
+    monkeypatch.setattr(
+        "hiro.produce.formation_check.check_memory_step3", lambda n, plan: ([], [])
+    )  # 编成号另有用例，这里只看卡面
     frames = [first, settled, settled]
-    check_memory_set(first, plan, 20, shoot=lambda: frames.pop(0) if len(frames) > 1 else frames[0], sleep=lambda s: None)
+    check_memory_set(
+        first, plan, 20, shoot=lambda: frames.pop(0) if len(frames) > 1 else frames[0], sleep=lambda s: None
+    )
     with pytest.raises(FormationMismatch):
         check_memory_set(first, plan, 20)
     assert formation_steps.STEP3_SETTLE_READS >= 3
@@ -149,7 +155,7 @@ def test_background_crops_are_unknown(icon_method):
     """截到非图标的位置（布局变了 / 框错了）：要落在「认不出」。"""
     img = _img(STEP3)
     for x, y in ((100, 300), (400, 1100), (50, 1150), (300, 600), (450, 700)):
-        assert not read_icon(img[y:y + 87, x:x + 87])["known"], (x, y)
+        assert not read_icon(img[y : y + 87, x : x + 87])["known"], (x, y)
 
 
 def test_render_shape_and_mask():

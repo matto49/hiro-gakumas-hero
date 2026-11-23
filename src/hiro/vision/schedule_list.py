@@ -62,7 +62,10 @@ def read_schedule_list(img: np.ndarray, texts=None) -> dict | None:
     tx = [(t.text.replace(" ", ""), int(t.rect.center.x), int(t.rect.center.y)) for t in texts]
     if not any("スケジュール" in s for s, _, y in tx if y > 1070):
         return None
-    labels = sorted(((w, y) for s, x, y in tx if x < LABEL_X_MAX and LIST_Y[0] <= y <= LIST_Y[1] and (w := _week(s)) is not None), key=lambda r: r[1])
+    labels = sorted(
+        ((w, y) for s, x, y in tx if x < LABEL_X_MAX and LIST_Y[0] <= y <= LIST_Y[1] and (w := _week(s)) is not None),
+        key=lambda r: r[1],
+    )
     labels = _fill_gaps(labels)
     if not labels:
         return None
@@ -76,14 +79,25 @@ def read_schedule_list(img: np.ndarray, texts=None) -> dict | None:
         if float(((cur[..., 1] > 90) & (cur[..., 2] > 120)).mean()) > 0.35:
             current = w
         if exam_title is not None:
-            line = next((int(m.group(1)) for s, x, yy in tx if x >= LABEL_X_MAX and abs(yy - y) <= 60 and (m := re.match(r"(\d{2,4})", s))), None)
+            line = next(
+                (
+                    int(m.group(1))
+                    for s, x, yy in tx
+                    if x >= LABEL_X_MAX and abs(yy - y) <= 60 and (m := re.match(r"(\d{2,4})", s))
+                ),
+                None,
+            )
             stage = "final" if "最終" in exam_title else "mid1" if "中間" in exam_title else None
             # 审查基准柱的高度和权重不成正比（柱顶压着属性图标、不从零画起；量出来中間 Vo/Da/Vi 0.38/0.39/0.23，主数据 0.40/0.33/0.27，
             # 连最高的是哪个都错）：不读柱子，审查基准按主数据查（hiro.brain.hajime_nia.exam_criteria）。这里只给场次和分数线
             weeks[w] = {"kind": "exam", "options": [], "faded": [], "exam": {"stage": stage, "line": line}}
             continue
         if any("追い込み" in s for s in row):
-            weeks[w] = {"kind": "oikomi", "options": [{"option": "training", "attr": None, "oikomi": True}], "faded": [False]}
+            weeks[w] = {
+                "kind": "oikomi",
+                "options": [{"option": "training", "attr": None, "oikomi": True}],
+                "faded": [False],
+            }
             continue
         if not (LIST_Y[0] + ICON_HALF + 5 <= y <= LIST_Y[1] - ICON_HALF - 5):
             continue  # 行被上面的属性栏 / 下面的 tab 盖住一截：不读（滑到边缘读出过乱的）
@@ -102,7 +116,7 @@ def read_schedule_list(img: np.ndarray, texts=None) -> dict | None:
 def _fill_gaps(labels: list[tuple[int, int]]) -> list[tuple[int, int]]:
     """OCR 漏掉的「N週」（灰字）：相邻两个读到的周差 2、y 差约两行（普通行）时补中间那周。"""
     out = list(labels)
-    for (w1, y1), (w2, y2) in zip(labels, labels[1:]):
+    for (w1, y1), (w2, y2) in zip(labels, labels[1:]):  # noqa: RUF007
         if w1 - w2 == 2 and abs((y2 - y1) - 2 * ROW_H) <= 20:
             out.append((w1 - 1, (y1 + y2) // 2))
     return sorted(out, key=lambda r: r[1])
@@ -117,7 +131,12 @@ def merge(screens: list[dict], current_week: int | None = None) -> dict:
     for s in screens:
         for w, e in (s.get("weeks") or {}).items():
             old = weeks.get(w)
-            if old is not None and old.get("kind") == "exam" and e.get("kind") == "exam" and not (e.get("exam") or {}).get("line"):
+            if (
+                old is not None
+                and old.get("kind") == "exam"
+                and e.get("kind") == "exam"
+                and not (e.get("exam") or {}).get("line")
+            ):
                 continue  # 考试周：保留读到了分数线的那一屏
             weeks[w] = e
         cur = cur or s.get("current_week")

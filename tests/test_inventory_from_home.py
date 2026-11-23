@@ -1,9 +1,9 @@
 """从首页开扫库存（初星助手「扫描支援卡 / 回忆」按钮）：进编成菜单 → 支援卡 / 回忆页 → 点第 1 格进选择列表。只点格子，不点決定。"""
 
-import pytest
-
 from hiro.produce import formation_menu as fm
 from hiro.produce.formation_writer import FormationWriteError
+
+import pytest
 
 
 class Dev:

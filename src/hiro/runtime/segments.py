@@ -17,7 +17,9 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-def trace_name(prefix: str, command: str, given: str | None = None, *, root: Path | None = None, now: datetime | None = None) -> str:
+def trace_name(
+    prefix: str, command: str, given: str | None = None, *, root: Path | None = None, now: datetime | None = None
+) -> str:
     if given:
         return given
     stamp = f"{prefix}-{(now or datetime.now()).strftime('%Y%m%d-%H%M%S')}"
@@ -27,7 +29,11 @@ def trace_name(prefix: str, command: str, given: str | None = None, *, root: Pat
 
     root = Path(root or TRACES)
     pat = re.compile(rf"({re.escape(prefix)}-\d{{8}}-\d{{6}})(?:-r(\d+))?")
-    segs = [(m.group(1), int(m.group(2) or 0), d) for d in (root.iterdir() if root.is_dir() else ()) if d.is_dir() and (m := pat.fullmatch(d.name))]
+    segs = [
+        (m.group(1), int(m.group(2) or 0), d)
+        for d in (root.iterdir() if root.is_dir() else ())
+        if d.is_dir() and (m := pat.fullmatch(d.name))
+    ]
     if not segs:
         logger.info("续跑：traces 里没有 %s-* 的上一段，新起 %s（续跑首帧读不到的字段留空）", prefix, stamp)
         return stamp

@@ -12,7 +12,13 @@ from hiro.contracts.base import VERSION, Contract
 from hiro.contracts.events import Event
 
 MODES = ("home", "produce", "contest", "daily", "unknown")
-PRIORITY = {"save": 4, "review": 3, "event": 2, "screen": 2, "infer": 1}  # 1.2：event（已确认事件）与已互验的 screen 同级
+PRIORITY = {
+    "save": 4,
+    "review": 3,
+    "event": 2,
+    "screen": 2,
+    "infer": 1,
+}  # 1.2：event（已确认事件）与已互验的 screen 同级
 
 
 @dataclass
@@ -37,7 +43,9 @@ class ExamSession:
     label: str | None = None  # qualify-1/2/3、r1、r2
     turn: int = 0
     last_remaining: int | None = None
-    brief_permil: dict[str, int] | None = None  # 最近一次考前说明页的三属性倍率（千分比，{Vo, Da, Vi}），进考试时填 exam.attr_permil
+    brief_permil: dict[str, int] | None = (
+        None  # 最近一次考前说明页的三属性倍率（千分比，{Vo, Da, Vi}），进考试时填 exam.attr_permil
+    )
     brief_exam_no: int | None = None  # 最近一次考前说明页读到的选拔场次（選抜試験N）；续跑后计数从头算时以它为准
     # 初的练习课（hiro.runtime.hajime）：开课画面读数 + 主数据对照。{kind, attr, nth（同种同属性第几次）, turns_total, clear_target,
     # perfect_target, param_start, level_ids, exam_extra_turn, lesson_limit_up_score}；读不到 / 对不上的项是 None
@@ -53,12 +61,16 @@ class GameState(Contract):
     produce: dict[str, Any] | None = None  # ProduceState 字段子集
     exam: dict[str, Any] | None = None  # BattleState.build 的观测参数
     exam_session: ExamSession = field(default_factory=ExamSession)
-    page_fields: dict[str, Any] = field(default_factory=dict)  # 只属于当前页面的字段（options / candidates / recommended / complete / advice），换页即清空
+    page_fields: dict[str, Any] = field(
+        default_factory=dict
+    )  # 只属于当前页面的字段（options / candidates / recommended / complete / advice），换页即清空
     sources: dict[str, Source] = field(default_factory=dict)  # "produce.stamina" → Source
     seq: int = 0  # 最后一次 reduce 用到的观测 seq
     pending_page: PageState | None = None  # 防抖中的候选页面（转移不合法、尚未连续 N 帧）
     conflicts: list[str] = field(default_factory=list)  # 来源冲突日志（最近若干条）
-    field_status: dict[str, str] = field(default_factory=dict)  # 1.2：字段路径 → verified / predicted / observed / pending / unknown
+    field_status: dict[str, str] = field(
+        default_factory=dict
+    )  # 1.2：字段路径 → verified / predicted / observed / pending / unknown
     pending_review: list[str] = field(default_factory=list)  # 1.2：待复核字段，非空时触发主动查看
     ledger: list[Event] = field(default_factory=list)  # 1.2：本局已应用的事件（最近 N 条，完整的在 trace）
     version: str = VERSION

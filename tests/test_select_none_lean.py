@@ -2,8 +2,6 @@
 选卡页没有「不拿」按钮（画面只有「受け取る」，课程页另有「カード除去」/ 再抽選）。SELECT_NONE_LEAN（默认关）：不想拿 / 无效且必拿已齐、
 候选都是社区没提到的卡 → 能刷新先刷新，否则拿最不污染的。"""
 
-import pytest
-
 import hiro.brain.deciders as D
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.llm import MockLLM
@@ -11,9 +9,15 @@ from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import ActionKind, GameState
 from hiro.state.knowledge import YARUKI_CARDS
 
+import pytest
+
 pytestmark = pytest.mark.master  # 决策器要查主数据（game.db），没有就跳过
 
-CANDS = ["p_card-02-men-3_044", "p_card-02-act-1_028", "p_card-00-men-1_005"]  # 手書きのメッセージ / ゆるふわおしゃべり / 気合十分！（#339）
+CANDS = [
+    "p_card-02-men-3_044",
+    "p_card-02-act-1_028",
+    "p_card-00-men-1_005",
+]  # 手書きのメッセージ / ゆるふわおしゃべり / 気合十分！（#339）
 MUSTS = [cid for cid, k in YARUKI_CARDS.items() if k.get("must")]
 
 
@@ -30,7 +34,9 @@ SKIP = {"action": "pick", "index": -1, "reason": "必拿卡已齐,三张候选�
 
 
 def test_switch_off_keeps_old_fallback(monkeypatch):
-    monkeypatch.setattr(D, "SELECT_NONE_LEAN", False)  # 默认值由总控定（协调 2026-11-04：全量过后设 True），这里只测关时的行为
+    monkeypatch.setattr(
+        D, "SELECT_NONE_LEAN", False
+    )  # 默认值由总控定（协调 2026-11-04：全量过后设 True），这里只测关时的行为
     d = ProduceDeciders(CAMPUS_HIRO, MockLLM([SKIP])).decide("SELECT_CARD", st(), n_options=3)
     assert d.source == "fallback" and "LLM 输出无效" in d.reason
 

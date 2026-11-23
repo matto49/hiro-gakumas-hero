@@ -9,10 +9,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import numpy as np
-
 from hiro.vision.ocr import Box
 from hiro.vision.ui_templates import box, normalize, tpl
+
+import numpy as np
 
 LETTER_THRESHOLD = 0.65
 SAME_CARD_DX = 30
@@ -28,7 +28,11 @@ def card_letters(img: np.ndarray) -> list[Box]:
     """卡区里的类别字母框，按左上角排序、去掉同一张卡的重复命中。"""
     img = normalize(img)
     region = box("InProduce.SkillCardSelect.CardsBox").xywh
-    hits = [m.rect for name in ("InProduce.A", "InProduce.M") for m in tpl(name).find_all(img, threshold=LETTER_THRESHOLD, region=region)]
+    hits = [
+        m.rect
+        for name in ("InProduce.A", "InProduce.M")
+        for m in tpl(name).find_all(img, threshold=LETTER_THRESHOLD, region=region)
+    ]
     out: list[Box] = []
     for r in sorted(hits, key=lambda r: (r.x1, r.y1)):
         if all(abs(r.center.x - o.center.x) >= SAME_CARD_DX for o in out):

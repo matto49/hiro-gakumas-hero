@@ -1,0 +1,22 @@
+# 提交前检查：pre-commit install 之后每次 git commit 自动跑；手动全跑：pre-commit run --all-files
+# ruff 版本和 pyproject.toml 里 dev 依赖钉的一致；类型检查（basedpyright）较慢，只放在 CI
+exclude: ^vendor/
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: ^(assets/|tests/fixtures/|examples/)
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+      - id: end-of-file-fixer
+        files: \.py$

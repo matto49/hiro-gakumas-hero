@@ -33,7 +33,9 @@ class Event(Contract):
     seq: int  # 与触发它的 Step / Observation 同序号空间
     kind: str  # EVENT_KINDS
     origin: str  # ORIGINS
-    args: dict[str, Any] = field(default_factory=dict)  # card_id、upgrade、deck_index、drink_id、price、option、exam、score …
+    args: dict[str, Any] = field(
+        default_factory=dict
+    )  # card_id、upgrade、deck_index、drink_id、price、option、exam、score …
     basis: str = "observe_only"  # BASES：推算依据
     confirmed: bool | None = None  # 观测是否确认事件确实发生（None = 未确认）
     ref: dict[str, Any] = field(default_factory=dict)  # decision_seq、observation_seq、screenshot
@@ -77,8 +79,16 @@ class Expect:
             return observed == self.value
         if not isinstance(observed, (int, float)):
             return True
-        lo = self.min if self.min is not None else (self.value - (self.tolerance or 0) if isinstance(self.value, (int, float)) else None)
-        hi = self.max if self.max is not None else (self.value + (self.tolerance or 0) if isinstance(self.value, (int, float)) else None)
+        lo = (
+            self.min
+            if self.min is not None
+            else (self.value - (self.tolerance or 0) if isinstance(self.value, (int, float)) else None)
+        )
+        hi = (
+            self.max
+            if self.max is not None
+            else (self.value + (self.tolerance or 0) if isinstance(self.value, (int, float)) else None)
+        )
         return (lo is None or observed >= lo) and (hi is None or observed <= hi)
 
 

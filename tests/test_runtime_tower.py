@@ -2,14 +2,17 @@
 
 from types import SimpleNamespace as NS
 
+from hiro.runtime import guard, tower
+
 import numpy as np
 import pytest
 
-from hiro.runtime import guard, tower
-
 
 def layers(*stars, locked_from=None):
-    return [{"layer": i + 1, "stars": s, "unlocked": locked_from is None or i + 1 < locked_from} for i, s in enumerate(stars)]
+    return [
+        {"layer": i + 1, "stars": s, "unlocked": locked_from is None or i + 1 < locked_from}
+        for i, s in enumerate(stars)
+    ]
 
 
 def test_pick_first_layer_without_three_stars():
@@ -26,8 +29,14 @@ def test_three_stars_next_else_retry_until_limit():
     assert run.after_result(1, cleared=True, stars=3) == "next"
     assert [run.after_result(2, cleared=True, stars=2) for _ in range(tower.MAX_TRIES)] == ["retry", "retry", "next"]
     assert run.gave_up_three == [2]  # 过关但次数用完：记下来往下走，不停机
-    assert [run.after_result(3, cleared=False, stars=0) for _ in range(tower.MAX_TRIES)] == ["retry", "retry", "stop"]  # 一次都没过关：停
-    assert run.after_result(4, cleared=True, stars=1) == "retry" and run.after_result(4, cleared=False, stars=0) == "retry"
+    assert [run.after_result(3, cleared=False, stars=0) for _ in range(tower.MAX_TRIES)] == [
+        "retry",
+        "retry",
+        "stop",
+    ]  # 一次都没过关：停
+    assert (
+        run.after_result(4, cleared=True, stars=1) == "retry" and run.after_result(4, cleared=False, stars=0) == "retry"
+    )
     assert run.after_result(4, cleared=False, stars=0) == "next"  # 第一次过关过：最后一次失败也算过关层
     assert run.summary()["cleared"] == [1, 2, 4] and run.summary()["best_stars"][4] == 1
 
@@ -45,8 +54,18 @@ def _screen(dialog, word):
 
 
 def test_guard_dialog_words_only_allow_cancel(monkeypatch):
-    dialog = {"kind": "other", "title": "再挑戦確認", "body": "ジュエルを消費して再挑戦しますか？", "danger": False, "y": 600}
-    for word, words, blocked in [("OK", tower.DIALOG_WORDS, True), ("キャンセル", tower.DIALOG_WORDS, False), ("OK", (), False)]:
+    dialog = {
+        "kind": "other",
+        "title": "再挑戦確認",
+        "body": "ジュエルを消費して再挑戦しますか？",
+        "danger": False,
+        "y": 600,
+    }
+    for word, words, blocked in [
+        ("OK", tower.DIALOG_WORDS, True),
+        ("キャンセル", tower.DIALOG_WORDS, False),
+        ("OK", (), False),
+    ]:
         screen, w = _screen(dialog, word)
         monkeypatch.setattr(guard, "word_at", lambda f, x, y, w=w: w)
         if blocked:

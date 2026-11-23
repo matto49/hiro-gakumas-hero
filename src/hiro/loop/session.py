@@ -4,6 +4,7 @@
 Session 只负责把它们按契约记下来，并提供两类恢复：缺字段等待（observe_complete）与执行后校验（verify）。
 """
 
+import logging
 import time
 from collections import Counter
 from collections.abc import Callable
@@ -12,12 +13,21 @@ from typing import Any
 from hiro.contracts import Decision, ExecutionResult, GameState, Observation, Preview, Step, TraceWriter
 from hiro.loop.reduce import reduce
 from hiro.loop.transitions import is_transient, successors
-import logging
 
 logger = logging.getLogger(__name__)
 
 # 故障恢复的类别（notes 前缀 recover:<kind>），报告按此统计
-RECOVER_KINDS = ("page_misjudged", "missing_fields", "llm_invalid", "tap_no_effect", "dialog", "crash_restart", "date_change", "unhandled", "llm_rescue")
+RECOVER_KINDS = (
+    "page_misjudged",
+    "missing_fields",
+    "llm_invalid",
+    "tap_no_effect",
+    "dialog",
+    "crash_restart",
+    "date_change",
+    "unhandled",
+    "llm_rescue",
+)
 
 
 def _default_shoot():
@@ -56,9 +66,8 @@ class Session:
         self.last_decision = None  # (页面名, Decision)：最近一次记录的决策（中断层看「刚才是不是选了休息」）
         self.steps = 0
         self._last_exec_t: float | None = None  # 上一个有执行结果的步落盘时刻（time.time），算过场耗时
-        from hiro.loop.repeat_guard import Guard
-
         from hiro.loop.pause_flag import active_clock
+        from hiro.loop.repeat_guard import Guard
 
         # 防空转：重复无效动作 + 没进展（hiro.loop.repeat_guard）；录屏暂停期间不计时（测试注入了 clock 时用注入的）
         self.guard = Guard(clock=active_clock if self.clock is time.monotonic else self.clock)
@@ -112,7 +121,10 @@ class Session:
         self._buffer.append(obs)
         from hiro.loop.repeat_guard import state_sig
 
-        self.guard.seen(self.state.page.name, state_sig(self.state.page.name, self.state.page_fields, self.state.exam, self.state.produce))
+        self.guard.seen(
+            self.state.page.name,
+            state_sig(self.state.page.name, self.state.page_fields, self.state.exam, self.state.produce),
+        )
         if img is not None:
             self.img = img
         return obs
@@ -129,7 +141,9 @@ class Session:
         for c in checks:
             self.check_counts[c.verdict] += 1
             if c.verdict == "read_error":
-                self.notes.append(f"读错拦截：{c.field}={c.observed!r}（{c.rule}，参考 {c.predicted!r}），不进状态与决策")
+                self.notes.append(
+                    f"读错拦截：{c.field}={c.observed!r}（{c.rule}，参考 {c.predicted!r}），不进状态与决策"
+                )
         self.predictions = settle(self.predictions, checks)
         self._checks.extend(checks)
         self.state = state
@@ -201,7 +215,9 @@ class Session:
         now = self.observe()
         if now.page.name == scene:
             return None
-        self.recover("page_misjudged", f"{scene} 页内连续读不到 {list(required)}，重新分类是 {now.page.name}：退出页内循环")
+        self.recover(
+            "page_misjudged", f"{scene} 页内连续读不到 {list(required)}，重新分类是 {now.page.name}：退出页内循环"
+        )
         return now.page.name
 
     # ---------------------------------------------------------------- 记录
@@ -249,11 +265,20 @@ class Session:
             from hiro.loop.repeat_guard import REPEAT_MAX, action_key, state_sig
 
             page = obs.page.name
-            self.repeat_streak = self.guard.attempt(page, state_sig(page, state_in.page_fields, state_in.exam, state_in.produce), action_key(decision.action))
+            self.repeat_streak = self.guard.attempt(
+                page,
+                state_sig(page, state_in.page_fields, state_in.exam, state_in.produce),
+                action_key(decision.action),
+            )
             if self.repeat_streak >= REPEAT_MAX and execution.ok and page != "HIF_EXAM":
                 # 考试外这一下执行成功了（DMM dmm1m 相談删 眠気：前两次拼接失败取消，第 3 次删成功、P 380→280，
                 # 但三次的执行前局面相同，以前照样判重复停机）：先不算无效；真没效果的话下一步局面不变，计数接着涨，第 4 次停
-                logger.info("%s 同一局面下 %s 第 %d 次，这次执行成功，先不算重复无效", page, decision.action.kind.value, self.repeat_streak)
+                logger.info(
+                    "%s 同一局面下 %s 第 %d 次，这次执行成功，先不算重复无效",
+                    page,
+                    decision.action.kind.value,
+                    self.repeat_streak,
+                )
             elif self.repeat_streak >= REPEAT_MAX:
                 repeated = f"重复无效动作：{page} 同一局面下 {decision.action.kind.value}{decision.action.args} 连续 {self.repeat_streak} 次"
                 self.recover("tap_no_effect", repeated)
@@ -261,7 +286,11 @@ class Session:
         elif decision is not None:
             self.repeat_streak = 0
         # 模型倍率核对每场 3 条，一致的也留（证明这场核对过）
-        checks = self._checks if self.debug_recog else [c for c in self._checks if c.verdict in ("read_error", "model_gap") or c.rule == "model_permil"]
+        checks = (
+            self._checks
+            if self.debug_recog
+            else [c for c in self._checks if c.verdict in ("read_error", "model_gap") or c.rule == "model_permil"]
+        )
         events, preds = self._events, self._new_predictions
         self._checks, self._events, self._new_predictions = [], [], []
         step = Step(seq=obs.seq, t=time.time(), observation=obs, state=state_in, events=events, predictions=preds, checks=checks,
@@ -325,5 +354,11 @@ class Session:
                                seconds=round(self.clock() - t0, 3))  # fmt: skip
 
     def summary(self) -> dict[str, Any]:
-        return {"steps": self.steps, "recoveries": dict(self.recoveries), "page": self.state.page.name, "mode": self.state.mode,
-                "checks": dict(self.check_counts), "debug_recog": self.debug_recog}
+        return {
+            "steps": self.steps,
+            "recoveries": dict(self.recoveries),
+            "page": self.state.page.name,
+            "mode": self.state.mode,
+            "checks": dict(self.check_counts),
+            "debug_recog": self.debug_recog,
+        }

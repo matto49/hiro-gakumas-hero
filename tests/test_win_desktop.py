@@ -1,8 +1,8 @@
 """hiro.loop.win_desktop：DMM 后台点击读不到光标（拒绝访问）时等桌面恢复再重做（2026-11-10 dmm1m 21:16 UAC 撞上点击）。"""
 
-import pytest
-
 from hiro.loop import win_desktop as wd
+
+import pytest
 
 
 class _Denied(Exception):
@@ -132,3 +132,24 @@ def test_swipe_holds_at_end_before_release():
     assert moves[59] == ("move", 360, 740)  # 1 秒 60 步匀速移到终点
     tail = moves[60:]
     assert len(tail) == 18 and set(tail) == {("move", 360, 740)}  # 再原地停 0.3 秒（18 帧）才松开
+
+
+@pytest.mark.skipif(__import__("sys").platform != "win32", reason="Windows only")
+def test_post_message_ignores_stale_last_error():
+    """11-21：PostMessage 成功时不清错误码，原版按 GetLastError()==0 判成功会误报失败（点击丢「松开」、滑动抛错）。"""
+    import win32api
+    import win32gui
+
+    class W:
+        hwnd = win32gui.GetDesktopWindow()
+
+    win32api.SetLastError(1400)
+    assert wd.post_message(W(), 0, 0, 0) is True  # WM_NULL 投给桌面窗口：成功，旧错误码不影响
+
+    class Bad:
+        hwnd = 0x7FFFFFF0
+
+    import pywintypes
+
+    with pytest.raises(pywintypes.error):
+        wd.post_message(Bad(), 0, 0, 0)  # 真失败：pywin32 自己抛 pywintypes.error

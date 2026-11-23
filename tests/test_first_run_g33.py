@@ -8,13 +8,15 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace as NS
 
+from hiro.loop import skip_settings as ss
+
 import cv2
 import pytest
 
-from hiro.loop import skip_settings as ss
-
 FIX = Path(__file__).parent / "fixtures" / "first_run"  # 实机帧（不随仓库发布）
-BOXES = json.loads((Path(__file__).parent / "data" / "g33-ocr-boxes.json").read_text(encoding="utf-8"))  # 同一批帧的 OCR 框（随仓库发布）
+BOXES = json.loads(
+    (Path(__file__).parent / "data" / "g33-ocr-boxes.json").read_text(encoding="utf-8")
+)  # 同一批帧的 OCR 框（随仓库发布）
 
 
 def _boxes(name):
@@ -55,9 +57,13 @@ def test_real_frames_read(name, kind, option_y):
 def test_voice_dialog_clicks_option_then_ok():
     boxes = _boxes("1-voice")
     clicks = []
-    r = ss.handle(boxes, shoot=lambda: None, ocr=lambda img: boxes, click=lambda x, y: clicks.append((x, y)), sleep=lambda s: None)
+    r = ss.handle(
+        boxes, shoot=lambda: None, ocr=lambda img: boxes, click=lambda x, y: clicks.append((x, y)), sleep=lambda s: None
+    )
     assert r["ok"] and r["option"]
-    assert abs(clicks[0][1] - 818) <= 20 and clicks[-1][0] > 400 and abs(clicks[-1][1] - 1160) <= 30, clicks  # 右边的「決定」，不是キャンセル
+    assert abs(clicks[0][1] - 818) <= 20 and clicks[-1][0] > 400 and abs(clicks[-1][1] - 1160) <= 30, (
+        clicks
+    )  # 右边的「決定」，不是キャンセル
 
 
 @pytest.mark.synthetic
@@ -70,13 +76,17 @@ def test_support_event_dialog_real_frame(monkeypatch):
 
     boxes = [Text(t, Box(*b)) for t, _, b in raw]
     clicks = []
-    monkeypatch.setitem(sys.modules, "kotonebot", NS(device=NS(click=lambda *r: clicks.append(r), screenshot=lambda: None)))
+    monkeypatch.setitem(
+        sys.modules, "kotonebot", NS(device=NS(click=lambda *r: clicks.append(r), screenshot=lambda: None))
+    )
     monkeypatch.setattr("hiro.loop.controller.screen_texts", lambda *a, **k: boxes)
     monkeypatch.setattr("hiro.loop.controller.time.sleep", lambda s: None)
     c = HiroController.__new__(HiroController)
     c._texts = [b.text for b in boxes]
     assert c._first_run_settings()
-    assert len(clicks) == 2 and abs(clicks[0][1] - 892) <= 20 and abs(clicks[1][1] - 1160) <= 30, clicks  # 強化済み（不是未強化 y≈966）→ 決定
+    assert len(clicks) == 2 and abs(clicks[0][1] - 892) <= 20 and abs(clicks[1][1] - 1160) <= 30, (
+        clicks
+    )  # 強化済み（不是未強化 y≈966）→ 決定
 
 
 def test_quick_page_leaves_first_run_dialogs_alone():

@@ -27,7 +27,9 @@ POLL = 0.5
 JEWEL = "ジュエル"
 
 
-LATIN_FIX = str.maketrans({"Ä": "A", "Á": "A", "À": "A", "Â": "A", "Ã": "A", "Å": "A", "Ｐ": "P", "Ａ": "A"})  # RapidOCR 把「AP」读成「ÄP」（Windows 第十二局）
+LATIN_FIX = str.maketrans(
+    {"Ä": "A", "Á": "A", "À": "A", "Â": "A", "Ã": "A", "Å": "A", "Ｐ": "P", "Ａ": "A"}
+)  # RapidOCR 把「AP」读成「ÄP」（Windows 第十二局）
 
 
 def _texts(boxes) -> list[tuple[str, int, int]]:
@@ -88,7 +90,14 @@ def open_hif(shoot: Callable, click: Callable[[int, int], None], ocr: Callable, 
         img = shoot()
         if try_template is not None and try_template():
             return True
-        hit = next((b for t, _, b in ocr(img) if button_text(t, want) and HIF_BUTTON_Y[0] <= (b[1] + b[3]) / 2 <= HIF_BUTTON_Y[1]), None)
+        hit = next(
+            (
+                b
+                for t, _, b in ocr(img)
+                if button_text(t, want) and HIF_BUTTON_Y[0] <= (b[1] + b[3]) / 2 <= HIF_BUTTON_Y[1]
+            ),
+            None,
+        )
         if hit is not None:
             click((hit[0] + hit[2]) // 2, (hit[1] + hit[3]) // 2)
             return True

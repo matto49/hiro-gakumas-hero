@@ -110,3 +110,17 @@ RapidOCR 的 77 个失败集中在：考试画面与本战分数、轮间货架�
 也就是说，非 macOS 平台上判页和读数比 macOS 弱一截、也更慢；能玩，但遇到「认不出就停下」的情况会更多。
 换到 Windows / 模拟器后，建议先用自己的截图跑一遍识别回归（`HIRO_FIXTURES` 指向截图目录，`HIRO_OCR=rapidocr`），
 再决定要不要为常错的读数加模板或调阈值。
+
+### 可选：SIMD PaddleOCR
+
+在 Windows 上可显式设置 `HIRO_OCR=simd`，让 Hiro 和 KAA 使用同一个本机 PP-OCRv6 medium 进程。现有自动选择、字体数字校验和模板匹配保持不变。下面用 PowerShell 和 .NET 10 SDK 构建；运行时只需 .NET 10 Runtime 和这些模型文件，不把截图发到网络上。
+
+1. 将 [SimdPaddleOCR a9324e3](https://github.com/sdcb/SimdPaddleOCR/tree/a9324e3efadaed999e5f354a8f8e4b536c4687b6) 解压到 `.deps/SimdPaddleOCR`（其中 `models/` 要有 `medium_det.onnx`、`medium_rec.onnx` 和 `rec_keys.txt`）。
+2. 将该版本用的 [SimdOnnx cb80be7](https://github.com/sdcb/SimdOnnx/tree/cb80be7370f280c4ca62f1679c71f05688a66001) 解压到 `.deps/SimdOnnx`。从仓库根目录执行：
+
+   ```powershell
+   .\tools\build-simd-ocr.ps1
+   $env:HIRO_OCR = 'simd'
+   ```
+
+3. 用原来的命令启动 Hiro。要恢复自动选择，设置 `$env:HIRO_OCR = 'auto'`。如果用非默认的依赖目录，在构建和启动前都设置 `HIRO_SIMD_DEPS` 为其绝对路径。显式选择 SIMD 时，缺模型或 helper 会给出错误，不会静默换后端。

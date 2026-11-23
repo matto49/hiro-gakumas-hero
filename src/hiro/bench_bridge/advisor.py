@@ -35,8 +35,17 @@ uiobs_log = logging.getLogger("hiro.bench_bridge.uiobs")  # 每步一行 JSON，
 UINET_COMMIT = "1201b841828d9874b604f7d48f7b00ddf3b71d95"  # yuzeis/GKMSUINet Ver1.1-Hingebungsvoll（MIT）
 UINET_MODEL_URL = f"https://raw.githubusercontent.com/yuzeis/GKMSUINet/{UINET_COMMIT}/model/gkms_uinet.onnx"
 UINET_MODEL_SHA256 = "a8addb1a221100dd251b7846cc3ba3898ec3698c9d3b9b35768d5965472ebd5a"
-UINET_TABLES = ("ProduceCard", "ProduceCardCustomize", "ProduceCardGrowEffect", "ProduceCardSearch", "ProduceExamEffect",
-                "ProduceExamTrigger", "ProduceExamStatusEnchant", "ProduceDrink", "ProduceDrinkEffect")
+UINET_TABLES = (
+    "ProduceCard",
+    "ProduceCardCustomize",
+    "ProduceCardGrowEffect",
+    "ProduceCardSearch",
+    "ProduceExamEffect",
+    "ProduceExamTrigger",
+    "ProduceExamStatusEnchant",
+    "ProduceDrink",
+    "ProduceDrinkEffect",
+)
 DEFAULT_ALGO = "uinet"
 DECIDE_BUDGET_S = float(os.environ.get("HIRO_BENCH_BUDGET_S", "5"))
 # 给算法的局面从哪来：screen（缺省，画面读数 + 本场跟踪）/ engine（模拟器跟踪的引擎局面，画面能看到的再用画面覆盖）。
@@ -243,7 +252,12 @@ def _plan_number(idol: str | None) -> int | None:
         finally:
             cat.db.close()
         plan = (row or {}).get("planType") or ""
-        return {"ProducePlanType_Common": 1, "ProducePlanType_Plan1": 2, "ProducePlanType_Plan2": 3, "ProducePlanType_Plan3": 4}.get(plan)
+        return {
+            "ProducePlanType_Common": 1,
+            "ProducePlanType_Plan1": 2,
+            "ProducePlanType_Plan2": 3,
+            "ProducePlanType_Plan3": 4,
+        }.get(plan)
     except Exception:  # noqa: BLE001
         return None
 
@@ -292,8 +306,9 @@ def _overlay_screen(obs: dict, screen: dict, state) -> dict:
         if getattr(state, attr, None) is not None:
             screen_kinds[k] = int(getattr(state, attr))
     if screen_kinds:
-        obs["status"] = [x for x in obs["status"] if x[0] not in screen_kinds] + \
-            [[k, float(v), -1] for k, v in screen_kinds.items() if v]
+        obs["status"] = [x for x in obs["status"] if x[0] not in screen_kinds] + [
+            [k, float(v), -1] for k, v in screen_kinds.items() if v
+        ]
     return obs
 
 
@@ -303,7 +318,9 @@ def _round_defaults(label: str | None, deck: list, max_hp: int | None = None) ->
     max_hp：开考时从培育页读到的最大体力；未知时不合成模板（配额给 None，未知回合按流向填）。"""
     base = str(label or "").split("#", 1)[0].lower()
     permil, alloc = {}, None
-    if base.startswith(("tower", "hajime", "nia")):  # 偶像之路 / 初 / N.I.A：倍率由编成定（编成给了就用编成的），没有 H.I.F 的参考值
+    if base.startswith(
+        ("tower", "hajime", "nia")
+    ):  # 偶像之路 / 初 / N.I.A：倍率由编成定（编成给了就用编成的），没有 H.I.F 的参考值
         return permil, alloc
     try:
         if base in ("r1", "r2"):
@@ -427,10 +444,18 @@ def known_draws(loadout: dict | None) -> list | None:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    if doc.get("formation_signature") != sig or doc.get("tower_id") != tower or int(doc.get("layer") or 0) != int(layer):
+    if (
+        doc.get("formation_signature") != sig
+        or doc.get("tower_id") != tower
+        or int(doc.get("layer") or 0) != int(layer)
+    ):
         logger.warning("偶像之路抽牌记录 %s 和本场编成对不上，不用", path)
         return None
-    draws = [{"id": d["id"], "u": int(d.get("u") or 0)} for d in doc.get("draws") or () if isinstance(d, dict) and d.get("id")]
+    draws = [
+        {"id": d["id"], "u": int(d.get("u") or 0)}
+        for d in doc.get("draws") or ()
+        if isinstance(d, dict) and d.get("id")
+    ]
     return draws or None
 
 
@@ -512,7 +537,10 @@ class BenchAdvisor:
         if idol and (p := profile_for(idol)) is not None:
             self.profile = p
         self.label = ctx.get("exam")
-        deck = [(c["card_id"], int(c.get("upgrade") or 0)) if isinstance(c, dict) else tuple(c[:2]) for c in ctx.get("deck") or ()]
+        deck = [
+            (c["card_id"], int(c.get("upgrade") or 0)) if isinstance(c, dict) else tuple(c[:2])
+            for c in ctx.get("deck") or ()
+        ]
         self.deck = [c for c in deck if c and c[0]]
         trend = None
         try:
@@ -536,7 +564,11 @@ class BenchAdvisor:
             self.tower_loadout = lo  # 搜索类算法（GNRPA）要整份编成：ctx.loadout
             self.known_draws = known_draws(lo)
             if self.known_draws:
-                logger.info("[%s] 同一编成重试：上一次看到的抽牌顺序 %d 张交给算法（ctx.known_draws）", self.label, len(self.known_draws))
+                logger.info(
+                    "[%s] 同一编成重试：上一次看到的抽牌顺序 %d 张交给算法（ctx.known_draws）",
+                    self.label,
+                    len(self.known_draws),
+                )
             tc = tower_context(lo)
             self.exam.update({k: tc[k] for k in ("turns", "permil_fixed", "max_stamina") if tc[k]})
             self.exam["idol"] = tc["idol"] or self.exam.get("idol")
@@ -564,7 +596,13 @@ class BenchAdvisor:
                     self.exam["turns"] = ac["turns"]
         self._calc_pm, self._seen_pm, self._live_wait = {}, {}, None
         self._label_note = None
-        self._round_checked = str(self.label or "").split("#", 1)[0].lower() not in ("hajime-mid1", "hajime-final", "nia-mid1", "nia-mid2", "nia-final")
+        self._round_checked = str(self.label or "").split("#", 1)[0].lower() not in (
+            "hajime-mid1",
+            "hajime-final",
+            "nia-mid1",
+            "nia-mid2",
+            "nia-final",
+        )
         base = str(self.label or "").split("#", 1)[0].lower()
         if lo is None and base.startswith(("hajime-", "nia-")) and "-lesson" not in base:
             self._audition_defaults(idol, number)
@@ -577,7 +615,9 @@ class BenchAdvisor:
                 logger.warning("[%s] 编成换算失败，只靠画面读数：%s: %s", self.label, type(e).__name__, e)
             else:
                 idol = xc["idol"] or idol
-                self.exam = exam_fields(self.label, idol=idol, plan=_plan_number(idol), crit=xc["crit"], produce=xc["produce"])
+                self.exam = exam_fields(
+                    self.label, idol=idol, plan=_plan_number(idol), crit=xc["crit"], produce=xc["produce"]
+                )
                 self.exam["permil_default"], self.exam["allocation"] = {}, None
                 self.exam.update({k: xc[k] for k in ("turns", "permil_fixed", "max_stamina") if xc[k]})
                 if not self.deck and xc["deck"]:
@@ -683,7 +723,11 @@ class BenchAdvisor:
         try:
             from hiro.search.loadout import run_loadout
 
-            produce_state = (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
+            produce_state = (
+                (getattr(getattr(self._session, "state", None), "produce", None) or {})
+                if self._session is not None
+                else {}
+            )
             plan = None
             if os.environ.get("HIRO_FORMATION_PLAN", "").lower() != "off":
                 try:
@@ -704,13 +748,19 @@ class BenchAdvisor:
             if notes:
                 logger.info("[%s] 拼编成：%s", self.label, "；".join(notes))
         except Exception as e:  # noqa: BLE001  道具 / 支援卡拼不出：按没有搜
-            logger.info("[%s] 拼编成时 run_loadout 失败（按没有道具 / 支援卡）：%s: %s", self.label, type(e).__name__, e)
+            logger.info(
+                "[%s] 拼编成时 run_loadout 失败（按没有道具 / 支援卡）：%s: %s", self.label, type(e).__name__, e
+            )
         if lo.get("audition"):
             self._npc_permil(lo)
         if not lo["max_stamina"]:
             # 考试画面只显示当前体力。广以外的偶像构筑表没有 max_hp（11-19 ことね：max_stamina=None，ExamGnrpa 开局 int(None) 整场退回 uinet）：
             # 用培育局面里选行动页读到的「体力 35/36」的上限；再没有就用开考时的体力（不会比上限大）
-            ps = (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
+            ps = (
+                (getattr(getattr(self._session, "state", None), "produce", None) or {})
+                if self._session is not None
+                else {}
+            )
             got = int(ps.get("max_stamina") or 0) or None
             src = "培育局面"
             if got is None and lo.get("starting_stamina"):
@@ -727,7 +777,9 @@ class BenchAdvisor:
     def _live_mode(self) -> str | None:
         """实机这一局的培育 id（state.produce.mode）：和标签同一家族（初 / N.I.A）才用。初 PRO 第一局（协调 11-18）：exam_fields 按标签
         缺省 hajime → produce-001，局面其实是 produce-002，battle config / 封顶（REGULAR 900、PRO 1700）全按 REGULAR 取。"""
-        ps = (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
+        ps = (
+            (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
+        )
         ps = ps if isinstance(ps, dict) else getattr(ps, "__dict__", {})
         mode = ps.get("mode")
         fam = str(self.label or "").split("#", 1)[0].split("-", 1)[0].lower()
@@ -778,7 +830,10 @@ class BenchAdvisor:
         old = self.label
         self.label = f"{fam}-{got}" + (f"#{rest}" if rest else "")
         keep = {k: self.exam.get(k) for k in ("idol", "produce", "plan")}
-        self.exam = {**self.exam, **exam_fields(self.label, idol=keep["idol"], plan=keep["plan"], produce=keep["produce"])}
+        self.exam = {
+            **self.exam,
+            **exam_fields(self.label, idol=keep["idol"], plan=keep["plan"], produce=keep["produce"]),
+        }
         self.exam.pop("turns", None)
         self.exam["crit"] = [0, 0, 0]
         self._calc_pm = {}
@@ -813,9 +868,13 @@ class BenchAdvisor:
         チャレンジP道具的发动次数账本里没有，按 1 次估（偏低，exam_env.npc_enhance_permil 会列出来）。"""
         from hiro.search.exam_env import NIA_EASY_KEY, npc_enhance_permil
 
-        ps = (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
+        ps = (
+            (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
+        )
         ps = ps if isinstance(ps, dict) else getattr(ps, "__dict__", {})
-        items = list(lo.get("produce_item_ids") or []) + [i for i in ps.get("challenge_items") or () if i not in (lo.get("produce_item_ids") or ())]
+        items = list(lo.get("produce_item_ids") or []) + [
+            i for i in ps.get("challenge_items") or () if i not in (lo.get("produce_item_ids") or ())
+        ]
         if ps.get("nia_easy_key") and NIA_EASY_KEY not in items:
             items.append(NIA_EASY_KEY)
         try:
@@ -825,7 +884,12 @@ class BenchAdvisor:
             return
         if permil:
             lo["npc_enhance_permil"] = permil
-            logger.info("[%s] 对手分增减 %+d‰%s", self.label, permil, f"（{len(unsure)} 件チャレンジP道具发动次数按 1 次估）" if unsure else "")
+            logger.info(
+                "[%s] 对手分增减 %+d‰%s",
+                self.label,
+                permil,
+                f"（{len(unsure)} 件チャレンジP道具发动次数按 1 次估）" if unsure else "",
+            )
 
     def _exam_permils(self, *, quiet: bool = False) -> tuple[dict | None, str]:
         """拼编成用的三属性倍率 → ({Vo, Da, Vi} 或 None, 说明)。编成给了 permil_fixed 就用；否则画面实读的那几项（0 = 画面没给，初的考试
@@ -858,7 +922,9 @@ class BenchAdvisor:
 
         base = str(self.label or "").split("#", 1)[0].lower()
         rnd = base.partition("-")[2]
-        ps = (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
+        ps = (
+            (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
+        )
         ps = ps if isinstance(ps, dict) else getattr(ps, "__dict__", {})
         produce = ps.get("mode") or self.exam.get("produce")
         try:
@@ -875,12 +941,19 @@ class BenchAdvisor:
         params = ps.get("params") or {}
         if all(params.get(a) for a in ("Vo", "Da", "Vi")):
             try:
-                pm = tw.score_bonus_permils(row["produceExamBattleConfigId"], [int(params[a]) for a in ("Vo", "Da", "Vi")])
+                pm = tw.score_bonus_permils(
+                    row["produceExamBattleConfigId"], [int(params[a]) for a in ("Vo", "Da", "Vi")]
+                )
             except Exception as e:  # noqa: BLE001
                 logger.warning("[%s] 按三属性算倍率失败：%s: %s", self.label, type(e).__name__, e)
             else:
                 self._calc_pm = dict(zip(("Vo", "Da", "Vi"), pm))
-                logger.info("[%s] 倍率按三属性 %s 粗算：%s（只当比例用：画面读到的那项为准，其余按比例推）", self.label, params, pm)
+                logger.info(
+                    "[%s] 倍率按三属性 %s 粗算：%s（只当比例用：画面读到的那项为准，其余按比例推）",
+                    self.label,
+                    params,
+                    pm,
+                )
                 return
         logger.warning("[%s] 培育三属性没记账（%s），倍率要等画面三项都读到", self.label, params)
 
@@ -917,7 +990,12 @@ class BenchAdvisor:
     def _refresh_lesson(self) -> None:
         """课程中途画面读到了满分线（过了合格线才出现 PERFECTまで）：更新编成里的满分线（ExamGnrpa 每步按它更新目标）。"""
         lo = self.exam_loadout
-        if not lo or not lo.get("lesson") or lo["lesson"].get("source") != "screen" or lo["lesson"].get("perfect_score") is not None:
+        if (
+            not lo
+            or not lo.get("lesson")
+            or lo["lesson"].get("source") != "screen"
+            or lo["lesson"].get("perfect_score") is not None
+        ):
             return
         perfect = (self._lesson_screen() or {}).get("perfect_target")
         if perfect:
@@ -966,8 +1044,12 @@ class BenchAdvisor:
         def worlds(k):
             raise RuntimeError("实战没有 GKMS 世界（ctx.worlds 不可用）")
 
-        meta = {"produce_id": self.exam.get("produce"), "step_type": self.exam.get("step"), "plan_type": self.exam.get("plan"),
-                "idol_card_id": self.exam.get("idol")}
+        meta = {
+            "produce_id": self.exam.get("produce"),
+            "step_type": self.exam.get("step"),
+            "plan_type": self.exam.get("plan"),
+            "idol_card_id": self.exam.get("idol"),
+        }
         full = self.tower_loadout or self.exam_loadout  # 搜索类算法要整份编成（偶像之路 / 初 / N.I.A）
         loadout = dict(full) if full else {"idol_card_id": self.exam.get("idol")}
         if self.exam_loadout is not None and (known := self._turn_types()):
@@ -998,16 +1080,29 @@ class BenchAdvisor:
             if str(self.label or "").lower().startswith(("hajime", "nia")):
                 self._fix_obs(obs)
             # 每步给算法的 UIObs 记进运行日志（复盘用：实机局能直接看出 UINet 看到的局面和画面差在哪）
-            uiobs_log.info("[%s T%s %s] %s", self.label, getattr(memory, "turn", None), origin,
-                           json.dumps(obs, ensure_ascii=False, separators=(",", ":")))
-            if self.exam_loadout is None and not self._live_built and str(self.label or "").lower().startswith(("hajime", "nia")):
+            uiobs_log.info(
+                "[%s T%s %s] %s",
+                self.label,
+                getattr(memory, "turn", None),
+                origin,
+                json.dumps(obs, ensure_ascii=False, separators=(",", ":")),
+            )
+            if (
+                self.exam_loadout is None
+                and not self._live_built
+                and str(self.label or "").lower().startswith(("hajime", "nia"))
+            ):
                 self._live_wait = None
                 self.exam_loadout = self._live_exam_loadout(obs)
                 self._live_built = self._live_wait is None  # 在等倍率：下一步再拼
             self._refresh_lesson()
             ctx = self._ctx(obs)
             step_note = ""
-            wait = self._live_wait if (self.exam_loadout is None and algo is not self.algo and self.algo is not None) else None
+            wait = (
+                self._live_wait
+                if (self.exam_loadout is None and algo is not self.algo and self.algo is not None)
+                else None
+            )
             try:
                 if wait:
                     raise _Waiting(wait)
@@ -1022,10 +1117,14 @@ class BenchAdvisor:
                 # 开局就失败（拼不出编成等）的，这一场剩下的步都用 uinet，不每步重试。
                 why = f"{type(e).__name__}: {e}"
                 if not isinstance(e, _Waiting):
-                    logger.warning("[%s] %s 这一步搜不了，用 %s：%s", self.label, self.round_name, algo_spec().split(":")[0], why)
+                    logger.warning(
+                        "[%s] %s 这一步搜不了，用 %s：%s", self.label, self.round_name, algo_spec().split(":")[0], why
+                    )
                 if isinstance(e, _Waiting):
                     step_note = f"{self.round_name} 等画面读到倍率（{e}）"
-                elif not self.began or getattr(e, "whole_round", False):  # 开局失败 / 搜索自己判定这一场的模型不可信：整场 uinet
+                elif not self.began or getattr(
+                    e, "whole_round", False
+                ):  # 开局失败 / 搜索自己判定这一场的模型不可信：整场 uinet
                     what = "开局失败" if not self.began else "不可信"
                     self.round_algo, self.round_note = self.algo, f"{self.round_name} {what}（{why}）"
                     self.round_name = algo_spec().split(":")[0]
@@ -1040,7 +1139,9 @@ class BenchAdvisor:
             logger.warning("bench 算法出错，这一步用规则：%s: %s", type(e).__name__, e)
             return self._fallback(state, memory, previews, legal, f"{type(e).__name__}: {e}")
         if list(act) not in obs["legal"]:
-            return self._fallback(state, memory, previews, legal, f"算法给的动作 {list(act)} 不在合法动作 {obs['legal']} 里")
+            return self._fallback(
+                state, memory, previews, legal, f"算法给的动作 {list(act)} 不在合法动作 {obs['legal']} 里"
+            )
         if act[0] == "play":
             action = Action.play_card(int(act[1]))
             card = next((c for c in state.hand if c.slot == int(act[1])), None)
@@ -1069,7 +1170,13 @@ class BenchAdvisor:
         for a, p in (meta.get("top") or [])[:3]:
             try:
                 k = a[0]
-                ca = Action.play_card(int(a[1])) if k == "play" else Action.use_drink(slot_of[int(a[1])]) if k == "drink" else Action.skip()
+                ca = (
+                    Action.play_card(int(a[1]))
+                    if k == "play"
+                    else Action.use_drink(slot_of[int(a[1])])
+                    if k == "drink"
+                    else Action.skip()
+                )
                 cands.append(Candidate(ca, note=f"概率 {p}"))
             except Exception:  # noqa: BLE001
                 continue
@@ -1085,5 +1192,12 @@ class BenchAdvisor:
             reason += f"；终局分预测中位 {q.get('50%')}"
         if getattr(self, "_label_note", None):
             reason += f"；{self._label_note}"
-        return Decision(action=action, reason=reason, source="bench", confidence=None, candidates=cands,
-                        seconds=time.monotonic() - t0, decider="battle")
+        return Decision(
+            action=action,
+            reason=reason,
+            source="bench",
+            confidence=None,
+            candidates=cands,
+            seconds=time.monotonic() - t0,
+            decider="battle",
+        )

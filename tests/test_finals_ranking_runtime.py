@@ -2,10 +2,10 @@
 
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.produce import hif
 from hiro.vision.ocr import Box, Text
+
+import pytest
 
 
 def T(text, x, y):
@@ -24,7 +24,9 @@ def _core(monkeypatch, page, texts, retry=False):
 
 
 def test_pre_exam_standings_taps_tap_to_next_and_records_once(monkeypatch):
-    core, clicks, records = _core(monkeypatch, {"kind": "standings", "finals_round": 1, "next": True}, [T("タップして次へ", 364, 1187)])
+    core, clicks, records = _core(
+        monkeypatch, {"kind": "standings", "finals_round": 1, "next": True}, [T("タップして次へ", 364, 1187)]
+    )
     core.on_finals_ranking()
     core.on_finals_ranking()  # 点了还在（动画）：再点，但不再记
     assert clicks == [(364, 1187), (364, 1187)] and len(records) == 1
@@ -40,7 +42,9 @@ def test_round_result_taps_next_with_arrow(monkeypatch):
 @pytest.mark.parametrize("retry, want", [(True, []), (False, [(334, 1134)])])
 def test_final_retries_or_goes_next(monkeypatch, retry, want):
     texts = [T("あと3回", 63, 1090), T("再挑戦", 129, 1133), T("→次へ", 334, 1134)]
-    core, clicks, _ = _core(monkeypatch, {"kind": "final", "finals_round": 2, "rank": 3, "outcome": "敗退"}, texts, retry=retry)
+    core, clicks, _ = _core(
+        monkeypatch, {"kind": "final", "finals_round": 2, "rank": 3, "outcome": "敗退"}, texts, retry=retry
+    )
     core.on_finals_ranking()
     assert clicks == want
 

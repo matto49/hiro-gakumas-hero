@@ -52,7 +52,9 @@ def collect(*, check_master: bool = True) -> ResourceManifest:
         if check_master:
             m.master_db = assets.master_db() is not None
             if not m.master_db:
-                m.problems.append("主数据不可用（AssetSource.master_db() 为空；KAA 公开数据 resources/game_data/game.db 或 HIRO_KAA_GAME_DATA）")
+                m.problems.append(
+                    "主数据不可用（AssetSource.master_db() 为空；KAA 公开数据 resources/game_data/game.db 或 HIRO_KAA_GAME_DATA）"
+                )
     except Exception as e:  # noqa: BLE001
         m.problems.append(f"识别素材不可用：{e!r}")
     return m

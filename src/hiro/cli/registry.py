@@ -48,8 +48,13 @@ class Arg:
         return self.name.lstrip("-").replace("-", "_")
 
     def describe(self) -> dict:
-        d = {"name": self.name, "help": self.help, "type": self.type, "required": self.required or self.positional,
-             "agent": self.agent}
+        d = {
+            "name": self.name,
+            "help": self.help,
+            "type": self.type,
+            "required": self.required or self.positional,
+            "agent": self.agent,
+        }
         if self.choices:
             d["choices"] = list(self.choices)
         if self.default is not None:

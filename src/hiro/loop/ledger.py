@@ -15,7 +15,9 @@ from pathlib import Path
 
 
 def _page(step: dict) -> str | None:
-    return ((step.get("observation") or {}).get("page") or {}).get("name") or ((step.get("state") or {}).get("page") or {}).get("name")
+    return ((step.get("observation") or {}).get("page") or {}).get("name") or (
+        (step.get("state") or {}).get("page") or {}
+    ).get("name")
 
 
 def owned_cards(steps: Iterable[dict], memory_cards: Iterable[str] = ()) -> Counter:

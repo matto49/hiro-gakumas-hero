@@ -16,8 +16,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BASE = "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.10.0/onnx/PP-OCRv5"
 MODELS = {  # 文件名 → (地址, SHA256)，取自 rapidocr 3.x 的 default_models.yaml
-    "ch_PP-OCRv5_det_mobile.onnx": (f"{BASE}/det/ch_PP-OCRv5_det_mobile.onnx", "4d97c44a20d30a81aad087d6a396b08f786c4635742afc391f6621f5c6ae78ae"),
-    "ch_PP-OCRv5_rec_mobile.onnx": (f"{BASE}/rec/ch_PP-OCRv5_rec_mobile.onnx", "5825fc7ebf84ae7a412be049820b4d86d77620f204a041697b0494669b1742c5"),
+    "ch_PP-OCRv5_det_mobile.onnx": (
+        f"{BASE}/det/ch_PP-OCRv5_det_mobile.onnx",
+        "4d97c44a20d30a81aad087d6a396b08f786c4635742afc391f6621f5c6ae78ae",
+    ),
+    "ch_PP-OCRv5_rec_mobile.onnx": (
+        f"{BASE}/rec/ch_PP-OCRv5_rec_mobile.onnx",
+        "5825fc7ebf84ae7a412be049820b4d86d77620f204a041697b0494669b1742c5",
+    ),
 }
 
 

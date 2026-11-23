@@ -27,10 +27,14 @@ def test_report_counts_across_segments(run_cli, hiro_home, monkeypatch):
     from hiro.cli import report
 
     _trace(hiro_home, "J1", [step(1, "HOME"), step(2, "ACTION_SELECT", "rule"), step(3, "HIF_EXAM", "bench")])
-    _trace(hiro_home, "J1-r1", [step(1, "HIF_EXAM", "llm", llm=2, notes=["recover:page_misjudged: x"]), step(2, "RESULT", "rule")])
+    _trace(
+        hiro_home,
+        "J1-r1",
+        [step(1, "HIF_EXAM", "llm", llm=2, notes=["recover:page_misjudged: x"]), step(2, "RESULT", "rule")],
+    )
     _trace(hiro_home, "J10", [step(1, "OTHER", "rule")])  # 别的任务，不能算进来
     monkeypatch.setattr(report, "exam_scores", lambda base, traces: [{"label": "final", "score": 87121}])
-    code, env = run_cli("run", "report", "--job", "J1")
+    _code, env = run_cli("run", "report", "--job", "J1")
     d = env["data"]
     assert d["segments"] == ["J1", "J1-r1"]
     assert d["steps"] == 5 and d["decisions"] == 4
@@ -40,12 +44,12 @@ def test_report_counts_across_segments(run_cli, hiro_home, monkeypatch):
 
 
 def test_report_without_trace_says_so(run_cli):
-    code, env = run_cli("run", "report", "--job", "nope")
+    _code, env = run_cli("run", "report", "--job", "nope")
     assert env["ok"] is False and env["error"]["code"] == "no_trace"
 
 
 def test_bad_job_id_is_refused(run_cli):
-    code, env = run_cli("run", "report", "--job", "../../etc")
+    _code, env = run_cli("run", "report", "--job", "../../etc")
     assert env["ok"] is False and env["error"]["code"] == "bad_args"
 
 
@@ -54,7 +58,7 @@ def test_review_builds_html_into_job_dir(run_cli, hiro_home, monkeypatch):
 
     _trace(hiro_home, "J2", [step(1, "HIF_EXAM", "bench")])
     monkeypatch.setattr(report, "build_review_html", lambda base, traces: "<html>review</html>")
-    code, env = run_cli("run", "review", "--job", "J2")
+    _code, env = run_cli("run", "review", "--job", "J2")
     p = hiro_home / "jobs" / "J2" / "review.html"
     assert env["data"]["path"] == str(p) and p.read_text(encoding="utf-8") == "<html>review</html>"
     assert env["data"]["url"] == "review/J2.html"
@@ -65,7 +69,9 @@ def test_finished_produce_job_emits_report_event(hiro_home, monkeypatch):
     from hiro.cli.jobs import KINDS, Job
     from hiro.cli.service import Manager
 
-    monkeypatch.setattr(report, "exam_scores", lambda base, traces: [{"label": "r1", "score": 343538}, {"label": "r2", "score": 644347}])
+    monkeypatch.setattr(
+        report, "exam_scores", lambda base, traces: [{"label": "r1", "score": 343538}, {"label": "r2", "score": 644347}]
+    )
     mgr = Manager(hiro_home)
     job = Job(hiro_home, KINDS["hif"], {})
     _trace(hiro_home, job.id, [step(1, "HIF_EXAM", "bench")])

@@ -11,7 +11,7 @@ from hiro.produce.formation_check import FormationMismatch
 logger = logging.getLogger(__name__)
 
 
-SUPPORT_SETTLE_READS, SUPPORT_SETTLE_GAP_S = 8, 0.5  # 翻编成号后卡片还在动画里：最多读几次、每次隔多久
+SUPPORT_SETTLE_READS, SUPPORT_SETTLE_GAP_S = 12, 0.5  # 翻编成号后卡片还在动画里：最多读几次、每次隔多久
 
 
 def check_support(img, plan: dict | None, set_no=None, *, shoot=None, sleep=None) -> None:
@@ -29,8 +29,13 @@ def check_support(img, plan: dict | None, set_no=None, *, shoot=None, sleep=None
         read = read_support_formation(img)
         prev = None
         for _ in range(SUPPORT_SETTLE_READS if shoot is not None else 0):
-            ids = [s.get("support_card_id") for s in (read or {}).get("slots") or []] if (read or {}).get("view") == "step2" else None
-            if ids is not None and (all(ids) or ids == prev):
+            ids = (
+                [s.get("support_card_id") for s in (read or {}).get("slots") or []]
+                if (read or {}).get("view") == "step2"
+                else None
+            )
+            # 5 格都认出，或连续两次一样且至少认出一格才算稳；两次都一格认不出 = 还在动画里，接着等（11-21 DMM：翻号 2.5 秒后 5 格全空就判了）
+            if ids is not None and (all(ids) or (ids == prev and any(ids))):
                 break
             prev = ids
             (sleep or (lambda s: None))(SUPPORT_SETTLE_GAP_S)
@@ -82,7 +87,10 @@ def rental_pick(plan: dict | None, attr: str | None, main_attr: str | None = Non
     from hiro.produce import rental
 
     plan = plan or {}
-    own = [{"support_card_id": o["support_card_id"], "level": o.get("level")} for o in (plan.get("support") or {}).get("own") or []]
+    own = [
+        {"support_card_id": o["support_card_id"], "level": o.get("level")}
+        for o in (plan.get("support") or {}).get("own") or []
+    ]
     scorer = None
     if own:
         from hiro.brain.support_select import rental_scorer
@@ -111,10 +119,12 @@ def memory_card_problems(img, plan: dict) -> tuple[list[str], list[str]]:
 
 
 # 开局第 3 步只核对、不写回忆（协调 11-17：第 3 步选择页只露约 3 行、排序也和菜单不同，按库存行号找不准）
-MEMORY_MENU_HINT = "回忆请在编成菜单里写：PYTHONPATH=src python tools/write_formation.py --mode <hajime|nia|hif> --what memory"
+MEMORY_MENU_HINT = (
+    "回忆请在编成菜单里写：PYTHONPATH=src python tools/write_formation.py --mode <hajime|nia|hif> --what memory"
+)
 
 
-STEP3_SETTLE_READS, STEP3_SETTLE_GAP_S = 8, 0.5
+STEP3_SETTLE_READS, STEP3_SETTLE_GAP_S = 12, 0.5
 
 
 def settled_step3(shoot, plan: dict, sleep=None):
@@ -132,7 +142,7 @@ def settled_step3(shoot, plan: dict, sleep=None):
         cur = [(r.get("card") if r.get("known") else None) for r in read_step3_icons(img)]
         if want and all(cur) and set(cur) <= want:
             return img
-        if cur == prev:
+        if cur == prev and any(cur):  # 两次都一格认不出 = 还在动画里，接着等（同第 2 步，11-21）
             return img
         prev = cur
         if i + 1 < STEP3_SETTLE_READS:
@@ -154,7 +164,9 @@ def check_memory_set(img, plan: dict | None, set_no=None, *, shoot=None, sleep=N
     from hiro.vision.ocr import screen_texts
 
     try:
-        problems, warnings = check_memory_step3(memory_set_number([(t.text, tuple(t.rect)) for t in screen_texts(img)]), plan)
+        problems, warnings = check_memory_step3(
+            memory_set_number([(t.text, tuple(t.rect)) for t in screen_texts(img)]), plan
+        )
     except Exception as e:  # noqa: BLE001
         logger.warning("回忆编成核对失败（不拦开局）：%s", e)
         return

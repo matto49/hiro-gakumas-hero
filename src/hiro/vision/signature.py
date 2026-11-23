@@ -9,11 +9,11 @@ import json
 from functools import cache
 from pathlib import Path
 
+from hiro.vision import assets
+
 import cv2
 import numpy as np
 from cv2.typing import MatLike
-
-from hiro.vision import assets
 
 SIGNATURES = Path(__file__).with_name("signatures.json")
 UI_SCALE = 720 / 1080

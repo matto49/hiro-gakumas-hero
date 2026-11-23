@@ -33,14 +33,14 @@ def main() -> int:
         ap.error("--what 只能是 support / memory")
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s")
 
-    import cv2
-
     from hiro.produce import formation_menu
     from hiro.produce.formation_writer import Device, FormationWriteError
     from hiro.produce.memory_picker import SWIPE_DURATION, SWIPE_HOLD, Picker
     from hiro.tool_device import open_tool_device
     from hiro.vision.ocr import screen_texts
     from hiro.vision.support_screens import read_support_formation, read_support_list
+
+    import cv2
 
     plan_path = Path(os.environ.get("HIRO_FORMATION_PLAN") or "conf/formation-plan.json")
     if not plan_path.exists():
@@ -62,7 +62,11 @@ def main() -> int:
                  calib=calib)  # fmt: skip
 
     def make_picker():  # 回忆列表慢滑 + 终点停住，不带惯性（同开局第 3 步、hiro.memory_scan）
-        return Picker(d.screenshot, d.tap, lambda x1, y1, x2, y2: d.swipe(x1, y1, x2, y2, duration=SWIPE_DURATION, hold=SWIPE_HOLD))
+        return Picker(
+            d.screenshot,
+            d.tap,
+            lambda x1, y1, x2, y2: d.swipe(x1, y1, x2, y2, duration=SWIPE_DURATION, hold=SWIPE_HOLD),
+        )
 
     try:
         out = formation_menu.run(dev, plan, args.mode, what=what, make_picker=make_picker, read_formation=read_support_formation,
@@ -71,7 +75,7 @@ def main() -> int:
         print(f"停下：{e}（截图在 {calib_dir}）", file=sys.stderr)
         return 3
     for kind, done in out.items():
-        print(f"{kind}：{'不用改' if not done else done}")
+        print(f"{kind}：{'不用改' if not done else done}")  # noqa: SIM212
     print("只报了差异，没改" if args.dry_run else "写完，回读核对通过")
     return 0
 

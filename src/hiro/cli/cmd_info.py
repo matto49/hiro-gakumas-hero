@@ -30,15 +30,17 @@ def normalize_supports(inv: dict) -> list[dict]:
     """tools/support_inventory.py 的输出（cards: {id: {...}}）→ 每张卡一行。"""
     out = []
     for cid, c in (inv.get("cards") or {}).items():
-        out.append({
-            "id": c.get("support_card_id") or cid,
-            "name": c.get("name"),
-            "rarity": _rarity(c.get("rarity")),
-            "attr": c.get("attr"),
-            "type": c.get("type"),
-            "level": c.get("level"),
-            "breaks": c.get("breaks"),
-        })
+        out.append(
+            {
+                "id": c.get("support_card_id") or cid,
+                "name": c.get("name"),
+                "rarity": _rarity(c.get("rarity")),
+                "attr": c.get("attr"),
+                "type": c.get("type"),
+                "level": c.get("level"),
+                "breaks": c.get("breaks"),
+            }
+        )
     return out
 
 
@@ -63,16 +65,18 @@ def normalize_memories(inv: dict) -> list[dict]:
     out = []
     for e in inv.get("entries") or []:
         card = e.get("card") or {}
-        out.append({
-            "card_id": card.get("card_id"),
-            "card": card.get("name") or e.get("card_text"),
-            "timing": e.get("timing"),
-            "timing_text": e.get("timing_text"),
-            "stats": e.get("stats"),
-            "abilities": [a.get("text") for a in e.get("abilities") or [] if not a.get("disabled")],
-            "page": e.get("page"),
-            "slot": e.get("slot"),
-        })
+        out.append(
+            {
+                "card_id": card.get("card_id"),
+                "card": card.get("name") or e.get("card_text"),
+                "timing": e.get("timing"),
+                "timing_text": e.get("timing_text"),
+                "stats": e.get("stats"),
+                "abilities": [a.get("text") for a in e.get("abilities") or [] if not a.get("disabled")],
+                "page": e.get("page"),
+                "slot": e.get("slot"),
+            }
+        )
     return out
 
 
@@ -86,8 +90,14 @@ def normalize_account(inv: dict) -> list[dict]:
     return [{k: inv.get(k) for k in ("plv", "ap", "ap_max", "jewel")}]
 
 
-NORMALIZE = {"account": normalize_account, "idols": normalize_idols, "supports": normalize_supports, "memories": normalize_memories, "game_settings": normalize_game_settings,
-             "formations": normalize_formations}
+NORMALIZE = {
+    "account": normalize_account,
+    "idols": normalize_idols,
+    "supports": normalize_supports,
+    "memories": normalize_memories,
+    "game_settings": normalize_game_settings,
+    "formations": normalize_formations,
+}
 
 
 def import_inventory(kind: str, inv: dict, source: str) -> dict:
@@ -112,8 +122,15 @@ def _listing(kind: str, keep=lambda r: True) -> dict:
         return {"kind": kind, "scanned_at": None, "complete": None, "items": [], "hint": SCAN_HINT[kind]}
     items = [r for r in rows if keep(r)]
     # counts 放在 items 前面：模型按它报数量，不用自己数列表；结果太长被截断时统计也还在
-    return {"kind": kind, "scanned_at": meta["scanned_at"], "complete": meta["complete"], "source": meta["source"],
-            "total": meta["count"], "counts": counts(items), "items": items}
+    return {
+        "kind": kind,
+        "scanned_at": meta["scanned_at"],
+        "complete": meta["complete"],
+        "source": meta["source"],
+        "total": meta["count"],
+        "counts": counts(items),
+        "items": items,
+    }
 
 
 COUNT_KEYS = {"rarity": "by_rarity", "attr": "by_attr", "timing": "by_timing", "idol": "by_idol"}
@@ -146,30 +163,52 @@ def _summary(args: dict) -> dict:
     kinds = {}
     for k in KINDS:
         meta, rows = st.latest(k)
-        kinds[k] = {"count": meta["count"] if meta else 0, "scanned_at": meta["scanned_at"] if meta else None,
-                    "complete": meta["complete"] if meta else None}
+        kinds[k] = {
+            "count": meta["count"] if meta else 0,
+            "scanned_at": meta["scanned_at"] if meta else None,
+            "complete": meta["complete"] if meta else None,
+        }
     meta, rows = st.latest("account")
     return {"account": rows[0] if rows else None, "kinds": kinds}
 
 
-@command("info supports", Risk.READ, "支援卡库存（最新一次扫描）：名字、稀有度、属性、等级、突破。",
-         args=(Arg("--rarity", "只看这个稀有度", choices=("SSR", "SR", "R")),
-               Arg("--attr", "只看这个属性", choices=("Vo", "Da", "Vi", "Assist")),
-               Arg("--name", "名字包含这几个字")))
+@command(
+    "info supports",
+    Risk.READ,
+    "支援卡库存（最新一次扫描）：名字、稀有度、属性、等级、突破。",
+    args=(
+        Arg("--rarity", "只看这个稀有度", choices=("SSR", "SR", "R")),
+        Arg("--attr", "只看这个属性", choices=("Vo", "Da", "Vi", "Assist")),
+        Arg("--name", "名字包含这几个字"),
+    ),
+)
 def _supports(a: dict) -> dict:
-    return _listing("supports", lambda r: _match(r.get("rarity"), a["rarity"]) and _match(r.get("attr"), a["attr"])
-                    and _contains(r.get("name"), a["name"]))
+    return _listing(
+        "supports",
+        lambda r: (
+            _match(r.get("rarity"), a["rarity"])
+            and _match(r.get("attr"), a["attr"])
+            and _contains(r.get("name"), a["name"])
+        ),
+    )
 
 
-@command("info memories", Risk.READ, "回忆库存（最新一次扫描）：回忆技能卡、获得时机、参数、能力。",
-         args=(Arg("--timing", "获得时机", choices=("start", "mid", "final")),
-               Arg("--card", "回忆技能卡名字包含这几个字")))
+@command(
+    "info memories",
+    Risk.READ,
+    "回忆库存（最新一次扫描）：回忆技能卡、获得时机、参数、能力。",
+    args=(Arg("--timing", "获得时机", choices=("start", "mid", "final")), Arg("--card", "回忆技能卡名字包含这几个字")),
+)
 def _memories(a: dict) -> dict:
     return _listing("memories", lambda r: _match(r.get("timing"), a["timing"]) and _contains(r.get("card"), a["card"]))
 
 
-@command("info idols", Risk.READ, "偶像卡（最新一次扫描）：卡名、偶像、稀有度、突破、潜力。",
-         args=(Arg("--idol", "偶像名字包含这几个字"), Arg("--rarity", "只看这个稀有度", choices=("SSR", "SR", "R"))))
+@command(
+    "info idols",
+    Risk.READ,
+    "偶像卡（最新一次扫描）：卡名、偶像、稀有度、突破、潜力。",
+    args=(Arg("--idol", "偶像名字包含这几个字"), Arg("--rarity", "只看这个稀有度", choices=("SSR", "SR", "R"))),
+)
 def _idols(a: dict) -> dict:
     return _listing("idols", lambda r: _contains(r.get("idol"), a["idol"]) and _match(r.get("rarity"), a["rarity"]))
 
@@ -184,7 +223,11 @@ def _formations(a: dict) -> dict:
     return _listing("formations")
 
 
-@command("info game-settings", Risk.READ, "游戏设置里快进 / 跳过演出那 5 项开没开（最近一次检查的结果，ON / OFF / null 读不到）。")
+@command(
+    "info game-settings",
+    Risk.READ,
+    "游戏设置里快进 / 跳过演出那 5 项开没开（最近一次检查的结果，ON / OFF / null 读不到）。",
+)
 def _game_settings(a: dict) -> dict:
     out = _listing("game_settings")
     raw = open_store().latest_raw("game_settings") or {}
@@ -192,9 +235,13 @@ def _game_settings(a: dict) -> dict:
     return out
 
 
-@command("info import", Risk.READ, "把扫描工具的输出 JSON 导入信息库（扫描任务结束时自动调用）。",
-         args=(Arg("--kind", "类别", choices=tuple(NORMALIZE), required=True), Arg("file", "扫描输出的 JSON 文件")),
-         agent=False)
+@command(
+    "info import",
+    Risk.READ,
+    "把扫描工具的输出 JSON 导入信息库（扫描任务结束时自动调用）。",
+    args=(Arg("--kind", "类别", choices=tuple(NORMALIZE), required=True), Arg("file", "扫描输出的 JSON 文件")),
+    agent=False,
+)
 def _import(a: dict) -> dict:
     p = Path(a["file"])
     try:

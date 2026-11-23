@@ -17,10 +17,10 @@ HiroController._quick_page 按它给的位置点；这里只处理认不出的�
 
 from __future__ import annotations
 
-from hiro.vision.textnorm import contains
-
 import time
 from collections.abc import Callable
+
+from hiro.vision.textnorm import contains
 
 ADVANCE_TAP = (12, 12)  # 与 KAA kaa.tasks.common.skip() 相同
 # 角落点了一阵还过不去时改点上方中间空白（第二十三局：P 道具效果触发说明条 / 获得卡片演出，(12,12) 点不掉停 78s，
@@ -39,6 +39,8 @@ def alt_clear(boxes) -> bool:
         return False
     x1, y1, x2, y2 = ALT_CLEAR
     return not any(x1 <= (b[0] + b[2]) / 2 <= x2 and y1 <= (b[1] + b[3]) / 2 <= y2 for _, _, b in boxes)
+
+
 ADVANCE_EVERY = 0.4
 ADVANCE_BURST = 3  # 每轮末尾最多再点几下（加上 KAA skip() 那一下）
 # 画面上有这些字（按钮 / 购买 / 危险操作）时不点空白：可能是要我们做决定的页面，交给对应流程

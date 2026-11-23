@@ -4,9 +4,6 @@ import os
 import subprocess
 import sys
 
-import numpy as np
-import pytest
-
 from hiro.daily import (
     TASKS,
     Deadline,
@@ -22,6 +19,9 @@ from hiro.daily import (
 from hiro.runtime import Frame, nav
 from hiro.vision.ocr import Box
 from hiro.vision.ui_templates import Match, box, point
+
+import numpy as np
+import pytest
 
 HOME = {"Daily.ButtonHomeCurrent": (359, 1155)}
 
@@ -378,7 +378,9 @@ def test_registry_and_no_kaa_import():
         "bad = sorted(m for m in sys.modules if m.split('.')[0] in ('kotonebot', 'kaa'));"
         "print(bad); sys.exit(1 if bad else 0)"
     )
-    env = {k: v for k, v in os.environ.items() if k != "HIRO_KAA_GAME_DATA"}  # 设了它 hiro.vision 会给 KAA 指主数据目录（KAA 还在时要）
+    env = {
+        k: v for k, v in os.environ.items() if k != "HIRO_KAA_GAME_DATA"
+    }  # 设了它 hiro.vision 会给 KAA 指主数据目录（KAA 还在时要）
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False, env=env)
     assert r.returncode == 0, r.stdout + r.stderr
 

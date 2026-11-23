@@ -14,7 +14,10 @@ def test_survey_reads_every_set(monkeypatch):
     monkeypatch.setattr(fm.Menu, "ensure_set", lambda self, n: cur.__setitem__("n", n))
     full = [{"support_card_id": "s_card-3-0001", "level": 60}] * 5
     empty = [{"support_card_id": None, "level": None}] * 5
-    monkeypatch.setattr("hiro.produce.formation_writer._settled_step2", lambda dev, read, view: {"slots": full if cur["n"] in (4, 20) else empty})
+    monkeypatch.setattr(
+        "hiro.produce.formation_writer._settled_step2",
+        lambda dev, read, view: {"slots": full if cur["n"] in (4, 20) else empty},
+    )
     icons = lambda img: [{"empty": cur["n"] != 5, "known": True, "card": "men-1"}] * 4  # noqa: E731
 
     class Dev:

@@ -11,14 +11,12 @@
 
 from __future__ import annotations
 
-from hiro.vision.textnorm import contains
-
+import logging
 import time
 from collections.abc import Callable
 
-import logging
-
 from hiro.loop.date_change import DateChanged
+from hiro.vision.textnorm import contains
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +42,9 @@ def _center(b) -> tuple[int, int]:
 def comm_error(boxes) -> dict | None:
     """认出通信エラー框 → {kind: retry | to_title | unknown, retry, close}（按钮中心，没有为 None）；不是返回 None。"""
     texts = [(_norm(t), b) for t, _, b in boxes]
-    if not any(any(h in t for h in TITLE_HINTS) or ("通信" in t and ("エラー" in t or "工ラー" in t)) for t, _ in texts):
+    if not any(
+        any(h in t for h in TITLE_HINTS) or ("通信" in t and ("エラー" in t or "工ラー" in t)) for t, _ in texts
+    ):
         return None
     # 按钮是「リトライ」短字（OCR 会多读按钮图标成「くリトライ」）；E209「アセット取得に失敗」的说明句「通信環境の良い場所でリトライしてください」
     # 也含リトライ，排在按钮上面，原来先命中它、点了 10 次说明文字都没重试（11-19 账号 2）。先找以リトライ结尾的短字，说明句不点

@@ -54,7 +54,9 @@ def check(rx, state, legal: list[Action]) -> str | None:
     if c.ended:
         return "引擎局面已经结束"
     eng_play = {int(a[1]) for a in c.legal_actions() if a[0] == "play"}
-    keys = [a if isinstance(a, str) else a.legal_key() for a in legal]  # Action 或 legal_key 字符串（BattleState.legal_actions）
+    keys = [
+        a if isinstance(a, str) else a.legal_key() for a in legal
+    ]  # Action 或 legal_key 字符串（BattleState.legal_actions）
     scr_play = {int(k.split(":")[1]) for k in keys if k and k.startswith("play:")}
     # 引擎比画面严（画面判可打、引擎判不可打）不算对不上：好印象 / やる気等消耗不够时游戏不让打、卡面却不变灰，引擎是对的
     # （DMM mainverify2 R2：ゆめみごこち 好印象不够，退回 UINet 后选了它、连点 3 次停在选中态）；搜索只在引擎可打的牌里选，画面上都能打。
@@ -148,10 +150,15 @@ class SearchAdvisor(BenchAdvisor):
         b = budget()
         t0 = time.monotonic()
         try:
-            seed = hash((self.label, getattr(self, "round_no", 0), int(rx.current_turn), int(rx.turn_card_play_count))) & 0xFFFFFFFF
+            seed = (
+                hash((self.label, getattr(self, "round_no", 0), int(rx.current_turn), int(rx.turn_card_play_count)))
+                & 0xFFFFFFFF
+            )
             sched = self._schedule()
             start, free = apply_schedule(rx, sched) if sched else (rx.clone(), free_turns(rx))
-            r = self.rs.search(start, 0, free, worlds=b["worlds"], seconds=b["seconds"], threads=b["threads"], seed=seed)
+            r = self.rs.search(
+                start, 0, free, worlds=b["worlds"], seconds=b["seconds"], threads=b["threads"], seed=seed
+            )
         except Exception as e:  # noqa: BLE001
             return self._back(state, memory, previews, legal, f"搜索出错：{type(e).__name__}: {e}")
         best = r.get("best")

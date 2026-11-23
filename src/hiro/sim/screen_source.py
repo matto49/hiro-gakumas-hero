@@ -59,7 +59,14 @@ def unique_item(idol_card_id: str | None) -> str | None:
     try:
         from hiro.bench_bridge.tower import master
 
-        idol = next((r for r in master().rows("IdolCard") if r.get("id") == str(idol_card_id or "").replace("i_card-skin-", "i_card-")), None)
+        idol = next(
+            (
+                r
+                for r in master().rows("IdolCard")
+                if r.get("id") == str(idol_card_id or "").replace("i_card-skin-", "i_card-")
+            ),
+            None,
+        )
     except Exception:  # noqa: BLE001  没有主数据
         return None
     return (idol or {}).get("beforeProduceItemId") or None
@@ -184,7 +191,7 @@ class SimScreenExamStateSource(ScreenExamStateSource):
         """开考：合成开局（牌组 / 饮料 / 体力 / 倍率），建 SimTracker。"""
         from hiro.sim import interval as iv
         from hiro.sim import resource as rv
-        from hiro.sim.env import SimGame
+        from hiro.sim.env import SimGame  # noqa: F401
         from hiro.sim.track import SimTracker
         from hiro.state.finals_context import CONTEXT
 
@@ -197,8 +204,12 @@ class SimScreenExamStateSource(ScreenExamStateSource):
         if not max_hp:
             self._lose("最大体力没读到（培育页体力上限），不拿猜的数值合成开局")
             return False
-        permil = {k: v for k, v in (getattr(memory, "attr_permil", None) or {}).items() if v} or dict(CONTEXT.get("permil") or {})
-        setup, notes = rv.setup_for(self.template or self.label, deck=deck, drinks=drinks, hp=state.hp or max_hp, max_hp=max_hp, permil=permil)
+        permil = {k: v for k, v in (getattr(memory, "attr_permil", None) or {}).items() if v} or dict(
+            CONTEXT.get("permil") or {}
+        )
+        setup, notes = rv.setup_for(
+            self.template or self.label, deck=deck, drinks=drinks, hp=state.hp or max_hp, max_hp=max_hp, permil=permil
+        )
         # 任务 ②：P 道具 / 支援卡 / 回忆附魔换成这一局的（原来是模板那一局的，任务 ① 查到搜出来的未来是错的）
         run, run_notes = self._run_loadout()
         setup = iv._with(setup, **run)
@@ -235,7 +246,9 @@ class SimScreenExamStateSource(ScreenExamStateSource):
         run, notes = run_loadout(produce, plan)
         if not run.get("items") and (unique := unique_item(getattr(self.profile, "idol_id", None))):
             run = {**run, "items": (unique,)}
-            notes = [n for n in notes if "P 道具没记账" not in n] + [f"P 道具没记账：只放固有道具 {unique}（{UNIQUE_ITEM_ENV}）"]
+            notes = [n for n in notes if "P 道具没记账" not in n] + [
+                f"P 道具没记账：只放固有道具 {unique}（{UNIQUE_ITEM_ENV}）"
+            ]
         return run, notes
 
     def _new_game(self, setup, memory):
@@ -282,7 +295,9 @@ class SimScreenExamStateSource(ScreenExamStateSource):
         memory = self.tracker.game.memory if self.tracker is not None else None
         self.tracker.game = self._new_game(self.setup, memory)
         self.tracker.pending = None
-        logger.info("模拟器跟踪：%s 画面上的基础类卡 %s 不在合成牌组（応援棒 / 考试中生成），加进去重新编译", self.label, basics)
+        logger.info(
+            "模拟器跟踪：%s 画面上的基础类卡 %s 不在合成牌组（応援棒 / 考试中生成），加进去重新编译", self.label, basics
+        )
         return True
 
     def _deck(self) -> list:
@@ -325,7 +340,12 @@ class SimScreenExamStateSource(ScreenExamStateSource):
                 env = clone(self.tracker.game.env)
                 notes.append(f"上一步的动作执行不了（{type(e).__name__}），从旧局面重建")
         guard = 0
-        while not env.ended and state.remaining_turns is not None and self.tracker.screen_remaining(env) > state.remaining_turns and guard < 6:
+        while (
+            not env.ended
+            and state.remaining_turns is not None
+            and self.tracker.screen_remaining(env) > state.remaining_turns
+            and guard < 6
+        ):
             fast_apply(env, {"kind": "end_turn"})
             guard += 1
         if env.ended:
@@ -336,7 +356,15 @@ class SimScreenExamStateSource(ScreenExamStateSource):
             pick = None
             for exact in (True, False):
                 for z in ("hand", "deck", "grave", "lost"):
-                    pick = next((i for i in pools[z] if def_card_id(env.cards[i]) == cid and (not exact or up is None or def_upgrade(env.cards[i]) == up)), None)
+                    pick = next(
+                        (
+                            i
+                            for i in pools[z]
+                            if def_card_id(env.cards[i]) == cid
+                            and (not exact or up is None or def_upgrade(env.cards[i]) == up)
+                        ),
+                        None,
+                    )
                     if pick is not None:
                         pools[z].remove(pick)
                         if z != "hand":
@@ -346,7 +374,14 @@ class SimScreenExamStateSource(ScreenExamStateSource):
                     break
             if pick is None and cid in (getattr(self, "_pool_ids", None) or ()):
                 # 応援棒卡池里的卡露面了、引擎里没有这张：换掉一张还没露面（还在山札）的别的占位卡，牌组总数不变
-                ph = next((i for i in pools["deck"] if def_card_id(env.cards[i]) in self._pool_ids and def_card_id(env.cards[i]) != cid), None)
+                ph = next(
+                    (
+                        i
+                        for i in pools["deck"]
+                        if def_card_id(env.cards[i]) in self._pool_ids and def_card_id(env.cards[i]) != cid
+                    ),
+                    None,
+                )
                 if ph is not None:
                     pools["deck"].remove(ph)
                     pick = self._new_card(env, cid, up)
@@ -388,7 +423,9 @@ class SimScreenExamStateSource(ScreenExamStateSource):
             return None
         try:
             state.sim_game = self.game  # 对齐过画面的引擎局面：给出招插件（hiro.bench_bridge）转 UIObs 用
-            state.sim_exact_exam = self.template in FINALS_LABELS  # 合成模板的回合数 / 属性表是这场考试的（选拔考试借的模板不是）
+            state.sim_exact_exam = (
+                self.template in FINALS_LABELS
+            )  # 合成模板的回合数 / 属性表是这场考试的（选拔考试借的模板不是）
         except AttributeError:
             pass
         if not getattr(self, "preview_on", True):
@@ -409,7 +446,9 @@ class SimScreenExamStateSource(ScreenExamStateSource):
             for k, p in slots.items():
                 if k.startswith("drink:"):
                     did = game.env.drinks[game._drinks[int(k.split(":")[1])]]
-                    j = next((i for i, x in enumerate(self.screen_drinks) if x == did and f"drink:{i}" not in remap), None)
+                    j = next(
+                        (i for i, x in enumerate(self.screen_drinks) if x == did and f"drink:{i}" not in remap), None
+                    )
                     if j is not None:
                         remap[f"drink:{j}"] = p
                 else:
@@ -422,7 +461,10 @@ class SimScreenExamStateSource(ScreenExamStateSource):
             _SEEN_ERRORS.add(sig)
             logger.info("模拟器预演失败：%s", sig, exc_info=first)
             return None
-        legal = {a.legal_key() if hasattr(a, "legal_key") else a for a in (state.legal_actions() if hasattr(state, "legal_actions") else [])}
+        legal = {
+            a.legal_key() if hasattr(a, "legal_key") else a
+            for a in (state.legal_actions() if hasattr(state, "legal_actions") else [])
+        }
         if legal:
             out = [p for p in out if p.action.legal_key() in legal]
         logger.info("模拟器预演：%d 个动作，%.1fs", len(out), time.monotonic() - t0)

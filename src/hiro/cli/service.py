@@ -31,10 +31,13 @@ def _is_our_python(pid: int) -> bool:
 
     try:
         if sys.platform == "win32":
-            out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"], capture_output=True, text=True,
-                                 timeout=10).stdout
+            out = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"], capture_output=True, text=True, timeout=10
+            ).stdout
         else:
-            out = subprocess.run(["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True, timeout=10).stdout
+            out = subprocess.run(
+                ["ps", "-o", "command=", "-p", str(pid)], capture_output=True, text=True, timeout=10
+            ).stdout
     except (OSError, subprocess.SubprocessError):
         return False
     return "python" in out.lower()
@@ -54,7 +57,7 @@ def _kill_orphan(pid) -> None:
     while time.monotonic() - t0 < 5 and _is_our_python(pid):
         time.sleep(0.1)
     if sys.platform != "win32" and _is_our_python(pid):
-        try:
+        try:  # noqa: SIM105
             os.kill(pid, signal.SIGKILL)
         except OSError:
             pass
@@ -103,8 +106,11 @@ class Manager:
         with self.lock:
             cur = self.current
             if cur and cur.state in LIVE + ("stopping",):
-                return _err("busy", f"已经有任务在跑：{cur.kind.summary(cur.params)}",
-                            "同一时间只能跑一个对局或扫描；等它结束，或 hiro run stop")
+                return _err(
+                    "busy",
+                    f"已经有任务在跑：{cur.kind.summary(cur.params)}",
+                    "同一时间只能跑一个对局或扫描；等它结束，或 hiro run stop",
+                )
             job = Job(self.home, KINDS[kind], params, on_exit=self._exited, llm_env=llm_env)
             self.jobs[job.id] = job
             self.current = job
@@ -162,8 +168,11 @@ class Manager:
         if job is None or job.state not in LIVE:
             return _err("no_job", "现在没有在跑的任务", "hiro run status 看状态")
         if action in ("pause", "takeover") and not job.kind.pausable:
-            return _err("not_pausable", f"「{job.kind.summary(job.params)}」不能暂停或接手，只能停止",
-                        "要自己操作就先 hiro run stop（不会放弃培育）")
+            return _err(
+                "not_pausable",
+                f"「{job.kind.summary(job.params)}」不能暂停或接手，只能停止",
+                "要自己操作就先 hiro run stop（不会放弃培育）",
+            )
         if action == "pause":
             job.pause("用户暂停", "paused")
         elif action == "takeover":

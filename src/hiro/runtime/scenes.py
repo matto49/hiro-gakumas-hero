@@ -30,7 +30,9 @@ def tap_next(rt, frame) -> bool:
     连点被 BLOCK_WORDS 里的「次へ」拦住，180 秒停机）。点之前重新截图核对这行字还在。"""
     from hiro.loop.advance import BLOCK_WORDS
 
-    btn = next((t for t in frame.texts if TAP_NEXT in t.text.replace(" ", "") and t.rect.center.y > TAP_NEXT_MIN_Y), None)
+    btn = next(
+        (t for t in frame.texts if TAP_NEXT in t.text.replace(" ", "") and t.rect.center.y > TAP_NEXT_MIN_Y), None
+    )
     if btn is None:
         return False
     others = [t.text.replace(" ", "") for t in frame.texts if t is not btn]
@@ -41,7 +43,10 @@ def tap_next(rt, frame) -> bool:
     last = getattr(rt, "_tap_next_at", None)
     if now is not None and last is not None and now - last < TAP_NEXT_GAP_S:
         return True  # 刚点过，等翻页（算处理了，不交给后面的连点）
-    if not any(TAP_NEXT in b.text.replace(" ", "") and b.rect.center.y > TAP_NEXT_MIN_Y for b in screen_texts(rt.screen.shot().img)):
+    if not any(
+        TAP_NEXT in b.text.replace(" ", "") and b.rect.center.y > TAP_NEXT_MIN_Y
+        for b in screen_texts(rt.screen.shot().img)
+    ):
         return False
     rt.device.tap(*btn.rect.center)
     rt._tap_next_at = now
@@ -65,18 +70,26 @@ def live_start(rt, frame) -> bool:
     img = frame.img
     if img is None or img.shape[1] <= img.shape[0]:
         return False
-    tap = live_start_tap(img, frame.texts)
-    if tap is None:
-        return False
-    logger.info("横屏 LIVE 曲目页：点 %s 开始演出", tap)
-    rt.device.tap(*tap)
-    return True
+    from hiro.runtime import live_mode
+
+    def items(f) -> list:
+        return [(t.text, tuple(t.rect.center)) for t in f.texts]
+
+    def shoot():
+        f = rt.screen.shot()
+        return f.img.shape[1], f.img.shape[0], items(f)
+
+    # 曲目页点开始 / HIRO_LIVE=watch 开始前停下等人 / pick·auto 点 SKIP（hiro.runtime.live_mode，用户 11-21）
+    done = live_mode.driver().step(img.shape[1], img.shape[0], items(frame), lambda x, y: rt.device.tap(x, y), shoot)
+    return done is not None and done != "watched"
 
 
 def commu_skip(rt, frame) -> bool:
     """培育剧情逐句播放（底栏有「早送り」+ ログ / AUTO / SKIP）：点认出来的 SKIP（左下、y > 1120）。点之前重新截图核对。"""
     texts = [t.text for t in frame.texts]
-    if not any("早送" in t for t in texts) or not any("ログ" in t or "AUT" in t.upper() or "SKI" in t.upper() for t in texts):
+    if not any("早送" in t for t in texts) or not any(
+        "ログ" in t or "AUT" in t.upper() or "SKI" in t.upper() for t in texts
+    ):
         return False
     fresh = screen_texts(rt.screen.shot().img)
     if not any("早送" in b.text for b in fresh):
@@ -89,6 +102,32 @@ def commu_skip(rt, frame) -> bool:
     return True
 
 
+def unread_confirm(rt) -> bool:
+    """剧情点 SKIP 后弹的「スキップ確認：未読のコミュです」（HIRO_UNREAD_STORY=stop）：交给 unread_story.handle——
+    点キャンセル、停下等人（看完自动继续 / 删等人文件 = 跳过 / 剧情框文字 60 秒没变就关游戏，抛 UnreadStoryTimeout 停机）。
+    SKIP 按钮本身照常点（scenes.commu_skip）：读过的剧情不弹这个框，直接跳。"""
+    from hiro.loop.skip_settings import is_ok_text
+    from hiro.runtime import unread_story
+
+    def tap(word: str):
+        def go():
+            boxes = screen_texts(rt.screen.shot().img)
+            btn = next((b for b in boxes if b.text.strip() == word or (word == "決定" and is_ok_text(b.text))), None)
+            if btn is None:
+                raise RuntimeError(f"未读剧情确认框上没找到「{word}」")
+            rt.device.tap(*btn.rect.center)
+            rt.sleep(0.8)
+
+        return go
+
+    got = unread_story.handle(cancel=tap("キャンセル"), confirm=tap("決定"), texts=lambda: unread_story.read_screen(rt.screen.shot().img),
+                              snap=lambda: rt.screen.shot().img, sleep=rt.sleep)  # fmt: skip
+    logger.warning("未读剧情确认框：%s", got)
+    if rt.session is not None:
+        rt.session.recover("dialog", f"未读剧情：{got}")
+    return True
+
+
 def first_run_settings(rt, frame) -> bool:
     """重新登录后游戏重置本地设置弹的一次性设置框：选推荐项（有的话）→ 点「決定」。"""
     from hiro.loop.skip_settings import is_ok_text
@@ -97,6 +136,10 @@ def first_run_settings(rt, frame) -> bool:
     hit = next((x for x in FIRST_RUN_SETTINGS if any(x[0] in t for t in texts)), None)
     if hit is None:
         return False
+    from hiro.runtime import unread_story
+
+    if hit[0] == "スキップ確認" and unread_story.stopping():
+        return unread_confirm(rt)  # HIRO_UNREAD_STORY=stop：未读剧情的确认框不点決定，停下等人（review #13）
     boxes = screen_texts(rt.screen.shot().img)
     opt = next((b for b in boxes if hit[1] in b.text), None) if hit[1] else None
     if opt is not None:

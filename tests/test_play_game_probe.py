@@ -18,7 +18,7 @@ def test_probe_parses_last_json_line(monkeypatch):
 
     def fake_run(cmd, **kw):
         seen["cmd"] = cmd
-        return _Out("KAA 日志…\n{\"memory\": [1710, 2268, 913]}\n")
+        return _Out('KAA 日志…\n{"memory": [1710, 2268, 913]}\n')
 
     monkeypatch.setattr(subprocess, "run", fake_run)
     assert play_game._probe("memory") == {"memory": [1710, 2268, 913]}
@@ -33,7 +33,13 @@ def test_probe_reports_failure(monkeypatch):
 def test_wrapper_does_not_import_recognition():
     """包装进程 main 的顶层只用标准库 + hiro.loop.pause_flag；读屏函数在 --probe 子进程里才导入识别层。"""
     src = Path(play_game.__file__).read_text(encoding="utf-8")
-    body = src[src.index("def main("):]
-    assert "read_memory()" not in body.split("def _probe_main")[0] if "def _probe_main" in body else "read_memory()" not in body
+    body = src[src.index("def main(") :]
+    assert (
+        "read_memory()" not in body.split("def _probe_main")[0]
+        if "def _probe_main" in body
+        else "read_memory()" not in body
+    )
     assert "from check_settings import" not in body
-    assert "\n    from hiro" not in body and "\n    import hiro" not in body  # pause_flag 也在子进程里等（第二十局包装进程 ~500 MB）
+    assert (
+        "\n    from hiro" not in body and "\n    import hiro" not in body
+    )  # pause_flag 也在子进程里等（第二十局包装进程 ~500 MB）

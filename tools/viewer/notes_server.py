@@ -23,7 +23,18 @@ MAX_BODY = 32 * 1024
 TEXT_FIELDS = {"run": 120, "exam": 40, "seg": 20, "action": 120, "source": 20, "verdict": 20, "should": 200, "text": 4000,
                "attr": 8, "client": 64}  # fmt: skip
 NUM_FIELDS = ("attempt", "seq", "turn", "rem", "mult", "score", "genki", "hp")
-TAGS = {"出牌顺序", "饮料时机", "构筑选卡", "体力控制", "终结时机", "持续/延迟时机", "空过回合", "识别错误", "模拟器", "其他"}
+TAGS = {
+    "出牌顺序",
+    "饮料时机",
+    "构筑选卡",
+    "体力控制",
+    "终结时机",
+    "持续/延迟时机",
+    "空过回合",
+    "识别错误",
+    "模拟器",
+    "其他",
+}
 LOCK = threading.Lock()
 
 
@@ -83,7 +94,7 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def log_message(self, fmt, *args):  # 交给 journald，只记简短一行
-        print("%s %s" % (self.address_string(), fmt % args), flush=True)
+        print("%s %s" % (self.address_string(), fmt % args), flush=True)  # noqa: UP031
 
     def do_GET(self):
         u = urlparse(self.path)

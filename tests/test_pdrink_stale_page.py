@@ -2,11 +2,11 @@
 处理器就决策了：决策器没读到 held / incoming，兜底「不换」→ 点「残す」（放弃新饮料）。下一拍主循环又把过渡帧判成 PDRINK_MAX，
 处理器重入、观测写死 scene=PDRINK_MAX，「報酬スキップ」确认框已盖在上面，重新决策成「换」，点被挡住的勾选框，2 次没生效停机。"""
 
-import pytest
-
 from types import SimpleNamespace as NS
 
 from hiro.contracts import Action, ActionKind, Decision, GameState
+
+import pytest
 
 pytestmark = [pytest.mark.kaa]
 
@@ -30,7 +30,9 @@ def _strategy(monkeypatch, pages, confirm_on_top=lambda img: False):
     def observe(**k):
         st["i"] += 1
         name = pages[min(st["i"], len(pages)) - 1]
-        sess.state = GameState(page={"name": name}, pending_page=None if name == "PDRINK_MAX" else {"name": "PDRINK_MAX", "stable": False})
+        sess.state = GameState(
+            page={"name": name}, pending_page=None if name == "PDRINK_MAX" else {"name": "PDRINK_MAX", "stable": False}
+        )
         return NS(fields={})
 
     class Deciders:
@@ -38,7 +40,12 @@ def _strategy(monkeypatch, pages, confirm_on_top=lambda img: False):
             seen.append(state.page.get("name") if isinstance(state.page, dict) else state.page.name)
             return Decision(Action(ActionKind.DISCARD_DRINK, {"discard": [], "receive": False}), "不收", "rule", 0.8)
 
-    sess = NS(state=GameState(page={"name": "DECK_LIST"}), observe=observe, record=lambda *a, **k: None, recover=lambda *a, **k: None)
+    sess = NS(
+        state=GameState(page={"name": "DECK_LIST"}),
+        observe=observe,
+        record=lambda *a, **k: None,
+        recover=lambda *a, **k: None,
+    )
     strat = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
     strat.s, strat.deciders = sess, Deciders()
     strat.on_pdrink_max_confirm = lambda ctx: confirms.append(1)
@@ -81,9 +88,16 @@ def _confirm_strategy(monkeypatch, on_top):
 
     class Deciders:
         def decide(self, page, state):
-            return Decision(Action(ActionKind.DIALOG, {"kind": "reward_skip", "confirm": False}), "没有放弃新饮料的决策", "rule", 0.5)
+            return Decision(
+                Action(ActionKind.DIALOG, {"kind": "reward_skip", "confirm": False}),
+                "没有放弃新饮料的决策",
+                "rule",
+                0.5,
+            )
 
-    sess = NS(state=GameState(), observe=lambda **k: NS(fields={}), record=lambda *a, **k: None, recover=lambda *a, **k: None)
+    sess = NS(
+        state=GameState(), observe=lambda **k: NS(fields={}), record=lambda *a, **k: None, recover=lambda *a, **k: None
+    )
     strat = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
     strat.s, strat.deciders = sess, Deciders()
     strat._stop = lambda page, why, **k: stops.append(why)

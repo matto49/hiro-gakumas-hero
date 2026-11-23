@@ -14,14 +14,12 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/egoist/mygo"
 )
 
 // 模型配置和对话入口（设计稿 §8）：照 magpie 的「服务商 + Key + 模型」。
 //
 //	API 服务商（Presets：DeepSeek、Kimi、通义千问、智谱 GLM、OpenAI、OpenRouter、自定义）
-//	          都走 OpenAI 兼容接口：填 API Key（按服务商分别存系统钥匙串，界面只显示「已保存」）→ /models 列模型 → 选一个；
+//	          都走 OpenAI 兼容接口：填 API Key（按服务商分别存进数据目录的 model-keys.json，0600；界面只显示「已保存」）→ /models 列模型 → 选一个；
 //	          右侧对话走内置的工具调用循环（Agent），对局里规则拿不准时的决策也用它（HIRO_LLM=openai:…）
 //	codex     用户已登录的 codex 命令行，当外部 agent 跑：读 hiro 的说明、自己调 hiro 命令（设置页「高级」里）
 //	claude    用户已登录的 claude 命令行，同上
@@ -63,7 +61,7 @@ func isAPI(id string) bool {
 	return ok
 }
 
-// keyName 是这家服务商的 Key 在钥匙串里的名字（DeepSeek 沿用旧名字，升级后不用重填）。
+// keyName 是这家服务商的 Key 在 model-keys.json 里的名字。
 func keyName(id string) string { return id + "-api-key" }
 
 // Settings 是模型设置（不含 Key）。
@@ -99,7 +97,7 @@ func endpoint(id, baseURL string) string {
 }
 
 // Models 列出这家服务商这个 Key 能用的模型（GET /models），设置页的下拉框用。
-// key 为空时用钥匙串里已存的；baseURL 只对自定义服务商有用。
+// key 为空时用已存的；baseURL 只对自定义服务商有用。
 func (a *Assistant) Models(ctx context.Context, provider, baseURL, key string) ([]string, error) {
 	if !isAPI(provider) {
 		return nil, errors.New("这家不用 API Key")
@@ -160,19 +158,6 @@ type KeyStore interface {
 	Set(name, value string) error
 	Delete(name string) error
 }
-
-// systemKeys 用系统钥匙串 / 凭据管理器（mygo.Secrets）。
-type systemKeys struct{}
-
-func (systemKeys) Get(name string) (string, error) {
-	b, err := mygo.Secrets.Get(name)
-	if errors.Is(err, mygo.ErrSecretNotFound) {
-		return "", errNoKey
-	}
-	return string(b), err
-}
-func (systemKeys) Set(name, value string) error { return mygo.Secrets.Set(name, []byte(value)) }
-func (systemKeys) Delete(name string) error     { return mygo.Secrets.Delete(name) }
 
 // Assistant 是界面用的对话入口（绑定给网页）。
 type Assistant struct {
@@ -244,7 +229,7 @@ func (a *Assistant) jobEnv() []string {
 	return []string{"HIRO_LLM=off"}
 }
 
-// Save 保存模型设置；key 非空时存进这家服务商的钥匙串条目（空的不动已存的）。
+// Save 保存模型设置；key 非空时存进这家服务商的 Key（model-keys.json；空的不动已存的）。
 func (a *Assistant) Save(s Settings, key string) error {
 	if s.Provider != "" && !isAPI(s.Provider) && s.Provider != "codex" && s.Provider != "claude" && s.Provider != "none" {
 		return fmt.Errorf("不认识的服务商 %q", s.Provider)
@@ -257,13 +242,13 @@ func (a *Assistant) Save(s Settings, key string) error {
 			return errors.New("这家不用 API Key")
 		}
 		if err := a.Keys.Set(keyName(s.Provider), k); err != nil {
-			return fmt.Errorf("Key 存不进系统钥匙串：%w", err)
+			return fmt.Errorf("Key 存不进本机文件：%w", err)
 		}
 	}
 	if s.Provider != "custom" && s.Provider != "deepseek" {
 		s.BaseURL = "" // 预设地址不写进文件：以后预设改了跟着改
 	}
-	// has_key 只记「有没有」（给 hiro doctor 看），Key 本身只在钥匙串里
+	// has_key 只记「有没有」（给 hiro doctor 看），Key 本身只在 model-keys.json 里
 	s.HasKey = false
 	if isAPI(s.Provider) {
 		k, err := a.Keys.Get(keyName(s.Provider))

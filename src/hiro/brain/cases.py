@@ -46,7 +46,16 @@ def run(llm=None, only: str | None = None, root: Path = CASES, out=print) -> tup
         ok, detail = judge(case, d)
         passed += ok
         secs = sum(t.seconds for t in d.llm)
-        rows.append({"id": case["id"], "ok": ok, "source": d.source, "detail": detail, "reason": d.reason, "seconds": round(secs, 1)})
+        rows.append(
+            {
+                "id": case["id"],
+                "ok": ok,
+                "source": d.source,
+                "detail": detail,
+                "reason": d.reason,
+                "seconds": round(secs, 1),
+            }
+        )
         out(f"{'PASS' if ok else 'FAIL'}  {case['id']}  [{d.source} {secs:.1f}s]  {detail}")
         out(f"      理由 {d.reason}")
         for w in d.warnings:
@@ -57,7 +66,9 @@ def run(llm=None, only: str | None = None, root: Path = CASES, out=print) -> tup
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--llm", default=None, help="LLM 适配器（claude:sonnet / codex / openai:<model> / mock），不给只跑规则")
+    ap.add_argument(
+        "--llm", default=None, help="LLM 适配器（claude:sonnet / codex / openai:<model> / mock），不给只跑规则"
+    )
     ap.add_argument("--only", default=None)
     ap.add_argument("--paths", default="all", help="打开哪些新 LLM 路径（HIRO_PRODUCE_LLM 的写法），缺省 all")
     a = ap.parse_args(argv)

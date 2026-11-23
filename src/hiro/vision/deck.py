@@ -28,7 +28,12 @@ from cv2.typing import MatLike
 
 TEMPLATES = Path(__file__).with_name("templates")
 
-BUTTON_STRIP = (380, 1130, 720, 1270)  # 底栏右侧：礼盒图标在选行动 / 相談 / 选饮料约 (558,1213)、换卡 / 三选一弹窗约 (654,1200)
+BUTTON_STRIP = (
+    380,
+    1130,
+    720,
+    1270,
+)  # 底栏右侧：礼盒图标在选行动 / 相談 / 选饮料约 (558,1213)、换卡 / 三选一弹窗约 (654,1200)
 BUTTON_MIN = 0.8  # 白色字形相关：有图标 0.86–0.92，没有 ≤0.31
 TITLE_BOX = (40, 25, 300, 90)  # 「所持スキルカード」白色标题条
 TITLE_MIN = 0.75
@@ -40,7 +45,14 @@ LIST_VIEW = (0, 395, 720, 1010)  # 一览页卡格视口（标题下的详情框
 GEOMETRY = {
     "list": {"dx": -62, "dy": -124, "cell": 141, "x0": 48, "pitch": 161, "row_pitch": 153.3},  # 所持スキルカード
     "dialog": {"dx": -51, "dy": -100, "cell": 118, "x0": 81, "pitch": 147, "row_pitch": 147.5},  # 相談削除 / 強化、换卡
-    "guidance": {"dx": -64, "dy": -124, "cell": 141, "x0": 49, "pitch": 160, "row_pitch": 160},  # 特別指導选卡（q10 实机：字母 x 113+160k、y 761+160k）
+    "guidance": {
+        "dx": -64,
+        "dy": -124,
+        "cell": 141,
+        "x0": 49,
+        "pitch": 160,
+        "row_pitch": 160,
+    },  # 特別指導选卡（q10 实机：字母 x 113+160k、y 761+160k）
 }
 PITCH_SPLIT = 154
 ROW_TOL = 20  # 同一行字母的 y 容差
@@ -125,7 +137,7 @@ def _marks(img: MatLike, region: tuple[int, int, int, int]) -> list[tuple[int, i
 
 def _geometry(marks: list[tuple[int, int]]) -> dict:
     xs = sorted({x for x, _ in marks})
-    gaps = [b - a for a, b in zip(xs, xs[1:]) if b - a > 60]
+    gaps = [b - a for a, b in zip(xs, xs[1:]) if b - a > 60]  # noqa: RUF007
     if not gaps:
         return GEOMETRY["list"]
     return GEOMETRY["list"] if min(gaps) >= PITCH_SPLIT else GEOMETRY["dialog"]
@@ -133,7 +145,7 @@ def _geometry(marks: list[tuple[int, int]]) -> dict:
 
 def _hsv(cell: MatLike, box: tuple[float, float, float, float]):
     n = cell.shape[0]
-    y1, y2, x1, x2 = (int(round(v * n)) for v in box)
+    y1, y2, x1, x2 = (int(round(v * n)) for v in box)  # noqa: RUF046
     hsv = cv2.cvtColor(cell[y1:y2, x1:x2], cv2.COLOR_BGR2HSV)
     return hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2], (n / 125) ** 2
 
@@ -203,7 +215,12 @@ def read_card_grid(img: MatLike, region: tuple[int, int, int, int], geometry: st
     for mx, my in marks:
         x, y = mx + g["dx"], my + g["dy"]
         col = round((x - g["x0"]) / g["pitch"])
-        if y < region[1] - 4 or y + cell > region[3] + 8 or not 0 <= col <= 3 or abs(x - g["x0"] - col * g["pitch"]) > COL_TOL:
+        if (
+            y < region[1] - 4
+            or y + cell > region[3] + 8
+            or not 0 <= col <= 3
+            or abs(x - g["x0"] - col * g["pitch"]) > COL_TOL
+        ):
             continue  # 卡格不整格在视口内（滚动到一半的行）或不在网格列上（误检）
         if row_ys:
             k = round((y - row_ys[0]) / g["row_pitch"])
@@ -215,7 +232,7 @@ def read_card_grid(img: MatLike, region: tuple[int, int, int, int], geometry: st
         v_mean = float(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)[:, :, 2].mean())
         dimmed = v_mean < DIM_V_MAX
         # 压暗的格子（强化对话框里不能再强化的卡、特別指導里不能定制的卡）：「+」与定制徽章的颜色跟着变暗，先按亮度比例提亮再判
-        #（main10 相談強化：届いて！+ / デイドリーミング+ / 紙吹雪+ 压暗后 upgrade 全读成 0）
+        # （main10 相談強化：届いて！+ / デイドリーミング+ / 紙吹雪+ 压暗后 upgrade 全读成 0）
         gain = min(DIM_GAIN_MAX, DIM_TARGET_V / max(v_mean, 1.0))
         look = cv2.convertScaleAbs(crop, alpha=gain) if dimmed else crop
         card = _dimmed_card(crop, gain, match_grid_card) if dimmed else match_grid_card(crop)
@@ -253,7 +270,9 @@ def read_deck_list(img: MatLike) -> dict:
     - problems：deck 为 None 的原因。
     """
     size = read_deck_size(img)
-    cards = _left_filled_rows(read_card_grid(img, LIST_VIEW, "list"))  # 一览页固定 list 几何：标签栏 / 卡面图案上的误检字母会把自动推断带偏成 dialog（第二十局实机一屏只认出 4 张）
+    cards = _left_filled_rows(
+        read_card_grid(img, LIST_VIEW, "list")
+    )  # 一览页固定 list 几何：标签栏 / 卡面图案上的误检字母会把自动推断带偏成 dialog（第二十局实机一屏只认出 4 张）
     out = {"deck_size": size, "cards": cards, "rows_visible": (cards[-1]["row"] + 1) if cards else 0}
     out.update(_finish(cards, size, []))
     return out
@@ -305,7 +324,9 @@ def merge_deck_pages(top: dict, bottom: dict) -> dict:
     rows = dict(enumerate(by_row(top)))
     bottom_rows = by_row(bottom)
     if bottom_rows and len(bottom_rows[-1]) != (size - 4 * (n_rows - 1)):
-        problems.append(f"底屏最后一行 {len(bottom_rows[-1])} 张，按总张数应为 {size - 4 * (n_rows - 1)} 张（可能没滑到底）")
+        problems.append(
+            f"底屏最后一行 {len(bottom_rows[-1])} 张，按总张数应为 {size - 4 * (n_rows - 1)} 张（可能没滑到底）"
+        )
     first = n_rows - len(bottom_rows)
     for j, row in enumerate(bottom_rows):
         i = first + j
@@ -357,7 +378,13 @@ def deck_diff(expected: list[dict], observed: list[dict]) -> dict:
     else:
         same = None
     as_cards = lambda xs: [{"card_id": c, "upgrade": u} for c, u in xs]  # noqa: E731
-    return {"same": same, "missing": as_cards(missing), "extra": as_cards(extra), "upgraded": upgraded, "unknown": unknown}
+    return {
+        "same": same,
+        "missing": as_cards(missing),
+        "extra": as_cards(extra),
+        "upgraded": upgraded,
+        "unknown": unknown,
+    }
 
 
 # ---------------------------------------------------------------- 选卡弹窗：删除 / 强化 / 换卡第 2 步的选中项
@@ -415,7 +442,12 @@ def _cursor_px(hsv: MatLike, rect: tuple[int, int, int, int]) -> int:
     e, size = CURSOR_EXPAND, CURSOR_CORNER
     orange = (hsv[:, :, 0] >= 8) & (hsv[:, :, 0] <= 22) & (hsv[:, :, 1] >= 150) & (hsv[:, :, 2] >= 180)
     total = 0
-    for cx, cy in ((x - e, y - e), (x + n + e - size, y - e), (x - e, y + n + e - size), (x + n + e - size, y + n + e - size)):
+    for cx, cy in (
+        (x - e, y - e),
+        (x + n + e - size, y - e),
+        (x - e, y + n + e - size),
+        (x + n + e - size, y + n + e - size),
+    ):
         total += int(orange[max(0, cy) : cy + size, max(0, cx) : cx + size].sum())
     return total
 
@@ -454,7 +486,9 @@ def _cell_match(a: dict, b: dict) -> bool | None:
     """两屏同一格：任一边没认出 → None（通配）；都认出 → 卡相同（强化有一边不确定也算同）。"""
     if a.get("card_id") is None or b.get("card_id") is None:
         return None
-    return a["card_id"] == b["card_id"] and (a.get("upgrade") is None or b.get("upgrade") is None or a["upgrade"] == b["upgrade"])
+    return a["card_id"] == b["card_id"] and (
+        a.get("upgrade") is None or b.get("upgrade") is None or a["upgrade"] == b["upgrade"]
+    )
 
 
 BLOCK_CONFLICT_MIN_ROWS = 2  # 至少几行的重叠块才容许一格两屏认得不一样
@@ -508,8 +542,14 @@ def merge_dialog_screens(screens: list[list[dict]], expected: int | None = None)
             for j, (x, y) in enumerate(zip(old, screen_rows[i], strict=True)):
                 if _cell_match(x, y) is False:
                     old[j] = {**x, "card_id": None, "name": None, "upgrade": None}
-                    problems_soft.append(f"第 {n + 1} 屏第 {i + 1} 行第 {j + 1} 格和上一屏认得不一样（{x.get('name')} / {y.get('name')}），记成没认全")
-                elif (x.get("card_id") is None or x.get("upgrade") is None) and y.get("card_id") is not None and y.get("upgrade") is not None:
+                    problems_soft.append(
+                        f"第 {n + 1} 屏第 {i + 1} 行第 {j + 1} 格和上一屏认得不一样（{x.get('name')} / {y.get('name')}），记成没认全"
+                    )
+                elif (
+                    (x.get("card_id") is None or x.get("upgrade") is None)
+                    and y.get("card_id") is not None
+                    and y.get("upgrade") is not None
+                ):
                     old[j] = y
         if rows and k == 0 and screen_rows:
             problems.append(f"第 {n + 1} 屏和上一屏没有重叠的行（滑过了头？），按接在后面处理")
@@ -549,12 +589,21 @@ def merge_deck_list(screens: list) -> dict:
     problems = [p for p in merged["problems"] if "没认全" not in p]  # 认不全由 _finish 统一报
     if size is not None and len(cards) != size:
         problems.append(f"拼出 {len(cards)} 张，标签 {size} 张")
-    out = {"deck_size": size, "cards": cards, "rows_visible": (cards[-1]["row"] + 1) if cards else 0, "screens": len(screens)}
+    out = {
+        "deck_size": size,
+        "cards": cards,
+        "rows_visible": (cards[-1]["row"] + 1) if cards else 0,
+        "screens": len(screens),
+    }
     out.update(_finish(cards, size, problems))
     if not out["complete"] and len(screens) >= 2:
         alt = merge_deck_pages(screens[0], screens[-1])
         if alt.get("complete"):
-            return {**alt, "screens": len(screens), "problems": [f"重叠拼接不成立（{'；'.join(out['problems'])}），按首屏 + 末屏行号拼"]}
+            return {
+                **alt,
+                "screens": len(screens),
+                "problems": [f"重叠拼接不成立（{'；'.join(out['problems'])}），按首屏 + 末屏行号拼"],
+            }
     return out
 
 
@@ -634,7 +683,10 @@ def read_confirm_dialog(img: MatLike) -> dict | None:
     if kind is None:
         return None
     x1, y1, x2, y2 = CONFIRM_BODY
-    boxes = [(t.replace(" ", ""), (bx1 + x1, by1 + y1, bx2 + x1, by2 + y1)) for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y1:y2, x1:x2])]
+    boxes = [
+        (t.replace(" ", ""), (bx1 + x1, by1 + y1, bx2 + x1, by2 + y1))
+        for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y1:y2, x1:x2])
+    ]
     item = None
     for t, _ in boxes:
         if (card := card_from_name(t)) is not None:
@@ -708,7 +760,7 @@ def _near_name(text: str) -> str | None:
     """主数据里与 text 等长（≥3 字）、只差一个字的名称；恰好一个才返回（卡名含「+」）。"""
     if len(text) < 3:
         return None
-    names = {n for n in _cards_by_full_name()} | set(_drinks_by_name()) | set(_pitems_by_name())
+    names = set(_cards_by_full_name()) | set(_drinks_by_name()) | set(_pitems_by_name())
     hits = {n for n in names if len(n) == len(text) and sum(a != b for a, b in zip(n, text, strict=True)) == 1}
     return hits.pop() if len(hits) == 1 else None
 
@@ -745,7 +797,11 @@ ACQUIRE_RETRY_SCALE = 1.5
 
 
 def _acquire_bar_boxes(ocr_boxes, crop, x1: int, **kw) -> list[tuple[str, float]]:
-    return [(t, (b[0] + b[2]) / 2 + x1) for t, _, b in ocr_boxes(crop, **kw) if len(t.strip()) >= 2 and not _stray_fragment(t)]
+    return [
+        (t, (b[0] + b[2]) / 2 + x1)
+        for t, _, b in ocr_boxes(crop, **kw)
+        if len(t.strip()) >= 2 and not _stray_fragment(t)
+    ]
 
 
 def read_acquire_popup(img: MatLike, art: bool = True) -> dict | None:
@@ -777,7 +833,9 @@ def read_acquire_popup(img: MatLike, art: bool = True) -> dict | None:
     item["text"] = text
     if item["kind"] == "card":
         item["memory_effect"] = memory_effect_popup(img)
-    if item["kind"] == "card" and art:  # art=False：只判页（hiro.vision.quick），不用卡面核对（首次加载卡图库要 1–2 秒）
+    if (
+        item["kind"] == "card" and art
+    ):  # art=False：只判页（hiro.vision.quick），不用卡面核对（首次加载卡图库要 1–2 秒）
         from hiro import master
         from hiro.vision import card_db
 
@@ -823,7 +881,9 @@ def read_change_candidates(img: MatLike) -> dict:
 
     marks = _change1_row(_marks(img, CHANGE1_MARKS))
     x1, y1, x2, y2 = CHANGE1_TEXT
-    boxes = [(t.replace(" ", ""), (a + x1, b + y1, c + x1, d + y1)) for t, _, (a, b, c, d) in ocr_boxes(img[y1:y2, x1:x2])]
+    boxes = [
+        (t.replace(" ", ""), (a + x1, b + y1, c + x1, d + y1)) for t, _, (a, b, c, d) in ocr_boxes(img[y1:y2, x1:x2])
+    ]
     cands = []
     for i, (mx, my) in enumerate(marks):
         x, y = mx + CHANGE1_DX, my + CHANGE1_DY
@@ -856,7 +916,9 @@ def read_change_candidates(img: MatLike) -> dict:
 # ---------------------------------------------------------------- 卡格认卡：KAA 票数临界时用卡图相关核对
 GRID_ART_SIZE = 36  # 卡图中心区域缩成 36x36 灰度
 GRID_ART_INSET = 0.2  # 四边各去掉 20%：避开左上费用、右上「+」、下方定制 / 体力徽章
-GRID_SURE_VOTES = 4  # KAA 票数达到这个数（且不并列）直接采信：票数多时卡图相关反而常错（act-1_071 16 票正确，相关第一是别的卡）
+GRID_SURE_VOTES = (
+    4  # KAA 票数达到这个数（且不并列）直接采信：票数多时卡图相关反而常错（act-1_071 16 票正确，相关第一是别的卡）
+)
 GRID_ART_MIN = 0.55  # 票数临界时：相关第一达到这个数、比次佳卡高 GRID_ART_MARGIN 以上才认
 GRID_ART_MARGIN = 0.13
 GRID_AGREE_MIN = 0.40  # 卡图第一与并列最高票一致时，卡图分的下限
@@ -951,7 +1013,13 @@ def match_grid_card(crop):
     if len(art) >= 2 and art[0][1] >= GRID_ART_MIN and art[0][1] - art[1][1] >= GRID_ART_MARGIN:
         return master.card_by_asset(art[0][0])
     tied = [b for b in ranked if votes[b] == top]
-    if top >= 2 and len(art) >= 2 and art[0][0] in tied and art[0][1] >= GRID_AGREE_MIN and art[0][1] - art[1][1] >= GRID_ART_MARGIN:
+    if (
+        top >= 2
+        and len(art) >= 2
+        and art[0][0] in tied
+        and art[0][1] >= GRID_AGREE_MIN
+        and art[0][1] - art[1][1] >= GRID_ART_MARGIN
+    ):
         # 票数不够、但卡图第一正是并列最高票里的一张且明显领先：两路独立证据一致（DMM 本战相談 アイドル宣言+：
         # Windows 2:2 平票，卡图 0.472 领先 0.144；Mac 同一帧 3 票直接认对）
         return master.card_by_asset(art[0][0])

@@ -15,7 +15,9 @@ class DeckCard:
     card_id: str
     upgrade: int = 0
     customized: bool = False
-    customize: dict = field(default_factory=dict)  # 特別指導记账：定制项 id → 级数（hiro.loop.events CARD_CUSTOMIZE，ddecb43）
+    customize: dict = field(
+        default_factory=dict
+    )  # 特別指導记账：定制项 id → 级数（hiro.loop.events CARD_CUSTOMIZE，ddecb43）
 
 
 @dataclass
@@ -45,7 +47,9 @@ class ProduceState:
     produce_point: int
     params: dict  # vocal/dance/visual → {"Vo","Da","Vi"}
     growth_permil: dict  # *GrowthRatePermil 合计（1000 + 加成），例如 Vo 1449
-    star: int | None = None  # H.I.F 的星星（スター性）；初 / N.I.A 没有星星，一直是 None（用户 11-17：完全不用处理）。H.I.F 缺它时 GameState.produce_state() 不构造
+    star: int | None = (
+        None  # H.I.F 的星星（スター性）；初 / N.I.A 没有星星，一直是 None（用户 11-17：完全不用处理）。H.I.F 缺它时 GameState.produce_state() 不构造
+    )
     star_permil: int = 1000  # starPermil：星星获得合计（亲爱度 37 为 1500）
     param_cap: int = 3000  # 3000 + *AdditionalLimit
     deck: list[DeckCard] = field(default_factory=list)

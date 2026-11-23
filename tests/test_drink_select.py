@@ -2,11 +2,11 @@
 
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.produce import card_ops
 from hiro.vision.ocr import Box
 from hiro.vision.ui_templates import Match
+
+import pytest
 
 
 def _setup(monkeypatch, found: dict):
@@ -32,7 +32,9 @@ def test_pick_taps_drink_then_acquire_until_button_gone(monkeypatch):
 
 
 def test_skip_taps_dont_claim_then_button(monkeypatch):
-    clicks = _setup(monkeypatch, {"InProduce.TextDontClaim": [_m(359, 1006)], "InProduce.ButtonDontClaim": [_m(357, 1096)]})
+    clicks = _setup(
+        monkeypatch, {"InProduce.TextDontClaim": [_m(359, 1006)], "InProduce.ButtonDontClaim": [_m(357, 1096)]}
+    )
     assert card_ops.drink_select_commit(None, sleep=lambda s: None) is True
     assert clicks == [(359, 1006), (357, 1096)]
 

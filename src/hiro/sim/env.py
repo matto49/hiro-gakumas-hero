@@ -5,14 +5,13 @@
 """
 
 import json
-from functools import lru_cache
+from functools import cache, lru_cache  # noqa: F401
 
 import hiro.sim  # noqa: F401  引擎路径
-from hiro.sim.engine import Exam
-
 from hiro.brain.cards import CardView, DrinkView, card_view, parse_tags
 from hiro.brain.rules import Decision
 from hiro.brain.state import BattleState, ExamMemory, IdolProfile
+from hiro.sim.engine import Exam
 
 LIVE_HIDDEN = frozenset({"motivation", "impression", "score"})  # 当前实机感知还读不到的字段
 
@@ -30,14 +29,14 @@ def fast_apply(env, action: dict) -> None:
 # ---------- 卡牌文本 ----------
 
 
-@lru_cache(maxsize=None)
+@cache
 def _cards() -> dict:
     from hiro import master
 
     return {(c._id, c.upgrade_count): c for c in master.cards()}
 
 
-@lru_cache(maxsize=None)
+@cache
 def _drinks() -> dict:
     from hiro import master
 
@@ -179,14 +178,14 @@ class SimGame:
         self._drinks = [d for d in env.drinks if d in legal_drinks]
         hand = [sim_card_view(i, env.definition(c), available=c in legal_plays) for i, c in enumerate(self._hand)]
         drinks = [sim_drink_view(i, env.drink_definitions[env.drinks[d]]) for i, d in enumerate(self._drinks)]
-        observed = dict(
-            remaining_turns=remaining,
-            hp=env.hp,
-            genki=env.shield,
-            motivation=env.motivation,
-            impression=env.impression,
-            score=env.score,
-        )
+        observed = {
+            "remaining_turns": remaining,
+            "hp": env.hp,
+            "genki": env.shield,
+            "motivation": env.motivation,
+            "impression": env.impression,
+            "score": env.score,
+        }
         for k in self.hide:
             observed[k] = None
         info = piles = None
@@ -196,21 +195,28 @@ class SimGame:
             lesson = env.turns[env.turn].get("lesson") if env.turn < len(env.turns) else None
             draw = env.turns[env.turn + 1]["draw"] if env.turn + 1 < len(env.turns) else 0
             info = f"本回合属性 {lesson}；山札 {len(deck)} 张（无序）：{'、'.join(deck)}；弃牌 {len(grave)} 张：{'、'.join(grave)}；下回合正常抽 {draw} 张"
-            once = sorted({env.definition(c)["name"] for z in ("deck", "grave") for c in env.zones[z] if env.definition(c).get("once")})
+            once = sorted(
+                {
+                    env.definition(c)["name"]
+                    for z in ("deck", "grave")
+                    for c in env.zones[z]
+                    if env.definition(c).get("once")
+                }
+            )
             piles = {"deck": deck, "grave": grave, "once": once,
                      "draw": draw or (env.turns[env.turn]["draw"] if env.turn < len(env.turns) else 3)}  # fmt: skip
-        perm = dict(now_turn_permil=env.turns[env.turn].get("bonus_permil") if env.turn < len(env.turns) else None,
-                    final_turn_permil=env.turns[-1].get("bonus_permil") if env.turns else None)  # fmt: skip
+        perm = {"now_turn_permil": env.turns[env.turn].get("bonus_permil") if env.turn < len(env.turns) else None,
+                    "final_turn_permil": env.turns[-1].get("bonus_permil") if env.turns else None}  # fmt: skip
         # 模拟器自己知道最大体力（这一局合成开局的值，来自开考时的画面读数），直接给出
         return BattleState.build(self.memory, self.profile, hand=hand, drinks=drinks, public_info=info, piles=piles, max_hp=getattr(env, "max_hp", None),
                                  **perm, **observed)  # fmt: skip
 
     def to_action(self, d: Decision) -> dict:
         if d.kind == "play":
-            return dict(kind="play", id=self._hand[d.slot])
+            return {"kind": "play", "id": self._hand[d.slot]}
         if d.kind == "drink":
-            return dict(kind="drink", id=self._drinks[d.slot])
-        return dict(kind="end_turn")
+            return {"kind": "drink", "id": self._drinks[d.slot]}
+        return {"kind": "end_turn"}
 
     def step(self, action: dict) -> None:
         fast_apply(self.env, action)

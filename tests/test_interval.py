@@ -7,14 +7,14 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
-import kaa.tasks
 from hiro.contracts import Action, ActionKind
 from hiro.produce import interval, ops, shop
 from hiro.produce.special_guidance import grid_center
+
+import cv2
+import kaa.tasks
+import pytest
 
 FIX = Path(__file__).parent / "fixtures"
 REFS = Path(kaa.tasks.__file__).parents[2] / "kotonebot-resource" / "sprites" / "jp" / "in_produce"
@@ -89,7 +89,12 @@ def test_read_hp_and_page_predicates():
 
 
 def test_find_item_prefers_recognized_center():
-    fields = {"interval": {"drinks": [{"index": 6, "drink_id": "pdrink_a", "center": [440, 750]}], "cards": [{"index": 1, "card_id": "c"}]}}
+    fields = {
+        "interval": {
+            "drinks": [{"index": 6, "drink_id": "pdrink_a", "center": [440, 750]}],
+            "cards": [{"index": 1, "card_id": "c"}],
+        }
+    }
     assert interval.find_item(fields, 6)["center"] == [440, 750]
     assert interval.find_item(fields, 1) == {"index": 1, "card_id": "c", "center": list(interval.DEFAULT_CENTERS[1])}
     assert interval.find_item({}, 5)["center"] == list(interval.DEFAULT_CENTERS[5])  # セレクトチェンジ：第一行第 4 列
@@ -112,8 +117,12 @@ def test_default_centers_sit_above_price_pills():
 def test_end_waits_enter_animation_then_confirms_honsen():
     frames = {"anim": img("interval/enter-anim-q4.jpg"), "idle": ref("hif_interval.png"), "confirm": ref("hif_interval_confirm.png"),
               "left": img("shop/flow/00151-left.jpg")}  # fmt: skip
-    honsen = ops.find_text(ops.ocr_boxes(frames["confirm"]), ("本戦へ",), region=(360, 1080, 720, 1240))  # 正文里也有「本戦へ」
-    fake = Fake(frames, {("idle", shop.END_TAP): "confirm", ("confirm", honsen): "left"}, "anim", timed={"anim": (2.0, "idle")})
+    honsen = ops.find_text(
+        ops.ocr_boxes(frames["confirm"]), ("本戦へ",), region=(360, 1080, 720, 1240)
+    )  # 正文里也有「本戦へ」
+    fake = Fake(
+        frames, {("idle", shop.END_TAP): "confirm", ("confirm", honsen): "left"}, "anim", timed={"anim": (2.0, "idle")}
+    )
     res = run(fake, Action(ActionKind.INTERVAL_END))
     assert res.ok, res.error
     assert res.taps[0] == list(shop.END_TAP) and near(res.taps[1], honsen, 5) and fake.state == "left"
@@ -130,7 +139,12 @@ def end_frames():
 def test_end_waits_until_interval_title_gone():
     """第五局 21:26：「本戦へ」后淡出帧左上仍是「インターバル」——要等它消失（进 ラウンド2 转场）才算离开。"""
     frames, honsen = end_frames()
-    fake = Fake(frames, {("idle", shop.END_TAP): "confirm", ("confirm", honsen): "fading"}, "idle", timed={"fading": (3.0, "round2")})
+    fake = Fake(
+        frames,
+        {("idle", shop.END_TAP): "confirm", ("confirm", honsen): "fading"},
+        "idle",
+        timed={"fading": (3.0, "round2")},
+    )
     res = run(fake, Action(ActionKind.INTERVAL_END))
     assert res.ok, res.error
     assert fake.state == "round2" and fake.t >= 3.0 and res.page_after is None
@@ -197,7 +211,9 @@ def recover_fake(effect=True):
     frames = {"idle": idle, "dialog": ref("hif_interval_confirm.png"), "after": idle.copy()}
     texts = {"idle": [("20/34", (378, 72)), ("200", (412, 114))], "dialog": [("回復する", (513, 1160))],
              "after": [("34/34", (378, 72)), ("130", (412, 114))] if effect else [("20/34", (378, 72)), ("200", (412, 114))]}  # fmt: skip
-    return Fake(frames, {("idle", interval.RECOVER_TAP): "dialog", ("dialog", (513, 1160)): "after"}, "idle", texts=texts)
+    return Fake(
+        frames, {("idle", interval.RECOVER_TAP): "dialog", ("dialog", (513, 1160)): "after"}, "idle", texts=texts
+    )
 
 
 @needs_ref
@@ -218,7 +234,9 @@ def test_recover_without_effect_fails():
 @needs_ref
 def test_recover_unavailable_not_tapped():
     fake = recover_fake()
-    res = run(fake, Action(ActionKind.INTERVAL_BUY, {"service": "recover"}), {"interval": {"recover": {"available": False}}})
+    res = run(
+        fake, Action(ActionKind.INTERVAL_BUY, {"service": "recover"}), {"interval": {"recover": {"available": False}}}
+    )
     assert not res.ok and fake.clicks == []
 
 
@@ -234,7 +252,10 @@ def test_upgrade_picks_card_and_waits_toast():
                 "idle", timed={"toast": (3.0, "back")}, texts={"toast": [("距離感の基本を強化しました", (360, 990))]})  # fmt: skip
     res = run(fake, Action(ActionKind.INTERVAL_UPGRADE_CARD, {"card_index": 0}))
     assert res.ok, res.error
-    assert res.taps == [list(interval.UPGRADE_TAP), list(grid_center(0)), list(shop.CONFIRM_TAP)] and res.page_after == interval.PAGE
+    assert (
+        res.taps == [list(interval.UPGRADE_TAP), list(grid_center(0)), list(shop.CONFIRM_TAP)]
+        and res.page_after == interval.PAGE
+    )
 
 
 @needs_ref
@@ -254,11 +275,12 @@ def test_unsupported_action():
 
 # ---------------------------------------------------------------- 整个轮间循环（第八局复盘 B1，main8 -r2 #95–101 离线复现）
 
-import json as _json
+import json as _json  # noqa: E402
 
-from hiro.brain.deciders import ProduceDeciders
-from hiro.brain.state import CAMPUS_HIRO
-from hiro.contracts import ExecutionResult, GameState
+from hiro.brain.deciders import ProduceDeciders  # noqa: E402
+from hiro.brain.state import CAMPUS_HIRO  # noqa: E402
+from hiro.contracts import ExecutionResult, GameState  # noqa: E402
+
 
 class _Main8(dict):
     """第八局本战 R2 轮间页的实机状态（tests/fixtures，仓库不带）：用到时才读，没有就跳过这条用例。"""
@@ -283,7 +305,11 @@ class Shop:
     def __init__(self, hp=15, max_hp=33, p=380, fail_first=()):
         self.hp, self.max_hp, self.p = hp, max_hp, p
         self.bought, self.log, self.fail_first, self.ended = set(), [], set(fail_first), False
-        self.prices = {it["index"]: it["price"] for k in ("cards", "changes", "drinks") for it in MAIN8["95"]["page_fields"]["interval"][k]}
+        self.prices = {
+            it["index"]: it["price"]
+            for k in ("cards", "changes", "drinks")
+            for it in MAIN8["95"]["page_fields"]["interval"][k]
+        }
 
     def execute(self, action, pf):
         args = action.args or {}
@@ -305,7 +331,9 @@ class Shop:
             else:
                 self.bought.add(i)
                 self.p -= self.prices[i]
-        return ExecutionResult(action=action, ok=ok, error=err, page_after="HIF_ROUND_INTERVAL" if not self.ended else None)
+        return ExecutionResult(
+            action=action, ok=ok, error=err, page_after="HIF_ROUND_INTERVAL" if not self.ended else None
+        )
 
     def status(self):
         return self.hp, self.max_hp, self.p
@@ -321,7 +349,9 @@ def main8_loop(game, observe_seq):
 
     def decide(pf):
         state.page_fields = pf
-        state.produce.update(produce_point=game.p, stamina=game.hp)  # 实机每次观测都会刷新 P / 体力（produce 是字段 dict）
+        state.produce.update(
+            produce_point=game.p, stamina=game.hp
+        )  # 实机每次观测都会刷新 P / 体力（produce 是字段 dict）
         return deciders.decide("HIF_ROUND_INTERVAL", state)
 
     return interval.interval_loop(observe, decide, execute=game.execute, status=game.status)
@@ -365,7 +395,7 @@ def test_wait_decisions_are_not_executed():
 
     game = Shop(hp=29, p=100)
     wait = Decision(Action.ui(ActionKind.WAIT, why="测试"), "等", "fallback", 0.1)
-    assert interval.interval_loop(lambda: {}, lambda pf: wait, execute=game.execute, status=game.status) is True
+    assert interval.interval_loop(dict, lambda pf: wait, execute=game.execute, status=game.status) is True
     assert ("Wait", None) not in game.log and game.hp == 33 and game.log[-1] == ("IntervalEnd", None)
 
 
@@ -406,9 +436,19 @@ def test_ouenbou_fill_by_pool():
     不给卡池照旧轮换；够 22 张不补。"""
     from hiro.sim import interval as iv
 
-    pool = (("p_card-02-act-0_037", 25), ("p_card-02-act-0_038", 25), ("p_card-02-men-0_039", 75), ("p_card-02-men-0_041", 25))
+    pool = (
+        ("p_card-02-act-0_037", 25),
+        ("p_card-02-act-0_038", 25),
+        ("p_card-02-men-0_039", 75),
+        ("p_card-02-men-0_041", 25),
+    )
     got = iv.ouenbou_fill([("x", 0)] * 17, pool)[17:]
-    assert sorted(c for c, _ in got) == sorted(["p_card-02-men-0_039"] * 2 + ["p_card-02-act-0_037", "p_card-02-act-0_038", "p_card-02-men-0_041"])
+    assert sorted(c for c, _ in got) == sorted(
+        ["p_card-02-men-0_039"] * 2 + ["p_card-02-act-0_037", "p_card-02-act-0_038", "p_card-02-men-0_041"]
+    )
     assert iv.ouenbou_fill([("x", 0)] * 21)[21:] == [(iv.OUENBOU_BASICS[0], 0)]
     assert iv.ouenbou_fill([("x", 0)] * 22, pool) == [("x", 0)] * 22
-    assert iv.R2Setup(deck=[], drinks=[], hp=1, max_hp=1, permil={}, ouenbou_pool=pool).key() != iv.R2Setup(deck=[], drinks=[], hp=1, max_hp=1, permil={}).key()
+    assert (
+        iv.R2Setup(deck=[], drinks=[], hp=1, max_hp=1, permil={}, ouenbou_pool=pool).key()
+        != iv.R2Setup(deck=[], drinks=[], hp=1, max_hp=1, permil={}).key()
+    )

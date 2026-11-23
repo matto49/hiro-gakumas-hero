@@ -2,23 +2,27 @@
 
 import json
 
-import numpy as np
-import pytest
-
 from hiro.brain.llm import MockLLM, prompt_version
+from hiro.brain.llm import MockLLM as _Mock
 from hiro.loop import rescue
 from hiro.loop.rescue import Rescuer, check
 
-from hiro.brain.llm import MockLLM as _Mock
+import numpy as np
+import pytest
 
-NEED_IMAGE = pytest.mark.skipif(not hasattr(_Mock, "ask_json_image"), reason="开源 hiro.brain.llm 还没有看图接口 ask_json_image，等策略层同步")
+NEED_IMAGE = pytest.mark.skipif(
+    not hasattr(_Mock, "ask_json_image"), reason="开源 hiro.brain.llm 还没有看图接口 ask_json_image，等策略层同步"
+)
 
 
 COMM_ERROR = [("通信エラー", 1.0, (260, 480, 460, 520)), ("通信中にエラーが発生しました", 1.0, (150, 600, 570, 640)),
               ("タイトルへ", 1.0, (120, 760, 300, 800)), ("リトライ", 1.0, (420, 760, 600, 800))]  # fmt: skip
 BUY = [("ジュエル消費確認", 1.0, (220, 480, 500, 520)), ("ジュエルを30個消費して回復しますか", 1.0, (100, 600, 620, 640)),
        ("キャンセル", 1.0, (120, 760, 300, 800)), ("購入する", 1.0, (420, 760, 600, 800))]  # fmt: skip
-CHOICE = [("受け取るスキルカードを選んでください。", 1.0, (60, 460, 660, 500)), ("受け取る", 1.0, (280, 1090, 440, 1130))]
+CHOICE = [
+    ("受け取るスキルカードを選んでください。", 1.0, (60, 460, 660, 500)),
+    ("受け取る", 1.0, (280, 1090, 440, 1130)),
+]
 START = [("開始確認", 1.0, (40, 20, 200, 60)), ("H.I.F本戦へ", 1.0, (400, 1180, 680, 1230))]
 PLAIN = [("TAP TO NEXT", 1.0, (260, 1100, 460, 1140)), ("OK", 1.0, (330, 900, 390, 940))]
 
@@ -153,7 +157,15 @@ def test_same_action_twice_stops():
 @NEED_IMAGE
 def test_max_per_screen():
     f = _Fake(PLAIN, change=False)
-    r, t = _rescuer(f, [{"action": "wait", "seconds": 2}, {"action": "tap_blank"}, {"action": "wait", "seconds": 3}, {"action": "tap_blank"}])
+    r, t = _rescuer(
+        f,
+        [
+            {"action": "wait", "seconds": 2},
+            {"action": "tap_blank"},
+            {"action": "wait", "seconds": 3},
+            {"action": "tap_blank"},
+        ],
+    )
     acts = []
     for _ in range(4):
         acts.append(r.tick(f.img, {})["action"]["action"])
@@ -215,18 +227,30 @@ def test_due():
 class _Box:
     def __init__(self, text, x1, y1, x2, y2):
         self.text = text
-        self.rect = type("R", (), {"x1": x1, "y1": y1, "x2": x2, "y2": y2, "center": type("C", (), {"x": (x1 + x2) / 2, "y": (y1 + y2) / 2})()})()
+        self.rect = type(
+            "R",
+            (),
+            {
+                "x1": x1,
+                "y1": y1,
+                "x2": x2,
+                "y2": y2,
+                "center": type("C", (), {"x": (x1 + x2) / 2, "y": (y1 + y2) / 2})(),
+            },
+        )()
 
 
 def _controller(monkeypatch, boxes, replies, *, exam=False):
     import time as _time
 
-    import kotonebot
-
     from hiro.loop.controller import HiroController
 
+    import kotonebot
+
     f = _Fake([(b.text, 1.0, (b.rect.x1, b.rect.y1, b.rect.x2, b.rect.y2)) for b in boxes])
-    monkeypatch.setattr(kotonebot, "device", type("D", (), {"screenshot": staticmethod(f.shoot), "click": staticmethod(f.click)}))
+    monkeypatch.setattr(
+        kotonebot, "device", type("D", (), {"screenshot": staticmethod(f.shoot), "click": staticmethod(f.click)})
+    )
     monkeypatch.setattr(HiroController, "session", None)
     monkeypatch.setattr(HiroController, "_is_hif_exam", staticmethod(lambda: exam))
     t = [1000.0]
@@ -245,7 +269,11 @@ def _controller(monkeypatch, boxes, replies, *, exam=False):
 @pytest.mark.parametrize("button", ["除去する", "削除する", "タイトルへ", "H.I.F本戦へ"])
 def test_target_danger_buttons(button):
     """删卡 / 回标题 / 开局按钮：目标框禁点（画面上有这些字但不点它们时不受影响）。"""
-    boxes = [("確認", 1.0, (260, 480, 460, 520)), ("キャンセル", 1.0, (120, 760, 300, 800)), (button, 1.0, (420, 760, 600, 800))]
+    boxes = [
+        ("確認", 1.0, (260, 480, 460, 520)),
+        ("キャンセル", 1.0, (120, 760, 300, 800)),
+        (button, 1.0, (420, 760, 600, 800)),
+    ]
     assert check({"action": "tap_box", "box": 2}, boxes)[0]["action"] == "stop"
 
 
@@ -262,8 +290,12 @@ def test_tap_blank_prefers_upper_blank():
 @NEED_IMAGE
 def test_animated_background_same_texts_not_voided():
     """第二十三局：获得演出背景一直闪，LLM 回复都被当成「画面已变」作废。像素变了但文字一半以上还在 = 同一画面，照常执行。"""
-    boxes = [("Da.公開レッスン", 1.0, (35, 41, 186, 63)), ("審査基準", 1.0, (549, 30, 631, 52)),
-             ("好印象効果のスキルカード獲得時、ダンスが700以上の", 1.0, (201, 450, 634, 473)), ("（プロデュース中2回）", 1.0, (208, 528, 378, 547))]
+    boxes = [
+        ("Da.公開レッスン", 1.0, (35, 41, 186, 63)),
+        ("審査基準", 1.0, (549, 30, 631, 52)),
+        ("好印象効果のスキルカード獲得時、ダンスが700以上の", 1.0, (201, 450, 634, 473)),
+        ("（プロデュース中2回）", 1.0, (208, 528, 378, 547)),
+    ]
     f = _Fake(boxes)
     r, _ = _rescuer(f, [{"page": "P 道具效果说明", "reason": "无按钮", "action": "tap_blank"}])
     img = f.img
@@ -276,7 +308,11 @@ def test_animated_background_same_texts_not_voided():
 
 def test_exam_screen_never_tapped():
     """决策审 1.2：考试画面 (360,250) 附近没有文字框（c38 实测），LLM 答错成 tap_blank 也不能点到排名区；点框同样不点。"""
-    exam = [("残りターン", 1.0, (20, 100, 140, 130)), ("ビジュアル", 1.0, (500, 40, 600, 70)), ("SKIP", 1.0, (620, 900, 700, 940))]
+    exam = [
+        ("残りターン", 1.0, (20, 100, 140, 130)),
+        ("ビジュアル", 1.0, (500, 40, 600, 70)),
+        ("SKIP", 1.0, (620, 900, 700, 940)),
+    ]
     from hiro.loop.advance import alt_clear
 
     assert not alt_clear(exam)

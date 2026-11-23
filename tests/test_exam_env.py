@@ -2,10 +2,10 @@
 
 from types import SimpleNamespace
 
-import pytest
-
 from hiro.search import exam_env as E
 from hiro.search.loadout import parse_deck_entry
+
+import pytest
 
 
 def test_bonus_permils_list_and_dict():
@@ -74,9 +74,17 @@ def test_objective_prefers_given_rivals():
 def test_stage_objective_by_scenario():
     from hiro.search.exam_env import stage_objective
 
-    assert stage_objective({"audition": {"rankThreshold": 1, "forceEndScore": 0}}) == {"pass_rank": 1}  # N.I.A：必须第 1
-    assert stage_objective({"audition": {"rankThreshold": 3, "forceEndScore": 900}}) == {"pass_rank": 3, "score_cap": 900}  # 初 REGULAR 中間
-    assert stage_objective({"lesson": {"clear_score": 30, "perfect_score": 90}}) == {"clear_score": 30, "score_cap": 90}  # 课程
+    assert stage_objective({"audition": {"rankThreshold": 1, "forceEndScore": 0}}) == {
+        "pass_rank": 1
+    }  # N.I.A：必须第 1
+    assert stage_objective({"audition": {"rankThreshold": 3, "forceEndScore": 900}}) == {
+        "pass_rank": 3,
+        "score_cap": 900,
+    }  # 初 REGULAR 中間
+    assert stage_objective({"lesson": {"clear_score": 30, "perfect_score": 90}}) == {
+        "clear_score": 30,
+        "score_cap": 90,
+    }  # 课程
     assert stage_objective({}) == {}  # 偶像之路等：不加键
 
 
@@ -122,7 +130,10 @@ def test_gnrpa_drops_newer_objective_on_old_rust(monkeypatch):
 def test_scale_npc_range_client_formula():
     """客户端 CalculateAuditionNpc：f = 1 + permil/1000（float32），下限 / 区间各自 × f 后五取偶。"""
     assert E.scale_npc_range(1000, 2000, 0) == (1000, 2000)
-    assert E.scale_npc_range(49880, 66453, -800) == (9976, 9976 + 3315)  # N.I.Aキー −80%：49880×0.2、16573×0.2=3314.6→3315
+    assert E.scale_npc_range(49880, 66453, -800) == (
+        9976,
+        9976 + 3315,
+    )  # N.I.Aキー −80%：49880×0.2、16573×0.2=3314.6→3315
     lo, hi = E.scale_npc_range(18481, 20567, 400)
     assert lo == round(18481 * 1.4) and hi - lo == round((20567 - 18481) * 1.4)
     assert E.scale_npc_range(5, 7, 100) == (6, 6 + 2)  # 5.5 → 6（五取偶）、2.2 → 2
@@ -134,7 +145,10 @@ def test_npc_enhance_permil_value_times_fire_count(monkeypatch):
     items = [{"produce_item_id": "pitem_a-challenge", "fire_count": 5}, {"produce_item_id": "pitem_b-challenge", "fire_count": 3},
              {"produce_item_id": "pitem_c", "fire_count": 9}]  # fmt: skip
     assert E.npc_enhance_permil(items) == (80 * 5 + 150 * 3, [])
-    assert E.npc_enhance_permil([{"id": "pitem_b-challenge"}]) == (150, ["pitem_b-challenge"])  # 没给次数：按 1 次、记不确定
+    assert E.npc_enhance_permil([{"id": "pitem_b-challenge"}]) == (
+        150,
+        ["pitem_b-challenge"],
+    )  # 没给次数：按 1 次、记不确定
     assert E.npc_enhance_permil(["key"]) == (-800, [])
     assert E.npc_enhance_permil([{"produce_item_id": "pitem_a-challenge", "fire_count": None}]) == (0, [])  # 没发动过
     assert E.loadout_npc_permil({"npc_enhance_permil": 1010, "produce_item_ids": ["key"]}) == 1010  # 显式给的优先

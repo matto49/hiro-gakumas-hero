@@ -4,13 +4,20 @@ import pytest
 
 pytestmark = pytest.mark.sim_master
 
-DECK = [("p_card-02-men-1_032", 1), ("p_card-02-act-2_062", 1), ("p_card-02-men-3_040", 0), ("p_card-02-ido-3_105", 1)] * 3
+DECK = [
+    ("p_card-02-men-1_032", 1),
+    ("p_card-02-act-2_062", 1),
+    ("p_card-02-men-3_040", 0),
+    ("p_card-02-ido-3_105", 1),
+] * 3
 
 
 def _env(**kw):
     from hiro.sim import interval as iv
 
-    return iv._env(iv.R2Setup(deck=DECK, drinks=[], hp=20, max_hp=33, permil={"Vo": 37490, "Da": 36100, "Vi": 22860}, **kw), 1)
+    return iv._env(
+        iv.R2Setup(deck=DECK, drinks=[], hp=20, max_hp=33, permil={"Vo": 37490, "Da": 36100, "Vi": 22860}, **kw), 1
+    )
 
 
 def _ids(env):
@@ -26,14 +33,20 @@ def test_template_loadout_kept_when_not_given():
 
 
 def test_run_loadout_replaces_template():
+    from hiro.sim.engine import master_commit
+
     from gakumas_exam.loadout import support_entry
     from gakumas_exam.master import shared
 
-    from hiro.sim.engine import master_commit
-
     m = shared(master_commit())
     sup = (support_entry(m, "s_card-3-0029", 60),)
-    items, sups = _ids(_env(items=("pitem_02-3-062-0", "customize_pitem-02-04-3-003_00-04-2-003_02-02-1-001_00-04-4-001"), supports=sup, skills=()))
+    items, sups = _ids(
+        _env(
+            items=("pitem_02-3-062-0", "customize_pitem-02-04-3-003_00-04-2-003_02-02-1-001_00-04-4-001"),
+            supports=sup,
+            skills=(),
+        )
+    )
     assert items == ["pitem_02-3-062-0", "customize_pitem-02-04-3-003_00-04-2-003_02-02-1-001_00-04-4-001"]
     assert sups == ["s_card-3-0029"]
 

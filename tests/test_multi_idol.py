@@ -43,7 +43,9 @@ def _pick(idol, cands, deck=(), rerolls=0, excludes=0, mode="produce-002"):
 
     prod = {"idol_card_id": idol, "mode": mode, "stamina": 20, "max_stamina": 30, "produce_point": 50, "params": {"Vo": 200, "Da": 200, "Vi": 200},
             "growth_permil": {}, "rerolls_left": rerolls, "excludes_left": excludes, "deck": [{"card_id": c, "upgrade": 0} for c in deck]}  # fmt: skip
-    d = ProduceDeciders(profile_for(idol), None).decide("SELECT_CARD", GameState(produce=prod, page_fields={"candidates": [{"card_id": c} for c in cands]}))
+    d = ProduceDeciders(profile_for(idol), None).decide(
+        "SELECT_CARD", GameState(produce=prod, page_fields={"candidates": [{"card_id": c} for c in cands]})
+    )
     return action_key(d.action), d.reason
 
 
@@ -72,7 +74,12 @@ def test_fktn_consult_keeps_review_cards():
     from hiro.brain.state import profile_for
     from hiro.contracts import GameState
 
-    deck = [TEBYOSHI, LOVELY, "p_card-00-act-0_001", "p_card-02-act-3_038"]  # 手拍子、ラブリーウインク、アピールの基本、開花（主打やる気）
+    deck = [
+        TEBYOSHI,
+        LOVELY,
+        "p_card-00-act-0_001",
+        "p_card-02-act-3_038",
+    ]  # 手拍子、ラブリーウインク、アピールの基本、開花（主打やる気）
     prod = {"idol_card_id": FKTN, "mode": "produce-002", "stamina": 20, "max_stamina": 30, "produce_point": 160, "params": {"Vo": 1, "Da": 1, "Vi": 1},
             "growth_permil": {}, "deck": [{"card_id": c, "upgrade": 0} for c in deck]}  # fmt: skip
     pf = {"shelf": [], "services": {"delete": {"price": 100, "available": True}}}

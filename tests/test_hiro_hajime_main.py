@@ -9,7 +9,11 @@ def test_default_main_by_mode():
     from hiro.brain.formation_plan import default_main
 
     assert default_main("i_card-skin-shro-3-007", "produce-002") == "Vo" and default_main(HIRO, "hajime") == "Vo"
-    assert default_main(HIRO, "produce-007") == "Da" and default_main(HIRO, "produce-004") == "Da" and default_main(HIRO) == "Da"
+    assert (
+        default_main(HIRO, "produce-007") == "Da"
+        and default_main(HIRO, "produce-004") == "Da"
+        and default_main(HIRO) == "Da"
+    )
     assert default_main("i_card-fktn-3-000", "produce-002") is None
 
 
@@ -38,5 +42,9 @@ def test_hiro_main_attr_entries_by_mode():
     from hiro.brain import guides_hiro
 
     es = {e["scope"].get("mode"): e for e in guides_hiro.main_attr_entries()}
-    assert es["hajime"]["content"]["prefer"] == ["vo"] and es["hif"]["content"]["prefer"] == ["da"] and es["nia"]["content"]["prefer"] == ["da"]
+    assert (
+        es["hajime"]["content"]["prefer"] == ["vo"]
+        and es["hif"]["content"]["prefer"] == ["da"]
+        and es["nia"]["content"]["prefer"] == ["da"]
+    )
     assert {"kind": "decision", "ref": "用户 2026-11-20"} in es["hajime"]["evidence"]

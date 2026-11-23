@@ -9,7 +9,12 @@ def test_page_read_retries_until_values_seen(monkeypatch):
     monkeypatch.setattr(kp, "EXPECT_MEMORY", ("1554", "2505", "830"))
     frames = iter([["1554", "25"], ["1554", "2505", "830"]])
     cur = {"t": []}
-    assert kp._memory_missing_on_page(shoot=lambda: cur.__setitem__("t", next(frames)), texts=lambda img: cur["t"], sleep=lambda s: None) == []
+    assert (
+        kp._memory_missing_on_page(
+            shoot=lambda: cur.__setitem__("t", next(frames)), texts=lambda img: cur["t"], sleep=lambda s: None
+        )
+        == []
+    )
 
 
 def test_check_rereads_page_after_failed_list_search(monkeypatch):

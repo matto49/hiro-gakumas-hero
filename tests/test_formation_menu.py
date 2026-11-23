@@ -3,10 +3,11 @@
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.produce import formation_menu as fm
 from hiro.produce.formation_writer import Device, FormationWriteError
+
+import numpy as np
+import pytest
 
 FIX = Path(__file__).parent / "fixtures" / "formation_menu"
 
@@ -46,7 +47,12 @@ def test_read_menu_on_device_frames(name, want):
 
 def test_read_memory_icons_big_row():
     """上排大图标：協調 11-17 写好的 メモリー編成 20 = 方案的四张卡；H.I.F 1 号第 4 格分数刚过线、靠领先认出。"""
-    assert [r["card"] for r in fm.read_memory_icons(_frame("hif-memory20"))] == ["men-2_004", "act-1_037", "act-3_039", "men-3_002"]
+    assert [r["card"] for r in fm.read_memory_icons(_frame("hif-memory20"))] == [
+        "men-2_004",
+        "act-1_037",
+        "act-3_039",
+        "men-3_002",
+    ]
     reads = fm.read_memory_icons(_frame("hif-memory1"))
     assert all(r["known"] for r in reads) and reads[3]["card"] == "act-3_049"
 
@@ -163,13 +169,29 @@ def test_ensure_mode_noop_when_already_there(game):
 
 def test_ensure_set_stuck_arrow_stops(game, monkeypatch):
     """点了箭头编号不变（翻不动 / 点没生效）：等一会儿就停，不乱点。"""
-    g, dev = game
+    _g, dev = game
     monkeypatch.setattr(fm, "WAIT_TRIES", 2)
     dev.click = lambda x, y: None
     with pytest.raises(FormationWriteError, match="编成号从 1 变"):
         fm.Menu(dev).ensure_set(2)
     with pytest.raises(ValueError):
         fm.Menu(dev).ensure_set(21)
+
+
+def test_ensure_set_retaps_dropped_arrow(game, monkeypatch):
+    """11-21 DMM：翻号时有一下点击丢了：编号没变就再点（最多 ARROW_RETRIES 次）。"""
+    g, dev = game
+    monkeypatch.setattr(fm, "WAIT_TRIES", 2)
+    real, dropped = g.click, []
+
+    def flaky(x, y):
+        if (x, y) == fm.ARROWS["next"] and g.number == 2 and not dropped:
+            dropped.append(1)
+            return
+        real(x, y)
+
+    dev.click = flaky
+    assert fm.Menu(dev).ensure_set(4)["number"] == 4 and dropped == [1]
 
 
 # ---------------------------------------------------------------- 写入 + 回读
@@ -182,18 +204,25 @@ def _reads(cards):
 
 
 def test_write_memory_only_changes_wrong_slots_and_reads_back(monkeypatch):
-    seq = [_reads(["men-2_001", "act-9_999", "men-2_003", None])] * 2 + [_reads(["men-2_001", "men-2_002", "men-2_003", "men-2_004"])] * 2
+    seq = [_reads(["men-2_001", "act-9_999", "men-2_003", None])] * 2 + [
+        _reads(["men-2_001", "men-2_002", "men-2_003", "men-2_004"])
+    ] * 2
     it = iter(seq)
     monkeypatch.setattr(fm, "read_memory_icons", lambda img: next(it))
     calls = []
-    monkeypatch.setattr(fm, "fix_memory", lambda dev, plan, **kw: calls.append(kw["slots"]) or [{"slot": 1}, {"slot": 3}])
+    monkeypatch.setattr(
+        fm, "fix_memory", lambda dev, plan, **kw: calls.append(kw["slots"]) or [{"slot": 1}, {"slot": 3}]
+    )
     dev = Device(shoot=lambda: None, click=None, swipe=None, sleep=lambda s: None)
     assert fm.write_memory(dev, PLAN, make_picker=None) == [{"slot": 1}, {"slot": 3}]
     assert calls == [fm.MEMORY_TILES]
 
 
 def test_write_memory_read_back_mismatch_stops(monkeypatch):
-    it = iter([_reads(["men-2_001", None, "men-2_003", "men-2_004"])] * 2 + [_reads(["men-2_001", "act-1_001", "men-2_003", "men-2_004"])] * 2)
+    it = iter(
+        [_reads(["men-2_001", None, "men-2_003", "men-2_004"])] * 2
+        + [_reads(["men-2_001", "act-1_001", "men-2_003", "men-2_004"])] * 2
+    )
     monkeypatch.setattr(fm, "read_memory_icons", lambda img: next(it))
     monkeypatch.setattr(fm, "fix_memory", lambda dev, plan, **kw: [{"slot": 1}])
     dev = Device(shoot=lambda: None, click=None, swipe=None, sleep=lambda s: None)
@@ -205,7 +234,9 @@ def test_write_memory_dry_run_touches_nothing(monkeypatch):
     monkeypatch.setattr(fm, "read_memory_icons", lambda img: _reads(["men-2_001", "x-1_1", "men-2_003", "men-2_004"]))
     monkeypatch.setattr(fm, "fix_memory", lambda *a, **k: pytest.fail("dry-run 不该写"))
     dev = Device(shoot=lambda: None, click=lambda *a: pytest.fail("dry-run 不该点"), swipe=None, sleep=lambda s: None)
-    assert fm.write_memory(dev, PLAN, make_picker=None, dry_run=True) == [{"slot": 1, "to": "men-2_002", "dry_run": True}]
+    assert fm.write_memory(dev, PLAN, make_picker=None, dry_run=True) == [
+        {"slot": 1, "to": "men-2_002", "dry_run": True}
+    ]
 
 
 def test_write_support_uses_formation_view_and_reads_back(monkeypatch):
@@ -221,11 +252,18 @@ def test_write_support_uses_formation_view_and_reads_back(monkeypatch):
 def test_run_order_and_sets(game, monkeypatch):
     g, dev = game
     done = []
-    monkeypatch.setattr(fm, "write_support", lambda dev, plan, **kw: done.append(("support", g.mode, g.tab, g.number)) or [])
-    monkeypatch.setattr(fm, "write_memory", lambda dev, plan, mp, **kw: done.append(("memory", g.mode, g.tab, g.number)) or [])
+    monkeypatch.setattr(
+        fm, "write_support", lambda dev, plan, **kw: done.append(("support", g.mode, g.tab, g.number)) or []
+    )
+    monkeypatch.setattr(
+        fm, "write_memory", lambda dev, plan, mp, **kw: done.append(("memory", g.mode, g.tab, g.number)) or []
+    )
     out = fm.run(dev, {"support": {"set": 4}, "memory": {"set": 6}}, "nia")
-    assert done == [("support", "nia", "support", 4), ("memory", "nia", "memory", 6)] and out == {"support": [], "memory": []}
-    with pytest.raises(FormationWriteError, match="memory.set"):
+    assert done == [("support", "nia", "support", 4), ("memory", "nia", "memory", 6)] and out == {
+        "support": [],
+        "memory": [],
+    }
+    with pytest.raises(FormationWriteError, match="memory.set"):  # noqa: RUF043
         fm.run(dev, {"support": {"set": 4}, "memory": {}}, "nia", what=("memory",))
 
 
@@ -240,7 +278,11 @@ def test_open_taps_submenu_item_on_device_frame(monkeypatch):
     img = _frame("idol-submenu")
     clicks = []
     state = {"menu": False}
-    monkeypatch.setattr(fm, "read_menu", lambda im, texts: {"mode": "hajime", "tab": "support", "number": 1, "buttons": {}} if state["menu"] else None)
+    monkeypatch.setattr(
+        fm,
+        "read_menu",
+        lambda im, texts: {"mode": "hajime", "tab": "support", "number": 1, "buttons": {}} if state["menu"] else None,
+    )
 
     def click(x, y):
         clicks.append((x, y))
@@ -249,3 +291,53 @@ def test_open_taps_submenu_item_on_device_frame(monkeypatch):
     dev = Device(shoot=lambda: img, click=click, swipe=lambda *a: None, ocr=_ocr, sleep=lambda s: None)
     fm.Menu(dev).open()
     assert len(clicks) == 1 and abs(clicks[0][0] - 198) < 20 and abs(clicks[0][1] - 579) < 20
+
+
+def test_set_number_reread_when_digit_dropped(monkeypatch):
+    """11-20 Windows MuMu：整帧 OCR 把「9/20」读成「/20」，认不出编成页、翻号卡住。裁下来按 2 倍重读能认出编号
+    （不手动放大：review #11，RapidOCR 4 倍以上会多读杂字）。"""
+    import hiro.vision.ocr as ocr
+
+    seen = []
+
+    def fake(img, scale=3.0, **kw):
+        seen.append((img.shape, scale))
+        return [("9/20", 0.9, (0, 0, 1, 1))]
+
+    monkeypatch.setattr(ocr, "ocr_boxes", fake)
+    img = np.zeros((1280, 720, 3), np.uint8)
+    texts = [("/20", (82, 948, 139, 975)), ("おまかせ", (573, 950, 655, 973))]
+    assert fm._set_number(img, texts) == 9
+    ((shape, scale),) = seen
+    assert (
+        shape[1] == 139 + 10 - (82 - fm.SET_NUMBER_LEFT) and scale == 2
+    )  # 只裁「/20」左边一小块，原尺寸交给 OCR 按 2 倍读
+    assert fm._set_number(img, [("8/20", (60, 948, 139, 975))]) == 8 and len(seen) == 1  # 读全了不重读
+    monkeypatch.setattr(ocr, "ocr_boxes", lambda img, scale=3.0, **kw: [("/20", 0.9, (0, 0, 1, 1))])
+    assert fm._set_number(img, texts) is None  # 重读也没有编号：不猜
+
+
+def test_submenu_item_tolerates_ocr_misread():
+    """11-21 DMM：子菜单「プロデュース編成」被读成「プロデュース綿成」。"""
+    from hiro.produce.formation_menu import _is_panel, _is_submenu_item
+
+    assert _is_submenu_item("プロデュース編成") and _is_submenu_item("プロデュース綿成")
+    assert not _is_submenu_item("プロデュース編成・スキルカード") and not _is_submenu_item("プロデュース")
+    assert (
+        _is_panel("プロデュース編成・スキルカード")
+        and _is_panel("プロデュース綿成・スキルカード")
+        and not _is_panel("プロデュース綿成")
+    )
+
+
+def test_find_tolerates_hen_misread():
+    """11-21 DMM 小窗口：「編成」读成「綿成 / 縞成」（textnorm 容错，不再列易混字）。"""
+    from hiro.produce.formation_menu import _find
+
+    texts = [
+        ("サポート編成", (70, 1080, 189, 1104)),
+        ("メモリー綿成", (276, 1081, 394, 1103)),
+        ("縞成詳細", (566, 1078, 665, 1107)),
+    ]
+    assert _find(texts, "メモリー編成", y_min=1040) == (276, 1081, 394, 1103)
+    assert _find(texts, "サポート編成", y_min=1040) == (70, 1080, 189, 1104)  # 不会认成「メモリー綿成」

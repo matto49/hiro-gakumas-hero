@@ -32,7 +32,10 @@ def test_sales_place_cost_types():
     assert all("great_success_pct" not in p for p in f["places"])  # 没展开：看不到大成功
 
 
-@pytest.mark.parametrize(("name", "i", "pct", "votes"), [("nia-sales-place-camp-expanded.png", 0, 90, 840), ("nia-sales-place-expanded.png", 2, 100, 720)])
+@pytest.mark.parametrize(
+    ("name", "i", "pct", "votes"),
+    [("nia-sales-place-camp-expanded.png", 0, 90, 840), ("nia-sales-place-expanded.png", 2, 100, 720)],
+)
 def test_expanded_great_success(name, i, pct, votes):
     _, f = _read(name)
     assert f["selected"] == i
@@ -72,7 +75,9 @@ def test_easy_key_seen_on_acquire_even_while_debouncing():
     from hiro.loop.reduce import reduce
 
     st = GameState(produce={"mode": "produce-004"})
-    st = reduce(st, _obs(3, "ACQUIRE", {"kind": "pitem", "pitem_id": "pitem_00-3-330-0", "pitem_ids": ["pitem_00-3-330-0"]}))
+    st = reduce(
+        st, _obs(3, "ACQUIRE", {"kind": "pitem", "pitem_id": "pitem_00-3-330-0", "pitem_ids": ["pitem_00-3-330-0"]})
+    )
     assert st.produce["nia_easy_key"] is True and st.sources["produce.nia_easy_key"].seq == 3
 
 
@@ -80,9 +85,14 @@ def test_easy_key_from_exam_pitems_and_absent_otherwise():
     from hiro.contracts import GameState
     from hiro.loop.reduce import reduce
 
-    st = reduce(GameState(produce={"mode": "produce-004"}), _obs(1, "HIF_EXAM", {"pitems": [{"pitem_id": "pitem_00-3-330-0"}]}))
+    st = reduce(
+        GameState(produce={"mode": "produce-004"}), _obs(1, "HIF_EXAM", {"pitems": [{"pitem_id": "pitem_00-3-330-0"}]})
+    )
     assert st.produce["nia_easy_key"] is True
-    st = reduce(GameState(produce={"mode": "produce-004"}), _obs(1, "ACQUIRE", {"kind": "pitem", "pitem_id": "pitem_02-3-102-0"}))
+    st = reduce(
+        GameState(produce={"mode": "produce-004"}),
+        _obs(1, "ACQUIRE", {"kind": "pitem", "pitem_id": "pitem_02-3-102-0"}),
+    )
     assert "nia_easy_key" not in st.produce  # 没看到不写（不断言没有）
 
 
@@ -112,7 +122,9 @@ def _probe(tmp_path, monkeypatch, shots, at_action, reads):
 
 def test_probe_not_opened_waits_then_does_nothing(tmp_path, monkeypatch):
     """点了以后至少等 OPEN_MIN_S、停稳了还认不出日程列表：还在选行动页就什么也不做（不点 ✕）。"""
-    r, clicks, swipes = _probe(tmp_path, monkeypatch, _frames(100, 100, 100, 100, 100, 100, 100), lambda img: True, [None])
+    r, clicks, swipes = _probe(
+        tmp_path, monkeypatch, _frames(100, 100, 100, 100, 100, 100, 100), lambda img: True, [None]
+    )
     assert r["opened"] is False and clicks == [(112, 92)] and swipes == [] and (tmp_path / "p" / "probe.json").exists()
 
 
@@ -171,6 +183,7 @@ def test_probe_off_by_default(monkeypatch):
     monkeypatch.delenv("HIRO_SCHEDULE_PROBE", raising=False)
     called = []
     monkeypatch.setattr(schedule_probe, "probe", lambda *a, **k: called.append(1))
+
     class Core:
         _schedule_probed = False
         s = NS(state=NS(produce={"mode": "produce-004"}))
@@ -211,5 +224,11 @@ def test_nia_schedule_list_icons():
     r = read_schedule_list(cv2.imread(str(p)))
     got = {w: [(o["option"], o["attr"]) for o in e["options"]] for w, e in r["weeks"].items()}
     lessons = [("training", "Vo"), ("training", "Da"), ("training", "Vi")]
-    assert got == {1: lessons, 2: [("sales", None)], 3: [("outing", None), ("present", None)], 4: lessons, 5: [("sales", None)]}
+    assert got == {
+        1: lessons,
+        2: [("sales", None)],
+        3: [("outing", None), ("present", None)],
+        4: lessons,
+        5: [("sales", None)],
+    }
     assert r["current_week"] == 1

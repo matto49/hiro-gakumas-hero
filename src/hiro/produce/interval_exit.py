@@ -20,7 +20,7 @@ def end_interval(*, timeout: float = TIMEOUT, clock=time.monotonic) -> bool:
     t0 = clock()
     while clock() - t0 < timeout:
         img = device.screenshot()
-        if (m := tpl("InProduce.HifIntervalConfirm.Title").find(img)) is not None:
+        if (m := tpl("InProduce.HifIntervalConfirm.Title").find(img)) is not None:  # noqa: F841
             if (b := tpl("InProduce.HifIntervalConfirm.ButtonConfirm").find(img)) is not None:
                 logger.info("轮间结束：确认框点确定")
                 device.click(*b.rect.center)

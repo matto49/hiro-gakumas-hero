@@ -4,11 +4,11 @@ DMM qualifydmmw1-r1 #133–135：第 2 格是饮料效果的茶杯（底色很�
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 from hiro.vision import status
 from hiro.vision.offline import load
+
+import cv2
+import pytest
 
 FIX = Path(__file__).parent / "fixtures" / "exam" / "status"
 
@@ -20,7 +20,9 @@ def _read(name):
     return status.read_status_column(load(cv2.imread(str(p))))
 
 
-@pytest.mark.parametrize("name, review, down", [("dmmw1q-133-faint-slot.jpg", 11, 4), ("dmmw1q-135-faint-slot.jpg", 13, 2)])
+@pytest.mark.parametrize(
+    "name, review, down", [("dmmw1q-133-faint-slot.jpg", 11, 4), ("dmmw1q-135-faint-slot.jpg", 13, 2)]
+)
 def test_good_impression_below_faint_slot(name, review, down):
     es = _read(name)
     summary = status.status_summary(es)

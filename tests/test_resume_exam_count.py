@@ -6,9 +6,9 @@
 import json
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.contracts import Observation
+
+import pytest
 
 
 def _seg(root, name, steps):
@@ -16,7 +16,12 @@ def _seg(root, name, steps):
     d.mkdir()
     with (d / "steps.jsonl").open("w", encoding="utf-8") as f:
         for i, (page, label) in enumerate(steps, 1):
-            f.write(json.dumps({"seq": i, "observation": {"page": {"name": page}}, "state": {"exam_session": {"label": label}}}) + "\n")
+            f.write(
+                json.dumps(
+                    {"seq": i, "observation": {"page": {"name": page}}, "state": {"exam_session": {"label": label}}}
+                )
+                + "\n"
+            )
 
 
 def _strategy(tmp_path, cur):
@@ -32,7 +37,11 @@ def _strategy(tmp_path, cur):
 
 def test_resume_after_exam_counts_it_done(tmp_path):
     """dmmt2：第 1 场考完，停在饮料溢出页 → 已考完 1 场。"""
-    _seg(tmp_path, "qualifyX-1", [("ACTION_SELECT", None), ("HIF_EXAM", "qualify-1"), ("HIF_EXAM", "qualify-1"), ("PDRINK_MAX", "qualify-1")])
+    _seg(
+        tmp_path,
+        "qualifyX-1",
+        [("ACTION_SELECT", None), ("HIF_EXAM", "qualify-1"), ("HIF_EXAM", "qualify-1"), ("PDRINK_MAX", "qualify-1")],
+    )
     (tmp_path / "qualifyX-1-r1").mkdir()
     assert _strategy(tmp_path, "qualifyX-1-r1")._exams_done_from_trace() == 1
 
@@ -40,7 +49,11 @@ def test_resume_after_exam_counts_it_done(tmp_path):
 def test_resume_mid_exam_does_not_count_it(tmp_path):
     """停在第 2 场考试中途 → 续跑会重进第 2 场，已考完只算 1 场。"""
     _seg(tmp_path, "qualifyY-1", [("HIF_EXAM", "qualify-1"), ("ACQUIRE", "qualify-1")])
-    _seg(tmp_path, "qualifyY-1-r1", [("ACTION_SELECT", "qualify-1"), ("HIF_EXAM", "qualify-2"), ("HIF_EXAM", "qualify-2")])
+    _seg(
+        tmp_path,
+        "qualifyY-1-r1",
+        [("ACTION_SELECT", "qualify-1"), ("HIF_EXAM", "qualify-2"), ("HIF_EXAM", "qualify-2")],
+    )
     (tmp_path / "qualifyY-1-r2").mkdir()
     assert _strategy(tmp_path, "qualifyY-1-r2")._exams_done_from_trace() == 1
 

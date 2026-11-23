@@ -38,7 +38,10 @@ logger = logging.getLogger("sample_hajime")
 
 STALL_S = 180.0  # 画面没变、KAA 页面也没变这么久：停下（帧留着，人接手）
 JPEG_QUALITY = 95
-BLIND_STOP, BLIND_WINDOW_S = 3, 8.0  # 选项页被拦下：这么多秒内拦下这么多次就停（同 HiroController 的判据，过场动画偶尔误报一次不停）
+BLIND_STOP, BLIND_WINDOW_S = (
+    3,
+    8.0,
+)  # 选项页被拦下：这么多秒内拦下这么多次就停（同 HiroController 的判据，过场动画偶尔误报一次不停）
 
 
 class SampleStall(RuntimeError):
@@ -56,7 +59,11 @@ class Sampler:
         self.out, self.diff, self.clock = out, diff, clock
         self.out.mkdir(parents=True, exist_ok=True)
         self.jsonl = (self.out / "frames.jsonl").open("a", encoding="utf-8")
-        self.seq = sum(1 for _ in (self.out / "frames.jsonl").open(encoding="utf-8")) if (self.out / "frames.jsonl").exists() else 0
+        self.seq = (
+            sum(1 for _ in (self.out / "frames.jsonl").open(encoding="utf-8"))
+            if (self.out / "frames.jsonl").exists()
+            else 0
+        )
         self.last_thumb = None
         self.last_scene = None
         self.scene = "start"  # KAA ProducePage.check_scene 最近一次的结果
@@ -99,7 +106,9 @@ class Sampler:
             self.save(img, d)
             self.last_thumb, self.last_scene, self.progress_t = thumb, self.scene, now
         elif now - self.progress_t >= STALL_S:
-            raise SampleStall(f"画面和 KAA 页面（{self.scene}）{now - self.progress_t:.0f}s 没变化，停下（最近日志：{self.ctx}）")
+            raise SampleStall(
+                f"画面和 KAA 页面（{self.scene}）{now - self.progress_t:.0f}s 没变化，停下（最近日志：{self.ctx}）"
+            )
         return img
 
     def blind_choice(self, now: float) -> bool:
@@ -153,10 +162,10 @@ class Sampler:
 def resume(produce_module, scenario, idol: str) -> None:
     """续跑进行中的初：hiro.loop.resume.enter_produce 进培育（破弃提示只点キャンセル 并抛 ResumeBlocked），
     再用 KAA 原版 ProduceController + StandardStrategy 接着打（同 KAA resume_produce，场景按 --difficulty，不靠再開对话框认）。"""
+    from hiro.loop.resume import enter_produce
+
     from kaa.kaa_context import clear_produce_session, init_produce_session, produce_solution
     from kaa.tasks.produce.session import ProduceSession
-
-    from hiro.loop.resume import enter_produce
 
     how = enter_produce()
     logger.info("续跑：%s（%s）", how, scenario)
@@ -181,12 +190,12 @@ def main() -> int:
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s")
 
-    from kaa.config.const import HajimeScenario
-    from kotonebot.backend.context import init_context, manual_context
-
     from hiro import kaa_env
     from hiro.device import connect
     from hiro.kaa_env import SetupMissing, init_kaa
+
+    from kaa.config.const import HajimeScenario
+    from kotonebot.backend.context import init_context, manual_context
 
     scenario = getattr(HajimeScenario, DIFFICULTY[args.difficulty])
     try:
@@ -213,12 +222,14 @@ def main() -> int:
     kaa_patches.apply()  # 破弃框只点キャンセル、编成核对、租借、不盲选第一项……（同 run_hif）
     import importlib
 
-    from kaa.tasks.actions.scenes import at_home
-
     from hiro.loop.resume import ResumeBlocked, finish_produce_end, guard_new
+
+    from kaa.tasks.actions.scenes import at_home
     from kotonebot import device as kdev
 
-    produce_module = importlib.import_module("kaa.tasks.produce.produce")  # KAA 原版 ProduceController + StandardStrategy
+    produce_module = importlib.import_module(
+        "kaa.tasks.produce.produce"
+    )  # KAA 原版 ProduceController + StandardStrategy
     logger.info("初 %s 采样：偶像 %s，支援卡编成 %s，回忆编成 %s，存帧 → %s", args.difficulty, args.idol, kaa_env.SUPPORT_SET,
                 kaa_env.MEMORY_SET, sampler.out)  # fmt: skip
     try:

@@ -76,7 +76,9 @@ def replay(paths: list[Path], llm: str | None, *, only: str | None = None, limit
             try:
                 state = screen_state(memory, CAMPUS_HIRO, f)
             except Exception as e:  # noqa: BLE001  个别帧字段不全，组装不出局面
-                rows.append({"run": path.parent.name, "seq": s["seq"], "exam": lab, "error": f"局面组装失败：{e!r}"[:200]})
+                rows.append(
+                    {"run": path.parent.name, "seq": s["seq"], "exam": lab, "error": f"局面组装失败：{e!r}"[:200]}
+                )
                 continue
             legal = [Action.from_legal(a) for a in state.legal_actions()]
             rec = Decision.from_dict(s["decision"])
@@ -94,9 +96,11 @@ def replay(paths: list[Path], llm: str | None, *, only: str | None = None, limit
                     row.update(new=new.action.legal_key(), new_source=new.source, new_reason=(new.reason or "")[:120],
                                seconds=round(time.monotonic() - t0, 1))  # fmt: skip
                 except Exception as e:  # noqa: BLE001
-                    row.update(new=None, new_source="error", new_reason=repr(e)[:160], seconds=round(time.monotonic() - t0, 1))
+                    row.update(
+                        new=None, new_source="error", new_reason=repr(e)[:160], seconds=round(time.monotonic() - t0, 1)
+                    )
             rows.append(row)
-            try:
+            try:  # noqa: SIM105
                 brain.commit(state, memory, rec.to_battle())  # 按实机执行的动作推进记忆
             except Exception:  # noqa: BLE001  记忆推进失败不影响后面的步（下一步重新读局面）
                 pass
@@ -119,7 +123,9 @@ def replay(paths: list[Path], llm: str | None, *, only: str | None = None, limit
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("steps", nargs="+", type=Path, help="traces/<run>/steps.jsonl")
-    ap.add_argument("--llm", default="none", help="codex / codex:<model> / claude:sonnet / openai:<model> / none（只用规则）")
+    ap.add_argument(
+        "--llm", default="none", help="codex / codex:<model> / claude:sonnet / openai:<model> / none（只用规则）"
+    )
     ap.add_argument("--only", choices=["skip"], default=None, help="只重放当时「有牌可打却跳过」的步")
     ap.add_argument("--limit", type=int, default=None, help="最多重新问几步（控制 LLM 调用次数）")
     ap.add_argument("--out", type=Path, default=None)

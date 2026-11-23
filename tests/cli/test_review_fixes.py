@@ -25,8 +25,9 @@ def test_second_service_exits_while_first_holds_the_lock(hiro_home):
     try:
         client.call("ping")
         first = json.loads((hiro_home / "service.json").read_text())
-        p = subprocess.run([sys.executable, "-m", "hiro.cli.service"], env=_service_env(hiro_home), timeout=15,
-                           capture_output=True)
+        p = subprocess.run(
+            [sys.executable, "-m", "hiro.cli.service"], env=_service_env(hiro_home), timeout=15, capture_output=True
+        )
         assert p.returncode != 0
         assert json.loads((hiro_home / "service.json").read_text())["pid"] == first["pid"]
     finally:
@@ -80,7 +81,9 @@ def test_pause_on_a_non_pausable_job_is_refused(hiro_home):
     from hiro.cli.service import Manager
 
     mgr = Manager(hiro_home)
-    kind = Kind("x", "测试", lambda p, d: [sys.executable, "-c", "import time; time.sleep(5)"], lambda p: "测试", pausable=False)
+    kind = Kind(
+        "x", "测试", lambda p, d: [sys.executable, "-c", "import time; time.sleep(5)"], lambda p: "测试", pausable=False
+    )
     job = Job(hiro_home, kind, {})
     mgr.jobs[job.id] = mgr.current = job
     job.start()

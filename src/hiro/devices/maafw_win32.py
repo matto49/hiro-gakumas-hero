@@ -19,8 +19,6 @@ import os
 import tempfile
 import time
 
-import numpy as np
-
 from hiro.device_maafw import (
     DEFAULT_INPUT,
     DEFAULT_SCREENCAP,
@@ -31,6 +29,8 @@ from hiro.device_maafw import (
     input_method,
     screencap_flags,
 )
+
+import numpy as np
 
 from .base import DeviceGone, DeviceUnavailable, LogicalScreen, settled_frame
 

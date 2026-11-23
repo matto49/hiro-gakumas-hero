@@ -76,7 +76,9 @@ def main() -> int:
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     empty = [r["set"] for r in out["sets"] if r["filled"] == 0]
-    print(f"读了 {len(out['sets'])} 个编成位，空的 {len(empty)} 个 → {args.out}（complete={out['complete']}）", flush=True)
+    print(
+        f"读了 {len(out['sets'])} 个编成位，空的 {len(empty)} 个 → {args.out}（complete={out['complete']}）", flush=True
+    )
     return 0
 
 

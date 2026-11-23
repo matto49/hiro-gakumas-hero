@@ -74,11 +74,13 @@ def make_handlers(core) -> dict[str, Callable]:
         "SKILL_CARD_CHANGE_1": page(lambda ctx: core.on_skill_card_change(ctx, stage=1)),
         "SKILL_CARD_CHANGE_2": page(lambda ctx: core.on_skill_card_change(ctx, stage=2)),
         "PRACTICE": page(core.on_practice_entered),  # H.I.F 不该出现练习课：停机
-        "HIF_FINALS_RANKING": page(core.on_finals_ranking),  # 本战名次页（开考前 / R1 后 / R2 后）：记一笔、按规则再挑戦或点次へ
+        "HIF_FINALS_RANKING": page(
+            core.on_finals_ranking
+        ),  # 本战名次页（开考前 / R1 后 / R2 后）：记一笔、按规则再挑戦或点次へ
         "OUTING_STAMINA_MAX": page(core.on_outing_stamina_max),  # 体力已满确认：按已做的决策继续
         "INITIAL_CHOICE": page(core.on_event_choice),  # 事件选项页（随机事件 / 开局二选一）：EVENT_CHOICE 决策
         # 特別指導 定制选卡页：定制中途的 ACQUIRE 演出让定制循环先退出（交主循环点过），回到这一页再接着按决策定制 / 结束
-        #（Mac h11 11-15：原来没有处理器，回到这页 180 秒停机，少定制 2 张）
+        # （Mac h11 11-15：原来没有处理器，回到这页 180 秒停机，少定制 2 张）
         "SPECIAL_GUIDANCE": page(core.on_special_guidance),
     }
     for name in EXAM_PAGES:

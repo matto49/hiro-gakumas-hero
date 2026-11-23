@@ -3,10 +3,10 @@
 import json
 import sqlite3
 
-import pytest
-
 from hiro import master
 from hiro.state import catalog as cat
+
+import pytest
 
 COLS = ("id", "upgradeCount", "name", "assetId", "rarity", "planType", "category", "stamina", "forceStamina", "costType", "costValue",
         "playMovePositionType", "produceDescriptions", "playEffects")  # fmt: skip
@@ -23,8 +23,10 @@ def db(monkeypatch):
         ("p_card-a", 0, "アピールの基本", "img_a", "R", "Logic", "ActiveSkill", 4, 0, None, 0, "Grave", "[]", effects),
         ("p_card-a", 1, "アピールの基本+", "img_a", "R", "Logic", "ActiveSkill", 3, 0, None, 0, "Grave", "[]", "[]"),
     ])  # fmt: skip
-    con.executemany("INSERT INTO ProduceExamEffect VALUES (?, ?)",
-                    [("e1", json.dumps([{"text": "<nobr>パラメータ+9</nobr>"}])), ("e2", json.dumps([{"text": "元気+2"}]))])
+    con.executemany(
+        "INSERT INTO ProduceExamEffect VALUES (?, ?)",
+        [("e1", json.dumps([{"text": "<nobr>パラメータ+9</nobr>"}])), ("e2", json.dumps([{"text": "元気+2"}]))],
+    )
     con.execute("INSERT INTO ProduceDrink VALUES ('pdrink_1', 'img_d1', '初星水')")
     monkeypatch.setattr(cat, "catalog", lambda: cat.Catalog(con))
     monkeypatch.setattr(master, "catalog", lambda: cat.Catalog(con))
@@ -36,7 +38,13 @@ def db(monkeypatch):
 
 def test_card_lookups(db):
     c = master.card("p_card-a", 1)
-    assert (c._id, c.upgrade_count, c.name, c.stamina, c.category) == ("p_card-a", 1, "アピールの基本+", 3, "ActiveSkill")
+    assert (c._id, c.upgrade_count, c.name, c.stamina, c.category) == (
+        "p_card-a",
+        1,
+        "アピールの基本+",
+        3,
+        "ActiveSkill",
+    )
     assert master.card("p_card-a") == master.cards()[0] and len(master.cards()) == 2
     assert master.card_by_asset("img_a").upgrade_count == 0  # 同图多个强化版本取第一行（同 KAA）
     assert master.card("p_card-x") is None and master.card_by_asset("img_x") is None

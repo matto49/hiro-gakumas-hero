@@ -11,13 +11,13 @@ KAA 开局走 auto_set_support_card，编成只能在现场读；一局读一次
 import json
 from functools import cache
 
-import cv2
-import numpy as np
-from cv2.typing import MatLike
-
 from hiro.vision import assets
 from hiro.vision.hif import _match_white
 from hiro.vision.ocr import engine, ocr_digits
+
+import cv2
+import numpy as np
+from cv2.typing import MatLike
 
 STEP_BOX = (120, 25, 280, 75)
 SUPPORT_LABEL_BOX = (40, 535, 170, 590)

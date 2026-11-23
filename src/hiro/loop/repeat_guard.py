@@ -20,10 +20,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import time
 from collections.abc import Callable
-
-import logging
 
 from hiro.loop.errors import ResumeBlocked
 

@@ -3,16 +3,19 @@ DMM 选拔第 6 天：决策要用最后 1 次刷新，执行侧每页 3 次上�
 
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.contracts import Action, ActionKind, Candidate, Decision, GameState
+
+import pytest
 
 
 def test_reroll_blocked_redecides(monkeypatch):
     pytest.importorskip("kaa")
     import hiro.produce.hif as hif
 
-    cands = [{"index": i, "card_id": c} for i, c in enumerate(("p_card-02-men-2_054", "p_card-02-men-1_006", "p_card-02-act-1_071"))]
+    cands = [
+        {"index": i, "card_id": c}
+        for i, c in enumerate(("p_card-02-men-2_054", "p_card-02-men-1_006", "p_card-02-act-1_071"))
+    ]
     state = GameState(page_fields={"candidates": cands, "rerolls_left": 1, "excludes_left": 3})
     seen, acted = [], []
 
@@ -87,17 +90,23 @@ def test_reroll_confirm_taps_reroll_button_with_arrow(monkeypatch):
     import os
     from pathlib import Path
 
-    import cv2
-
     from hiro.vision.ocr import screen_texts
 
-    path = Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures")) / "settings" / "reroll-confirm-acct2.png"
+    import cv2
+
+    path = (
+        Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures"))
+        / "settings"
+        / "reroll-confirm-acct2.png"
+    )
     if not path.exists():
         pytest.skip("需要实机截图 settings/reroll-confirm-acct2.png")
     texts = screen_texts(cv2.imread(str(path)))
     hif, fake, d, clicks = _confirm_env(monkeypatch, texts)
     assert hif.HifCore._reroll_confirm(fake, d) is True
-    assert len(clicks) == 1 and clicks[0][0] > 380 and abs(clicks[0][1] - 1160) < 15  # 右边的「再抽選する」，不是キャンセル
+    assert (
+        len(clicks) == 1 and clicks[0][0] > 380 and abs(clicks[0][1] - 1160) < 15
+    )  # 右边的「再抽選する」，不是キャンセル
 
 
 def test_reroll_confirm_with_jewel_cancels(monkeypatch):

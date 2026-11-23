@@ -63,7 +63,9 @@ def foreground(shell) -> bool | None:
 
 def relaunch(shell) -> bool:
     """am start -W 拉起学マス，返回 dumpsys 看到它到了前台没有。"""
-    lines = [ln.strip() for ln in (shell(f"cmd package resolve-activity --brief {PACKAGE}") or "").splitlines() if ln.strip()]
+    lines = [
+        ln.strip() for ln in (shell(f"cmd package resolve-activity --brief {PACKAGE}") or "").splitlines() if ln.strip()
+    ]
     act = lines[-1] if lines else ""  # 输出两行：priority=… / 包名/Activity
     if "/" not in act:
         logger.error("找不到学マス的启动 Activity：%r", act)

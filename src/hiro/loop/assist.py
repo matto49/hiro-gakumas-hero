@@ -10,10 +10,9 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
-
-import logging
 
 from hiro.loop import rescue
 
@@ -71,7 +70,12 @@ class Assist:
             return False
         a = rec["action"]
         if a["action"] == "stop":
-            logger.warning("%s：LLM 兜底放弃（%s）：%s", self.phase, rec.get("page") or "?", rec.get("blocked") or rec.get("reason"))
+            logger.warning(
+                "%s：LLM 兜底放弃（%s）：%s",
+                self.phase,
+                rec.get("page") or "?",
+                rec.get("blocked") or rec.get("reason"),
+            )
             return False
         if rec.get("changed"):
             self._texts, self._since = None, self.clock()

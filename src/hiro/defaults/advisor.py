@@ -69,7 +69,9 @@ class RuleLLMAdvisor:
         n_calls = len(self.brain.calls)
         if previews:
             state.action_previews = preview_rows(previews, legal)
-            if policy_from_env() == "expert":  # 同主仓库 HIRO_EXAM_POLICY：expert 按预演期望 + 硬规则链选；llm（默认）把预演放进提示词
+            if (
+                policy_from_env() == "expert"
+            ):  # 同主仓库 HIRO_EXAM_POLICY：expert 按预演期望 + 硬规则链选；llm（默认）把预演放进提示词
                 pick = expert_pick(state)
                 if pick.decision is not None:
                     d = pick.decision

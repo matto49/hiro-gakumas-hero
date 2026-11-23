@@ -3,12 +3,12 @@
 import json
 from types import SimpleNamespace as NS
 
-import numpy as np
-import pytest
-
 from hiro.loop.errors import ResumeBlocked
 from hiro.runtime import nia_sample as ns
 from hiro.vision.classify import UNKNOWN, PageHit
+
+import numpy as np
+import pytest
 from test_opening import _texts, frame, rig  # 同目录（pytest 把测试目录放进 sys.path）
 
 
@@ -90,14 +90,23 @@ def test_known_advance_page_delegates(tmp_path, monkeypatch):
 
 
 def test_sampler_saves_on_change_and_maps_tower_exam(tmp_path):
-    hits = iter([PageHit("ACTION_SELECT", "x"), PageHit("ACTION_SELECT", "x"), PageHit("TOWER_EXAM", "tower_ocr"), PageHit("TOWER_LIST", "ocr")])
+    hits = iter(
+        [
+            PageHit("ACTION_SELECT", "x"),
+            PageHit("ACTION_SELECT", "x"),
+            PageHit("TOWER_EXAM", "tower_ocr"),
+            PageHit("TOWER_LIST", "ocr"),
+        ]
+    )
     s = ns.Sampler(lambda img: next(hits), tmp_path / "frames")
     a, b = np.full((1280, 720, 3), 10, np.uint8), np.full((1280, 720, 3), 200, np.uint8)
     assert s(a).name == "ACTION_SELECT"
     assert s(a).name == "ACTION_SELECT"  # 没变：不存
     assert s(b).name == "EXAM"  # N.I.A 试镜被偶像之路的考试判据认中：当考试
     assert s(b).name == "unknown"  # 其余 TOWER_* 当认不出
-    rows = [json.loads(line) for line in (tmp_path / "frames" / "frames.jsonl").read_text(encoding="utf-8").splitlines()]
+    rows = [
+        json.loads(line) for line in (tmp_path / "frames" / "frames.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
     assert [r["page"] for r in rows] == ["ACTION_SELECT", "EXAM", "unknown"]
 
 
@@ -122,7 +131,9 @@ def test_sampler_save_tap_always_saves(tmp_path):
     f = Frame(np.full((1280, 720, 3), 50, np.uint8), 0.0)
     s.save_tap(f, 34, 596)
     s.save_tap(f, 34, 596)
-    rows = [json.loads(line) for line in (tmp_path / "frames" / "frames.jsonl").read_text(encoding="utf-8").splitlines()]
+    rows = [
+        json.loads(line) for line in (tmp_path / "frames" / "frames.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
     assert [r["page"] for r in rows] == ["tap-34-596", "tap-34-596"]
 
 
@@ -145,7 +156,9 @@ def test_self_lesson_options_on_real_frame():
 
     raw, _ = extract("ACTION_SELECT", _real("nia-action-week1.png"))
     opts = observation(1, 0.0, "ACTION_SELECT", raw).fields["options"]
-    assert [(o["option"], o["attr"], o.get("sp"), o["hp_cost"]) for o in opts] == [("training", a, True, 8) for a in ("Vo", "Da", "Vi")]
+    assert [(o["option"], o["attr"], o.get("sp"), o["hp_cost"]) for o in opts] == [
+        ("training", a, True, 8) for a in ("Vo", "Da", "Vi")
+    ]
 
 
 def test_param_up_bubble_tapped_on_unknown(tmp_path, monkeypatch):
@@ -183,12 +196,13 @@ def test_consult_end_confirm_interrupt():
     """「相談終了確認」单独留在画面上（实机帧）：中断层点「決定」。"""
     from hiro.runtime import interrupts
     from hiro.runtime.frame import Frame
+
     from test_runtime import frame as fake_frame
     from test_runtime import runtime
 
     rt, _ = runtime([fake_frame()])
     assert "相談終了" in interrupts.check(Frame(_real("nia-consult-end-confirm.jpg"), 0.0), rt)
-    (x, y), = rt.raw_device.taps
+    ((x, y),) = rt.raw_device.taps
     assert x > 400 and abs(y - 1160) < 20
 
 

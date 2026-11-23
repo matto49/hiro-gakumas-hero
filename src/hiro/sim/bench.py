@@ -13,7 +13,7 @@ import argparse
 import json
 import statistics
 import time
-from dataclasses import asdict
+from dataclasses import asdict  # noqa: F401
 from datetime import datetime
 from pathlib import Path
 
@@ -100,7 +100,12 @@ def play_episode(policy, exam: SimExam, seed: int, args, audit_out=None) -> dict
 
 
 def summarize(rows: list[dict], audits: list[dict], exam: str, args) -> str:
-    lines = [f"# 离线对局 {exam}", "", f"种子 {args.seeds}；专家世界数 {args.worlds}；隐藏实机读不到的字段：{args.hide_live}", ""]
+    lines = [
+        f"# 离线对局 {exam}",
+        "",
+        f"种子 {args.seeds}；专家世界数 {args.worlds}；隐藏实机读不到的字段：{args.hide_live}",
+        "",
+    ]
     lines += ["| 策略 | 局数 | 均分 | 中位数 | 最低 | 最高 | 平均耗时 s |", "|---|--:|--:|--:|--:|--:|--:|"]
     by = {}
     for r in rows:
@@ -114,12 +119,22 @@ def summarize(rows: list[dict], audits: list[dict], exam: str, args) -> str:
         lines += ["", "## 决策审计（专家推演对比）", ""]
         n = len(audits)
         agree = sum(a["chosen"] == a["best"] for a in audits)
-        lines.append(f"{n} 个决策点，与专家一致 {agree}（{agree / n:.0%}），遗憾合计 {sum(a['regret'] for a in audits):,}。")
+        lines.append(
+            f"{n} 个决策点，与专家一致 {agree}（{agree / n:.0%}），遗憾合计 {sum(a['regret'] for a in audits):,}。"
+        )
         sig = [a for a in audits if a["regret"] > 2 * a.get("regret_se", 0) and a["regret"] > 0]
         lines.append(f"显著分歧（遗憾 > 2 倍配对标准误）{len(sig)} 个，导出到 candidates.json。")
-        lines += ["", "遗憾最大的 10 个显著分歧：", "", "| 种子 | 回合 | 所选 | 专家 | 遗憾 ± 标准误 | 来源 |", "|--:|--:|---|---|--:|---|"]
+        lines += [
+            "",
+            "遗憾最大的 10 个显著分歧：",
+            "",
+            "| 种子 | 回合 | 所选 | 专家 | 遗憾 ± 标准误 | 来源 |",
+            "|--:|--:|---|---|--:|---|",
+        ]
         for a in sorted(sig, key=lambda a: -a["regret"])[:10]:
-            lines.append(f"| {a['seed']} | {a['turn']} | {a['chosen']} | {a['best']} | {a['regret']:,} ± {a['regret_se']:,} | {a['source']} |")
+            lines.append(
+                f"| {a['seed']} | {a['turn']} | {a['chosen']} | {a['best']} | {a['regret']:,} ± {a['regret_se']:,} | {a['source']} |"
+            )
     return "\n".join(lines) + "\n"
 
 
@@ -153,7 +168,9 @@ def main():
                       + (f"  regret {r['regret_sum']:,}" if r["regret_sum"] is not None else ""), flush=True)  # fmt: skip
     audits = [json.loads(line) for line in audit_path.read_text(encoding="utf-8").splitlines() if line.strip()]
     (out / "summary.md").write_text(summarize(rows, audits, args.exam, args), encoding="utf-8")
-    sig = sorted((a for a in audits if a["regret"] > 2 * a.get("regret_se", 0) and a["regret"] > 0), key=lambda a: -a["regret"])
+    sig = sorted(
+        (a for a in audits if a["regret"] > 2 * a.get("regret_se", 0) and a["regret"] > 0), key=lambda a: -a["regret"]
+    )
     (out / "candidates.json").write_text(json.dumps(sig[:30], ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"\n报告：{out / 'summary.md'}")
 

@@ -1,9 +1,9 @@
 import io
 import json
 
-import pytest
-
 from hiro.cli import secrets as sec
+
+import pytest
 
 VALUE = "p@ss-WORD-1234"
 
@@ -11,7 +11,9 @@ VALUE = "p@ss-WORD-1234"
 @pytest.fixture
 def clip(monkeypatch):
     calls = []
-    monkeypatch.setattr(sec, "write_clipboard", lambda value, concealed, clear_after: calls.append((value, concealed, clear_after)))
+    monkeypatch.setattr(
+        sec, "write_clipboard", lambda value, concealed, clear_after: calls.append((value, concealed, clear_after))
+    )
     return calls
 
 
@@ -19,6 +21,7 @@ def clip(monkeypatch):
 def stdin(monkeypatch):
     def feed(text):
         monkeypatch.setattr("sys.stdin", io.StringIO(text))
+
     return feed
 
 
@@ -41,7 +44,7 @@ def test_copy_puts_value_on_clipboard_concealed_without_printing_it(run_cli, std
 
 
 def test_copy_missing_secret_is_explained(run_cli, clip):
-    code, env = run_cli("secret", "copy", "game-password")
+    _code, env = run_cli("secret", "copy", "game-password")
     assert env["error"]["code"] == "secret_missing" and "设置" in env["error"]["hint"]
     assert clip == []
 
@@ -59,10 +62,10 @@ def test_no_command_can_print_a_secret(run_cli, stdin, capsys):
 
 def test_empty_value_and_bad_name_are_refused(run_cli, stdin):
     stdin("\n")
-    code, env = run_cli("secret", "set", "game-password")
+    code, env = run_cli("secret", "set", "game-password")  # noqa: RUF059
     assert env["error"]["code"] == "empty_secret"
     stdin(VALUE)
-    code, env = run_cli("secret", "set", "../x")
+    _code, env = run_cli("secret", "set", "../x")
     assert env["error"]["code"] == "bad_args"
 
 
@@ -91,17 +94,26 @@ class _Lib:
 
 
 def _fake_win(log, *, lock=0x7FF000001000, set_data=1):
-    u = _Lib(log, CreateWindowExW=0x1234, DestroyWindow=1, OpenClipboard=1, EmptyClipboard=1, SetClipboardData=set_data,
-             CloseClipboard=1, RegisterClipboardFormatW=0xC100, GetClipboardSequenceNumber=7)
+    u = _Lib(
+        log,
+        CreateWindowExW=0x1234,
+        DestroyWindow=1,
+        OpenClipboard=1,
+        EmptyClipboard=1,
+        SetClipboardData=set_data,
+        CloseClipboard=1,
+        RegisterClipboardFormatW=0xC100,
+        GetClipboardSequenceNumber=7,
+    )
     k = _Lib(log, GlobalAlloc=0x7FF000000F00, GlobalLock=lock, GlobalUnlock=1, GlobalFree=0)
     return u, k
 
 
 def test_windows_clipboard_checks_every_step(monkeypatch):
-    import pytest
-
     from hiro.cli import secrets as sec
     from hiro.cli.registry import CliError
+
+    import pytest
 
     monkeypatch.setattr(sec, "_detach", lambda argv: None)
     monkeypatch.setattr(sec.ctypes, "memmove", lambda *a: None)

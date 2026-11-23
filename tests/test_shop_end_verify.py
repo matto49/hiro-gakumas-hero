@@ -2,11 +2,11 @@
 以前「不是空闲相談页、没有取消框」第一帧就判成功（Mac 第 33 局选拔 0.062s / 0.035s；DMM 0.047s），实际还在相談。
 现在：先等提示条退掉再点，点完要连续 2 帧看不到商店页文字（也没有确认框）才算离开；相談结束后的角色场景、loading 算离开。"""
 
-import pytest
-from test_shop_exec import FakeConsult, frame, near
-
 from hiro.contracts import Action, ActionKind
 from hiro.produce import shop
+
+import pytest
+from test_shop_exec import FakeConsult, frame, near
 
 pytestmark = [pytest.mark.fixtures]
 

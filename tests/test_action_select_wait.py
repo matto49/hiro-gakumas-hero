@@ -3,11 +3,11 @@ KAA 按 v0 规则自己进了 Vi 授業。Wait 时要重读再决策；仍是 Wa
 
 from types import SimpleNamespace as NS
 
-import pytest
-
 import hiro.produce.hif as hif
 from hiro.contracts import Action, ActionKind, Decision, GameState
 from hiro.produce.hif import HiroHifStrategy, UnhandledPage
+
+import pytest
 
 WAIT = Decision(Action.ui(ActionKind.WAIT, why="决策器异常"), "ACTION_SELECT 没有可用的兜底模板", "fallback", 0.1)
 

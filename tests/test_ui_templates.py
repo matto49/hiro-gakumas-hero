@@ -3,10 +3,10 @@
 和 KAA image.find 的逐帧对照（36 个模板 × 512 张实机帧，命中 1283 次，位置 0 差异）做在迁移时，这里只留不依赖实机帧的用例。
 """
 
+from hiro.vision.ui_templates import _catalog, box, checkbox_checked, primary_button_enabled, tpl
+
 import numpy as np
 import pytest
-
-from hiro.vision.ui_templates import _catalog, box, checkbox_checked, primary_button_enabled, tpl
 
 
 def _paste(name: str, x: int, y: int) -> np.ndarray:
@@ -28,7 +28,7 @@ def test_every_template_loads_and_fits_screen(name):
         x, y, sw, sh = t.slice_rect
         assert (sw, sh) == (w, h)
         if t.fixed:  # 只在原位找的模板，位置必须在画面内（非 fixed 的 slice_rect 只是记录，KAA 原数据有出界 1 像素的，如 Common.IconButtonCheck）
-            assert 0 <= x and x + sw <= 720 and 0 <= y and y + sh <= 1280
+            assert x >= 0 and x + sw <= 720 and y >= 0 and y + sh <= 1280
 
 
 def test_found_at_own_position():

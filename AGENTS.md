@@ -189,13 +189,21 @@ PYTHONPATH=src python -m hiro.run_hif resume --mode qualify|main   # 续跑进�
 | `HIRO_EXAM_ADVISOR` | 考试出招插件（`模块:类`）。缺省 `hiro.search.advisor:SearchAdvisor`（用户 11-14 定）：本战 R1 / R2 每步用 Rust GNRPA 搜 15 秒、8 个世界、CPU 核数 − 1 个线程（`hiro.search.advisor.BUDGET`），局面来自模拟器跟踪、开局是这一局的编成，和画面核对过；要求局面来源是 `SimScreenExamStateSource`（`play.ps1` 缺省就是）和带 `search` 的 Rust 后端，没有就整局退回 bench 中转层（日志写明）；搜不了的步（选拔考试、核不上、出错）也退回。设 `hiro.bench_bridge.advisor:BenchAdvisor` 换回 bench 中转层。偶像之路场次另由 `HIRO_TOWER_ALGO` 选（缺省 `hiro.search.tower_algo:TowerGnrpa`，每步 5 秒；Rust 后端没有 search / plan_many 时退回 uinet，理由里写明）|
 | `HIRO_EXAM_POLICY` | 有预演时怎么用：`llm`（缺省，预演写进提示词给 LLM 参考）/ `expert`（按预演期望 + 硬规则链直接选） |
 | `HIRO_PRODUCE_LLM` | 培育决策点补全：规则 / 模拟拿不准时交 LLM 在候选里选（LLM 不可用或输出非法按规则兜底）。缺省（不设）或 `all` 全开（用户 11-14 定），`off` 全关，逗号分隔写名字只开这几条：`change_remove`（换卡第 2 段换出哪张）、`remove_card`（删卡）、`select_drink`（饮料三选一）、`consult`（相談买饮料）、`drink_overflow`（饮料满丢哪瓶）、`interval`（轮间：社区默认方案 / 模拟方案二选一）、`select_pitem`（P 道具三选一）、`special_guidance`（特別指導：优先表做完后表外定制做不做）、`event_choice`（事件选项页：没有全面更好的选项时）、`card_move`（考试里的技能卡移动对话框：前两名差不多或有卡没认出时）。每局报告里有各决策器的来源统计和兜底次数；离线回放黄金用例：`python -m hiro.brain.cases --llm claude:sonnet` |
+| `HIRO_HIF_GUIDES` | H.I.F 用偶像卡攻略包（`hiro.brain.guides`，开局自动下载，24 小时更新一次，新版下好后删旧版）：`1` 时广以外的偶像在选卡 / 删卡 / 换卡 / 强化上按自己的流派 + 攻略条目（同初 / N.I.A），不再按广的必拿表刷新、禁用；缺省 `0` 照旧。广仍要 `HIRO_GUIDES_HIRO=1` 才从条目读。见 `hiro/brain/idol_know.py` |
 | `HIRO_SIM=0` | 不用模拟器（轮间 / 饮料 / 相談只按社区规则） |
 | `HIRO_DECK_REVIEW` | 培育中主动打开牌组一览读全量（约 10 秒一次）。缺省：本战开局牌组为空时读一次；牌组标成待复核时（跳过剧情后支援事件可能给了卡、删卡没对上等）到选行动页读一次，同一天只试一次。`1` = 另外每个考试段第一次到选行动页都读（调试）；`0` = 只保留开局那次，待复核不读 |
 | `HIRO_STRATEGY` | 换培育策略类（KAA `HifGrindStrategy` 子类），默认 `hiro.produce.hif:HiroHifStrategy` |
 | `HIRO_PAUSE_FLAG` | 外部暂停旗标文件路径：文件存在就暂停对局 |
+| `HIRO_CLOSE_GAME` | 跑完（不管成败）关游戏：`off`（缺省）/ `on`·`emulator`（MuMu 关模拟器、雷电设了 `HIRO_LDCONSOLE` 时关模拟器、DMM 关游戏 + DMM Game Player）/ `game`（只关游戏）。只由整局的发起方关一次：`play_game` 整局结束关（选拔和本战之间不关）；单段的 `run_hif` 不关。`play.ps1 -CloseGame`。见 `hiro/runtime/close_game.py` |
+| `HIRO_UNREAD_STORY` / `HIRO_UNREAD_TIMEOUT_S` | 未读剧情：`skip`（缺省，照旧跳过）/ `stop`：未读确认框点キャンセル、暂停、发系统通知、写等人文件 `%LOCALAPPDATA%\hiro\waiting-for-user.txt`（`HIRO_WAIT_FILE`）；看完剧情自动继续，删掉文件 = 跳过这段继续；剧情框文字（OCR）`HIRO_UNREAD_TIMEOUT_S` 秒（缺省 60）没变 = 没人在看，关游戏并退出（码 3，之后 `resume`）。按文字判断，因为剧情画面一直在动。stop 时开局设置不打开「未読コミュでも早送り」（打开着的会关掉）。`play.ps1 -UnreadStory stop`。见 `hiro/runtime/unread_story.py` |
+| `HIRO_RETRY_MAX` | 同一场考试失败后最多再挑戦几次（0–3，缺省 3 = 游戏上限）。设成小于 3 时，这一场用了几次按本局 trace 记录数：画面「あと N回」是当天全局共用、每天重置的次数，只用来判断还有没有（あと0回 就不点）。`play.ps1 -RetryMax` |
+| `HIRO_RETRY_HANDOFF` / `HIRO_RETRY_HANDOFF_TIMEOUT_S` | 考试没过线、要不要再挑戦之前停下交给人（缺省关）：发通知、DMM 窗口居中，看画面判断：`HIRO_RETRY_HANDOFF_TIMEOUT_S` 秒（缺省 60）内你点了「再挑戦」就等你亲手打完（不计时），打完离开结算页程序接着走、又没过再给 60 秒；没人动 = 交回程序按规则决定；你点了次へ 不打了 = 从当前画面接着走。不用删文件。用来分清是打牌还是养成的问题。`play.ps1 -RetryHandoff`。见 `hiro/runtime/retry_handoff.py` |
+| `HIRO_PHOTO_PICK` / `HIRO_PHOTO_TIMEOUT_S` | LIVE 后的选回忆照片页（「メモリーにするフォト」）：`auto`（缺省，用默认的第一张）/ `stop`：不点，发通知、写等人文件，等你自己选照片、点「次へ」「決定」，两种画面都不在了自动继续；删掉等人文件或 `HIRO_PHOTO_TIMEOUT_S` 秒（缺省 600）没人管 = 用默认的那张继续。`play.ps1 -PhotoPick stop`。见 `hiro/runtime/photo_pick.py` |
+| `HIRO_LIVE` / `HIRO_LIVE_TIMEOUT_S` | 培育结束后的 LIVE：`play`（缺省，照旧点开始、播完，照片按 `HIRO_PHOTO_PICK`）/ `watch`（我亲自看：曲目页开始前停下，像未读剧情一样发通知、写等人文件、DMM 窗口居中，你点开始看完程序接着走，照片自己选；`HIRO_LIVE_TIMEOUT_S` 秒（缺省 60）没人点开始就关游戏并退出（码 3）；删等人文件 = 这场跳过）/ `pick`（跳过 LIVE，照片自己选）/ `auto`（跳过 LIVE，照片用默认）。跳过 = 点右上角 SKIP（认不到时点画面中间调出菜单，有次数上限）。`play.ps1 -Live`。见 `hiro/runtime/live_mode.py` |
 | `HIRO_RETRY_GAP_MAX` | 本战 R2 没拿第 1 时重不重打：离第 1 的差距超过我方本轮分的这个比例就不重打（缺省 `0.3`，用户 11-18 定；读不到第 1 名或本轮分时按原规则重打） |
 | `HIRO_DEVICE` / `HIRO_ADB` / `HIRO_SCREENSHOT` / `HIRO_EMULATOR_INSTANCE` | 设备后端与连接，见「三、环境」的「设备」表 |
 | `HIRO_OCR` | 文字识别后端：`auto`（缺省）/ `vision`（Apple Vision，只有 macOS）/ `rapidocr` |
+| `HIRO_OCR_DEVICE` / `HIRO_OCR_THREADS` | RapidOCR 推理设备：`auto`（缺省：CUDA → DirectML → CPU，按装的是哪种 onnxruntime）/ `cuda` / `dml` / `cpu`；加载不成功自动试下一个，日志写实际用的设备。Windows 上 `setup.ps1 -OcrDevice dml` 换成同版本的 `onnxruntime-directml`（缺省 `cpu` 不换：识别阈值按 CPU 版调的，GPU 版先显式打开），RTX 3060 实测整帧识别约 2 s → 0.4 s、识别文字不变。`HIRO_OCR_THREADS`：CPU 推理线程数（缺省占满所有核） |
 | `HIRO_RESCUE_LLM=0` | 关掉认不出画面时的 LLM 看图兜底（默认开） |
 | `HIRO_DEBUG_RECOG=1` | 把全部识别互验写进 trace，页面变化都存帧 |
 

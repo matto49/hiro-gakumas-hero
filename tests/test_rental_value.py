@@ -2,11 +2,11 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 from hiro.brain import support_select as ss
 from hiro.state.context import catalog
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "support"
 
@@ -32,13 +32,21 @@ def _max(card_id):  # noqa: D103
 def _pool(attr, n, skip=0):
     out = []
     for r in catalog().rows("SupportCard"):
-        if r["rarity"] == "SupportCardRarity_Ssr" and ss.ATTR_OF.get(r["type"]) == attr and r["planType"] in ("ProducePlanType_Common", ss.PLAN):
+        if (
+            r["rarity"] == "SupportCardRarity_Ssr"
+            and ss.ATTR_OF.get(r["type"]) == attr
+            and r["planType"] in ("ProducePlanType_Common", ss.PLAN)
+        ):
             out.append(_max(r["id"]))
     return out[skip : skip + n]
 
 
 def _row(e, player):
-    return {"player": player, "card": {"support_card_id": e["support_card_id"], "level": e["level"], "name": e["support_card_id"]}, "center": [360, 600]}
+    return {
+        "player": player,
+        "card": {"support_card_id": e["support_card_id"], "level": e["level"], "name": e["support_card_id"]},
+        "center": [360, 600],
+    }
 
 
 OWN = (_pool("Da", 3) + _pool("Vo", 1) + _pool("Vi", 1)) if _have_master() else []
@@ -67,7 +75,9 @@ def test_scored_best_on_real_rental_frame():
     from hiro.produce.rental import scored_best
     from hiro.vision.support_screens import read_rental_list
 
-    rows = read_rental_list(cv2.imread(str(FIX / "05-rental-support-list.png")))["rows"]  # 两行都是 Vi「もうすぐ本番ですね」，第三行被盖住
+    rows = read_rental_list(cv2.imread(str(FIX / "05-rental-support-list.png")))[
+        "rows"
+    ]  # 两行都是 Vi「もうすぐ本番ですね」，第三行被盖住
     da = ss.rental_scorer(OWN, "Da", "ProducePlanType_Plan2")
     assert scored_best(rows, da) is None  # 主属性 Da 时这页没有能租的
     own_vi = _pool("Vi", 3) + _pool("Vo", 1) + _pool("Da", 1)
@@ -145,6 +155,7 @@ def test_pick_once_finds_best_row_when_return_swipe_falls_short(monkeypatch):
 
     def score(row):  # 固定打分，不依赖素材插件的支援卡技能数据
         return 2.0 if row["player"] == "B" else 1.0
+
     screens = [[_row(worst, "A")], [_row(worst, "C")], [_row(best, "B")], [_row(best, "B")]]
     state = {"screen": 0, "clicked": [], "returning": False, "lag": 0}
 
@@ -202,7 +213,11 @@ def test_pick_once_refreshes_list_when_nothing_fits(monkeypatch):
     monkeypatch.setattr(rental, "progress", lambda why: None)
     monkeypatch.setattr(rental, "_sleep", lambda s: None)
     monkeypatch.setattr(rental, "_to_top", lambda: None)
-    monkeypatch.setattr(rental, "_rows", lambda: {"rows": [[vi], [da]][state["batch"]], "controls": ctrl, "pager": {"page": 1, "pages": 1}})
+    monkeypatch.setattr(
+        rental,
+        "_rows",
+        lambda: {"rows": [[vi], [da]][state["batch"]], "controls": ctrl, "pager": {"page": 1, "pages": 1}},
+    )
     score = lambda row: 1.0 if row["player"] == "D" else None  # noqa: E731  只有 Da 能补成 4-2
     assert rental._pick_once("Da", set(), score) == "da"
     assert tuple(ctrl["refresh"]) in state["clicked"] and state["clicked"][-1] == tuple(ctrl["decide"])
@@ -236,8 +251,11 @@ class FakeRentalList:
         return None
 
     def read(self):
-        return {"rows": self.rows[self.pos : self.pos + self.visible], "controls": {"decide": [497, 1157], "cancel": [220, 1157]},
-                "pager": {"page": self.page, "pages": self.pages, "prev": [233, 533], "next": [485, 533]}}
+        return {
+            "rows": self.rows[self.pos : self.pos + self.visible],
+            "controls": {"decide": [497, 1157], "cancel": [220, 1157]},
+            "pager": {"page": self.page, "pages": self.pages, "prev": [233, 533], "next": [485, 533]},
+        }
 
     def install(self, monkeypatch):
         r = self.rental
@@ -249,7 +267,11 @@ class FakeRentalList:
 
 
 def _named(player, name, center_y=600):
-    return {"player": player, "card": {"support_card_id": name, "level": 60, "name": name, "breaks": 4}, "center": [360, center_y]}
+    return {
+        "player": player,
+        "card": {"support_card_id": name, "level": 60, "name": name, "breaks": 4},
+        "center": [360, center_y],
+    }
 
 
 def test_pick_once_long_list_best_at_top_with_detail_pager(monkeypatch):
@@ -296,6 +318,7 @@ def test_pick_once_finds_best_row_when_player_name_reads_differently(monkeypatch
 
     def score(row):
         return 2.0 if row["card"]["support_card_id"] == "s_card-best" else 1.0
+
     scan = [[_row(worst, "A")], [_row(best, "chamiria")], [_row(worst, "C")]]
     back = [[_row(worst, "A")], [_row(best, "chamirla")], [_row(worst, "C")]]  # 第二遍玩家名读错一个字
     state = {"screen": 0, "pass": scan, "clicked": []}

@@ -91,7 +91,9 @@ def dominant(vecs: list[dict]) -> int | None:
     return None
 
 
-def score(v: dict, *, stamina: int | None, max_stamina: int | None, growth: dict | None, main_attr: str | None) -> float:
+def score(
+    v: dict, *, stamina: int | None, max_stamina: int | None, growth: dict | None, main_attr: str | None
+) -> float:
     """粗估分（参数点当量），只用来排候选顺序和兜底，不当依据：
     参数按成长率加权（主属性再 ×1.2）；体力低于一半时每点 8、否则 3（回满之后的部分不算）；P 每点 1.5；
     获得卡 / 饮料 / 强化 30 / 25 / 30，删卡 20，眠気 −40。"""
@@ -108,11 +110,32 @@ def score(v: dict, *, stamina: int | None, max_stamina: int | None, growth: dict
             return float("-inf")  # 体力不够付
     else:
         per = 5
-    s += hp * per + v["p"] * 1.5 + v["card"] * 30 + v["drink"] * 25 + v["upgrade"] * 30 + v["delete"] * 20 - v["trouble"] * 40
+    s += (
+        hp * per
+        + v["p"] * 1.5
+        + v["card"] * 30
+        + v["drink"] * 25
+        + v["upgrade"] * 30
+        + v["delete"] * 20
+        - v["trouble"] * 40
+    )
     return s
 
 
 def describe(v: dict) -> str:
-    names = {"Vo": "Vo", "Da": "Da", "Vi": "Vi", "hp": "体力", "p": "P", "card": "获得卡", "drink": "获得饮料", "upgrade": "强化", "delete": "删卡", "trouble": "眠気"}
-    parts = [f"{names[k]}{v[k]:+d}" if k in ("Vo", "Da", "Vi", "hp", "p") else f"{names[k]}×{v[k]}" for k in KEYS if v[k]]
+    names = {
+        "Vo": "Vo",
+        "Da": "Da",
+        "Vi": "Vi",
+        "hp": "体力",
+        "p": "P",
+        "card": "获得卡",
+        "drink": "获得饮料",
+        "upgrade": "强化",
+        "delete": "删卡",
+        "trouble": "眠気",
+    }
+    parts = [
+        f"{names[k]}{v[k]:+d}" if k in ("Vo", "Da", "Vi", "hp", "p") else f"{names[k]}×{v[k]}" for k in KEYS if v[k]
+    ]
     return "、".join(parts) or "无变化"

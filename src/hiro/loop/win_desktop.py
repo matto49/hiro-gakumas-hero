@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Callable
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +106,17 @@ def swipe_hold(self, x1: int, y1: int, x2: int, y2: int, duration: float | None 
 _APPLIED = False
 
 
+def post_message(self, msg: int, wparam: int, lparam: int) -> bool:
+    """Win32Window.post_message 的替换。原版 PostMessage 之后用 GetLastError() == 0 判成功，但成功时 PostMessage 不清错误码，
+    前面 SetWindowPos 等留下的旧错误码会让它误报失败（11-21 实测：成功投递后错误码仍是旧值）。后果：
+    click 的「按下」被误判失败就不发「松开」（点击丢了：编成翻号、点支援卡格没反应），swipe 直接抛「Swipe operation failed（按下）」。
+    pywin32 的 PostMessage 真失败时自己抛 pywintypes.error（无效窗口 1400 / 拒绝访问 5 等），所以没抛就是投递成功。"""
+    import win32gui
+
+    win32gui.PostMessage(self.hwnd, msg, wparam, lparam)
+    return True
+
+
 def apply() -> bool:
     """给 kotonebot 的 SendMessageImpl.click / swipe 装上等待（和滑动停顿）；不是 Windows / 没有这个实现时什么都不做。
     返回是否装上。重复调用只装一次。"""
@@ -119,6 +130,14 @@ def apply() -> bool:
         return False
     import win32gui
 
+    try:
+        import importlib
+
+        # 按模块名导入：类型检查环境（CI 只装 .[dev]）没有 kotonebot，静态导入会报 reportMissingImports
+        Win32Window = importlib.import_module("kotonebot.interop.win.window").Win32Window
+        Win32Window.post_message = post_message
+    except Exception as e:  # noqa: BLE001
+        logger.warning("没能替换 Win32Window.post_message：%r", e)
     SendMessageImpl.swipe = swipe_hold
     for attr, name in (("click", "点击"), ("swipe", "滑动")):
         fn = getattr(SendMessageImpl, attr, None)

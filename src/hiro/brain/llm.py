@@ -69,7 +69,9 @@ class LLMResult:
     error: str | None = None
     adapter: str = "unknown"
     model: str | None = None
-    input_tokens: int | None = None  # 不含缓存的输入（Claude：usage.input_tokens；OpenAI 兼容：prompt_tokens − cached_tokens）
+    input_tokens: int | None = (
+        None  # 不含缓存的输入（Claude：usage.input_tokens；OpenAI 兼容：prompt_tokens − cached_tokens）
+    )
     output_tokens: int | None = None
     cache_read_input_tokens: int | None = None  # 命中提示缓存读进来的输入
     cache_creation_input_tokens: int | None = None  # 写进提示缓存的输入
@@ -140,7 +142,12 @@ class ClaudeCLI:
             if waited >= self.USAGE_LIMIT_MAX_WAIT:
                 logger.error("Claude 用量上限：已等待 %.0f 分钟仍未恢复，本步退回规则兜底", waited / 60)
                 return res
-            logger.error("Claude 用量上限（%s）：暂停 %.0f 分钟后重试，已等 %.0f 分钟。游戏停在原地等待。", reason, self.USAGE_LIMIT_WAIT / 60, waited / 60)
+            logger.error(
+                "Claude 用量上限（%s）：暂停 %.0f 分钟后重试，已等 %.0f 分钟。游戏停在原地等待。",
+                reason,
+                self.USAGE_LIMIT_WAIT / 60,
+                waited / 60,
+            )
             time.sleep(self.USAGE_LIMIT_WAIT)
             waited += self.USAGE_LIMIT_WAIT
 
@@ -156,7 +163,7 @@ class ClaudeCLI:
         ]  # fmt: skip
         t0 = time.monotonic()
         # 实机 2026-10-31 12:36–12:39：连续 exit 1（stdout 是 output_tokens=0 的空结果），偶发故障重试一次即可
-        for attempt in range(1 + self.retries):
+        for _attempt in range(1 + self.retries):
             try:
                 proc = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout, env=env, cwd=self.cwd)
             except subprocess.TimeoutExpired:
@@ -185,8 +192,15 @@ class ClaudeCLI:
         except (json.JSONDecodeError, KeyError, TypeError):
             return LLMResult(None, proc.stdout, dt, "bad cli output", self.name, self.model)
         data = extract_json(text)
-        return LLMResult(data, text, dt, None if data is not None else "no json in reply", self.name, self.model, **_claude_usage(out))
-
+        return LLMResult(
+            data,
+            text,
+            dt,
+            None if data is not None else "no json in reply",
+            self.name,
+            self.model,
+            **_claude_usage(out),
+        )
 
     def ask_json_image(self, system: str, user: str, image_jpeg: bytes) -> LLMResult:
         """带一张图的单次调用（认不出的画面交 LLM 看图，hiro.loop.rescue）：stream-json 输入，消息里放 base64 图片。
@@ -216,10 +230,20 @@ class ClaudeCLI:
                 result = d
         if proc.returncode != 0 or result is None or result.get("is_error"):
             detail = str((result or {}).get("result") or proc.stderr or "")[:300]
-            return LLMResult(None, (proc.stdout or "")[-2000:], dt, f"exit {proc.returncode}: {detail}", self.name, self.model)
+            return LLMResult(
+                None, (proc.stdout or "")[-2000:], dt, f"exit {proc.returncode}: {detail}", self.name, self.model
+            )
         text = str(result.get("result") or "")
         data = extract_json(text)
-        return LLMResult(data, text, dt, None if data is not None else "no json in reply", self.name, self.model, **_claude_usage(result))
+        return LLMResult(
+            data,
+            text,
+            dt,
+            None if data is not None else "no json in reply",
+            self.name,
+            self.model,
+            **_claude_usage(result),
+        )
 
 
 def find_codex() -> str | None:
@@ -266,11 +290,24 @@ class CodexCLI:
         import tempfile
 
         if not self.binary:
-            return LLMResult(None, "", 0.0, "找不到 codex（设 HIRO_CODEX_BIN 或把 codex 放进 PATH）", self.name, self.model)
+            return LLMResult(
+                None, "", 0.0, "找不到 codex（设 HIRO_CODEX_BIN 或把 codex 放进 PATH）", self.name, self.model
+            )
         t0 = time.monotonic()
         with tempfile.TemporaryDirectory(prefix="hiro-codex-") as tmp:
             out = Path(tmp) / "reply.txt"
-            cmd = [self.binary, "exec", "--skip-git-repo-check", "--ephemeral", "-s", "read-only", "--color", "never", "-o", str(out)]
+            cmd = [
+                self.binary,
+                "exec",
+                "--skip-git-repo-check",
+                "--ephemeral",
+                "-s",
+                "read-only",
+                "--color",
+                "never",
+                "-o",
+                str(out),
+            ]
             if self.model:
                 cmd += ["-m", self.model]
             if image_jpeg is not None:
@@ -279,7 +316,9 @@ class CodexCLI:
                 cmd += ["-i", str(img)]
             cmd.append("-")
             try:
-                proc = subprocess.run(cmd, input=prompt.encode("utf-8"), capture_output=True, timeout=self.timeout, cwd=tmp)
+                proc = subprocess.run(
+                    cmd, input=prompt.encode("utf-8"), capture_output=True, timeout=self.timeout, cwd=tmp
+                )
             except subprocess.TimeoutExpired:
                 return LLMResult(None, "", time.monotonic() - t0, "timeout", self.name, self.model)
             dt = time.monotonic() - t0
@@ -329,7 +368,11 @@ class OpenAICompatible:
         req = urllib.request.Request(
             f"{self.base_url}/chat/completions",
             data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-            headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}", **self.extra_headers},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}",
+                **self.extra_headers,
+            },
             method="POST",
         )
         t0 = time.monotonic()
@@ -349,7 +392,15 @@ class OpenAICompatible:
         except (KeyError, IndexError, TypeError):
             return LLMResult(None, json.dumps(payload)[:500], dt, "bad completion", self.name, self.model)
         data = extract_json(text)
-        return LLMResult(data, text, dt, None if data is not None else "no json in reply", self.name, self.model, **_openai_usage(payload))
+        return LLMResult(
+            data,
+            text,
+            dt,
+            None if data is not None else "no json in reply",
+            self.name,
+            self.model,
+            **_openai_usage(payload),
+        )
 
 
 @dataclass
@@ -374,11 +425,13 @@ class MockLLM:
             return LLMResult(None, "", self.seconds, f"{type(r).__name__}: {r}", self.name, self.model)
         text = r if isinstance(r, str) else json.dumps(r, ensure_ascii=False)
         data = extract_json(text)
-        return LLMResult(data, text, self.seconds, None if data is not None else "no json in reply", self.name, self.model, 100, 50)
+        return LLMResult(
+            data, text, self.seconds, None if data is not None else "no json in reply", self.name, self.model, 100, 50
+        )
 
 
 def from_spec(spec: str | None = None, **kw) -> LLMAdapter:
-    """"claude[:model]" / "codex[:model]" / "openai:<model>" / "mock" → 适配器。spec 为 None 时读 HIRO_LLM，缺省 claude:sonnet。"""
+    """ "claude[:model]" / "codex[:model]" / "openai:<model>" / "mock" → 适配器。spec 为 None 时读 HIRO_LLM，缺省 claude:sonnet。"""
     spec = spec or os.environ.get("HIRO_LLM") or "claude:sonnet"
     kind, _, model = spec.partition(":")
     if kind in ("claude", "claude-cli"):

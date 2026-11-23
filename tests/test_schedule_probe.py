@@ -3,12 +3,12 @@
 
 from pathlib import Path
 
+from hiro.exec import schedule_probe as sp
+from hiro.loop.errors import ResumeBlocked
+
 import cv2
 import numpy as np
 import pytest
-
-from hiro.exec import schedule_probe as sp
-from hiro.loop.errors import ResumeBlocked
 
 FIX = Path(__file__).parent / "fixtures" / "exam" / "status" / "dmmw1q-133-faint-slot.jpg"
 
@@ -27,7 +27,9 @@ class Screen:
         self.taps.append((x, y))
         if self.state == "exam" and (x, y) == sp.BONUS_TAP and self.close_by != "never_opens":
             self.state = "panel"
-        elif self.state == "panel" and ((self.close_by == "text" and (x, y) == (360, 1180)) or (self.close_by == "retap" and (x, y) == sp.BONUS_TAP)):
+        elif self.state == "panel" and (
+            (self.close_by == "text" and (x, y) == (360, 1180)) or (self.close_by == "retap" and (x, y) == sp.BONUS_TAP)
+        ):
             self.state = "exam"
 
     def ocr(self, img):
@@ -60,7 +62,12 @@ def test_closes_with_close_text(exam_img):
     s = Screen(exam_img, "text")
     out = s.run()
     assert out["opened"] and out["closed"] and out["close_by"] == "close_text" and s.state == "exam"
-    assert s.taps == [sp.BONUS_TAP, sp.CLOSE_X, sp.CLOSE_X, (360, 1180)]  # 先点底部 ✕ 两次（这个假面板不认），再点「閉じる」
+    assert s.taps == [
+        sp.BONUS_TAP,
+        sp.CLOSE_X,
+        sp.CLOSE_X,
+        (360, 1180),
+    ]  # 先点底部 ✕ 两次（这个假面板不认），再点「閉じる」
     assert s.logged == ["exam_schedule_probe_open", "exam_schedule_probe_closed"]
     assert out["total_ms"] >= out["open_ms"]
 
@@ -68,7 +75,9 @@ def test_closes_with_close_text(exam_img):
 def test_retap_when_no_close_text(exam_img):
     s = Screen(exam_img, "retap")
     out = s.run()
-    assert out["closed"] and out["close_by"] == "retap" and s.taps == [sp.BONUS_TAP, sp.CLOSE_X, sp.CLOSE_X, sp.BONUS_TAP]
+    assert (
+        out["closed"] and out["close_by"] == "retap" and s.taps == [sp.BONUS_TAP, sp.CLOSE_X, sp.CLOSE_X, sp.BONUS_TAP]
+    )
 
 
 def test_not_opened_taps_once(exam_img):
@@ -81,7 +90,12 @@ def test_stuck_panel_stops(exam_img):
     s = Screen(exam_img, "stuck")
     with pytest.raises(ResumeBlocked):
         s.run()
-    assert s.state == "panel" and s.taps == [sp.BONUS_TAP, sp.CLOSE_X, sp.CLOSE_X, sp.BONUS_TAP]  # 只试了 ✕ 和点同一块，没在考试里乱点
+    assert s.state == "panel" and s.taps == [
+        sp.BONUS_TAP,
+        sp.CLOSE_X,
+        sp.CLOSE_X,
+        sp.BONUS_TAP,
+    ]  # 只试了 ✕ 和点同一块，没在考试里乱点
 
 
 def test_tap_far_from_hand():
@@ -128,7 +142,9 @@ def test_read_schedule_panel_real_frame():
 
     p = read_schedule_panel(_panel_img())
     assert p["current_turn"] == 1 and p["pass_rank"] == 3 and p["pass_score"] == 1700
-    assert "中間" in p["pass_text"] and "突破" in p["pass_text"]  # 过线条件原文 → exam.pass_line.stage（8a3a1e7 按关键词认场次）
+    assert (
+        "中間" in p["pass_text"] and "突破" in p["pass_text"]
+    )  # 过线条件原文 → exam.pass_line.stage（8a3a1e7 按关键词认场次）
     assert p["permil"] == {"Vo": 6440, "Da": 6800, "Vi": 4280}
     assert turn_types([p], 9) == ["Vo", "Vi", "Da", "Da", "Vo", "Vo", "Vi", "Da", "Vo"]  # 协调核对的真值
 
@@ -138,16 +154,32 @@ def test_panel_rows_by_icon_not_text():
     from hiro.vision import schedule as sc
 
     hsv = cv2.cvtColor(_panel_img(), cv2.COLOR_BGR2HSV)
-    assert [sc._attr_by_icon(hsv, y) for y in (356, 445, 533, 621, 710, 797, 885, 974, 1061)] == ["Vo", "Vi", "Da", "Da", "Vo", "Vo", "Vi", "Da", "Vo"]
+    assert [sc._attr_by_icon(hsv, y) for y in (356, 445, 533, 621, 710, 797, 885, 974, 1061)] == [
+        "Vo",
+        "Vi",
+        "Da",
+        "Da",
+        "Vo",
+        "Vo",
+        "Vi",
+        "Da",
+        "Vo",
+    ]
 
 
 def test_turn_types_merges_scrolled_screens_and_marks_missing():
     from hiro.vision.schedule import turn_types
 
-    first = {"current_turn": 1, "rows": {i: "Vo" for i in range(9)}}
+    first = {"current_turn": 1, "rows": dict.fromkeys(range(9), "Vo")}
     second = {"current_turn": 1, "rows": {8: "Vo", 9: "Da", 10: None, 11: "Vi"}}
     assert turn_types([first, second], 12) == ["Vo"] * 9 + ["Da", None, "Vi"]
-    assert turn_types([{"current_turn": 3, "rows": {0: "Da", 1: "Vi"}}], 5) == [None, None, "Da", "Vi", None]  # 第 3 回合才点开
+    assert turn_types([{"current_turn": 3, "rows": {0: "Da", 1: "Vi"}}], 5) == [
+        None,
+        None,
+        "Da",
+        "Vi",
+        None,
+    ]  # 第 3 回合才点开
     assert turn_types([{"current_turn": None, "rows": {0: "Da"}}], 5) is None
 
 
@@ -188,7 +220,6 @@ def test_apply_panel_writes_exam_state():
     assert st.exam["pass_line"] == {"rank": 3, "score": 1700, "stage": None}
 
 
-
 # ---------------------------------------------------------------- 最終面板（滑过、有回合效果行，协调 11-18 初 PRO 最終）
 FINAL = Path(__file__).parent / "fixtures" / "pages" / "exam-schedule-panel-hajime-final-scrolled.png"
 
@@ -213,11 +244,22 @@ def test_final_scrolled_panel_rows_and_effects():
 def test_turn_effects_aligned_with_turns():
     from hiro.vision.schedule import turn_effects
 
-    assert turn_effects([{"current_turn": 1, "effects": {1: "やる気+5", 5: "x"}}], 11) == [None, "やる気+5", None, None, None, "x"] + [None] * 5
+    assert (
+        turn_effects([{"current_turn": 1, "effects": {1: "やる気+5", 5: "x"}}], 11)
+        == [None, "やる気+5", None, None, None, "x"] + [None] * 5
+    )
 
 
-@pytest.mark.parametrize(("name", "open_"), [("exam-schedule-panel-hajime-final-scrolled.png", True), ("exam-schedule-panel-hajime-mid1.png", True),
-                                             ("hajime-exam.jpg", False), ("hajime-lesson-probe-stuck.png", False), ("hajime-exam-result.jpg", False)])
+@pytest.mark.parametrize(
+    ("name", "open_"),
+    [
+        ("exam-schedule-panel-hajime-final-scrolled.png", True),
+        ("exam-schedule-panel-hajime-mid1.png", True),
+        ("hajime-exam.jpg", False),
+        ("hajime-lesson-probe-stuck.png", False),
+        ("hajime-exam-result.jpg", False),
+    ],
+)
 def test_panel_open(name, open_):
     from hiro.vision.offline import load
     from hiro.vision.schedule import panel_open
@@ -268,10 +310,10 @@ def test_pass_line_stage_keeps_condition_text():
     只有原文、没读出名次 / 分数也写（N.I.A「…オーディション突破」）。"""
     from types import SimpleNamespace as NS
 
-    import numpy as np
-
     from hiro.contracts import GameState
     from hiro.vision.schedule import read_schedule_panel
+
+    import numpy as np
 
     def box(text, x, y):
         return NS(text=text, rect=NS(center=NS(x=x, y=y)))

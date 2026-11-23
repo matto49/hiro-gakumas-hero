@@ -10,9 +10,10 @@
 
 from __future__ import annotations
 
-
 import logging
-from hiro.devices.active import device, sleep as _sleep
+
+from hiro.devices.active import device
+from hiro.devices.active import sleep as _sleep
 
 logger = logging.getLogger(__name__)
 
@@ -89,12 +90,39 @@ def _find_row(rows: list[dict], player, sig: tuple) -> dict | None:
 
 def _tap_and_decide(row: dict, ctrl: dict) -> bool:
     c = row["card"]
-    logger.info("租借：选 %s（%s Lv%s 突破%s，玩家 %s）", c.get("name"), c.get("attr"), c.get("level"), c.get("breaks"), row.get("player"))
+    logger.info(
+        "租借：选 %s（%s Lv%s 突破%s，玩家 %s）",
+        c.get("name"),
+        c.get("attr"),
+        c.get("level"),
+        c.get("breaks"),
+        row.get("player"),
+    )
     device.click(*row["center"])
     _sleep(1.0)
-    device.click(*(ctrl.get("decide") or (497, 1157)))
-    _sleep(2.5)
+    decide = ctrl.get("decide") or (497, 1157)
+    for attempt in range(DECIDE_TRIES):
+        device.click(*decide)
+        _sleep(2.5)
+        if not _list_still_open():
+            return True
+        # 11-22 DMM 新主循环：选中了行、点「決定」没反应（列表还开着），第 2 步「次へ」等 20 秒超时。列表还在才再点
+        logger.info("租借：点了「決定」列表还开着，再点一次（第 %d 次）", attempt + 2)
     return True
+
+
+DECIDE_TRIES = 3  # 「決定」最多点几次（列表关了就停）
+
+
+def _list_still_open() -> bool:
+    """租借列表还开着：底部同时有「キャンセル」和「決定」（第 2 步页面底部是「次へ」）。读不出时当成已经关了（不多点）。"""
+    try:
+        from hiro.vision.ocr import screen_texts
+
+        low = [t.text.replace(" ", "") for t in screen_texts(device.screenshot()) if t.rect.center.y > 1080]
+    except Exception:  # noqa: BLE001
+        return False
+    return any("キャンセル" in t for t in low) and any(t == "決定" for t in low)
 
 
 def _ensure_plan_fit():
@@ -103,7 +131,9 @@ def _ensure_plan_fit():
         from hiro.vision.ui_templates import checkbox_checked, tpl
 
         img = device.screenshot()
-        if (chk := tpl("Produce.Step2.Rent.CheckboxPlan").find(img)) is not None and checkbox_checked(img, chk) is False:
+        if (chk := tpl("Produce.Step2.Rent.CheckboxPlan").find(img)) is not None and checkbox_checked(
+            img, chk
+        ) is False:
             device.click(*chk.center)
             logger.info("租借：勾上「プラン適正」")
             _sleep(1.5)
@@ -115,7 +145,10 @@ def rental_mismatch() -> bool:
     """第 2 步页面：租借格（右下 tile）上有没有「プラン不一致」。"""
     from hiro.produce.ops import ocr_boxes
 
-    return any("不一致" in t and (b[0] + b[2]) // 2 > 480 and 600 <= (b[1] + b[3]) // 2 <= 900 for t, _, b in ocr_boxes(device.screenshot()))
+    return any(
+        "不一致" in t and (b[0] + b[2]) // 2 > 480 and 600 <= (b[1] + b[3]) // 2 <= 900
+        for t, _, b in ocr_boxes(device.screenshot())
+    )
 
 
 def scored_best(rows: list[dict], scorer, exclude: set | None = None) -> tuple[dict, float] | None:
@@ -175,7 +208,11 @@ def _seek(match, scorer=None, exclude=None, max_swipes: int = SEEK_MAX_SWIPES):
                 return row, lst, seen_best, seen_players
             players = [r.get("player") for r in lst["rows"]]
             seen_players += [p for p in players if p not in seen_players]
-            if scorer is not None and (hit := scored_best(lst["rows"], scorer, exclude)) is not None and (seen_best is None or hit[1] > seen_best[1]):
+            if (
+                scorer is not None
+                and (hit := scored_best(lst["rows"], scorer, exclude)) is not None
+                and (seen_best is None or hit[1] > seen_best[1])
+            ):
                 seen_best = (hit[0], hit[1])
             still = still + 1 if players == last else 0
             if still >= 2:
@@ -225,7 +262,14 @@ def _pick_once(attr: str, exclude: set, scorer=None, refreshes: int = RENTAL_REF
                     key = (value, c.get("level") or 0, c.get("breaks") or 0)
                     if best is None or key > best[:3]:
                         best = (*key, page, screen, row.get("player"), _card_sig(row))
-                        logger.info("租借：目前最好 %s（%s Lv%s，编成价值 %.0f，玩家 %s）", c.get("name"), c.get("attr"), c.get("level"), value, row.get("player"))
+                        logger.info(
+                            "租借：目前最好 %s（%s Lv%s，编成价值 %.0f，玩家 %s）",
+                            c.get("name"),
+                            c.get("attr"),
+                            c.get("level"),
+                            value,
+                            row.get("player"),
+                        )
             else:
                 row = best_row(rows, attr, exclude)
                 if row is not None:
@@ -242,7 +286,11 @@ def _pick_once(attr: str, exclude: set, scorer=None, refreshes: int = RENTAL_REF
         refresh = ctrl.get("refresh")
         if refreshes > 0 and refresh:
             # 租借列表会换一批（11-16 Mac 实机：上一轮有 Da Lv60，这一轮两页都没有主属性卡就停了）：点刷新（免费）换一批再找
-            logger.warning("租借：两页都没读到%s，刷新租借列表再找（还剩 %d 次）", f" {attr} 卡" if scorer is None else "能补成 4-2 的卡", refreshes)
+            logger.warning(
+                "租借：两页都没读到%s，刷新租借列表再找（还剩 %d 次）",
+                f" {attr} 卡" if scorer is None else "能补成 4-2 的卡",
+                refreshes,
+            )
             if pages > 1:
                 _goto_page(1, pager)
             _to_top()

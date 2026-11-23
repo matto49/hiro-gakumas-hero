@@ -9,8 +9,8 @@
 from __future__ import annotations
 
 import argparse
-import os
 import html
+import os
 import re
 import subprocess
 import time
@@ -28,7 +28,14 @@ def _meta(p: Path) -> dict:
     kind = {"qualify": "选拔", "main": "本战"}.get(m.group(1), "?") if m else "?"
     game = m.group(2) if m and m.group(2) else ""
     when = time.strftime("%m-%d %H:%M", time.localtime(p.stat().st_mtime))
-    return {"file": p.name, "kind": kind, "game": game, "when": when, "mtime": p.stat().st_mtime, "size": p.stat().st_size}
+    return {
+        "file": p.name,
+        "kind": kind,
+        "game": game,
+        "when": when,
+        "mtime": p.stat().st_mtime,
+        "size": p.stat().st_size,
+    }
 
 
 def index_html(pages: list[dict]) -> str:
@@ -70,7 +77,10 @@ def main() -> None:
         cmd.insert(1, "-v")
     subprocess.run(cmd, check=True)
     if not args.dry_run:  # macOS 自带 rsync 不支持 --chmod，同步后在服务器上统一放开读权限
-        subprocess.run(["ssh", HOST, f"chmod 755 {REMOTE} && find {REMOTE} -type f -name '*.html' -exec chmod 644 {{}} +"], check=True)
+        subprocess.run(
+            ["ssh", HOST, f"chmod 755 {REMOTE} && find {REMOTE} -type f -name '*.html' -exec chmod 644 {{}} +"],
+            check=True,
+        )
     print(f"已发布 {len(pages)} 份 → {URL}")
 
 

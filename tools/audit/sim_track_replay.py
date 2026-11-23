@@ -70,7 +70,12 @@ def replay(paths: list[Path], *, only: str | None = None, limit: int | None = No
                 src._lose(f"sim_error {e!r}")
             t_sync = time.monotonic() - t0
             status = "tracked" if src.game is not None else "lost"
-            if src.game is not None and src.stats["rebuilt"] and rows and rows[-1].get("rebuilt_total", 0) < src.stats["rebuilt"]:
+            if (
+                src.game is not None
+                and src.stats["rebuilt"]
+                and rows
+                and rows[-1].get("rebuilt_total", 0) < src.stats["rebuilt"]
+            ):
                 status = "rebuilt"
             t1 = time.monotonic()
             pv = src.previews(state) if src.game is not None else None
@@ -89,9 +94,13 @@ def replay(paths: list[Path], *, only: str | None = None, limit: int | None = No
                            best_expected=round(best.expected or 0),
                            recorded_expected=round(next((p.expected or 0 for p in pv if p.action.legal_key() == row["recorded"]), 0)))  # fmt: skip
                 if row["expert"] is not None and not isinstance(row["expert"], str):
-                    row["expert"] = Action.from_legal(row["expert"]).legal_key() if isinstance(row["expert"], dict) else str(row["expert"])
+                    row["expert"] = (
+                        Action.from_legal(row["expert"]).legal_key()
+                        if isinstance(row["expert"], dict)
+                        else str(row["expert"])
+                    )
             rows.append(row)
-            try:
+            try:  # noqa: SIM105
                 brain.commit(state, memory, rec.to_battle())
             except Exception:  # noqa: BLE001
                 pass

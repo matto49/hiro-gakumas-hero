@@ -83,7 +83,9 @@ class SimTracker:
             except Exception as e:  # 模拟器推进出错：不续推
                 env, why, diffs, notes = None, "sim_error", {}, notes + [f"{type(e).__name__}: {e}"]
             else:
-                why, diffs = ("hand", {}) if env is None else ("ended", {}) if env.ended else self._check(env, screen, notes)
+                why, diffs = (
+                    ("hand", {}) if env is None else ("ended", {}) if env.ended else self._check(env, screen, notes)
+                )
             if why is not None:
                 first = first or SyncResult(None, why, notes)
                 continue
@@ -124,7 +126,7 @@ class SimTracker:
                 continue
             auto = not [a for a in probe.legal_actions() if a["kind"] != "end_turn"]
             with_end = (seq + [END_TURN], "；".join(filter(None, [vnote, "行动用完，游戏自动结束回合"])))
-            for s, n in ([with_end, (seq, vnote)] if auto else [(seq, vnote), with_end]):
+            for s, n in [with_end, (seq, vnote)] if auto else [(seq, vnote), with_end]:
                 yield vbase, s, n
 
     def _variants(self, base, action):
@@ -254,7 +256,9 @@ def _swap_in(env, want: list[str], notes: list[str]):
     swaps = []
     for cid, n in missing.items():
         for _ in range(n):
-            src = next((z for z in ("deck", "grave") if any(def_card_id(env.cards[i]) == cid for i in env.zones[z])), None)
+            src = next(
+                (z for z in ("deck", "grave") if any(def_card_id(env.cards[i]) == cid for i in env.zones[z])), None
+            )
             if src is None or not out:
                 notes.append(f"手牌补不齐：画面上的 {cid} 在模拟器的山札 / 弃牌里找不到")
                 return None
@@ -280,7 +284,12 @@ def _order_hand(env, screen_hand, notes: list[str]) -> None:
             # Rust 后端按画面调支援强化那一块（任务 ② 验证 2：26% 的步手牌强化不同，牌效果不同，やる気 等数值慢慢偏）；
             # 没有这个入口（Python 后端 / 旧 Rust 包）时只记一笔
             rx = getattr(env, "rx", None)
-            if rx is not None and up is not None and hasattr(rx, "set_card_upgrade") and rx.set_card_upgrade(inst, int(up)):
+            if (
+                rx is not None
+                and up is not None
+                and hasattr(rx, "set_card_upgrade")
+                and rx.set_card_upgrade(inst, int(up))
+            ):
                 notes.append(f"强化次数按画面：{env.cards[inst]} → +{up}")
             else:
                 notes.append(f"强化次数：模拟器 {env.cards[inst]} ≠ 画面 +{up}（未改）")

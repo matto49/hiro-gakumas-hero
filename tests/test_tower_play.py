@@ -5,13 +5,13 @@ import json
 from pathlib import Path
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.contracts import Action, ActionKind, Decision
 from hiro.loop.errors import ResumeBlocked
 from hiro.runtime import tower_play as tp
 from hiro.runtime.loop import DONE
 from hiro.runtime.tower import TowerRun
+
+import pytest
 
 
 def _rt():
@@ -36,17 +36,27 @@ def _play(tmp_path, decision=None, layers=1):
 
 
 def test_layers_then_formation_keeps_current(tmp_path, monkeypatch):
-    keep = Decision(Action(ActionKind.SELECT_FORMATION, {"kind": "tower", "mechanic": None, "main": 0, "subs": []}), "只有当前编成", "sim", 0.8)
+    keep = Decision(
+        Action(ActionKind.SELECT_FORMATION, {"kind": "tower", "mechanic": None, "main": 0, "subs": []}),
+        "只有当前编成",
+        "sim",
+        0.8,
+    )
     p = _play(tmp_path, keep)
     seen_pf = []
     p.core.deciders.decide = lambda page, st: seen_pf.append(st.page_fields) or keep
     rt, taps = _rt()
-    assert p.on_layers(rt, None, NS(fields={"idol": "月村手毬", "stage": 15, "challenge": [446, 987]})) is DONE and p.layer == 15
+    assert (
+        p.on_layers(rt, None, NS(fields={"idol": "月村手毬", "stage": 15, "challenge": [446, 987]})) is DONE
+        and p.layer == 15
+    )
     monkeypatch.setattr(tp, "idol_code", lambda name: "ttmr")
     f = {"layer": 15, "turns": 15, "score_bonus_permils": [23090, 11980, 2600], "params": [2348, 1701, 611], "max_stamina": 46,
          "challenge": [381, 1091], "omakase": [643, 1090], "idol_name": "月村手毬", "idol_card_title": "一匹狼",
          "memory_ratings": [12075, 10773, 9978]}  # fmt: skip
-    monkeypatch.setattr(tp, "idol_card_id", lambda title, code: "i_card-ttmr-2-000" if (title, code) == ("一匹狼", "ttmr") else None)
+    monkeypatch.setattr(
+        tp, "idol_card_id", lambda title, code: "i_card-ttmr-2-000" if (title, code) == ("一匹狼", "ttmr") else None
+    )
     f = {**f, "page": 1, "next_page": [458, 674], "prev_page": [264, 674]}
     assert p.on_formation(rt, None, NS(fields=f)) is DONE and taps[-1] == (458, 674)  # 先翻到第 2 页读牌组
     deck = {"cards": ["p_card-01-ido-2_017+1", "p_card-00-sup-3_027"], "unread": 1}
@@ -59,7 +69,9 @@ def test_layers_then_formation_keeps_current(tmp_path, monkeypatch):
                   "formation_signature": "i_card-ttmr-2-000.12075-10773-9978"}  # fmt: skip
     assert p.run.tower_id == "tower_001-ttmr"
     assert seen_pf[-1]["idol_card_id"] == "i_card-ttmr-2-000"  # 编成评估要偶像卡（3940a9 11-15）
-    assert json.loads((tmp_path / "cache" / "tower_001-ttmr-15.json").read_text(encoding="utf-8")) == lo  # 同编成重试时读这份
+    assert (
+        json.loads((tmp_path / "cache" / "tower_001-ttmr-15.json").read_text(encoding="utf-8")) == lo
+    )  # 同编成重试时读这份
 
 
 def test_formation_lands_on_page2_goes_back_first(tmp_path):
@@ -70,7 +82,12 @@ def test_formation_lands_on_page2_goes_back_first(tmp_path):
 
 
 def test_formation_change_stops(tmp_path, monkeypatch):
-    change = Decision(Action(ActionKind.SELECT_FORMATION, {"kind": "tower", "mechanic": None, "main": 3, "subs": [1]}), "换", "sim", 0.8)
+    change = Decision(
+        Action(ActionKind.SELECT_FORMATION, {"kind": "tower", "mechanic": None, "main": 3, "subs": [1]}),
+        "换",
+        "sim",
+        0.8,
+    )
     p = _play(tmp_path, change)
     monkeypatch.setattr(tp, "idol_code", lambda name: "ttmr")
     with pytest.raises(ResumeBlocked, match="不换编成"):
@@ -88,7 +105,9 @@ def test_result_retry_until_three_stars_then_stop_after_one_layer(tmp_path):
     assert h["TOWER_RESULT"](rt, None, NS(fields=res)) is tp.STAY and p.run.tries[15] == 1 and taps == [(129, 1160)]
     h["TOWER_RETRY_CONFIRM"](rt, None, NS(fields={"cost": None, "same": [492, 1037], "ok": [509, 1160]}))  # 换页：开门
     p.exam_no += 1  # 第二次挑战打完（on_exam）
-    assert h["TOWER_RESULT"](rt, None, NS(fields={**res, "stars": 3})) is tp.END and p.finished  # 三星：这一层打完，停在结果页
+    assert (
+        h["TOWER_RESULT"](rt, None, NS(fields={**res, "stars": 3})) is tp.END and p.finished
+    )  # 三星：这一层打完，停在结果页
     assert p.run.tries[15] == 2 and taps[-1] == (509, 1160)
 
 
@@ -149,7 +168,11 @@ class FakeLayers:
             n = round(abs(y2 - y1) / self.px) * (1 if y2 > y1 else -1)
             self.center = min(max(self.center + n, min(self.layers)), max(self.layers))
 
-        return NS(device=NS(tap=lambda x, y: self.taps.append((x, y)), swipe=swipe), sleep=lambda s: None, clock=lambda: self.now)
+        return NS(
+            device=NS(tap=lambda x, y: self.taps.append((x, y)), swipe=swipe),
+            sleep=lambda s: None,
+            clock=lambda: self.now,
+        )
 
     def hit(self):
         stars, locked = self.layers[self.center]
@@ -170,7 +193,7 @@ def _drive(p, game, ticks=60):
 def test_layers_three_stars_moves_up_to_frontier(tmp_path):
     """g7 11-17：打完 17 层回到层选择页，居中 17 层已三星，原来直接停。现在往上滑到最前沿 18 层（没三星）打。"""
     p = _play(tmp_path)
-    game = FakeLayers({n: (3, False) for n in range(1, 18)} | {18: (0, False), 19: (0, True), 20: (0, True)}, 17)
+    game = FakeLayers(dict.fromkeys(range(1, 18), (3, False)) | {18: (0, False), 19: (0, True), 20: (0, True)}, 17)
     assert _drive(p, game) == 18 and p.layer == 18 and game.swipes[0][1] > game.swipes[0][0]  # 往下拖 = 看更高的层
 
 
@@ -178,20 +201,28 @@ def test_layers_frontier_locked_goes_down_to_first_not_three_star(tmp_path):
     """最前沿锁着（要攒星）、上面没得打：往下找没三星的层（14 层 1 星）。跳过今天次数用完的 15 层。"""
     p = _play(tmp_path)
     p.run.tries[15] = 3
-    game = FakeLayers({n: (3, False) for n in range(1, 14)} | {14: (1, False), 15: (2, False), 16: (0, True), 17: (0, True)}, 16, px_per_layer=260)
+    game = FakeLayers(
+        dict.fromkeys(range(1, 14), (3, False)) | {14: (1, False), 15: (2, False), 16: (0, True), 17: (0, True)},
+        16,
+        px_per_layer=260,
+    )
     assert _drive(p, game) == 14
 
 
 def test_layers_overshoot_and_calibration(tmp_path):
     """滑一下挪了两层（每层间距比初值小）：越过的层回头补看，不漏掉。"""
     p = _play(tmp_path)
-    game = FakeLayers({n: (3, False) for n in range(1, 18)} | {18: (2, False), 19: (0, True), 20: (0, True), 21: (0, True)}, 17, px_per_layer=80)
+    game = FakeLayers(
+        dict.fromkeys(range(1, 18), (3, False)) | {18: (2, False), 19: (0, True), 20: (0, True), 21: (0, True)},
+        17,
+        px_per_layer=80,
+    )
     assert _drive(p, game) == 18
 
 
 def test_layers_nothing_to_play_stops(tmp_path):
     p = _play(tmp_path)
-    game = FakeLayers({n: (3, False) for n in range(1, 6)} | {6: (0, True), 7: (0, True)}, 5)
+    game = FakeLayers(dict.fromkeys(range(1, 6), (3, False)) | {6: (0, True), 7: (0, True)}, 5)
     with pytest.raises(ResumeBlocked, match="没有能打的层"):
         _drive(p, game)
     assert game.taps == []
@@ -200,7 +231,7 @@ def test_layers_nothing_to_play_stops(tmp_path):
 def test_layers_without_challenge_button_waits_one_frame(tmp_path):
     """居中的层没有「挑戦する」：第一帧先等（按钮可能还没出来），第二帧才当锁着往回滑。"""
     p = _play(tmp_path)
-    rt, taps = _rt()
+    rt, _taps = _rt()
     hit = NS(fields={"idol": "月村手毬", "stage": 19, "stars": 0, "locked": True, "challenge": None})
     assert p.on_layers(rt, None, hit) is tp.STAY
 
@@ -210,7 +241,9 @@ def test_ranking_records_and_taps_next(tmp_path):
     p.layer = 15
     rt, taps = _rt()
     rows = [{"rank": 1, "name": "白草四音", "score": 105438}, {"rank": 3, "name": "月村手毬", "score": 54009}]
-    assert p.on_ranking(rt, None, NS(fields={"my_rank": 3, "rows": rows, "next": [361, 1160]})) is DONE and taps == [(361, 1160)]
+    assert p.on_ranking(rt, None, NS(fields={"my_rank": 3, "rows": rows, "next": [361, 1160]})) is DONE and taps == [
+        (361, 1160)
+    ]
     assert p.run.summary()["rankings"] == {15: [{"my_rank": 3, "rows": rows}]}
 
 
@@ -225,7 +258,9 @@ def test_failed_ranking_retries_on_the_same_page(tmp_path):
     h = p.handlers()
     rt, taps = _rt()
     rows = [{"rank": 1, "name": "白草四音", "score": 105438}, {"rank": 4, "name": "月村手毬", "score": 45231}]
-    page = NS(fields={"my_rank": None, "rows": rows, "next": None, "failed": True, "retry": [127, 1160], "back": [351, 1160]})
+    page = NS(
+        fields={"my_rank": None, "rows": rows, "next": None, "failed": True, "retry": [127, 1160], "back": [351, 1160]}
+    )
     assert h["TOWER_RANKING"](rt, None, page) is DONE and taps == [(127, 1160)]
     assert h["TOWER_RANKING"](rt, None, page) is tp.STAY and taps == [(127, 1160)] and p.run.tries[15] == 1
     assert p.run.rankings[15] == [{"my_rank": 4, "rows": rows, "failed": True}] and 15 not in p.run.cleared
@@ -288,7 +323,11 @@ def test_tower_classify_recognizes_contest_and_home():
 
 
 def test_find_idol_strips_spaces_and_fuzzy():
-    idols = [{"name": "花海咲季", "center": [1, 1]}, {"name": "月村手鞠", "center": [2, 2]}, {"name": None, "stage": 11, "center": [3, 3]}]
+    idols = [
+        {"name": "花海咲季", "center": [1, 1]},
+        {"name": "月村手鞠", "center": [2, 2]},
+        {"name": None, "stage": 11, "center": [3, 3]},
+    ]
     assert tp.find_idol(idols, "花海 咲季")["center"] == [1, 1]  # 去空格
     assert tp.find_idol(idols, "月村手毬")["center"] == [2, 2]  # OCR 错一个字：相似度够就认
     assert tp.find_idol(idols, "藤田ことね") is None
@@ -321,11 +360,16 @@ def test_retry_confirm_fading_frame_classified():
     """实机那一帧（OK 刚点下去）：读得出来就是确认框；读不全也只会 STAY（见上）。这里只核判页不出错。"""
     import os
 
-    import cv2
-
     from hiro.vision.classify import classify
 
-    path = Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures")) / "tower" / "pages" / "retry-confirm-ok-tapped-g5c.jpg"
+    import cv2
+
+    path = (
+        Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures"))
+        / "tower"
+        / "pages"
+        / "retry-confirm-ok-tapped-g5c.jpg"
+    )
     if not path.exists():
         pytest.skip("需要实机帧")
     hit = classify(cv2.resize(cv2.imread(str(path)), (720, 1280)))
@@ -349,7 +393,9 @@ def test_result_counted_once_per_exam_even_after_retry_confirm(tmp_path):
     assert h["TOWER_RESULT"](rt, None, res) is tp.STAY and p.run.tries[20] == 1  # 淡出中的同一张结果页：不再记
     now[0] = 15.0
     n = len(taps)
-    assert h["TOWER_RESULT"](rt, None, res) is DONE and p.run.tries[20] == 1 and taps[n:] == [(129, 1160)]  # 过很久还在：重点，不计数
+    assert (
+        h["TOWER_RESULT"](rt, None, res) is DONE and p.run.tries[20] == 1 and taps[n:] == [(129, 1160)]
+    )  # 过很久还在：重点，不计数
     p.exam_no += 1  # 第二次挑战真的打了
     h["TOWER_RETRY_CONFIRM"](rt, None, NS(fields={"cost": None, "same": [492, 1037], "ok": [509, 1160]}))  # 换页
     now[0] = 30.0

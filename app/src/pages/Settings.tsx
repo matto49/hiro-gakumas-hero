@@ -322,7 +322,7 @@ export function SettingsPage({ onChanged }: { onChanged: () => void }) {
   return (
     <div className="h-full overflow-auto px-8 py-6">
       <div className="max-w-[640px]">
-      <PageTitle sub="模型、游戏账号和运行环境。Key 和密码存在系统钥匙串里，界面上看不到明文。">设置</PageTitle>
+      <PageTitle sub="模型、游戏账号和运行环境。模型 Key 存在本机数据目录（只有你能读），游戏账号密码存在系统钥匙串里，界面上都看不到明文。">设置</PageTitle>
       <div className="flex flex-col gap-4">
         <ModelSection onChanged={onChanged} />
         <SecretsSection />

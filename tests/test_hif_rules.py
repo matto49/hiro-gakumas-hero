@@ -11,7 +11,10 @@ def test_prices():
 
 
 def test_effect_groups():
-    assert r.effect_group("ProduceExamEffectType_ExamCardPlayAggressive") == "effect_group-visible-exam_card_play_aggressive-000"
+    assert (
+        r.effect_group("ProduceExamEffectType_ExamCardPlayAggressive")
+        == "effect_group-visible-exam_card_play_aggressive-000"
+    )
     idol = {"examEffectType": "ProduceExamEffectType_ExamCardPlayAggressive", "planType": "ProducePlanType_Plan2"}
     assert r.is_recommended({"effectGroupIds": ["effect_group-visible-exam_card_play_aggressive-000"]}, idol)
     assert r.PLAN_EFFECTS[idol["planType"]][1] == "ExamCardPlayAggressive"

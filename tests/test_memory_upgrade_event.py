@@ -3,11 +3,11 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 from hiro.contracts import Event, GameState
 from hiro.loop.events import apply_event
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "events"
 DECK = [{"card_id": "p_card-02-men-3_002", "upgrade": 0}, {"card_id": "p_card-02-act-1_037", "upgrade": 1}]
@@ -38,7 +38,9 @@ def test_memory_effect_on_new_card_is_acquire():
 
 def test_plain_acquire_of_upgraded_duplicate_stays_acquire():
     """没有回忆效果标记（选卡 / 事件给的同名强化版）：还是获得。"""
-    s, _ = apply_event(GameState(produce={"deck": [dict(c) for c in DECK]}), _acq("p_card-02-men-3_002", 1, memory=False))
+    s, _ = apply_event(
+        GameState(produce={"deck": [dict(c) for c in DECK]}), _acq("p_card-02-men-3_002", 1, memory=False)
+    )
     assert len(s.produce["deck"]) == 3
 
 

@@ -74,7 +74,10 @@ def analyze(trace: Path) -> str:
             b2 = buckets.setdefault(k, [0, 0])
             b2[0] += 1
             b2[1] += g(r, "phase_unstable_play_retap") > 0
-        lines += ["", "出牌第一下丢点（补点）按离上一步的时间：" + "，".join(f"{k} {v[1]}/{v[0]}" for k, v in buckets.items())]
+        lines += [
+            "",
+            "出牌第一下丢点（补点）按离上一步的时间：" + "，".join(f"{k} {v[1]}/{v[0]}" for k, v in buckets.items()),
+        ]
         sel = [g(r, "phase_play_select_ms") for r in plays if g(r, "phase_unstable_play_select_try1")]
         if sel:
             lines.append(f"第一下就看到 SELECT 的用时：中位 / p90 / 最大 {_q(sel)}（合计列无意义）")

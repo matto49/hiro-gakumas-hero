@@ -77,11 +77,21 @@ GAPS = {
     "wrong_card": "考试出牌只按前后两帧手牌差推断（同回合、无抽牌干扰时可靠）；执行记录没有被点卡框的位置，点错但手牌恰好对得上时测不到。",
     "hand_mismatch": "依赖录像器 live_hand_rebuilt / unfixable（2026-11-01 晚加入）；更早的局只有截图兜底记录，算不出。",
     "shop_not_spent": "相談页没有 P 点读数，只能按「决策要买、执行没成」统计，算不出没花掉的 P 数；价格在候选预览里有才给。",
-    "manual_intervention": "人工点击不进 trace：按续跑段（进程被停后人工重开）统计，原因取上一段的结束方式；其他手动操作请登记到 " + MANUAL_LOG + "。",
+    "manual_intervention": "人工点击不进 trace：按续跑段（进程被停后人工重开）统计，原因取上一段的结束方式；其他手动操作请登记到 "
+    + MANUAL_LOG
+    + "。",
     "select_not_seen": "三类选中态问题只记在运行日志里（hiro.produce.battle），按日志时刻对到正在执行的步；没有日志的局测不到。",
     "retry_unused": "只认「未过线 → 点了结束培育」；本战排名页没拿第 1 且没用再挑戦的情况需要排名页读数，已按 notes 里的本战排名补判。",
 }
-BUY_KINDS = {"ShopBuy", "ShopUpgradeCard", "ShopDeleteCard", "ShopRemoveCard", "IntervalBuy", "IntervalUpgrade", "IntervalDelete"}
+BUY_KINDS = {
+    "ShopBuy",
+    "ShopUpgradeCard",
+    "ShopDeleteCard",
+    "ShopRemoveCard",
+    "IntervalBuy",
+    "IntervalUpgrade",
+    "IntervalDelete",
+}
 DIALOG_PAGES = re.compile(r"DIALOG|CONFIRM|PDRINK_MAX")
 
 
@@ -194,8 +204,13 @@ def skip_with_playable(seg: Segment) -> list[Finding]:
         loss = round(best["expected"] - skip_exp) if best else None
         what = (best.get("preview") or {}).get("动作") if best else "（无预演）"
         reason = d.get("reason") or ""
-        why = ("硬规则：" + h.group(1)) if (h := re.search(r"硬规则：(\w+)", reason)) else \
-            "其余动作已被禁用（多为本回合定位失败）" if "唯一合法动作" in reason or best else (d.get("warnings") or [""])[0]
+        why = (
+            ("硬规则：" + h.group(1))
+            if (h := re.search(r"硬规则：(\w+)", reason))
+            else "其余动作已被禁用（多为本回合定位失败）"
+            if "唯一合法动作" in reason or best
+            else (d.get("warnings") or [""])[0]
+        )
         out.append(_f(seg, "出牌", "skip_with_playable", st, f"结束回合（{d.get('source')}），可选 {what}" + (f"，期望分少 {loss:,}" if loss else "")
                       + f"；{why}", expected_loss=loss))  # fmt: skip
     return out
@@ -223,7 +238,7 @@ def wrong_card_exam(seg: Segment) -> list[Finding]:
     - 少掉的牌在同一回合后面的帧里又出现 → 是识别漏读（手牌换了布局），不算。"""
     out = []
     battle = [st for st in seg.steps if (st.get("decision") or {}).get("decider") == "battle"]
-    for i, (a, b) in enumerate(zip(battle, battle[1:], strict=False)):
+    for i, (a, b) in enumerate(zip(battle, battle[1:], strict=False)):  # noqa: RUF007
         ex = a.get("execution") or {}
         if (ex.get("action") or {}).get("kind") != "PlayCard" or not ex.get("ok"):
             continue
@@ -234,7 +249,11 @@ def wrong_card_exam(seg: Segment) -> list[Finding]:
         hand = fa.get("hand") or []
         m = PLAY_REASON.search((a.get("decision") or {}).get("reason") or "")
         slot = (ex["action"].get("args") or {}).get("slot")
-        want = _base(m.group(1)) if m else (_base(hand[slot].get("name")) if slot is not None and slot < len(hand) else None)
+        want = (
+            _base(m.group(1))
+            if m
+            else (_base(hand[slot].get("name")) if slot is not None and slot < len(hand) else None)
+        )
         if not want:
             continue
         before = Counter(_base(h.get("name")) for h in hand if h)
@@ -249,7 +268,15 @@ def wrong_card_exam(seg: Segment) -> list[Finding]:
         if removed and want not in removed and before - after == removed:
             out.append(_f(seg, "出牌", "wrong_card", a, f"要打 {want}，少掉的是 {'、'.join(removed)}"))
         elif want in removed and sum(removed.values()) >= 2:
-            out.append(_f(seg, "出牌", "repeat_tap", a, f"打 {want} 一次，手牌少了 {sum(removed.values())} 张（{'、'.join(removed.elements())}）"))
+            out.append(
+                _f(
+                    seg,
+                    "出牌",
+                    "repeat_tap",
+                    a,
+                    f"打 {want} 一次，手牌少了 {sum(removed.values())} 张（{'、'.join(removed.elements())}）",
+                )
+            )
     return out
 
 
@@ -263,26 +290,41 @@ def wrong_card_select(seg: Segment) -> list[Finding]:
             continue
         act, f = _action(st), st["observation"]["fields"]
         cards = f.get("cards") or f.get("candidates") or []
-        later = [o for s in steps[i:i + 3] for o in (_obs_all(s) if s is not st else st.get("observations_after") or [])]
+        later = [
+            o for s in steps[i : i + 3] for o in (_obs_all(s) if s is not st else st.get("observations_after") or [])
+        ]
         if act.get("kind") == "ActivateEffect":
             idx = ((act.get("args") or {}).get("pick_indexes") or [None])[0]
             if idx is None or idx >= len(cards):
                 continue
             want = cards[idx].get("card_id")
-            got = next((o["fields"].get("card_id") for o in later if o["page"]["name"] == "ACQUIRE" and o["fields"].get("card_id")), None)
+            got = next(
+                (
+                    o["fields"].get("card_id")
+                    for o in later
+                    if o["page"]["name"] == "ACQUIRE" and o["fields"].get("card_id")
+                ),
+                None,
+            )
             if got and want and got != want:
                 out.append(_f(seg, "出牌", "wrong_card", st, f"三选一要拿 {cards[idx].get('name')}，获得的是 {got}"))
         elif act.get("kind") == "ExcludeCard":
             idx = (act.get("args") or {}).get("pick_index")
-            nxt = next((o for o in later if o["page"]["name"] == "SELECT_CARD" and o["seq"] > st["observation"]["seq"]), None)
+            nxt = next(
+                (o for o in later if o["page"]["name"] == "SELECT_CARD" and o["seq"] > st["observation"]["seq"]), None
+            )
             if idx is None or idx >= len(cards) or nxt is None:
                 continue
             before = Counter(c.get("card_id") for c in cards)
-            after = Counter(c.get("card_id") for c in nxt["fields"].get("cards") or nxt["fields"].get("candidates") or [])
+            after = Counter(
+                c.get("card_id") for c in nxt["fields"].get("cards") or nxt["fields"].get("candidates") or []
+            )
             gone = before - after
             want = cards[idx].get("card_id")
             if after and gone and want not in gone and not (after - before):
-                out.append(_f(seg, "出牌", "wrong_card", st, f"要除外 {cards[idx].get('name')}，少掉的是 {'、'.join(gone)}"))
+                out.append(
+                    _f(seg, "出牌", "wrong_card", st, f"要除外 {cards[idx].get('name')}，少掉的是 {'、'.join(gone)}")
+                )
         elif act.get("kind") == "Reroll":
             nxt = next((o for o in later if o["page"]["name"] == "SELECT_CARD" and o["seq"] > st["observation"]["seq"]
                         and o["fields"].get("rerolls_left") is not None), None)  # fmt: skip
@@ -318,7 +360,15 @@ def read_error(seg: Segment) -> list[Finding]:
             if key in seen:
                 continue
             seen.add(key)
-            out.append(_f(seg, "识别", "read_error", st, f"{c.get('field')}={c.get('observed')!r}（{c.get('rule')}，参考 {c.get('predicted')!r}）"))
+            out.append(
+                _f(
+                    seg,
+                    "识别",
+                    "read_error",
+                    st,
+                    f"{c.get('field')}={c.get('observed')!r}（{c.get('rule')}，参考 {c.get('predicted')!r}）",
+                )
+            )
     for st, fld, obs, ref, why in exam_reads(seg):
         if (st.get("seq"), fld) not in seen:
             seen.add((st.get("seq"), fld))
@@ -354,7 +404,7 @@ def exam_reads(seg: Segment) -> list[tuple[dict, str, int, int, str]]:
         for k in EXAM_READ_FIELDS:
             if _dropped(f.get(k), sv.get(k)):
                 out.append((st, f"exam.{k}", f[k], sv[k], "和存档对比：HUD 掉位"))
-    for a, b in zip(battle, battle[1:], strict=False):
+    for a, b in zip(battle, battle[1:], strict=False):  # noqa: RUF007
         fa, fb = a["observation"]["fields"], b["observation"]["fields"]
         ra, rb = fa.get("remaining_turns"), fb.get("remaining_turns")
         la, lb = fa.get("exam_label"), fb.get("exam_label")
@@ -365,7 +415,11 @@ def exam_reads(seg: Segment) -> list[tuple[dict, str, int, int, str]]:
         ga, gb = fa.get("genki"), fb.get("genki")
         if ga is not None and gb is not None and ga - gb >= DROP_LINE:
             slot = (((a.get("execution") or {}).get("action") or {}).get("args") or {}).get("slot")
-            card = next((c for c in fa.get("hand") or [] if c and c.get("slot") == slot), None) if (a.get("execution") or {}).get("action", {}).get("kind") == "PlayCard" else None
+            card = (
+                next((c for c in fa.get("hand") or [] if c and c.get("slot") == slot), None)
+                if (a.get("execution") or {}).get("action", {}).get("kind") == "PlayCard"
+                else None
+            )
             tags = (card or {}).get("tags") or {}
             if not (tags.get("clears_genki") or tags.get("halves_genki")):
                 out.append((b, "exam.genki", gb, ga, f"元気一步减少 ≥{DROP_LINE}，上一步没有清空 / 减半元気的牌"))
@@ -384,7 +438,15 @@ def model_mismatch(seg: Segment) -> list[Finding]:
                 continue
             seen.add(key)
             src = "HUD" if c.get("rule") == "attr_multiplier" else "模型"
-            out.append(_f(seg, "识别", "model_mismatch", st, f"{src} {c.get('field')}={c.get('observed')!r} vs 说明页 {c.get('predicted')!r}：{c.get('note') or ''}"))
+            out.append(
+                _f(
+                    seg,
+                    "识别",
+                    "model_mismatch",
+                    st,
+                    f"{src} {c.get('field')}={c.get('observed')!r} vs 说明页 {c.get('predicted')!r}：{c.get('note') or ''}",
+                )
+            )
     return out
 
 
@@ -412,7 +474,9 @@ def result_no_score(seg: Segment) -> list[Finding]:
     for st in seg.steps:
         for o in _obs_all(st):
             page = o["page"]["name"]
-            if page == "HIF_EXAM_RESULT" or (page == "HIF_FINALS_RANKING" and o["fields"].get("kind") in ("final", "round")):
+            if page == "HIF_EXAM_RESULT" or (
+                page == "HIF_FINALS_RANKING" and o["fields"].get("kind") in ("final", "round")
+            ):
                 if groups and groups[-1][0] == page and o["seq"] - groups[-1][2][-1]["seq"] <= 10:
                     groups[-1][2].append(o)
                 else:
@@ -428,7 +492,7 @@ def result_no_score(seg: Segment) -> list[Finding]:
 def _later_ok(steps: list[dict], i: int, act: dict) -> bool:
     """同一页里之后有没有再成功执行同一个动作（重试成功）。"""
     page = steps[i]["observation"]["page"]["name"]
-    for s2 in steps[i + 1:]:
+    for s2 in steps[i + 1 :]:
         if s2["observation"]["page"]["name"] != page:
             return False
         if _akey(_action(s2)) == _akey(act) and (s2.get("execution") or {}).get("ok"):
@@ -456,14 +520,20 @@ def execution(seg: Segment) -> list[Finding]:
             k = act.get("kind")
             if k in BUY_KINDS:
                 if not _later_ok(steps, i, act):
-                    out.append(_f(seg, "资源", "shop_not_spent", st, f"{page} {_akey(act)} 没买成：{err}", price=_price(st)))
+                    out.append(
+                        _f(seg, "资源", "shop_not_spent", st, f"{page} {_akey(act)} 没买成：{err}", price=_price(st))
+                    )
                 else:
-                    out.append(_f(seg, "执行", "tap_no_effect", st, f"{page} {_akey(act)} 第一次没成（{err}），重试后成功"))
+                    out.append(
+                        _f(seg, "执行", "tap_no_effect", st, f"{page} {_akey(act)} 第一次没成（{err}），重试后成功")
+                    )
             elif k in ("DiscardDrink", "SkipDrink"):
                 drink_fail_seqs.add(st["seq"])
                 out.append(_f(seg, "资源", "drink_full_unhandled", st, f"{_akey(act)}：{err}"))
             elif k == "Dialog" or DIALOG_PAGES.search(page or ""):
-                out.append(_f(seg, "执行", "dialog_not_closed", st, f"{page} {_akey(act)}：{err}", seconds=e.get("seconds")))
+                out.append(
+                    _f(seg, "执行", "dialog_not_closed", st, f"{page} {_akey(act)}：{err}", seconds=e.get("seconds"))
+                )
             else:
                 out.append(_f(seg, "执行", "exec_failed", st, f"{page} {_akey(act)}：{err}", seconds=e.get("seconds")))
             continue
@@ -472,14 +542,26 @@ def execution(seg: Segment) -> list[Finding]:
                 if not any(q in drink_fail_seqs for q in (st["seq"] - 1, st["seq"] - 2)):
                     out.append(_f(seg, "资源", "drink_full_unhandled", st, n.split(":", 2)[-1].strip()[:120]))
             elif n.startswith("recover:tap_no_effect:"):
-                out.append(_f(seg, "执行", "tap_no_effect", st, n.split(":", 2)[2].strip()[:120], seconds=e.get("seconds")))
+                out.append(
+                    _f(seg, "执行", "tap_no_effect", st, n.split(":", 2)[2].strip()[:120], seconds=e.get("seconds"))
+                )
     return out
 
 
 VOLATILE = {"t", "seq", "screenshot", "timings"}
 
 
-NOISE = {"score", "margin", "dist", "distance", "confidence", "conf", "votes", "rect", "box"}  # 嵌套项里的匹配置信度 / 坐标：每帧都会抖
+NOISE = {
+    "score",
+    "margin",
+    "dist",
+    "distance",
+    "confidence",
+    "conf",
+    "votes",
+    "rect",
+    "box",
+}  # 嵌套项里的匹配置信度 / 坐标：每帧都会抖
 
 
 def _norm(v, depth: int = 0):
@@ -492,7 +574,9 @@ def _norm(v, depth: int = 0):
 
 def _sig(obs: dict) -> str:
     """画面状态签名：页面 + 读数（去掉嵌套项里的匹配置信度；顶层 score 是考试分数，保留）。"""
-    return obs["page"]["name"] + json.dumps(_norm(obs.get("fields") or {}), sort_keys=True, ensure_ascii=False, default=str)
+    return obs["page"]["name"] + json.dumps(
+        _norm(obs.get("fields") or {}), sort_keys=True, ensure_ascii=False, default=str
+    )
 
 
 def stuck(seg: Segment, secs: int = STUCK_SECS, repeats: int = STUCK_REPEATS) -> list[Finding]:
@@ -509,8 +593,8 @@ def stuck(seg: Segment, secs: int = STUCK_SECS, repeats: int = STUCK_REPEATS) ->
         if not again:
             return
         lo = min(sigs.index(sigs[i]) for i in again)
-        part = run[lo:again[-1] + 1]  # 只报来回的那一段
-        revisits = len(part) - len(set(sigs[lo:again[-1] + 1]))
+        part = run[lo : again[-1] + 1]  # 只报来回的那一段
+        revisits = len(part) - len(set(sigs[lo : again[-1] + 1]))
         span = (part[-1].get("t") or 0) - (part[0].get("t") or 0)
         if revisits >= repeats - 1 or (revisits >= 1 and span >= secs):
             n_states = len(part) - revisits
@@ -579,7 +663,7 @@ def selection_log(seg: Segment) -> list[Finding]:
 def _exception_line(log: list[str]) -> str:
     """最后一个 Traceback 之后第一行不缩进、不是日志行的文本（如 IndexError: list index out of range）。"""
     idx = max(i for i, ln in enumerate(log) if ln.startswith("Traceback (most recent call last)"))
-    for ln in log[idx + 1:]:
+    for ln in log[idx + 1 :]:
         if ln and not ln[0].isspace() and not ln.startswith("["):
             return ln[:160]
     return "Traceback"
@@ -595,8 +679,12 @@ def _log_crashes(seg: Segment) -> list[Finding]:
     out = []
     for i, ln in enumerate(seg.log):
         if "主循环异常" in ln:
-            nxt = next((x for x in seg.log[i + 1:] if x and not x[0].isspace() and not x.startswith(("[", "Traceback"))), "")
-            out.append(Finding("流程", "crash_restart", seg.name, None, f"{ln.split('] ', 3)[-1][:60]} {nxt[:100]}".strip()))
+            nxt = next(
+                (x for x in seg.log[i + 1 :] if x and not x[0].isspace() and not x.startswith(("[", "Traceback"))), ""
+            )
+            out.append(
+                Finding("流程", "crash_restart", seg.name, None, f"{ln.split('] ', 3)[-1][:60]} {nxt[:100]}".strip())
+            )
     return out
 
 
@@ -609,7 +697,11 @@ def _log_unknown(seg: Segment, secs: int = UNKNOWN_SECS) -> list[Finding]:
     if not hits:
         return []
     s, texts = max(hits)
-    return [Finding("识别", "unknown_page", seg.name, None, f"{s}s：{texts[:80]}", None, None, {"seconds": s})] if s >= secs else []
+    return (
+        [Finding("识别", "unknown_page", seg.name, None, f"{s}s：{texts[:80]}", None, None, {"seconds": s})]
+        if s >= secs
+        else []
+    )
 
 
 def end_reason(seg: Segment) -> tuple[str, str]:
@@ -639,14 +731,27 @@ def flow(segs: list[Segment]) -> list[Finding]:
         out += crashes or _log_crashes(seg)
         out += [_f(seg, "流程", "llm_rescue", st, n.split(":", 2)[2].strip()[:160]) for st, n in _notes(seg)
                 if n.startswith("recover:llm_rescue:")]  # fmt: skip
-        out += [_f(seg, "流程", "rec_pause", st, n[:160]) for st, n in _notes(seg) if n.startswith(("rec_pause:", "rec_resume:"))]
+        out += [
+            _f(seg, "流程", "rec_pause", st, n[:160])
+            for st, n in _notes(seg)
+            if n.startswith(("rec_pause:", "rec_resume:"))
+        ]
         if not seg.steps:
             out += _log_unknown(seg)
         reason, detail = end_reason(seg)
         last = seg.steps[-1] if seg.steps else None
         done = bool(last) and any(o["page"]["name"] == "PRODUCE_END" for o in _obs_all(last))
         if not _entered(seg) and reason != "finished":
-            out.append(Finding("流程", "resume_failed", seg.name, None, f"{seg.run.get('command')} 没进入主循环：{detail}", seg.run.get("started")))
+            out.append(
+                Finding(
+                    "流程",
+                    "resume_failed",
+                    seg.name,
+                    None,
+                    f"{seg.run.get('command')} 没进入主循环：{detail}",
+                    seg.run.get("started"),
+                )
+            )
         elif reason in ("stopped", "exception", "resume_blocked") or (reason == "killed" and i + 1 < len(segs)):
             out.append(_f(seg, "流程", "run_stopped", last, f"{reason}：{detail}" + ("（局已打完，收尾时出错）" if done else ""),
                           after_end=done or None))  # fmt: skip
@@ -693,19 +798,33 @@ def retry_unused(segs: list[Segment]) -> list[Finding]:
     """整局看：没过线 / 本战没拿第 1，之后（含后续续跑段）没有「使用再挑戦」，也没有「已到上限」的说明。"""
     timeline: list[tuple[Segment, dict | None, str]] = []
     for seg in segs:
-        timeline += [(seg, st, n) for st, n in _notes(seg)] + [(seg, None, ln) for ln in seg.log if "再挑戦" in ln or FINAL_RANK.search(ln)]
+        timeline += [(seg, st, n) for st, n in _notes(seg)] + [
+            (seg, None, ln) for ln in seg.log if "再挑戦" in ln or FINAL_RANK.search(ln)
+        ]
     out, flagged = [], set()
     for k, (seg, st, text) in enumerate(timeline):
-        rest = [x for _, _, x in timeline[k + 1:]] + [x for _, _, x in timeline[max(0, k - 3):k]]
+        rest = [x for _, _, x in timeline[k + 1 :]] + [x for _, _, x in timeline[max(0, k - 3) : k]]
         handled = any(w in x for x in rest for w in RETRY_DONE)
         m = FINAL_RANK.search(text)
         if "未过线，游戏提示重挑战 / 结束培育" in text and not handled:
-            out.append(_f(seg, "资源", "retry_unused", st, text) if st else Finding("资源", "retry_unused", seg.name, None, text))
+            out.append(
+                _f(seg, "资源", "retry_unused", st, text)
+                if st
+                else Finding("资源", "retry_unused", seg.name, None, text)
+            )
         elif "没有再挑戦按钮" in text:
             out.append(_f(seg, "资源", "retry_unused", st, text + "（确认是否真的没有次数）"))
         elif m and m.group(2) != "1" and not handled and m.group(1) not in flagged:
             flagged.add(m.group(1))
-            out.append(Finding("资源", "retry_unused", seg.name, None, f"本战第 {m.group(1)} 轮最终第 {m.group(2)} 名，之后没有再挑戦记录"))
+            out.append(
+                Finding(
+                    "资源",
+                    "retry_unused",
+                    seg.name,
+                    None,
+                    f"本战第 {m.group(1)} 轮最终第 {m.group(2)} 名，之后没有再挑戦记录",
+                )
+            )
     return out
 
 
@@ -714,11 +833,17 @@ SEGMENT_DETECTORS = [skip_with_playable, slot_mismatch, wrong_card_exam, wrong_c
 
 
 def _label_of(st: dict) -> str | None:
-    return ((st.get("state") or {}).get("exam_session") or {}).get("label") or st["observation"]["fields"].get("exam_label")
+    return ((st.get("state") or {}).get("exam_session") or {}).get("label") or st["observation"]["fields"].get(
+        "exam_label"
+    )
 
 
 def _drink_ids(drinks) -> Counter:
-    return Counter(d.get("drink_id") or d.get("name") for d in drinks or [] if isinstance(d, dict) and (d.get("drink_id") or d.get("name")))
+    return Counter(
+        d.get("drink_id") or d.get("name")
+        for d in drinks or []
+        if isinstance(d, dict) and (d.get("drink_id") or d.get("name"))
+    )
 
 
 def _drink_name(drink_id: str) -> str:
@@ -759,7 +884,14 @@ def interval_drinks(segs: list[Segment]) -> list[Finding]:
                 left = _drink_ids(f.get("drinks"))
                 a = (rst.get("execution") or {}).get("action") or {}
                 if a.get("kind") == "UseDrink":
-                    used = next((x for x in f.get("drinks") or [] if isinstance(x, dict) and x.get("slot") == (a.get("args") or {}).get("slot")), None)
+                    used = next(
+                        (
+                            x
+                            for x in f.get("drinks") or []
+                            if isinstance(x, dict) and x.get("slot") == (a.get("args") or {}).get("slot")
+                        ),
+                        None,
+                    )
                     if used:
                         left -= Counter([used.get("drink_id") or used.get("name")])
                 held = Counter(x for x in ((st.get("state") or {}).get("produce") or {}).get("drinks") or [] if x)
@@ -812,7 +944,12 @@ def _impact(f: Finding) -> str:
 
 
 def to_md(data: dict) -> str:
-    lines = [f"# 低级失误报告：{data['name']}", "", f"段：{'、'.join(data['segments'])}。共 {data['total']} 条，涉及 {len(data['steps'])} 步。", ""]
+    lines = [
+        f"# 低级失误报告：{data['name']}",
+        "",
+        f"段：{'、'.join(data['segments'])}。共 {data['total']} 条，涉及 {len(data['steps'])} 步。",
+        "",
+    ]
     lines += ["| 类别 | 种类 | 次数 | 估计影响 |", "|---|---|---|---|"]
     by_kind: dict[str, list[dict]] = {}
     for f in data["findings"]:
@@ -833,23 +970,38 @@ def to_md(data: dict) -> str:
             lines += [f"## {cat}：{label}（{len(fs)}）", ""]
             for f in fs:
                 where = f"{f['segment']} #{f['seq']}" if f["seq"] is not None else f["segment"]
-                imp = _impact(Finding(**{x: f[x] for x in ("category", "kind", "segment", "seq", "detail", "t", "frame", "impact")}))
-                lines.append(f"- {where}：{f['detail']}" + (f"（{imp}）" if imp else "") + (f" [帧]({(ROOT / f['frame']).resolve()})" if f.get("frame") else ""))
+                imp = _impact(
+                    Finding(
+                        **{x: f[x] for x in ("category", "kind", "segment", "seq", "detail", "t", "frame", "impact")}
+                    )
+                )
+                lines.append(
+                    f"- {where}：{f['detail']}"
+                    + (f"（{imp}）" if imp else "")
+                    + (f" [帧]({(ROOT / f['frame']).resolve()})" if f.get("frame") else "")
+                )
             lines.append("")
-    lines += ["## 检测缺口", ""] + [f"- {data['kinds'][next(c for c in data['kinds'] if k in data['kinds'][c])][k]}：{v}" for k, v in data["gaps"].items()]
+    lines += ["## 检测缺口", ""] + [
+        f"- {data['kinds'][next(c for c in data['kinds'] if k in data['kinds'][c])][k]}：{v}"
+        for k, v in data["gaps"].items()
+    ]
     return "\n".join(lines) + "\n"
 
 
 def write(name: str, segs: list[Segment], findings: list[Finding], out_dir: Path) -> dict:
     data = to_json(name, segs, findings)
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / f"{name}-blunders.json").write_text(json.dumps(data, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    (out_dir / f"{name}-blunders.json").write_text(
+        json.dumps(data, ensure_ascii=False, indent=1, default=str), encoding="utf-8"
+    )
     (out_dir / f"{name}-blunders.md").write_text(to_md(data), encoding="utf-8")
     return data
 
 
 # ------------------------------------------------------------------ 基线
-PREFIX = os.environ.get("HIRO_TRACE_PREFIX", "")  # trace 基名前缀（tools/play_game 同一个变量）：[<PREFIX>-]<qualify|main><N>-<日期>-<时间>
+PREFIX = os.environ.get(
+    "HIRO_TRACE_PREFIX", ""
+)  # trace 基名前缀（tools/play_game 同一个变量）：[<PREFIX>-]<qualify|main><N>-<日期>-<时间>
 
 
 def games(traces: Path, numbers=range(9, 13), modes=("qualify", "main")) -> dict[str, list[str]]:
@@ -857,7 +1009,9 @@ def games(traces: Path, numbers=range(9, 13), modes=("qualify", "main")) -> dict
     out: dict[str, list[str]] = {}
     for mode in modes:
         for n in numbers:
-            bases = sorted({re.sub(r"-r\d+$", "", p.name) for p in traces.glob(f"{PREFIX + '-' if PREFIX else ''}{mode}{n}-*")})
+            bases = sorted(
+                {re.sub(r"-r\d+$", "", p.name) for p in traces.glob(f"{PREFIX + '-' if PREFIX else ''}{mode}{n}-*")}
+            )
             if bases:
                 out[f"{mode}{n}"] = bases
     return out
@@ -869,7 +1023,12 @@ def baseline(traces: Path, out_dir: Path) -> str:
         segs = load_game(bases, traces)
         rows[name] = write(name, segs, audit(segs), out_dir)
     names = list(rows)
-    lines = ["# 低级失误基线（第九–十二局）", "", "| 类别 | 种类 | " + " | ".join(names) + " | 合计 |", "|---|---|" + "---|" * (len(names) + 1)]
+    lines = [
+        "# 低级失误基线（第九–十二局）",
+        "",
+        "| 类别 | 种类 | " + " | ".join(names) + " | 合计 |",
+        "|---|---|" + "---|" * (len(names) + 1),
+    ]
     for cat, kinds in KINDS.items():
         for k, label in kinds.items():
             vals = [rows[n]["counts"][cat][k] for n in names]

@@ -28,9 +28,18 @@ ROW_STEP = 16
 MATCH_THRESHOLD = 12  # 实测命中距离 2–8，误匹配 ≥ 10
 
 
+def card_key(name: str) -> str:
+    """图库文件名（i_card-skin-shro-3-007_1.png）或偶像卡编号（i_card-shro-3-007 / i_card-skin-shro-3-007）→ 统一的卡号 shro-3-007。"""
+    name = name.rsplit("/", 1)[-1]
+    if name.endswith(".png"):
+        name = name[: -len(".png")].rsplit("_", 1)[0]
+    return name.replace("i_card-skin-", "").replace("i_card-", "")
+
+
 def find_on_page(img, skin_id: str) -> Box | None:
-    """这一屏里 skin_id 那张卡的位置（整帧坐标）；没有 None。"""
-    x0, y0, w, h = box("Produce.BoxIdolOverviewIdols").xywh
+    """这一屏里 skin_id 那张卡的位置（整帧坐标）；没有 None。skin_id 带不带 skin- 都行（资料库和初星助手传的是不带的）。"""
+    want = card_key(skin_id)
+    _x0, y0, _w, h = box("Produce.BoxIdolOverviewIdols").xywh
     bottom = y0 + h
     for x in COLS:
         for y in range(y0 - 8, bottom - MIN_H, ROW_STEP):
@@ -38,7 +47,7 @@ def find_on_page(img, skin_id: str) -> Box | None:
             if crop.shape[0] < MIN_H:
                 continue
             hit = idols.query(crop, threshold=MATCH_THRESHOLD)
-            if hit is not None and hit[0].startswith(skin_id):
+            if hit is not None and card_key(hit[0]) == want:
                 logger.info("偶像 %s 在 (%d, %d)，距离 %.1f", skin_id, x, y, hit[1])
                 return Box(x, y, x + CARD_W, y + crop.shape[0])
     return None

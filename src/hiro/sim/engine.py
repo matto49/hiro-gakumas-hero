@@ -14,6 +14,7 @@ import copy
 import random
 
 import hiro.sim  # noqa: F401  引擎路径
+
 from gakumas_exam.battle import FidelityBattle
 from gakumas_exam.catalog import Catalog
 from gakumas_exam.examconfig import ATTR_BY_TYPE, exam_meta, turn_attributes_for
@@ -48,7 +49,9 @@ class Exam:
 
     meta：三属性倍率、回合配额、每回合抽牌数、实机第一回合属性（gakumas_exam.examconfig.exam_meta）。"""
 
-    def __init__(self, observation: dict, *, hp: int | None = None, drinks: list | None = None, commit: str | None = None):
+    def __init__(
+        self, observation: dict, *, hp: int | None = None, drinks: list | None = None, commit: str | None = None
+    ):
         obs = copy.deepcopy(observation)
         if hp is not None:
             obs["scalars"]["stamina"] = min(int(hp), obs["scalars"]["maxStamina"])
@@ -61,18 +64,23 @@ class Exam:
     def episode(self, seed: int, *, keep_first: bool = True) -> FidelityBattle:
         """从开考前重新开一局：洗牌、发牌、支援强化、开考附魔全部按 seed 重来。"""
         attrs = sample_turn_attributes(self.meta, random.Random(seed), keep_first=keep_first)
-        return FidelityBattle.episode_from_observation(self.observation, shared(self.commit), seed, turn_attributes=attrs,
-                                                       draw=self.meta["draw"])
+        return FidelityBattle.episode_from_observation(
+            self.observation, shared(self.commit), seed, turn_attributes=attrs, draw=self.meta["draw"]
+        )
 
     def restore(self, obs: dict, seed: int) -> FidelityBattle:
         """同一场考试的任意回合（公开投影）→ 局面。"""
         attrs = remaining_turn_attributes(self.meta, obs, seed)
-        env = FidelityBattle.from_observation(obs, shared(self.commit), seed, turn_attributes=attrs, draw=self.meta["draw"])
+        env = FidelityBattle.from_observation(
+            obs, shared(self.commit), seed, turn_attributes=attrs, draw=self.meta["draw"]
+        )
         env.turn_attributes = attrs
         return env
 
 
-def battle(raw: dict, exam: Exam, obs: dict, seed: int, *, settle: bool = False, commit: str | None = None) -> FidelityBattle:
+def battle(
+    raw: dict, exam: Exam, obs: dict, seed: int, *, settle: bool = False, commit: str | None = None
+) -> FidelityBattle:
     """原始存档 → 局面。settle=True：存档停在「卡牌结算中」，把这张牌算完（费用已付）。exam 只用它的 meta。"""
     attrs = remaining_turn_attributes(exam.meta, obs, seed)
     make = FidelityBattle.settle_from_save if settle else FidelityBattle.from_save

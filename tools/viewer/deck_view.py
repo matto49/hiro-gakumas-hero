@@ -39,7 +39,9 @@ def recorder_events(seg: Path, root: Path = ROOT) -> list[dict]:
                 continue
             st = r.get("state") or {}
             hand = [c.get("name") if isinstance(c, dict) else c for c in st.get("hand") or []]
-            out.append({"t": r.get("t"), "exam": r.get("exam"), "public_info": st.get("public_info") or "", "hand": hand})
+            out.append(
+                {"t": r.get("t"), "exam": r.get("exam"), "public_info": st.get("public_info") or "", "hand": hand}
+            )
     return out
 
 
@@ -108,7 +110,9 @@ def _summary(cards: list[dict]) -> dict:
         "total": len(cards),
         "once": sum(1 for c in known if c["once"] and not c["trouble"]),
         "reusable": sum(1 for c in known if not c["once"] and not c["trouble"]),
-        "reusable_noredo": sum(1 for c in known if not c["once"] and not c["trouble"] and not c["redo"] and not c["core"]),
+        "reusable_noredo": sum(
+            1 for c in known if not c["once"] and not c["trouble"] and not c["redo"] and not c["core"]
+        ),
         "sleep_gen": sum(1 for c in known if c["sleep"]),
         "trouble": sum(1 for c in known if c["trouble"]),
         "basic": sum(1 for c in known if c["basic"] and not c["trouble"]),
@@ -142,5 +146,9 @@ def attach_decks(data: dict, segments: list[Path], root: Path | None = None) -> 
         ref_label = next((lb for lb in prev_by_label if lb != e["label"]), None) if e["label"] == "r2" else None
         if ref_label:
             ref = prev_by_label[ref_label]
-            e["deck_diff"] = {"vs": ref_label, "added": sorted((names - ref).elements()), "removed": sorted((ref - names).elements())}
+            e["deck_diff"] = {
+                "vs": ref_label,
+                "added": sorted((names - ref).elements()),
+                "removed": sorted((ref - names).elements()),
+            }
         prev_by_label.setdefault(e["label"], names)

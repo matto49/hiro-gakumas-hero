@@ -35,14 +35,14 @@ def test_import_supports_then_filter_by_rarity(run_cli):
 
 def test_import_memories_and_filter_by_timing(run_cli):
     run_cli("info", "import", "--kind", "memories", str(DATA / "memory-inventory.json"))
-    code, env = run_cli("info", "memories", "--timing", "start")
+    _code, env = run_cli("info", "memories", "--timing", "start")
     assert len(env["data"]["items"]) == 1
     assert env["data"]["complete"] is True
 
 
 def test_summary_counts_each_kind(run_cli):
     run_cli("info", "import", "--kind", "supports", str(DATA / "support-inventory.json"))
-    code, env = run_cli("info", "summary")
+    _code, env = run_cli("info", "summary")
     kinds = env["data"]["kinds"]
     assert kinds["supports"]["count"] == 4
     assert kinds["idols"]["count"] == 0 and kinds["idols"]["scanned_at"] is None
@@ -58,7 +58,7 @@ def test_import_keeps_the_scan_time_from_generated(run_cli):
 
 
 def test_listing_carries_counts_before_items(run_cli, capsys):
-    import json as _json
+    import json as _json  # noqa: F401
 
     from hiro.cli.main import main
 

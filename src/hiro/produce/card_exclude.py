@@ -12,15 +12,16 @@
 每一步存帧到 ops.CALIB_DIR。任何一步超时返回 ok=False 并写明卡在哪一步。所有等待按时间封顶。
 """
 
+import logging
 import time
 from collections.abc import Callable
 
-import numpy as np
-import logging
-from hiro.devices.active import device, sleep as _sleep
-
 from hiro.contracts import Action, ExecutionResult
+from hiro.devices.active import device
+from hiro.devices.active import sleep as _sleep
 from hiro.produce.ops import Run, button_sv, find_text, orange_lit, roi_diff
+
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,17 @@ def exclude_card(
     """除去第 pick_index 张候选。candidates：候选中心坐标（KAA fetch_cards 的 rect 中心），默认三张卡的固定位置。"""
     centers = list(candidates or CANDIDATES)
     act = action or Action.exclude_card(pick_index)
-    r = Run(act, PAGE, shoot or device.screenshot, click or device.click, clock, sleep, label="カード除去", ocr=ocr, calib=calib)
+    r = Run(
+        act,
+        PAGE,
+        shoot or device.screenshot,
+        click or device.click,
+        clock,
+        sleep,
+        label="カード除去",
+        ocr=ocr,
+        calib=calib,
+    )
     if not 0 <= pick_index < len(centers):
         return r.result(False, f"没有第 {pick_index} 张候选（共 {len(centers)} 张）")
     before = r.shoot()
@@ -98,10 +109,17 @@ def exclude_card(
     ok, img = r.until(done, DONE_TIMEOUT)
     r.snap(img, "after")
     if not ok:
-        return r.result(False, f"点「カード除去」后 {DONE_TIMEOUT:.0f}s 没看到「除去しました」也没回到三选一", page_after=None)
+        return r.result(
+            False, f"点「カード除去」后 {DONE_TIMEOUT:.0f}s 没看到「除去しました」也没回到三选一", page_after=None
+        )
     back = state.get("back", False)
     if not back:
         back, img = r.until(lambda im: find_text(r.ocr(im), SELECT_PROMPT) is not None, RETURN_TIMEOUT)
         r.snap(img, "returned" if back else "not-returned")
-    logger.info("カード除去：已除去第 %d 张候选（%.1fs，%s）", pick_index, r.clock() - r.t0, "已回到三选一" if back else "三选一还没回来")
+    logger.info(
+        "カード除去：已除去第 %d 张候选（%.1fs，%s）",
+        pick_index,
+        r.clock() - r.t0,
+        "已回到三选一" if back else "三选一还没回来",
+    )
     return r.result(True, page_after=PAGE if back else None)

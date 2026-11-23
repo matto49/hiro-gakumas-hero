@@ -14,7 +14,14 @@ from hiro.cli import registry
 from hiro.cli.registry import Arg, CliError, Risk, command
 
 # 各命令模块：import 时注册
-_MODULES: tuple[str, ...] = ("hiro.cli.cmd_info", "hiro.cli.catalog", "hiro.cli.cmd_run", "hiro.cli.secrets", "hiro.cli.cmd_doctor", "hiro.cli.cmd_plan")
+_MODULES: tuple[str, ...] = (
+    "hiro.cli.cmd_info",
+    "hiro.cli.catalog",
+    "hiro.cli.cmd_run",
+    "hiro.cli.secrets",
+    "hiro.cli.cmd_doctor",
+    "hiro.cli.cmd_plan",
+)
 
 
 def _load_all() -> None:
@@ -82,8 +89,11 @@ def run(argv: list[str]) -> tuple[int, dict]:
     except _ArgError as e:
         return 2, fail("bad_args", f"{cmd.name} 的参数不对：{e}", f"运行 hiro tools 查看 {cmd.name} 的参数")
     if os.environ.get("HIRO_AGENT_SANDBOX") and (cmd.risk is Risk.ACT or cmd.name in AGENT_READONLY_DENY):
-        return 1, fail("agent_readonly", f"程序内置的对话模式只能查信息，不能运行 hiro {cmd.name}",
-                       "要开局或扫描时，在回答里单独写一行 HIRO_ACTION: run start <参数>，程序会给玩家出确认卡")
+        return 1, fail(
+            "agent_readonly",
+            f"程序内置的对话模式只能查信息，不能运行 hiro {cmd.name}",
+            "要开局或扫描时，在回答里单独写一行 HIRO_ACTION: run start <参数>，程序会给玩家出确认卡",
+        )
     if cmd.risk is Risk.ACT and cmd.precheck:
         try:
             cmd.precheck(args)
@@ -94,10 +104,13 @@ def run(argv: list[str]) -> tuple[int, dict]:
 
         summary = cmd.confirm_summary(args) if cmd.confirm_summary else f"执行 hiro {cmd.name}"
         rec = pending.create(cmd.name, args, summary)
-        return PENDING_EXIT, {"ok": True, "data": {
-            "pending": {k: rec[k] for k in ("id", "command", "summary", "expires_at")},
-            "message": f"需要用户确认：{summary}。用户同意后运行 hiro confirm {rec['id']}；不要自己确认。",
-        }}
+        return PENDING_EXIT, {
+            "ok": True,
+            "data": {
+                "pending": {k: rec[k] for k in ("id", "command", "summary", "expires_at")},
+                "message": f"需要用户确认：{summary}。用户同意后运行 hiro confirm {rec['id']}；不要自己确认。",
+            },
+        }
     return _execute(cmd, args)
 
 
@@ -120,8 +133,13 @@ def _tools(args: dict) -> dict:
     return {"tools": [c.describe() for c in registry.COMMANDS.values()]}
 
 
-@command("confirm", Risk.READ, "用户同意后执行一条待确认的命令（只能由用户发起，agent 不要调用）。",
-         args=(Arg("id", "待确认编号"),), agent=False)
+@command(
+    "confirm",
+    Risk.READ,
+    "用户同意后执行一条待确认的命令（只能由用户发起，agent 不要调用）。",
+    args=(Arg("id", "待确认编号"),),
+    agent=False,
+)
 def _confirm(a: dict) -> dict:
     from hiro.cli import pending
 

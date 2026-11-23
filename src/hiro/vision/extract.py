@@ -4,21 +4,21 @@
 import re
 import time
 
-from cv2.typing import MatLike
-
 from hiro.perception.lesson import read_lesson
 from hiro.vision.action import read_action_select
 from hiro.vision.cards import card_summary, dialog_card_upgraded
 from hiro.vision.deck import read_card_dialog, read_confirm_dialog, read_deck_list
 from hiro.vision.drinks import read_drink_dialog
 from hiro.vision.event import read_event_choice_page, read_event_choices
-from hiro.vision.items import read_pdrink_max
-from hiro.vision.pages import page_fields
 from hiro.vision.hif import read_hif_exam, read_hif_result
+from hiro.vision.items import read_pdrink_max
 from hiro.vision.ocr import ocr
+from hiro.vision.pages import page_fields
 from hiro.vision.pitem_select import read_pitem_select
 from hiro.vision.shop import read_consult
 from hiro.vision.support import read_supports
+
+from cv2.typing import MatLike
 
 
 def _lesson(img: MatLike) -> dict:
@@ -40,7 +40,9 @@ def _dialog_counter(img: MatLike, box, button: tuple | None = None) -> int | Non
     crop = img[y1:y2, x1:x2]
     # 默认放大读不出数字时换 1 / 2 倍再读（RapidOCR 3 倍下「あと1回」→「あと回」，q6-00040）
     for scale in (None, 1, 2):
-        m = re.search(r"あと\s*(\d+)\s*回", "".join(t for t, _ in (ocr(crop) if scale is None else ocr(crop, scale=scale))))
+        m = re.search(
+            r"あと\s*(\d+)\s*回", "".join(t for t, _ in (ocr(crop) if scale is None else ocr(crop, scale=scale)))
+        )
         if m:
             return int(m.group(1))
     if button is not None:
@@ -119,7 +121,11 @@ def _enhance_dialog(img: MatLike) -> dict:
     """强化：卡格区域与删卡页不同（KAA 参考图 screenshot_skill_card_enhance_dialog*.png，12 格都在 ENHANCE_GRID 内）。"""
     from hiro.vision.ocr import ocr
 
-    out = {**read_card_dialog(img, ENHANCE_GRID), "confirm": read_confirm_dialog(img), "cancelable": dialog_cancelable(img)}
+    out = {
+        **read_card_dialog(img, ENHANCE_GRID),
+        "confirm": read_confirm_dialog(img),
+        "cancelable": dialog_cancelable(img),
+    }
     # 下方「强化后」详情框：选了满级的卡显示「強化できません」，底部提示「これ以上強化不可能なスキルカードです」（main10 相談強化）
     x1, y1, x2, y2 = ENHANCE_RESULT_BOX
     text = "".join(t for t, _ in ocr(img[y1:y2, x1:x2], scale=2)).replace(" ", "")
@@ -152,14 +158,34 @@ EXTRACTORS = {
     "DECK_LIST": read_deck_list,
     "SKILL_CARD_REMOVAL": _removal_dialog,
     "SKILL_CARD_ENHANCE": _enhance_dialog,
-    "SKILL_CARD_CHANGE_1": lambda img: __import__("hiro.vision.deck", fromlist=["read_change_candidates"]).read_change_candidates(img),
+    "SKILL_CARD_CHANGE_1": lambda img: __import__(
+        "hiro.vision.deck", fromlist=["read_change_candidates"]
+    ).read_change_candidates(img),
     "SKILL_CARD_CHANGE_2": _card_dialog,
-    "SPECIAL_GUIDANCE": lambda img: __import__("hiro.vision.pages", fromlist=["page_fields"]).page_fields("SPECIAL_GUIDANCE", img),
+    "SPECIAL_GUIDANCE": lambda img: __import__("hiro.vision.pages", fromlist=["page_fields"]).page_fields(
+        "SPECIAL_GUIDANCE", img
+    ),
     "HIF_ROUND_INTERVAL": lambda img: __import__("hiro.vision.pages", fromlist=["read_interval"]).read_interval(img),
     "PDRINK_MAX": lambda img: read_pdrink_max(img) or {"error": "没有读到「手持ちのドリンク」"},
-    **{page: (lambda img, page=page: page_fields(page, img))
-       for page in ("DIALOG", "ACQUIRE", "STAR_GAIN", "HIF_EXAM_BRIEFING", "PITEM_CUSTOMIZE", "PITEM_CUSTOMIZE_DONE",
-                    "MENU", "UPGRADE_RESULT", "TRANSITION", "GIFT", "PRODUCE_LOG", "CUSTOMIZE_RESULT", "HIF_FINALS_RANKING", "HIF_FINALS_START")},
+    **{
+        page: (lambda img, page=page: page_fields(page, img))
+        for page in (
+            "DIALOG",
+            "ACQUIRE",
+            "STAR_GAIN",
+            "HIF_EXAM_BRIEFING",
+            "PITEM_CUSTOMIZE",
+            "PITEM_CUSTOMIZE_DONE",
+            "MENU",
+            "UPGRADE_RESULT",
+            "TRANSITION",
+            "GIFT",
+            "PRODUCE_LOG",
+            "CUSTOMIZE_RESULT",
+            "HIF_FINALS_RANKING",
+            "HIF_FINALS_START",
+        )
+    },
 }
 
 

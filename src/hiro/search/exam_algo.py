@@ -67,7 +67,9 @@ class ExamGnrpa(TowerGnrpa):
             pm = self.lo.get("score_bonus_permils") or ()
             vals = [pm.get(k, pm.get(str(k))) for k in (1, 2, 3)] if isinstance(pm, dict) else list(pm)
             if len(vals) != 3 or not all(int(v or 0) > 0 for v in vals):
-                raise ExamUnsupported(f"三属性倍率读不全（{pm}）：引擎会以为出牌不加分，不搜")  # 初第二局中間（协调 11-18）
+                raise ExamUnsupported(
+                    f"三属性倍率读不全（{pm}）：引擎会以为出牌不加分，不搜"
+                )  # 初第二局中間（协调 11-18）
         # bench 裁判（GKMS）给的对手区间没算对手分增减（AuditionNpcEnhancePermil），按 P 道具推的千分比缩放（客户端算法）
         permil = loadout_npc_permil(self.lo)
         rivals = [
@@ -129,7 +131,11 @@ class ExamGnrpa(TowerGnrpa):
         没做「比 uinet 的终局分预测」：uinet 在初 / N.I.A 上的预测量级不可信（初中間预测 1.5–3 万、实际 900；课程预测 7.9 万、满分 80）。"""
         obs = ctx.obs
         self._update_lesson(getattr(ctx, "loadout", None))
-        self._known_types = (getattr(ctx, "loadout", None) or {}).get("turn_types") if isinstance(getattr(ctx, "loadout", None), dict) else None
+        self._known_types = (
+            (getattr(ctx, "loadout", None) or {}).get("turn_types")
+            if isinstance(getattr(ctx, "loadout", None), dict)
+            else None
+        )
         score = int((obs.get("num") or {}).get("score") or 0)
         c = getattr(self, "calib", None)
         if c is not None and not (getattr(self, "lo", None) or {}).get("lesson"):
@@ -147,13 +153,17 @@ class ExamGnrpa(TowerGnrpa):
                 hi = c["pred"] / act
                 lo = (c["pred"] - c.get("last", 0)) / act
                 if hi < CALIB_LOW or lo > CALIB_HIGH:
-                    raise SearchDistrust(f"引擎算的加分和画面差太多：{c['n']} 步累计引擎 {c['pred']}、画面 {act}（比值 {lo:.2f}–{hi:.2f}）")
+                    raise SearchDistrust(
+                        f"引擎算的加分和画面差太多：{c['n']} 步累计引擎 {c['pred']}、画面 {act}（比值 {lo:.2f}–{hi:.2f}）"
+                    )
         d = self._decide_held(ctx)
         q = (d.meta or {}).get("score_quantiles") or {}
         if q.get("50%") is not None and int(q["50%"]) <= 0:
             raise SearchDistrust(f"终局分预测 {q['50%']}，不信它", whole_round=False)
         if c is not None:
-            c["last"] = max(0, int(self.rx.score) - score)  # 这个动作在引擎里的加分（引擎已执行；没生效时 undo_last 减掉）
+            c["last"] = max(
+                0, int(self.rx.score) - score
+            )  # 这个动作在引擎里的加分（引擎已执行；没生效时 undo_last 减掉）
             c["pred"] += c["last"]
         return d
 

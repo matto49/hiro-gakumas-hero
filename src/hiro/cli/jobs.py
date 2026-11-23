@@ -88,7 +88,16 @@ while i < n:
 
 
 def _hif_argv(p: dict, d: Path) -> list[str]:
-    argv = [_PY, "-m", "hiro.run_hif", p.get("command") or "new", "--mode", p.get("mode") or "qualify", "--trace", d.name]
+    argv = [
+        _PY,
+        "-m",
+        "hiro.run_hif",
+        p.get("command") or "new",
+        "--mode",
+        p.get("mode") or "qualify",
+        "--trace",
+        d.name,
+    ]
     if p.get("idol"):
         argv += ["--idol", p["idol"]]
     if p.get("main_attr"):
@@ -100,8 +109,14 @@ def _hif_argv(p: dict, d: Path) -> list[str]:
 
 DAILY_ITEMS = ("activity_funds", "presents", "assignment", "contest", "mission_reward", "club_reward")
 DAILY_OWN = ("activity_funds", "presents", "mission_reward", "club_reward")  # 已迁到 hiro.daily 的（不经 KAA）
-DAILY_LABEL = {"activity_funds": "活動費", "presents": "礼物", "assignment": "工作", "contest": "竞赛",
-               "mission_reward": "任务奖励", "club_reward": "社团"}
+DAILY_LABEL = {
+    "activity_funds": "活動費",
+    "presents": "礼物",
+    "assignment": "工作",
+    "contest": "竞赛",
+    "mission_reward": "任务奖励",
+    "club_reward": "社团",
+}
 HAJIME_LEVELS = ("regular", "pro", "master")
 NIA_LEVELS = ("pro", "master")
 
@@ -125,9 +140,25 @@ def _produce_argv(module: str, default_level: str):
     """初（hiro.runtime.hajime）/ N.I.A（hiro.runtime.nia_sample）：新主循环，编成号走参数，存帧放任务目录。"""
 
     def build(p: dict, d: Path) -> list[str]:
-        argv = [_PY, "-m", module, p.get("command") or "new", "--idol", p.get("idol") or "",
-                "--difficulty", p.get("difficulty") or default_level, "--trace", d.name, "--out", str(d / "frames")]
-        for key, flag in (("main_attr", "--main-attr"), ("support_set", "--support-set"), ("memory_set", "--memory-set")):
+        argv = [
+            _PY,
+            "-m",
+            module,
+            p.get("command") or "new",
+            "--idol",
+            p.get("idol") or "",
+            "--difficulty",
+            p.get("difficulty") or default_level,
+            "--trace",
+            d.name,
+            "--out",
+            str(d / "frames"),
+        ]
+        for key, flag in (
+            ("main_attr", "--main-attr"),
+            ("support_set", "--support-set"),
+            ("memory_set", "--memory-set"),
+        ):
             if p.get(key):
                 argv += [flag, str(p[key])]
         if p.get("no_llm"):
@@ -172,43 +203,133 @@ def _hif_summary(p: dict) -> str:
 
 
 KINDS: dict[str, Kind] = {
-    "selftest": Kind("selftest", "自检：只打印几行，不碰游戏", lambda p, d: [_PY, "-c", _SELFTEST, str(p.get("seconds") or 1), d.name],
-                     lambda p: "跑一次自检（不碰游戏）"),
+    "selftest": Kind(
+        "selftest",
+        "自检：只打印几行，不碰游戏",
+        lambda p, d: [_PY, "-c", _SELFTEST, str(p.get("seconds") or 1), d.name],
+        lambda p: "跑一次自检（不碰游戏）",
+    ),
     "hif": Kind("hif", "H.I.F 培育：选拔 / 本战 / 续跑", _hif_argv, _hif_summary, env={"HIRO_RUNTIME": "own"}),
-    "tower": Kind("tower", "偶像之路：按偶像路线往上爬",
-                  lambda p, d: [_PY, "-m", "hiro.runtime.tower_play", "--idol-name", p.get("idol") or "",
-                                "--layers", str(p.get("layers") or 1), "--trace", d.name]
-                  + (["--no-llm"] if p.get("no_llm") else []),
-                  lambda p: f"爬偶像之路（{p.get('idol') or '?'}，{p.get('layers') or 1} 层）", env={"HIRO_RUNTIME": "own"}),
-    "hajime": Kind("hajime", "「初」培育（レギュラー / プロ / マスター）", _produce_argv("hiro.runtime.hajime", "regular"),
-                   _produce_summary("「初」", "regular"), env={"HIRO_RUNTIME": "own"}),
-    "nia": Kind("nia", "N.I.A 培育（プロ / マスター；认不出的页会停下交给你）", _produce_argv("hiro.runtime.nia_sample", "pro"),
-                _produce_summary(" N.I.A", "pro"), env={"HIRO_RUNTIME": "own"}),
-    "daily": Kind("daily", "日常：活動費、礼物、工作、竞赛、任务奖励、社团（可只选几项）", _daily_argv, _daily_summary, pausable=False),
-    "write-formation": Kind("write-formation", "把开局编成方案写进游戏的编成位，写完回读核对（--dry-run 只报差在哪几格，不改）",
-                            _write_formation_argv, _write_formation_summary, pausable=False),
-    "check-settings": Kind("check-settings", "检查游戏设置里快进 / 跳过演出那几项开没开（只读：打开菜单看完回首页，不点开关）",
-                           lambda p, d: [_PY, str(REPO / "tools" / "check_settings.py"), "--json", str(d / "out.json")],
-                           lambda p: "检查游戏设置（只读，不改开关）", output="game_settings", pausable=False),
-    "fit-window": Kind("fit-window", "Windows DMM：把游戏窗口调成适合识别的大小（9:16，按显示器自适应）",
-                       lambda p, d: [_PY, "-m", "hiro.devices.win_window", "fit"],
-                       lambda p: "调整 DMM 游戏窗口大小", pausable=False),
-    "scan-account": Kind("scan-account", "读首页顶栏的 PLv、AP、ジュエル（只截一张图，不点）",
-                         lambda p, d: [_PY, "-m", HOME_READER, "--live", "--out", str(d / "out.json")],
-                         lambda p: "读首页的 PLv / AP / ジュエル（只截图，不点）", output="account", pausable=False),
-    "scan-idols": Kind("scan-idols", "扫描偶像卡（只读：偶像一览里逐张点开读卡名，最后点「<<」退出，不点決定）",
-                       lambda p, d: [_PY, "-m", "hiro.produce.idol_scan", "--out", str(d / "out.json")],
-                       lambda p: "扫描偶像卡（只读，不改选中的偶像）", output="idols", pausable=False),
-    "scan-supports": Kind("scan-supports", "扫描支援卡（只读：在「選択」列表里滚动，最后点キャンセル）",
-                          lambda p, d: [_PY, str(REPO / "tools" / "support_inventory.py"), "--list", "--from-home", "--out", str(d / "out.json")],
-                          lambda p: "扫描支援卡库存（只读，不改编成）", output="supports", pausable=False),
-    "scan-memories": Kind("scan-memories", "扫描回忆（只读：在「メモリー選択」里逐格读）",
-                          lambda p, d: [_PY, "-m", "hiro.memory_scan", "scan", "--from-home", "--out", str(d / "out.json")],
-                          lambda p: "扫描回忆库存（只读，不改编成）", output="memories", pausable=False),
-    "scan-formations": Kind("scan-formations", "读编成位现状（只读：编成菜单里翻 1–20 号、读图，不点格子）",
-                            lambda p, d: [_PY, "-m", "hiro.produce.formation_survey", "--mode", p.get("scenario") or "hif", "--out", str(d / "out.json")],
-                            lambda p: f"读 {({'hif': 'H.I.F', 'hajime': '初', 'nia': 'N.I.A'}).get(p.get('scenario') or 'hif')} 的编成位现状（只读，不改编成）",
-                            output="formations", pausable=False),
+    "tower": Kind(
+        "tower",
+        "偶像之路：按偶像路线往上爬",
+        lambda p, d: (
+            [
+                _PY,
+                "-m",
+                "hiro.runtime.tower_play",
+                "--idol-name",
+                p.get("idol") or "",
+                "--layers",
+                str(p.get("layers") or 1),
+                "--trace",
+                d.name,
+            ]
+            + (["--no-llm"] if p.get("no_llm") else [])
+        ),
+        lambda p: f"爬偶像之路（{p.get('idol') or '?'}，{p.get('layers') or 1} 层）",
+        env={"HIRO_RUNTIME": "own"},
+    ),
+    "hajime": Kind(
+        "hajime",
+        "「初」培育（レギュラー / プロ / マスター）",
+        _produce_argv("hiro.runtime.hajime", "regular"),
+        _produce_summary("「初」", "regular"),
+        env={"HIRO_RUNTIME": "own"},
+    ),
+    "nia": Kind(
+        "nia",
+        "N.I.A 培育（プロ / マスター；认不出的页会停下交给你）",
+        _produce_argv("hiro.runtime.nia_sample", "pro"),
+        _produce_summary(" N.I.A", "pro"),
+        env={"HIRO_RUNTIME": "own"},
+    ),
+    "daily": Kind(
+        "daily",
+        "日常：活動費、礼物、工作、竞赛、任务奖励、社团（可只选几项）",
+        _daily_argv,
+        _daily_summary,
+        pausable=False,
+    ),
+    "write-formation": Kind(
+        "write-formation",
+        "把开局编成方案写进游戏的编成位，写完回读核对（--dry-run 只报差在哪几格，不改）",
+        _write_formation_argv,
+        _write_formation_summary,
+        pausable=False,
+    ),
+    "check-settings": Kind(
+        "check-settings",
+        "检查游戏设置里快进 / 跳过演出那几项开没开（只读：打开菜单看完回首页，不点开关）",
+        lambda p, d: [_PY, str(REPO / "tools" / "check_settings.py"), "--json", str(d / "out.json")],
+        lambda p: "检查游戏设置（只读，不改开关）",
+        output="game_settings",
+        pausable=False,
+    ),
+    "fit-window": Kind(
+        "fit-window",
+        "Windows DMM：把游戏窗口调成适合识别的大小（9:16，按显示器自适应）",
+        lambda p, d: [_PY, "-m", "hiro.devices.win_window", "fit"],
+        lambda p: "调整 DMM 游戏窗口大小",
+        pausable=False,
+    ),
+    "scan-account": Kind(
+        "scan-account",
+        "读首页顶栏的 PLv、AP、ジュエル（只截一张图，不点）",
+        lambda p, d: [_PY, "-m", HOME_READER, "--live", "--out", str(d / "out.json")],
+        lambda p: "读首页的 PLv / AP / ジュエル（只截图，不点）",
+        output="account",
+        pausable=False,
+    ),
+    "scan-idols": Kind(
+        "scan-idols",
+        "扫描偶像卡（只读：偶像一览里逐张点开读卡名，最后点「<<」退出，不点決定）",
+        lambda p, d: [_PY, "-m", "hiro.produce.idol_scan", "--out", str(d / "out.json")],
+        lambda p: "扫描偶像卡（只读，不改选中的偶像）",
+        output="idols",
+        pausable=False,
+    ),
+    "scan-supports": Kind(
+        "scan-supports",
+        "扫描支援卡（只读：在「選択」列表里滚动，最后点キャンセル）",
+        lambda p, d: [
+            _PY,
+            str(REPO / "tools" / "support_inventory.py"),
+            "--list",
+            "--from-home",
+            "--out",
+            str(d / "out.json"),
+        ],
+        lambda p: "扫描支援卡库存（只读，不改编成）",
+        output="supports",
+        pausable=False,
+    ),
+    "scan-memories": Kind(
+        "scan-memories",
+        "扫描回忆（只读：在「メモリー選択」里逐格读）",
+        lambda p, d: [_PY, "-m", "hiro.memory_scan", "scan", "--from-home", "--out", str(d / "out.json")],
+        lambda p: "扫描回忆库存（只读，不改编成）",
+        output="memories",
+        pausable=False,
+    ),
+    "scan-formations": Kind(
+        "scan-formations",
+        "读编成位现状（只读：编成菜单里翻 1–20 号、读图，不点格子）",
+        lambda p, d: [
+            _PY,
+            "-m",
+            "hiro.produce.formation_survey",
+            "--mode",
+            p.get("scenario") or "hif",
+            "--out",
+            str(d / "out.json"),
+        ],
+        lambda p: (
+            f"读 {({'hif': 'H.I.F', 'hajime': '初', 'nia': 'N.I.A'}).get(p.get('scenario') or 'hif')} 的编成位现状（只读，不改编成）"
+        ),
+        output="formations",
+        pausable=False,
+    ),
 }
 
 
@@ -219,8 +340,14 @@ def jobs_dir(home: Path) -> Path:
 
 
 class Job:
-    def __init__(self, home: Path, kind: Kind, params: dict, on_exit: Callable[["Job"], None] | None = None,
-                 llm_env: dict | None = None):
+    def __init__(
+        self,
+        home: Path,
+        kind: Kind,
+        params: dict,
+        on_exit: Callable[[Job], None] | None = None,
+        llm_env: dict | None = None,
+    ):
         self.id = time.strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2)
         llm = {k: str(v) for k, v in (llm_env or {}).items() if k in LLM_VARS and v}
         self._llm_off = llm.get("HIRO_LLM", "").lower() == "off"
@@ -263,10 +390,20 @@ class Job:
         return out
 
     def describe(self) -> dict:
-        return {"id": self.id, "kind": self.kind.name, "params": self.params, "state": self.state,
-                "summary": self.kind.summary(self.params), "started_at": self.started_at, "ended_at": self.ended_at,
-                "exit_code": self.exit_code, "pause_flag": str(self.flag), "dir": str(self.dir),
-                "pid": self.proc.pid if self.proc else None, "pausable": self.kind.pausable}
+        return {
+            "id": self.id,
+            "kind": self.kind.name,
+            "params": self.params,
+            "state": self.state,
+            "summary": self.kind.summary(self.params),
+            "started_at": self.started_at,
+            "ended_at": self.ended_at,
+            "exit_code": self.exit_code,
+            "pause_flag": str(self.flag),
+            "dir": str(self.dir),
+            "pid": self.proc.pid if self.proc else None,
+            "pausable": self.kind.pausable,
+        }
 
     def _save(self) -> None:
         (self.dir / "job.json").write_text(json.dumps(self.describe(), ensure_ascii=False), encoding="utf-8")
@@ -294,11 +431,23 @@ class Job:
         env = self.child_env()
         argv = self.kind.argv(self.params, self.dir)
         kw = {}
-        if sys.platform == "win32":  # 服务没有控制台；不加 CREATE_NO_WINDOW 会给每个任务弹一个黑窗口，用户一关这局就没了
+        if (
+            sys.platform == "win32"
+        ):  # 服务没有控制台；不加 CREATE_NO_WINDOW 会给每个任务弹一个黑窗口，用户一关这局就没了
             kw["creationflags"] = 0x00000200 | 0x08000000  # CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
         self.emit("start", self.kind.summary(self.params), kind=self.kind.name)
-        self.proc = subprocess.Popen(argv, cwd=self.work, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                                     stdin=subprocess.DEVNULL, text=True, encoding="utf-8", errors="replace", **kw)
+        self.proc = subprocess.Popen(
+            argv,
+            cwd=self.work,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            **kw,
+        )
         self._save()
         self._tail_pos = 0
         self._tail_lock = threading.Lock()

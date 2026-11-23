@@ -1,0 +1,37 @@
+# 自动提依赖升级 PR。每周一次，同一生态的小版本升级合成一个 PR，免得 PR 刷屏。
+# 不管 vendor/（上游代码的复制，跟着上游走）。
+version: 2
+updates:
+  - package-ecosystem: github-actions        # 工作流里钉的 actions（提交 SHA + 版本注释，两个一起改）
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: pip                   # pyproject.toml（dev 里钉死版本的 ruff / basedpyright 也会提）
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      pip-minor:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: bun                   # 初星助手桌面程序（app/package.json + bun.lockb）
+    directory: "/app"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      app-minor:
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: gomod                 # app/go.mod
+    directory: "/app"
+    schedule:
+      interval: weekly
+    groups:
+      app-go:
+        patterns: ["*"]

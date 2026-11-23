@@ -6,10 +6,10 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace as NS
 
+from hiro.state import modes
+
 import cv2
 import pytest
-
-from hiro.state import modes
 
 FIXP = Path(__file__).with_name("fixtures") / "pages"
 
@@ -54,9 +54,9 @@ def test_header_weeks_read(name, stage, weeks):
 
 def test_weeks_ro_read_as_3():
     """OCR 把「3週」读成「ろ週」（初 / N.I.A 帧都有）。"""
-    import numpy as np
-
     from hiro.vision.action import _weeks
+
+    import numpy as np
 
     assert _weeks("中間まで ろ週", np.zeros((1280, 720, 3), np.uint8)) == 3
     assert _weeks("2次まで 8週", np.zeros((1280, 720, 3), np.uint8)) == 8
@@ -65,7 +65,9 @@ def test_weeks_ro_read_as_3():
 def _obs(seq, fields):
     from hiro.contracts import Observation, PageObs
 
-    return Observation(seq=seq, t=0.0, page=PageObs(name="ACTION_SELECT", area="produce", stable_frames=3), fields=fields)
+    return Observation(
+        seq=seq, t=0.0, page=PageObs(name="ACTION_SELECT", area="produce", stable_frames=3), fields=fields
+    )
 
 
 def _reduce(mode, *obs_list):
@@ -120,7 +122,9 @@ def test_trace_name_resume_continues_latest_segment(tmp_path):
 
     from hiro.runtime.segments import trace_name
 
-    for i, n in enumerate(("hajime-20261117-190000", "hajime-20261117-202931", "hajime-20261117-202931-r1", "nia-20261117-230000")):
+    for i, n in enumerate(
+        ("hajime-20261117-190000", "hajime-20261117-202931", "hajime-20261117-202931-r1", "nia-20261117-230000")
+    ):
         (tmp_path / n).mkdir()
         t = time.time() - 100 + i
         os.utime(tmp_path / n, (t, t))
@@ -136,8 +140,17 @@ def test_resume_seeds_produce_from_previous_segment(tmp_path):
 
     prev = tmp_path / "hajime-20261117-202931"
     prev.mkdir()
-    prod = {"mode": "produce-001", "step": 9, "stamina": 18, "max_stamina": 30, "produce_point": 195, "params": {"Vo": 400, "Da": 450, "Vi": 300}}
-    (prev / "steps.jsonl").write_text(json.dumps({"seq": 40, "state": {"produce": prod, "mode": "produce"}}) + "\n", encoding="utf-8")
+    prod = {
+        "mode": "produce-001",
+        "step": 9,
+        "stamina": 18,
+        "max_stamina": 30,
+        "produce_point": 195,
+        "params": {"Vo": 400, "Da": 450, "Vi": 300},
+    }
+    (prev / "steps.jsonl").write_text(
+        json.dumps({"seq": 40, "state": {"produce": prod, "mode": "produce"}}) + "\n", encoding="utf-8"
+    )
     cur = tmp_path / trace_name("hajime", "resume", root=tmp_path)
     cur.mkdir()
     notes = []

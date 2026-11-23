@@ -67,7 +67,9 @@ class AssetSource(Protocol):
          "open_lesson_ids"?: [...], "exam_number"?: int}。
         **选行动页（ACTION_SELECT）离不开它**：返回 None 时决策器只能等待，整局会卡住，所以默认实现必须给出。"""
 
-    def support_effects(self, support_id: str, level: int, *, limit_rank: str | None = None, plan: str | None = None) -> list[dict[str, Any]] | None:
+    def support_effects(
+        self, support_id: str, level: int, *, limit_rank: str | None = None, plan: str | None = None
+    ) -> list[dict[str, Any]] | None:
         """支援卡技能：[{"effect_type", "value", "trigger_id", "limit"}]；None 时编成只按属性张数 / 等级排。
         limit_rank：突破段（None = 等级够得着的最低段）；plan：培育方案（ProducePlanType_*，None = 卡自己的方案）。
         老实现只接 (support_id, level) 也行：调用方先带这两个参数，不接受时退回两参数调用。"""
@@ -119,7 +121,11 @@ KINDS: dict[str, tuple[type, str, str]] = {
     # 种类 → (接口, 环境变量, 默认实现 "模块:类")
     "asset_source": (AssetSource, "HIRO_ASSET_SOURCE", "hiro.defaults.assets:PublicAssetSource"),
     "exam_state_source": (ExamStateSource, "HIRO_EXAM_STATE_SOURCE", "hiro.defaults.exam_state:ScreenExamStateSource"),
-    "exam_advisor": (ExamAdvisor, "HIRO_EXAM_ADVISOR", "hiro.search.advisor:SearchAdvisor"),  # 任务 ②：搜索不了退回 bench 中转层
+    "exam_advisor": (
+        ExamAdvisor,
+        "HIRO_EXAM_ADVISOR",
+        "hiro.search.advisor:SearchAdvisor",
+    ),  # 任务 ②：搜索不了退回 bench 中转层
 }
 _registered: dict[str, Callable[[], Any]] = {}
 _cache: dict[str, Any] = {}

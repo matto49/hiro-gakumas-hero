@@ -17,7 +17,12 @@ from functools import lru_cache
 import cv2
 import numpy as np
 
-PLACE_KINDS = (("自治体", "local"), ("企業", "corporate"), ("商業", "commercial"), ("ゾート", "resort"))  # 「リゾート施設」展开时 OCR 读成「ノゾート施談」
+PLACE_KINDS = (
+    ("自治体", "local"),
+    ("企業", "corporate"),
+    ("商業", "commercial"),
+    ("ゾート", "resort"),
+)  # 「リゾート施設」展开时 OCR 读成「ノゾート施談」
 ICON_ATTR_HUE = {"Vo": (155, 180), "Da": (95, 120), "Vi": (12, 35)}  # 话题按钮左侧圆形图标：粉 / 蓝 / 黄
 VOTES_BOX = (540, 120, 700, 170)  # 右上投票数（「4,680」，上面一行「9,000」是下一档目标）
 
@@ -43,13 +48,22 @@ def _num(s: str) -> int | None:
 CARD_X = 60  # 卡片左边缘那一列：按颜色切出每张卡
 CARD_Y = (380, 1180)
 CARD_MIN_H = 25
-CARD_HUE = (("local", 18, 32), ("corporate", 78, 96), ("commercial", 120, 150), ("resort", 45, 75))  # 黄 / 青绿 / 紫 / 绿
+CARD_HUE = (
+    ("local", 18, 32),
+    ("corporate", 78, 96),
+    ("commercial", 120, 150),
+    ("resort", 45, 75),
+)  # 黄 / 青绿 / 紫 / 绿
 EXPANDED_MIN_H = 300  # 展开的那张特别长（实机 411 / 480 px）；收起的最下面一张到画面底也有 233
 PILL_X = (480, 640)  # 「消費」药丸：卡片同色、亮度压到 95–175
 HEART_X = (425, 465)  # 药丸里的爱心图标（高亮）：有爱心 = 耗体力（实机 540+），「消費なし」没有（≤ 20）
 HEART_MIN = 200
 START_X = (380, 660)  # 「営業開始」橙色按钮
-REWARD_DX, REWARD_X0, REWARD_DY = 96, 112, -28  # 獲得報酬小图标：第一格中心 x 112、间距 96，在「営業開始」上方约 28 像素
+REWARD_DX, REWARD_X0, REWARD_DY = (
+    96,
+    112,
+    -28,
+)  # 獲得報酬小图标：第一格中心 x 112、间距 96，在「営業開始」上方约 28 像素
 # 有模板的：card（卡片带星，リゾート展开实机）/ card_plus（卡片右上带「+」，商業展开实机）/ stamina（心）。
 # 两种卡图标的含义（技能卡获得 / 强化…）交给决策层按攻略对；P 点、饮料还没有样本，认不出记 unknown
 REWARD_KINDS = ("card", "card_plus", "stamina")
@@ -77,7 +91,11 @@ def _card_segments(hsv) -> list[tuple[str, int, int]]:
 def _pill_rows(hsv, a: int, b: int) -> tuple[int, int] | None:
     band = hsv[:, PILL_X[0] : PILL_X[1]]
     # 「消費なし」的白字会把药丸中间几行切断：取窗口里所有符合的行，首尾当药丸上下沿（只看卡片头部 160 行）
-    rows = [y for y in range(a, min(b, a + 160)) if ((band[y, :, 2] >= 95) & (band[y, :, 2] <= 175) & (band[y, :, 1] >= 100)).mean() > 0.7]
+    rows = [
+        y
+        for y in range(a, min(b, a + 160))
+        if ((band[y, :, 2] >= 95) & (band[y, :, 2] <= 175) & (band[y, :, 1] >= 100)).mean() > 0.7
+    ]
     groups: list[list[int]] = []
     for y in rows:  # 允许中间断几行（白字），卡片上沿的零星几行、下面「大成功ボーナス」压暗块分开算
         if groups and y - groups[-1][-1] <= 8:
@@ -147,7 +165,9 @@ def read_rewards(img, start: tuple[int, int]) -> list[str]:
                 g = _glyph(img, cx + dx, cy + dy)
                 for name, t in _reward_templates().items():
                     sc = float((g & t).sum() / max(1, (g | t).sum()))
-                    if sc > best[0]:  # 只比分数：打平（例如都是 0）时元组会去比名字和 None 抛 TypeError（同 _icon_attr，N.I.A 第二局 11-18 停机）
+                    if (
+                        sc > best[0]
+                    ):  # 只比分数：打平（例如都是 0）时元组会去比名字和 None 抛 TypeError（同 _icon_attr，N.I.A 第二局 11-18 停机）
                         best = (sc, name)
         out.append(best[1] if best[0] >= 0.5 else "unknown")
     return out
@@ -174,7 +194,14 @@ def read_sales_place(texts, img=None) -> dict | None:
         cost = cost_type = cost_num = p_cost = None
         if pill is not None:
             heart = _has_heart(hsv, *pill)
-            num = next((_num(s) for s, x, y in tx if x > 480 and pill[0] - 10 <= y <= pill[1] + 10 and re.fullmatch(r"-?\d{1,3}", s)), None)
+            num = next(
+                (
+                    _num(s)
+                    for s, x, y in tx
+                    if x > 480 and pill[0] - 10 <= y <= pill[1] + 10 and re.fullmatch(r"-?\d{1,3}", s)
+                ),
+                None,
+            )
             cost_type = _cost_icon(hsv, *pill) if heart else None
             if not heart:  # 「消費なし」
                 cost = p_cost = cost_num = 0
@@ -184,7 +211,9 @@ def read_sales_place(texts, img=None) -> dict | None:
                 cost, p_cost, cost_num = 0, num, num
             else:
                 cost_num = num  # 有图标但认不出是体力还是 P 点：只给数值，hp_cost / p_cost 留空
-        name = next((s for s, x, y in tx if x < 360 and a <= y <= a + 60 and ("会場" in s or "施" in s or "ゾート" in s)), None)
+        name = next(
+            (s for s, x, y in tx if x < 360 and a <= y <= a + 60 and ("会場" in s or "施" in s or "ゾート" in s)), None
+        )
         gain = next((_num(s) for s, x, y in tx if s.startswith("+") and x < 360 and a + 30 <= y <= a + 110), None)
         places.append({"index": i, "kind": kind, "name": name, "gain": gain, "hp_cost": cost, "p_cost": p_cost, "cost_type": cost_type,
                        "cost": cost_num, "center": [360, a + 70]})  # fmt: skip
@@ -204,10 +233,24 @@ def _great_success(tx, a: int, b: int) -> dict:
     if label is None:
         return {}
     out = {}
-    pct = next((int(m.group(1)) for s, x, y in tx if 200 <= x <= 380 and label[1] - 10 <= y <= label[1] + 80 and (m := re.search(r"(\d{1,3})\s*[%％]", s))), None)
+    pct = next(
+        (
+            int(m.group(1))
+            for s, x, y in tx
+            if 200 <= x <= 380 and label[1] - 10 <= y <= label[1] + 80 and (m := re.search(r"(\d{1,3})\s*[%％]", s))
+        ),
+        None,
+    )
     if pct is not None and 0 <= pct <= 100:
         out["great_success_pct"] = pct
-    votes = next((_num(s) for s, x, y in tx if x < 250 and label[1] + 20 <= y <= label[1] + 80 and re.fullmatch(r"\+[\d,]+", s.replace(" ", ""))), None)
+    votes = next(
+        (
+            _num(s)
+            for s, x, y in tx
+            if x < 250 and label[1] + 20 <= y <= label[1] + 80 and re.fullmatch(r"\+[\d,]+", s.replace(" ", ""))
+        ),
+        None,
+    )
     if votes is not None:
         out["great_success_votes"] = votes
     return out
@@ -228,7 +271,14 @@ def _read_sales_place_text(tx) -> dict | None:
     places = []
     for i, (y, kind, name) in enumerate(titles):
         gain = next((_num(s) for s, x, yy in tx if s.startswith("+") and 20 <= yy - y <= 80 and x < 360), None)
-        cost_txt = next((s for s, x, yy in tx if x > 420 and 20 <= yy - y <= 90 and ("消費なし" in s or re.fullmatch(r"-?\d{1,2}", s))), None)
+        cost_txt = next(
+            (
+                s
+                for s, x, yy in tx
+                if x > 420 and 20 <= yy - y <= 90 and ("消費なし" in s or re.fullmatch(r"-?\d{1,2}", s))
+            ),
+            None,
+        )
         hp = 0 if cost_txt and "なし" in cost_txt else (_num(cost_txt) if cost_txt else None)
         places.append({"index": i, "kind": kind, "name": name, "gain": gain, "hp_cost": hp, "center": [360, y + 40]})
     out = {"places": places, "expanded": start is not None}
@@ -269,7 +319,9 @@ def _icon_attr(img, y: int) -> str | None:
             for a, t in _topic_templates().items():
                 if m.shape == t.shape:
                     s = float((m & t).sum() / max(1, (m | t).sum()))
-                    if s > best[0]:  # 只比分数：分数打平（例如都是 0）时元组会去比属性名和 None，抛 TypeError（N.I.A 第二局 11-18 停机）
+                    if (
+                        s > best[0]
+                    ):  # 只比分数：分数打平（例如都是 0）时元组会去比属性名和 None，抛 TypeError（N.I.A 第二局 11-18 停机）
                         best = (s, a)
     if best[0] >= 0.45:
         return best[1]
@@ -288,13 +340,21 @@ def read_sales_event(texts, img=None) -> dict | None:
     tx = _t(texts)
     if not any(s == "営業" and x < 180 and y < 140 for s, x, y in tx):
         return None
-    opts = sorted((y, s, x) for s, x, y in tx if 600 <= y <= 960 and 90 <= x <= 470 and len(s) >= 3 and not re.fullmatch(r"[\d/,.%+-]+", s))
+    opts = sorted(
+        (y, s, x)
+        for s, x, y in tx
+        if 600 <= y <= 960 and 90 <= x <= 470 and len(s) >= 3 and not re.fullmatch(r"[\d/,.%+-]+", s)
+    )
     if len(opts) < 2:
         return None
-    choices = [{"index": i, "text": s, "attr": _icon_attr(img, y), "center": [360, y]} for i, (y, s, x) in enumerate(opts)]
+    choices = [
+        {"index": i, "text": s, "attr": _icon_attr(img, y), "center": [360, y]} for i, (y, s, x) in enumerate(opts)
+    ]
     for c in choices:
         if c["attr"] is None:  # 图标认不出时按文字（「ボーカル / ダンス / ビジュアル」）
-            c["attr"] = next((a for w, a in (("ボーカル", "Vo"), ("ダンス", "Da"), ("ビジュアル", "Vi")) if w in c["text"]), None)
+            c["attr"] = next(
+                (a for w, a in (("ボーカル", "Vo"), ("ダンス", "Da"), ("ビジュアル", "Vi")) if w in c["text"]), None
+            )
     return {"choices": choices}
 
 
@@ -304,7 +364,11 @@ def read_votes(img) -> int | None:
     from hiro.vision.ocr import screen_texts
 
     x1, y1, x2, y2 = VOTES_BOX
-    nums = [_num(t.text) for t in screen_texts(img, (x1, y1, x2 - x1, y2 - y1)) if re.fullmatch(r"[\d,]+", t.text.replace(" ", ""))]
+    nums = [
+        _num(t.text)
+        for t in screen_texts(img, (x1, y1, x2 - x1, y2 - y1))
+        if re.fullmatch(r"[\d,]+", t.text.replace(" ", ""))
+    ]
     return next((n for n in nums if n is not None), None)
 
 
@@ -381,7 +445,10 @@ def read_briefing(texts, img=None) -> dict | None:
     if not (any("審査基準" in s for s, _, _ in tx) and any("合格条件" in s for s, _, _ in tx)):
         return None
     # 「タップして次へ」压在亮色衣装上时 OCR 只读出半截（初 PRO ことね 11-19：「プして次へ」），读到「次へ」就算
-    tap = next(((x, y) for s, x, y in tx if ("タップして次へ" in s or "して次へ" in s or s.endswith("次へ")) and y > 1100), None)
+    tap = next(
+        ((x, y) for s, x, y in tx if ("タップして次へ" in s or "して次へ" in s or s.endswith("次へ")) and y > 1100),
+        None,
+    )
     if tap is None or img is None:
         return None  # 倍率还在跳（ボーナス演出）：没有「タップして次へ」先不认
     from hiro.vision.pages import read_exam_briefing
@@ -406,4 +473,4 @@ def read_nia_page(texts, img=None) -> tuple[str, dict] | None:
     return None
 
 
-__all__ = ["read_nia_page", "read_sales_place", "read_sales_event", "read_audition_select", "read_votes"]
+__all__ = ["read_audition_select", "read_nia_page", "read_sales_event", "read_sales_place", "read_votes"]

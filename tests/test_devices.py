@@ -7,14 +7,14 @@ import sys
 import threading
 from enum import IntEnum
 
-import numpy as np
-import pytest
-
 from hiro.devices import Device, DeviceGone, DeviceUnavailable, open_device
 from hiro.devices.adb import AdbDevice, focus_package, parse_screencap
 from hiro.devices.base import LogicalScreen, check_aspect, logical_size
 from hiro.devices.maafw_win32 import MaaFwWin32Device
 from hiro.devices.maatools import MaaToolsDevice, MaaToolsImpl
+
+import numpy as np
+import pytest
 
 
 def bgr(w, h, value=128):
@@ -223,7 +223,7 @@ class S(IntEnum):
     FramePool = 2
 
 
-class I(IntEnum):
+class I(IntEnum):  # noqa: E742
     Null = 0
     SendMessageWithWindowPos = 64
 
@@ -328,7 +328,7 @@ def test_maafw_device_retries_while_window_resizes(tmp_path, monkeypatch):
     monkeypatch.setenv("HIRO_MAAFW_LOG", str(tmp_path))
     monkeypatch.setattr(base.time, "sleep", lambda s: None)
     frames = iter([bgr(541, 961), bgr(540, 572), bgr(540, 572), bgr(961, 541)])
-    api, st = fake_maa(image=None)
+    api, _st = fake_maa(image=None)
     dev = MaaFwWin32Device(api=api)
     monkeypatch.setattr(dev, "_grab", lambda: next(frames))
     assert dev.screenshot().shape == (1280, 720, 3)
@@ -502,7 +502,11 @@ def test_settled_frame_shared_by_all_devices():
     frames = iter([bgr(540, 572), bgr(540, 572), bgr(961, 541)])
     out = settled_frame(lambda: next(frames), LogicalScreen(), sleep=sleep, clock=lambda: t["now"])
     assert out.shape == (720, 1280, 3) and len(slept) == 2
-    assert settled_frame(lambda: bgr(541, 961), LogicalScreen(), sleep=sleep, clock=lambda: t["now"]).shape == (1280, 720, 3)
+    assert settled_frame(lambda: bgr(541, 961), LogicalScreen(), sleep=sleep, clock=lambda: t["now"]).shape == (
+        1280,
+        720,
+        3,
+    )
     with pytest.raises(DeviceUnavailable):
         settled_frame(lambda: bgr(540, 572), LogicalScreen(), settle_s=1.0, sleep=sleep, clock=lambda: t["now"])
 

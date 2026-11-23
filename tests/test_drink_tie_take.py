@@ -2,14 +2,21 @@
 饮料三选一（SELECT_DRINK）；相談买饮料要花 P，不变。
 DMM qualifyz1 17:16 那次（新来 おしゃれハーブティー：好印象兑现，広的打法里是 4 档）不是打平，照旧不收。"""
 
-import pytest
-
 from hiro.brain import drinks as dk
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import GameState
 
-BOOST, RECOVERY, OOLONG, SENBURI, HERB, PARAM = "pdrink_00-2-008", "pdrink_00-2-003", "pdrink_00-1-004", "pdrink_00-2-010", "pdrink_02-2-006", "pdrink_00-1-001"
+import pytest
+
+BOOST, RECOVERY, OOLONG, SENBURI, HERB, PARAM = (
+    "pdrink_00-2-008",
+    "pdrink_00-2-003",
+    "pdrink_00-1-004",
+    "pdrink_00-2-010",
+    "pdrink_02-2-006",
+    "pdrink_00-1-001",
+)
 
 
 def _overflow(held_ids, incoming):

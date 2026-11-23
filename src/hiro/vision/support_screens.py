@@ -18,13 +18,34 @@ import numpy as np
 from cv2.typing import MatLike
 
 TILE_W = 211  # 编成页 / 第 2 步 / 租借列表的卡片宽度（720 下）
-LEVEL_BOX = (3, 76, 46, 103)  # 相对卡片左上角：「Lv」下方的大号数字（两位数；一位数时右缘到 30，再往右是第一个突破标记）
+LEVEL_BOX = (
+    3,
+    76,
+    46,
+    103,
+)  # 相对卡片左上角：「Lv」下方的大号数字（两位数；一位数时右缘到 30，再往右是第一个突破标记）
 LEVEL_X2_ONE_DIGIT = 30
-BREAK_X0, BREAK_X0_ONE_DIGIT, BREAK_DX, BREAK_Y, BREAK_R = 61, 42, 25, 95, 9  # 突破标记中心（相对左上角）：等级一位数时整排左移
+BREAK_X0, BREAK_X0_ONE_DIGIT, BREAK_DX, BREAK_Y, BREAK_R = (
+    61,
+    42,
+    25,
+    95,
+    9,
+)  # 突破标记中心（相对左上角）：等级一位数时整排左移
 BREAK_BRIGHT_MIN = 0.4  # 标记内「亮且低饱和」像素占比：已突破 0.69–0.83，未突破 ≤ 0.07
 ATTR_BOX = (183, 80, 201, 98)  # 右下属性圆标（下方紧挨着彩虹条，不能取大）
-ATTR_HUE = (("Vi", 5, 35), ("HP", 40, 85), ("Da", 90, 120), ("Vo", 150, 180))  # 实测 Vi 19–20、Da 104、Vo 165；绿色叶子 = 体力（支援）
-TYPE_ATTR = {"SupportCardType_Vocal": "Vo", "SupportCardType_Dance": "Da", "SupportCardType_Visual": "Vi", "SupportCardType_Assist": "HP"}
+ATTR_HUE = (
+    ("Vi", 5, 35),
+    ("HP", 40, 85),
+    ("Da", 90, 120),
+    ("Vo", 150, 180),
+)  # 实测 Vi 19–20、Da 104、Vo 165；绿色叶子 = 体力（支援）
+TYPE_ATTR = {
+    "SupportCardType_Vocal": "Vo",
+    "SupportCardType_Dance": "Da",
+    "SupportCardType_Visual": "Vi",
+    "SupportCardType_Assist": "HP",
+}
 
 
 def _match(img: MatLike, x: int, y: int, w: int = TILE_W) -> tuple[float, float, str, tuple[int, int]]:
@@ -67,7 +88,11 @@ def _level(img: MatLike, x: int, y: int, one_digit: bool = False) -> int | None:
     if one_digit:
         # 一位数 Apple Vision 基本读不出（空串），ddddocr 在不同框宽下都稳：宽框 / 窄框两次 ddddocr + 白字 OCR
         wide = read_dddd(img, (x1, y1, x + LEVEL_BOX[2], y2))
-        votes = [wide if wide is not None and wide < 10 else None, read_dddd(img, (x1, y1, x2, y2)), ocr_digits(crop, white_min=220)]
+        votes = [
+            wide if wide is not None and wide < 10 else None,
+            read_dddd(img, (x1, y1, x2, y2)),
+            ocr_digits(crop, white_min=220),
+        ]
     else:
         plain = re.sub(r"\D", "", "".join(t for t, _ in ocr(crop, scale=4, languages=("en-US",))))
         votes = [ocr_digits(crop, white_min=235), read_dddd(img, (x1, y1, x2, y2)), int(plain) if plain else None]
@@ -107,7 +132,10 @@ def read_tile(img: MatLike, x: int, y: int, w: int = TILE_W, anchored: bool = Fa
     _, _, index = _library()
     score, margin, key, (cx, cy) = _match(img, x, y, w)
     if anchored:
-        cx, cy = x, y  # 位置已由属性圆标精确定出（列表页）：等级 / 突破 / 圆标按它读，素材库匹配的 ±8 像素偏移会把等级框移歪
+        cx, cy = (
+            x,
+            y,
+        )  # 位置已由属性圆标精确定出（列表页）：等级 / 突破 / 圆标按它读，素材库匹配的 ±8 像素偏移会把等级框移歪
     info = index.get(key) if score >= MIN_SCORE else None
     icon = _attr_icon(img, cx, cy)
     one = _one_digit(img, cx, cy)
@@ -119,7 +147,13 @@ def read_tile(img: MatLike, x: int, y: int, w: int = TILE_W, anchored: bool = Fa
 
 
 # ---------------------------------------------------------------- 编成页
-FORMATION_TILES = ((31, 675), (255, 675), (478, 677), (143, 806), (367, 806))  # 「サポートカード編成 N」页 5 格（上 3 下 2）
+FORMATION_TILES = (
+    (31, 675),
+    (255, 675),
+    (478, 677),
+    (143, 806),
+    (367, 806),
+)  # 「サポートカード編成 N」页 5 格（上 3 下 2）
 STEP2_TILES = ((29, 715), (254, 713), (481, 715), (29, 847), (256, 847))  # 开局「2.サポート選択」5 格
 STEP2_RENTAL = (483, 847)  # 第 6 格：レンタル枠（空时「レンタルのみ +」）
 ARROWS = {"formation": {"prev": [40, 635], "next": [680, 635]}, "step2": {"prev": [20, 833], "next": [700, 833]}}
@@ -147,7 +181,9 @@ def _pager(texts) -> re.Match | None:
             return m
         if not 300 <= (b[0] + b[2]) // 2 <= 420:
             continue
-        m = re.fullmatch(r"(\d)(\d)", t) or (re.fullmatch(r"(\d).(\d)", t) if len(t) == 3 and t[1] in _PAGER_SLASHES else None)
+        m = re.fullmatch(r"(\d)(\d)", t) or (
+            re.fullmatch(r"(\d).(\d)", t) if len(t) == 3 and t[1] in _PAGER_SLASHES else None
+        )
         if m and 1 <= int(m.group(1)) <= int(m.group(2)):
             return re.fullmatch(r"(\d)/(\d)", f"{m.group(1)}/{m.group(2)}")
     return None
@@ -174,8 +210,16 @@ def read_support_formation(img: MatLike, boxes=None) -> dict | None:
     else:
         return None
     name = next((t for t, _ in texts if t.startswith("サポートカード編成")), None) or next(
-        (t for t, b in texts if 60 <= b[1] <= 160 and 150 <= (b[0] + b[2]) // 2 <= 570 and not re.fullmatch(r"[+\d.%]+", t)), None)
-    page = next((m for t, b in texts if b[0] < 250 and (m := re.fullmatch(r"(\d+)/(\d+)", t))), None)  # 编成号在左侧；第 2 步页右上还有「親愛度 37/37」
+        (
+            t
+            for t, b in texts
+            if 60 <= b[1] <= 160 and 150 <= (b[0] + b[2]) // 2 <= 570 and not re.fullmatch(r"[+\d.%]+", t)
+        ),
+        None,
+    )
+    page = next(
+        (m for t, b in texts if b[0] < 250 and (m := re.fullmatch(r"(\d+)/(\d+)", t))), None
+    )  # 编成号在左侧；第 2 步页右上还有「親愛度 37/37」
     slots = [{"slot": i, **read_tile(img, x, y)} for i, (x, y) in enumerate(tiles)]
     out = {"view": view, "name": name, "number": int(page.group(1)) if page else None, "total": int(page.group(2)) if page else None,
            "slots": slots, "arrows": ARROWS[view],
@@ -183,15 +227,26 @@ def read_support_formation(img: MatLike, boxes=None) -> dict | None:
     if view == "step2":
         empty = any("レンタルのみ" in t for t, _ in texts)
         x, y = STEP2_RENTAL
-        out["rental"] = {"empty": empty, "tile": None if empty else read_tile(img, x, y), "center": [x + TILE_W // 2, y + 59]}
+        out["rental"] = {
+            "empty": empty,
+            "tile": None if empty else read_tile(img, x, y),
+            "center": [x + TILE_W // 2, y + 59],
+        }
     return out
 
 
 # ---------------------------------------------------------------- 租借列表
 ROW_TILE_DX, ROW_TILE_DY = 44, -13  # 卡片左上角：x 固定 44，y = 「PLv」中心 − 13
 ROW_COVERED_Y = 990  # 底部控件（プラン適正 / 編成詳細 / 筛选排序）从 y≈1000 起盖住列表
-CONTROLS = {"plan_fit": [551, 1016], "refresh": [400, 1071], "filter": [524, 1071], "sort": [653, 1071],
-            "cancel": [220, 1157], "decide": [497, 1157], "detail": [130, 1064]}
+CONTROLS = {
+    "plan_fit": [551, 1016],
+    "refresh": [400, 1071],
+    "filter": [524, 1071],
+    "sort": [653, 1071],
+    "cancel": [220, 1157],
+    "decide": [497, 1157],
+    "detail": [130, 1064],
+}
 PLAN_FIT_BOX = (545, 1006, 566, 1027)  # 「プラン適正」勾选框：勾上时是实心灰方块 + 白对勾
 PLAN_FIT_GREY_MIN = 0.4
 
@@ -217,7 +272,9 @@ def read_rental_list(img: MatLike, boxes=None) -> dict | None:
         x, y = ROW_TILE_DX, cy + ROW_TILE_DY
         covered = y + 118 > ROW_COVERED_Y
         top = y - 45
-        corners = int(orange[max(0, top - 10) : top + 25, 15:50].sum() + orange[max(0, top - 10) : top + 25, 670:705].sum())
+        corners = int(
+            orange[max(0, top - 10) : top + 25, 15:50].sum() + orange[max(0, top - 10) : top + 25, 670:705].sum()
+        )
         rows.append({"player": player, "plv": int(digits) if digits else None, "comment": comment, "tag": tag,
                      "card": read_tile(img, x, y) if not covered else None, "center": [360, y + 30], "covered": covered,
                      "selected": corners >= 200})  # fmt: skip
@@ -273,7 +330,7 @@ def read_support_list(img: MatLike, boxes=None) -> dict | None:
         return None
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     orange = (hsv[:, :, 0] >= 8) & (hsv[:, :, 0] <= 22) & (hsv[:, :, 1] >= 150) & (hsv[:, :, 2] >= 200)
-    pink = (((hsv[:, :, 0] >= 165) | (hsv[:, :, 0] <= 5)) & (hsv[:, :, 1] >= 120) & (hsv[:, :, 2] >= 180))
+    pink = ((hsv[:, :, 0] >= 165) | (hsv[:, :, 0] <= 5)) & (hsv[:, :, 1] >= 120) & (hsv[:, :, 2] >= 180)
     cards = []
     for col, x in enumerate(LIST_COLS):
         for cy in _icon_rows(hsv, x):
@@ -288,11 +345,16 @@ def read_support_list(img: MatLike, boxes=None) -> dict | None:
                 tile = read_tile(img, x, y, anchored=True)
             ty = tile["rect"][1]
             new = int(pink[max(0, ty - 16) : ty + 4, x : x + 55].sum()) >= NEW_PINK_MIN
-            corners = int(orange[max(0, ty - 12) : ty + 20, max(0, x - 12) : x + 20].sum() + orange[ty + 95 : ty + 130, max(0, x - 12) : x + 20].sum())
+            corners = int(
+                orange[max(0, ty - 12) : ty + 20, max(0, x - 12) : x + 20].sum()
+                + orange[ty + 95 : ty + 130, max(0, x - 12) : x + 20].sum()
+            )
             cards.append({"col": col, "row_y": ty, **tile, "new": new, "corners": corners, "partial": partial})
+
     # 卡面插画里的饱和色块也会被当成圆标：同一行（±6）至少 2 列都有圆标，或素材库认得出（≥0.7），才算一格
     def row_mates(c):
         return sum(1 for o in cards if o is not c and abs(o["row_y"] - c["row_y"]) <= 6)
+
     cards = [c for c in cards if row_mates(c) >= 1 or (c["score"] or 0) >= 0.7]
     best = max(cards, key=lambda c: c["corners"], default=None)
     for c in cards:

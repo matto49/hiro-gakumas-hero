@@ -2,11 +2,15 @@
 # KAA 子模块 → .venv（Python 3.10）→ 安装 → 生成 KAA 的 R.py → 下载 KAA 公开游戏数据 + 卡图索引 → 模拟器主数据 → 自检。
 # 可重复跑，做过的步骤会跳过。需要 uv、git 和网络。
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup.ps1 [-Regen] [-NoData]
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup.ps1 [-Regen] [-NoData] [-OcrDevice auto|dml|cpu]
 #
 # -Regen：KAA 换版本后重新生成 R.py；-NoData：已用 HIRO_KAA_GAME_DATA 指向现成数据时跳过下载。
+# -OcrDevice：文字识别（RapidOCR）用的 onnxruntime。cpu（缺省）= 保持 CPU 版；auto / dml = 换成同版本的 onnxruntime-directml，有显卡就用 GPU
+#   （DirectML，任意 DX12 显卡；整帧识别约 2 s → 0.4 s，CPU 占用和风扇声下降），没有时运行时自己退回 CPU。缺省不换：识别阈值、放大倍数都是按 CPU 版调的，GPU 版先显式打开、回归一致后再讨论默认开。
+#   运行时再用 HIRO_OCR_DEVICE（auto / cuda / dml / cpu）选，见 hiro.vision.ocr.ocr_device_order。
+#   CUDA 版（onnxruntime-gpu）要和 KAA 钉的 1.14 及本机 CUDA 11.x / cuDNN 8 对得上，不自动装。
 # Windows 上没有 PlayCover：开局前设 HIRO_DEVICE（adb / mumu / leidian / dmm），见 AGENTS.md「设备」。
-param([switch]$Regen, [switch]$NoData)
+param([switch]$Regen, [switch]$NoData, [ValidateSet("auto", "dml", "cpu")][string]$OcrDevice = "cpu")
 $ErrorActionPreference = "Stop"
 # 中文提示与内嵌 Python 都按 UTF-8 传（PowerShell 5.1 默认用 ANSI 往管道写，中文会变成问号）
 $OutputEncoding = [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
@@ -115,6 +119,23 @@ if ($LASTEXITCODE) {
 } else {
     & $Py -m hiro.bench_bridge setup
     if ($LASTEXITCODE) { Write-Host "  ⚠ UINet 模型 / 主数据没准备好（原因见上面几行）：考试出牌会退回社区规则；修好后重跑本脚本" }
+}
+
+# 文字识别用 GPU（DirectML）：KAA 依赖的是 onnxruntime（CPU 版），第 3 步每次都会把它装回来；两个包装在同一个 onnxruntime 目录里，
+# 所以先卸 CPU 版、再按同一个版本重装 DirectML 版（--reinstall-package 只重装它自己、把被覆盖的文件补回来；整体 --reinstall 会把 numpy 升到 2.x，1.14 读不了）
+if ($OcrDevice -ne "cpu") {
+    $OrtVer = & $Py -c "import importlib.metadata as m; print(m.version('onnxruntime'))" 2>$null
+    if ($LASTEXITCODE -eq 0 -and $OrtVer) {
+        Write-Host "  文字识别改用 onnxruntime-directml==$OrtVer（GPU；没有可用显卡时运行时退回 CPU）…"
+        uv pip uninstall --python $Py -q onnxruntime
+        uv pip install --python $Py -q --reinstall-package onnxruntime-directml "onnxruntime-directml==$OrtVer"
+        if ($LASTEXITCODE) {
+            Write-Host "  ⚠ onnxruntime-directml 没装上，装回 CPU 版"
+            uv pip install --python $Py -q "onnxruntime==$OrtVer"
+        }
+    } else {
+        Write-Host "  文字识别：onnxruntime-directml 已装（或没有 onnxruntime），跳过"
+    }
 }
 
 Step "7/7 自检"

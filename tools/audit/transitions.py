@@ -33,7 +33,7 @@ def _action(s: dict) -> str | None:
 def gaps(base: str) -> list[dict]:
     out = []
     for seg in _segments(base):
-        steps = [json.loads(line) for line in open(seg / "steps.jsonl")]
+        steps = [json.loads(line) for line in open(seg / "steps.jsonl")]  # noqa: SIM115
         last = None  # 上一个有执行结果的步
         between: list[dict] = []
         for s in steps:
@@ -45,7 +45,11 @@ def gaps(base: str) -> list[dict]:
                     gap = o.get("t", s["t"]) - last["t"]
                     if 0 <= gap < 600:
                         dwell: dict[str, float] = defaultdict(float)
-                        obs = [x for b in between for x in (b.get("observations_before") or []) + [b.get("observation") or {}]]
+                        obs = [
+                            x
+                            for b in between
+                            for x in (b.get("observations_before") or []) + [b.get("observation") or {}]
+                        ]
                         obs += list(s.get("observations_before") or [])
                         obs = sorted((x for x in obs if x.get("t")), key=lambda x: x["t"])
                         prev_t = last["t"]
@@ -55,8 +59,19 @@ def gaps(base: str) -> list[dict]:
                             dwell[(x.get("page") or {}).get("name") or "?"] += x["t"] - prev_t
                             prev_t = x["t"]
                         notes = [n for b in between + [s] for n in (b.get("notes") or [])]
-                        out.append({"segment": seg.name, "seq": s["seq"], "from": src, "action": _action(last), "to": page, "gap": gap,
-                                    "dwell": dict(dwell), "t": last["t"], "unknown_text": next((n for n in notes if "未识别画面持续" in n), None)})
+                        out.append(
+                            {
+                                "segment": seg.name,
+                                "seq": s["seq"],
+                                "from": src,
+                                "action": _action(last),
+                                "to": page,
+                                "gap": gap,
+                                "dwell": dict(dwell),
+                                "t": last["t"],
+                                "unknown_text": next((n for n in notes if "未识别画面持续" in n), None),
+                            }
+                        )
                 last, between = s, []
             else:
                 between.append(s)
@@ -65,7 +80,7 @@ def gaps(base: str) -> list[dict]:
 
 def q(v, p):
     v = sorted(v)
-    return v[min(len(v) - 1, int(round(p * (len(v) - 1))))]
+    return v[min(len(v) - 1, int(round(p * (len(v) - 1))))]  # noqa: RUF046
 
 
 def main(argv=None):
@@ -90,7 +105,9 @@ def main(argv=None):
             for k, v in r["dwell"].items():
                 dw[k] += v
         top = ", ".join(f"{k} {v / 60:.1f}m" for k, v in sorted(dw.items(), key=lambda kv: -kv[1])[:3])
-        print(f"{f'{key[0]}:{key[1]} → {key[2]}':60s} {len(rs):4d} {st.median(g):6.1f} {q(g, .9):6.1f} {sum(g) / 60:7.1f}  {top}")
+        print(
+            f"{f'{key[0]}:{key[1]} → {key[2]}':60s} {len(rs):4d} {st.median(g):6.1f} {q(g, 0.9):6.1f} {sum(g) / 60:7.1f}  {top}"
+        )
     if a.json:
         Path(a.json).write_text(json.dumps(rows, ensure_ascii=False, indent=1), encoding="utf-8")
 

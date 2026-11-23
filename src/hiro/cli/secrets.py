@@ -26,7 +26,7 @@ _NAME = re.compile(r"^[A-Za-z0-9_.@-]{1,64}$")
 
 # ============================================================================ 后端
 class MemoryBackend:
-    store: dict[str, str] = {}
+    store: dict[str, str] = {}  # noqa: RUF012
 
     def set(self, name: str, value: str) -> None:
         self.store[name] = value
@@ -47,21 +47,52 @@ class MacKeychain:
         self.sec = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/Security.framework/Security")
         self.cf = ctypes.cdll.LoadLibrary("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")
         vp, u32, i32 = ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int32
-        self.sec.SecKeychainAddGenericPassword.argtypes = [vp, u32, ctypes.c_char_p, u32, ctypes.c_char_p, u32, ctypes.c_char_p, ctypes.POINTER(vp)]
-        self.sec.SecKeychainFindGenericPassword.argtypes = [vp, u32, ctypes.c_char_p, u32, ctypes.c_char_p, ctypes.POINTER(u32), ctypes.POINTER(vp), ctypes.POINTER(vp)]
+        self.sec.SecKeychainAddGenericPassword.argtypes = [
+            vp,
+            u32,
+            ctypes.c_char_p,
+            u32,
+            ctypes.c_char_p,
+            u32,
+            ctypes.c_char_p,
+            ctypes.POINTER(vp),
+        ]
+        self.sec.SecKeychainFindGenericPassword.argtypes = [
+            vp,
+            u32,
+            ctypes.c_char_p,
+            u32,
+            ctypes.c_char_p,
+            ctypes.POINTER(u32),
+            ctypes.POINTER(vp),
+            ctypes.POINTER(vp),
+        ]
         self.sec.SecKeychainItemModifyAttributesAndData.argtypes = [vp, vp, u32, ctypes.c_char_p]
         self.sec.SecKeychainItemFreeContent.argtypes = [vp, vp]
         self.sec.SecKeychainItemDelete.argtypes = [vp]
-        for f in ("SecKeychainAddGenericPassword", "SecKeychainFindGenericPassword", "SecKeychainItemModifyAttributesAndData",
-                  "SecKeychainItemFreeContent", "SecKeychainItemDelete"):
+        for f in (
+            "SecKeychainAddGenericPassword",
+            "SecKeychainFindGenericPassword",
+            "SecKeychainItemModifyAttributesAndData",
+            "SecKeychainItemFreeContent",
+            "SecKeychainItemDelete",
+        ):
             getattr(self.sec, f).restype = i32
         self.cf.CFRelease.argtypes = [vp]
 
     def _find(self, name: str, want_data: bool):
         s, a = SERVICE.encode(), name.encode()
         n, data, item = ctypes.c_uint32(), ctypes.c_void_p(), ctypes.c_void_p()
-        st = self.sec.SecKeychainFindGenericPassword(None, len(s), s, len(a), a, ctypes.byref(n) if want_data else None,
-                                                     ctypes.byref(data) if want_data else None, ctypes.byref(item))
+        st = self.sec.SecKeychainFindGenericPassword(
+            None,
+            len(s),
+            s,
+            len(a),
+            a,
+            ctypes.byref(n) if want_data else None,
+            ctypes.byref(data) if want_data else None,
+            ctypes.byref(item),
+        )
         if st == self.NOT_FOUND:
             return None, None
         if st != 0:
@@ -103,10 +134,20 @@ class WinCredentials:
     class CREDENTIAL(ctypes.Structure):
         from ctypes import wintypes as _w
 
-        _fields_ = [("Flags", _w.DWORD), ("Type", _w.DWORD), ("TargetName", _w.LPWSTR), ("Comment", _w.LPWSTR),
-                    ("LastWritten", _w.FILETIME), ("CredentialBlobSize", _w.DWORD), ("CredentialBlob", ctypes.POINTER(ctypes.c_ubyte)),
-                    ("Persist", _w.DWORD), ("AttributeCount", _w.DWORD), ("Attributes", ctypes.c_void_p),
-                    ("TargetAlias", _w.LPWSTR), ("UserName", _w.LPWSTR)]
+        _fields_ = [
+            ("Flags", _w.DWORD),
+            ("Type", _w.DWORD),
+            ("TargetName", _w.LPWSTR),
+            ("Comment", _w.LPWSTR),
+            ("LastWritten", _w.FILETIME),
+            ("CredentialBlobSize", _w.DWORD),
+            ("CredentialBlob", ctypes.POINTER(ctypes.c_ubyte)),
+            ("Persist", _w.DWORD),
+            ("AttributeCount", _w.DWORD),
+            ("Attributes", ctypes.c_void_p),
+            ("TargetAlias", _w.LPWSTR),
+            ("UserName", _w.LPWSTR),
+        ]
 
     def __init__(self):
         self.api = ctypes.WinDLL("advapi32", use_last_error=True)  # type: ignore[attr-defined]
@@ -117,8 +158,14 @@ class WinCredentials:
     def set(self, name: str, value: str) -> None:
         blob = value.encode("utf-16-le")
         buf = (ctypes.c_ubyte * len(blob)).from_buffer_copy(blob)
-        c = self.CREDENTIAL(Type=self.CRED_TYPE_GENERIC, TargetName=self._target(name), CredentialBlobSize=len(blob),
-                            CredentialBlob=buf, Persist=self.CRED_PERSIST_LOCAL_MACHINE, UserName=name)
+        c = self.CREDENTIAL(
+            Type=self.CRED_TYPE_GENERIC,
+            TargetName=self._target(name),
+            CredentialBlobSize=len(blob),
+            CredentialBlob=buf,
+            Persist=self.CRED_PERSIST_LOCAL_MACHINE,
+            UserName=name,
+        )
         if not self.api.CredWriteW(ctypes.byref(c), 0):
             raise CliError("credentials", f"写入凭据管理器失败（{ctypes.get_last_error()}）", "重试；一直失败请反馈")
 
@@ -139,7 +186,9 @@ class WinCredentials:
 
 
 def backend():
-    kind = os.environ.get("HIRO_SECRET_BACKEND") or ("mac" if sys.platform == "darwin" else "win" if sys.platform == "win32" else "")
+    kind = os.environ.get("HIRO_SECRET_BACKEND") or (
+        "mac" if sys.platform == "darwin" else "win" if sys.platform == "win32" else ""
+    )
     if kind == "memory":
         return MemoryBackend()
     if kind == "mac":
@@ -172,14 +221,21 @@ function run(argv) {
 
 
 def _detach(argv: list[str]) -> None:
-    kw: dict = {"start_new_session": True} if sys.platform != "win32" else {
-        "creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
+    kw: dict = (
+        {"start_new_session": True}
+        if sys.platform != "win32"
+        else {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
+    )
     subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **kw)
 
 
 def _mac_write(value: str, clear_after: int) -> None:
-    r = subprocess.run(["osascript", "-l", "JavaScript", "-e", _MAC_WRITE], input=value.encode("utf-8"),
-                       capture_output=True, timeout=15)
+    r = subprocess.run(
+        ["osascript", "-l", "JavaScript", "-e", _MAC_WRITE],
+        input=value.encode("utf-8"),
+        capture_output=True,
+        timeout=15,
+    )
     if r.returncode != 0:
         raise CliError("clipboard", "写剪贴板失败", "重试；一直失败请反馈")
     count = r.stdout.decode().strip()
@@ -213,8 +269,20 @@ def _win_write(value: str, clear_after: int, u=None, k=None) -> None:
     k.GlobalLock.argtypes, k.GlobalLock.restype = [w.HGLOBAL], ctypes.c_void_p
     k.GlobalUnlock.argtypes, k.GlobalUnlock.restype = [w.HGLOBAL], w.BOOL
     k.GlobalFree.argtypes, k.GlobalFree.restype = [w.HGLOBAL], w.HGLOBAL
-    u.CreateWindowExW.argtypes = [w.DWORD, w.LPCWSTR, w.LPCWSTR, w.DWORD, ctypes.c_int, ctypes.c_int, ctypes.c_int,
-                                  ctypes.c_int, w.HWND, w.HMENU, w.HINSTANCE, w.LPVOID]
+    u.CreateWindowExW.argtypes = [
+        w.DWORD,
+        w.LPCWSTR,
+        w.LPCWSTR,
+        w.DWORD,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+        w.HWND,
+        w.HMENU,
+        w.HINSTANCE,
+        w.LPVOID,
+    ]
     u.CreateWindowExW.restype = w.HWND
     u.DestroyWindow.argtypes, u.DestroyWindow.restype = [w.HWND], w.BOOL
     u.OpenClipboard.argtypes, u.OpenClipboard.restype = [w.HWND], w.BOOL
@@ -257,7 +325,11 @@ def _win_write(value: str, clear_after: int, u=None, k=None) -> None:
             if not u.EmptyClipboard():
                 raise fail("EmptyClipboard")
             put(13, (value + "\0").encode("utf-16-le"))  # CF_UNICODETEXT
-            for name in ("ExcludeClipboardContentFromMonitorProcessing", "CanIncludeInClipboardHistory", "CanUploadToCloudClipboard"):
+            for name in (
+                "ExcludeClipboardContentFromMonitorProcessing",
+                "CanIncludeInClipboardHistory",
+                "CanUploadToCloudClipboard",
+            ):
                 fmt = u.RegisterClipboardFormatW(name)
                 if fmt:
                     put(fmt, b"\0\0\0\0")
@@ -303,8 +375,14 @@ def _check_name(name: str) -> str:
 
 
 # ============================================================================ 命令
-@command("secret set", Risk.READ, "保存一个账号或密码（值只从标准输入读，只由用户在设置页填写）。",
-         args=(Arg("name", "名字，例如 game-account、game-password"),), stdin=True, agent=False)
+@command(
+    "secret set",
+    Risk.READ,
+    "保存一个账号或密码（值只从标准输入读，只由用户在设置页填写）。",
+    args=(Arg("name", "名字，例如 game-account、game-password"),),
+    stdin=True,
+    agent=False,
+)
 def _set(a: dict) -> dict:
     name = _check_name(a["name"])
     value = sys.stdin.read().rstrip("\r\n")
@@ -320,8 +398,12 @@ def _list(a: dict) -> dict:
     return {"secrets": [{"name": n, "saved": True} for n in _names()]}
 
 
-@command("secret copy", Risk.READ, "把一个账号或密码复制到剪贴板（带敏感标记，45 秒后自动清空），用来粘贴进游戏登录框。不会显示值。",
-         args=(Arg("name", "名字，例如 game-account"),))
+@command(
+    "secret copy",
+    Risk.READ,
+    "把一个账号或密码复制到剪贴板（带敏感标记，45 秒后自动清空），用来粘贴进游戏登录框。不会显示值。",
+    args=(Arg("name", "名字，例如 game-account"),),
+)
 def _copy(a: dict) -> dict:
     name = _check_name(a["name"])
     value = backend().get(name) if name in _names() else None

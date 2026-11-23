@@ -107,7 +107,11 @@ def probe(out_dir: Path, *, shoot, click, swipe, sleep=None, clock=time.monotoni
     result = {"opened": first is not None, "schedule": None, "closed": None, "frames": frames}
     if first is None:
         save(img, "not-opened")
-        logger.info("日程列表：点 %s 停稳后没认出日程列表（%s）", ENTRY, "画面没变" if _diff(before, img) < SETTLE_DIFF * 4 else "画面变了但认不出")
+        logger.info(
+            "日程列表：点 %s 停稳后没认出日程列表（%s）",
+            ENTRY,
+            "画面没变" if _diff(before, img) < SETTLE_DIFF * 4 else "画面变了但认不出",
+        )
         if note:
             note(f"日程列表：点页头 {ENTRY} 停稳后没认出日程列表，没读到")
         if _at_action_select(img):
@@ -141,7 +145,9 @@ def probe(out_dir: Path, *, shoot, click, swipe, sleep=None, clock=time.monotoni
     _write(out_dir, result)
     sch = result["schedule"]
     if note and sch:
-        note(f"日程列表：读到 {len(sch['weeks'])} 周（当前第 {sch['current_week']} 周，共 {sch['total']} 周），帧在 {out_dir}")
+        note(
+            f"日程列表：读到 {len(sch['weeks'])} 周（当前第 {sch['current_week']} 周，共 {sch['total']} 周），帧在 {out_dir}"
+        )
     if not result["closed"]:
         save(img, "stuck")
         raise ResumeBlocked(f"日程列表：点 ✕ {CLOSE_TRIES} 次没回到选行动页（帧在 {out_dir}），停机")

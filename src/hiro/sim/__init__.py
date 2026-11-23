@@ -20,7 +20,9 @@ def engine_root() -> Path:
         root = Path(c).expanduser() if c else None
         if root and (root / "gakumas_exam" / "battle.py").exists() and (root / "gakumas_produce").is_dir():
             return root
-    raise RuntimeError("找不到考试引擎 gakumas_exam / gakumas_produce：应在 vendor/gakumas-player，或设置 GAKUMAS_PLAYER")
+    raise RuntimeError(
+        "找不到考试引擎 gakumas_exam / gakumas_produce：应在 vendor/gakumas-player，或设置 GAKUMAS_PLAYER"
+    )
 
 
 def master_ready() -> bool:

@@ -37,8 +37,13 @@ def test_import_event_comes_before_done(hiro_home):
     from hiro.cli.jobs import Kind
 
     src = str(DATA / "support-inventory.json")
-    kind = Kind("scan-test", "测试", lambda p, d: [sys.executable, "-c", f"import shutil; shutil.copy({src!r}, {str(d / 'out.json')!r})"],
-                lambda p: "测试扫描", output="supports")
+    kind = Kind(
+        "scan-test",
+        "测试",
+        lambda p, d: [sys.executable, "-c", f"import shutil; shutil.copy({src!r}, {str(d / 'out.json')!r})"],
+        lambda p: "测试扫描",
+        output="supports",
+    )
     from hiro.cli.service import Manager
 
     mgr = Manager(hiro_home)

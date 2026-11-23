@@ -3,10 +3,10 @@
 import json
 from types import SimpleNamespace
 
-import pytest
-
 from hiro.bench_bridge import tower as T
 from hiro.bench_bridge.screen import exam_fields
+
+import pytest
 
 BC = "p_exam_battle_config-tower_001-700_500_300-1500_1100_700-turn_18"
 SC = "p_exam_battle_score_config-tower_001-700_500_300-1500_1100_700"

@@ -22,7 +22,7 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
+from functools import cache, lru_cache  # noqa: F401
 from pathlib import Path
 
 import cv2
@@ -46,7 +46,7 @@ ILUST_SCALE = 0.31
 OVERLAY_BOXES = ((0, 0, 37, 96), (59, 28, 96, 68), (59, 66, 96, 96), (59, 0, 96, 34), (0, 0, 70, 30), (20, 68, 76, 96))
 
 
-@lru_cache(maxsize=None)
+@cache
 def _sprite(sprites_dir: str, name: str) -> np.ndarray:
     """素材包 sprites/<图集>/<名>.png → RGBA float32（0–1）。"""
     d = Path(sprites_dir)
@@ -64,7 +64,7 @@ def _sprite(sprites_dir: str, name: str) -> np.ndarray:
 def _sliced(sprites_dir: str, name: str, w: int, h: int, unit: float) -> np.ndarray:
     """九宫格拉伸到 w×h 像素；边距按所在层「每设计单位多少像素」unit 换算。中间格宽 0 时拉伸边缘那一列（同 Unity）。"""
     im = _sprite(sprites_dir, name)
-    l, b, r, t = BORDERS.get(name, (0, 0, 0, 0))
+    l, b, r, t = BORDERS.get(name, (0, 0, 0, 0))  # noqa: E741
     H, W = im.shape[:2]
     if not any((l, b, r, t)):
         return cv2.resize(im, (w, h), interpolation=cv2.INTER_LINEAR)
@@ -81,11 +81,15 @@ def _sliced(sprites_dir: str, name: str, w: int, h: int, unit: float) -> np.ndar
         for sx0, sx1, dx0, dx1 in ((0, l, 0, L), (l, W - r, L, w - R), (W - r, W, w - R, w)):
             sx0, sx1 = fix(sx0, sx1)
             if dy1 > dy0 and dx1 > dx0:
-                out[dy0:dy1, dx0:dx1] = cv2.resize(im[sy0:sy1, sx0:sx1], (dx1 - dx0, dy1 - dy0), interpolation=cv2.INTER_LINEAR)
+                out[dy0:dy1, dx0:dx1] = cv2.resize(
+                    im[sy0:sy1, sx0:sx1], (dx1 - dx0, dy1 - dy0), interpolation=cv2.INTER_LINEAR
+                )
     return out
 
 
-def _over(dst: np.ndarray, src: np.ndarray, x: int, y: int, clip: np.ndarray | None = None, tint=(1.0, 1.0, 1.0)) -> None:
+def _over(
+    dst: np.ndarray, src: np.ndarray, x: int, y: int, clip: np.ndarray | None = None, tint=(1.0, 1.0, 1.0)
+) -> None:
     """RGBA src 以左上 (x, y) 叠到 dst；clip 是 dst 坐标系的裁剪 alpha；tint 为 RGB 染色。"""
     src = src * np.array([tint[2], tint[1], tint[0], 1.0], np.float32)
     h, w = src.shape[:2]
@@ -119,15 +123,29 @@ def render(art: np.ndarray, rarity: str, category: str, sprites_dir: str | Path,
     else:
         name = f"rarity_gradiant_{(rarity or 'r').lower()}"
         w, h = inner + 144 * k, inner + 104 * k
-        _over(img, cv2.resize(_sprite(sd, name), (w, h), interpolation=cv2.INTER_LINEAR), inset - 72 * k, inset - 52 * k, clip)
+        _over(
+            img,
+            cv2.resize(_sprite(sd, name), (w, h), interpolation=cv2.INTER_LINEAR),
+            inset - 72 * k,
+            inset - 52 * k,
+            clip,
+        )
     cat = CATEGORY.get(category, "activeskill")
     unit = ILUST_SCALE * k
     iw, ih = int(252 * unit), int(281 * unit)
     mask = np.zeros((S, S), np.float32)
-    mask[(S - ih) // 2 : (S - ih) // 2 + ih, (S - iw) // 2 : (S - iw) // 2 + iw] = _sliced(sd, f"card_category_mask_{cat}", iw, ih, unit)[..., 3]
+    mask[(S - ih) // 2 : (S - ih) // 2 + ih, (S - iw) // 2 : (S - iw) // 2 + iw] = _sliced(
+        sd, f"card_category_mask_{cat}", iw, ih, unit
+    )[..., 3]
     aw = int(281 * unit)
     a = cv2.resize(art, (aw, aw), interpolation=cv2.INTER_AREA).astype(np.float32) / 255
-    _over(img, np.dstack([a, np.ones((aw, aw), np.float32)]), (S - aw) // 2, (S - aw) // 2, ((mask * clip) > 0.5).astype(np.float32))
+    _over(
+        img,
+        np.dstack([a, np.ones((aw, aw), np.float32)]),
+        (S - aw) // 2,
+        (S - aw) // 2,
+        ((mask * clip) > 0.5).astype(np.float32),
+    )
     fw, fh = int(254 * unit), int(283 * unit)
     _over(img, _sliced(sd, f"card_category_frame_{cat}", fw, fh, unit), (S - fw) // 2, (S - fh) // 2, clip)
     _over(img, _sliced(sd, "card_frame", S, S, k), 0, 0, tint=(0.32, 0.36, 0.43))
@@ -161,7 +179,10 @@ def _rarity_category() -> dict[str, tuple[str, str]]:
     out: dict[str, tuple[str, str]] = {}
     for c in cat.values():
         if c.get("upgrade", 0) == 0 and c.get("asset"):
-            out.setdefault(c["asset"], (c["rarity"].removeprefix("ProduceCardRarity_"), c["category"].removeprefix("ProduceCardCategory_")))
+            out.setdefault(
+                c["asset"],
+                (c["rarity"].removeprefix("ProduceCardRarity_"), c["category"].removeprefix("ProduceCardCategory_")),
+            )
     return out
 
 
@@ -179,7 +200,11 @@ def build(out: Path = CACHE) -> int:
     cards, sprites = assets.card_art_dir(), assets.sprites_dir()
     if cards is None:
         raise SystemExit("没有卡面目录（KAA 公开数据 skill_cards/ 或 HIRO_USER_ASSETS/cards/）")
-    missing = [n for n in SPRITES if sprites is None or not (any(Path(sprites).glob(f"{n}.png")) or any(Path(sprites).glob(f"*/{n}.png")))]
+    missing = [
+        n
+        for n in SPRITES
+        if sprites is None or not (any(Path(sprites).glob(f"{n}.png")) or any(Path(sprites).glob(f"*/{n}.png")))
+    ]
     if missing:
         raise SystemExit(f"素材目录 sprites/ 缺精灵图 {missing}：先运行 python tools/assets/export_card_sprites.py")
     meta = _rarity_category()

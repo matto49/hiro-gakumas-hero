@@ -5,12 +5,12 @@
 
 from pathlib import Path
 
+from hiro.vision import status
+from hiro.vision.offline import load
+
 import cv2
 import numpy as np
 import pytest
-
-from hiro.vision import status
-from hiro.vision.offline import load
 
 FIX = Path(__file__).parent / "fixtures" / "tower"
 
@@ -35,7 +35,7 @@ def test_red_heart_is_consumption_add(n, slot, value):
 
 def _icon_patch(key: str, bg: tuple[int, int, int]) -> np.ndarray:
     """合成一个槽：底色菱形 + 图库里的白色字形（38px），放在 56×56 槽里。"""
-    meta, templates = status._icon_index()
+    _meta, templates = status._icon_index()
     if key not in templates:
         pytest.skip("没有考试效果图标")
     patch = np.full((2 * status.SLOT_HALF, 2 * status.SLOT_HALF, 3), 40, np.uint8)

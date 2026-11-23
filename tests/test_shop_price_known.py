@@ -2,9 +2,9 @@
 RapidOCR 四种读法 2:2 平票（[15] / 15 / 75 / ddddocr 75），以前取了 15、预算按 15 算，买下实扣 75。
 同一帧第 0 格是 SALE 卡 24P（原价 35），卡价不规整，只设下限、不给预期价。"""
 
-from test_shop_exec import frame
-
 from hiro.vision import shop
+
+from test_shop_exec import frame
 
 
 def test_known_price_helpers():
@@ -12,7 +12,11 @@ def test_known_price_helpers():
     assert shop.expected_price({"kind": "drink", "drink_id": "pdrink_02-3-007"}, True) == 70
     assert shop.expected_price({"kind": "drink", "drink_id": "pdrink_02-1-006"}, True) == 35
     assert shop.expected_price({"kind": "card", "card_id": "p_card-02-men-2_056", "upgrade": 1}, False) is None
-    assert shop.price_floor("drink", False) == 50 and shop.price_floor("card", False) == 35 and shop.price_floor("card", True) == 20
+    assert (
+        shop.price_floor("drink", False) == 50
+        and shop.price_floor("card", False) == 35
+        and shop.price_floor("card", True) == 20
+    )
 
 
 def test_shelf_prices():

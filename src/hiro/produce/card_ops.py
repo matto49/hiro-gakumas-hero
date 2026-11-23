@@ -10,8 +10,9 @@ import time
 from collections.abc import Callable
 
 from hiro import imgio
-from hiro.devices.active import device, sleep as _sleep
-from hiro.vision.ocr import screen_texts
+from hiro.devices.active import device
+from hiro.devices.active import sleep as _sleep
+from hiro.vision.ocr import screen_texts  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +27,17 @@ CHANGE1_MARK_X = (213, 352, 491)  # 阶段 1 三张候选的角标 x（参考图
 CHANGE1_COL_TOL = 40
 
 # 删卡 / 强化页（全屏选卡）
-CARD_OP_REGION = {"remove": (0, 380, 720, 1110), "enhance": (0, 690, 720, 1115)}  # 同识别 deck.REMOVAL_GRID / ENHANCE_GRID  # 强化页上方两格详情栏里也有卡面，卡格从 y≈700 起
+CARD_OP_REGION = {
+    "remove": (0, 380, 720, 1110),
+    "enhance": (0, 690, 720, 1115),
+}  # 同识别 deck.REMOVAL_GRID / ENHANCE_GRID  # 强化页上方两格详情栏里也有卡面，卡格从 y≈700 起
 CARD_OP_BUTTON = {"remove": ("削除",), "enhance": ("強化",)}
 CARD_OP_BUTTON_TAP = {"remove": (360, 1158), "enhance": (364, 1160)}  # 没有取消键时底部居中的唯一按钮（参考图）
 CARD_OP_BUTTON_TAP_WITH_CANCEL = (520, 1161)  # 相談删卡页：左「キャンセル」右「削除」
-CARD_OP_CONFIRM = {"remove": ("削除する", "削除", "決定", "はい", "OK"), "enhance": ("強化する", "強化", "決定", "はい", "OK")}  # 相談删卡确认框的按钮就叫「削除」
+CARD_OP_CONFIRM = {
+    "remove": ("削除する", "削除", "決定", "はい", "OK"),
+    "enhance": ("強化する", "強化", "決定", "はい", "OK"),
+}  # 相談删卡确认框的按钮就叫「削除」
 CARD_OP_DONE = {"remove": ("削除しました",), "enhance": ("強化しました",)}
 CARD_OP_LABEL = {"remove": "删除", "enhance": "强化"}
 CARD_OP_TIMEOUT = 5.0  # 等卡格出现 / 选中
@@ -46,14 +53,20 @@ CARD_ART_WAIT_S, CARD_ART_POLL, CARD_ART_STALL = 4.0, 0.4, 3
 CARD_OP_PICK_SETTLE, CARD_OP_PICK_CHECKS = 0.6, 3
 
 # H.I.F P 道具背包三选一
-PITEM_CENTERS = ((125, 870), (341, 870), (557, 870))  # 720x1280；r2 实机帧按红 / 黄 / 绿内框测得（框宽 146），误差约 ±3px
+PITEM_CENTERS = (
+    (125, 870),
+    (341, 870),
+    (557, 870),
+)  # 720x1280；r2 实机帧按红 / 黄 / 绿内框测得（框宽 146），误差约 ±3px
 PITEM_ACQUIRE_BTN = (240, 1045, 240, 70)  # 「受け取る」按钮区（x, y, w, h）
 PITEM_LIT_TIMEOUT = 4.0  # 点包后等按钮变亮
 PITEM_ACQUIRE_TIMEOUT = 5.0  # 点「受け取る」后等按钮消失
 PITEM_TRIES = 2
 
 
-def read_loaded(shoot, region, sleep=_sleep, img=None, *, clock=time.monotonic, timeout: float = CARD_ART_WAIT_S) -> tuple:
+def read_loaded(
+    shoot, region, sleep=_sleep, img=None, *, clock=time.monotonic, timeout: float = CARD_ART_WAIT_S
+) -> tuple:
     """read_card_dialog，但有格子认不出（卡图还在加载）时隔 CARD_ART_POLL 秒重截重读：全认出、连续 CARD_ART_STALL 次
     没变好（真认不出的卡）或到 timeout 就停，返回认得最全的那一次 (img, dialog)。"""
     from hiro.vision.deck import read_card_dialog
@@ -83,7 +96,11 @@ def find_card_marks(img, region, threshold: float | None = None) -> list:
     """在 img 的 region（x, y, w, h）内找技能卡角标 A / M，按行（40px 内算同一行）再按 x 排序。threshold=None 用模板缺省阈值。"""
     from hiro.vision.ui_templates import tpl
 
-    found = [m for name in ("InProduce.A", "InProduce.M") for m in tpl(name).find_all(img, region=region, threshold=threshold)]
+    found = [
+        m
+        for name in ("InProduce.A", "InProduce.M")
+        for m in tpl(name).find_all(img, region=region, threshold=threshold)
+    ]
     return sorted(found, key=lambda m: (m.rect.y1 // 40, m.rect.x1))
 
 
@@ -133,7 +150,9 @@ def change_stage1(self, index: int = 0, cancel: bool = False) -> bool:
         if target is not None:
             _change_run().snap(img, "stage1")
             device.click(*target.center)
-            logger.info("换卡阶段 1：换入第 %d 张候选「%s」（找到 %d 个角标）", index, _mark_card_name(img, target), len(marks))
+            logger.info(
+                "换卡阶段 1：换入第 %d 张候选「%s」（找到 %d 个角标）", index, _mark_card_name(img, target), len(marks)
+            )
         elif marks:
             logger.info("换卡阶段 1：第 %d 列的候选角标没找到（找到 %d 个），等下一帧", index, len(marks))
         else:
@@ -143,7 +162,9 @@ def change_stage1(self, index: int = 0, cancel: bool = False) -> bool:
     return False
 
 
-PROTECTED_PROVIDER: Callable[[], set[str]] | None = None  # 策略层注入的保护名单（set_protected_provider）；None = 用 knowledge 的
+PROTECTED_PROVIDER: Callable[[], set[str]] | None = (
+    None  # 策略层注入的保护名单（set_protected_provider）；None = 用 knowledge 的
+)
 
 
 def set_protected_provider(fn: Callable[[], set[str]] | None) -> None:
@@ -203,7 +224,7 @@ def scan_dialog_deck(region: tuple[int, int, int, int], *, expected: int | None 
     """选卡对话框（换卡阶段 2 / 删卡 / 强化）往下滑着读整副牌组，拼完滑回顶部。
     返回 {cards（整副，index = 牌组序号 deck_index）, complete, screens, problems}；一屏放得下时 screens=1、cards 就是这一屏。
     complete=False（拼接对不上 / 张数与记账差太多）时 cards 仍是拼出来的结果，调用方不要当整副用。"""
-    from hiro.vision.deck import dialog_scroll, merge_dialog_screens, read_card_dialog
+    from hiro.vision.deck import dialog_scroll, merge_dialog_screens, read_card_dialog  # noqa: F401
 
     shoot = shoot or device.screenshot
     swipe = swipe or (lambda x1, y1, x2, y2: device.swipe(x1, y1, x2, y2, duration=CARD_OP_SWIPE_DURATION))
@@ -238,14 +259,16 @@ def scan_dialog_deck(region: tuple[int, int, int, int], *, expected: int | None 
 def _save_scan_frames(frames, problems) -> None:
     """整副拼接不可信时把每一屏存下来（Windows 第三局：MuMu 上换卡阶段 2 每局都「没有重叠的行」，要离线复现）。只观察，失败不影响流程。"""
     try:
-        import cv2
-
         from hiro.produce.ops import CALIB_DIR
+
+        import cv2  # noqa: F401
 
         d = CALIB_DIR / f"{time.strftime('%Y%m%d-%H%M%S')}-牌组拼接"
         d.mkdir(parents=True, exist_ok=True)
         for i, f in enumerate(frames):
-            imgio.imwrite(str(d / f"screen{i:02d}.png"), f)  # PNG：JPEG 压缩后卡图识别结果会变（实机认出的卡离线成了「?」），复现不了
+            imgio.imwrite(
+                str(d / f"screen{i:02d}.png"), f
+            )  # PNG：JPEG 压缩后卡图识别结果会变（实机认出的卡离线成了「?」），复现不了
         (d / "problems.txt").write_text("\n".join(map(str, problems)), encoding="utf-8")
         logger.info("牌组拼接不可信，%d 屏存到 %s", len(frames), d)
     except Exception as e:  # noqa: BLE001
@@ -275,7 +298,9 @@ def _mark_card_name(img, mark) -> str:
     from hiro.vision import card_db
 
     x, y = int(mark.rect.x1), int(mark.rect.y1)
-    asset = card_db.match(img[max(0, y - 95) : y + 25, max(0, x - 5) : x + 115])  # 卡格缩略图：卡面图库（卡面相关在这类小图上认不准）
+    asset = card_db.match(
+        img[max(0, y - 95) : y + 25, max(0, x - 5) : x + 115]
+    )  # 卡格缩略图：卡面图库（卡面相关在这类小图上认不准）
     card = master.card_by_asset(asset) if asset else None
     return card.name if card else "?"
 
@@ -284,8 +309,12 @@ STAGE2_MAX_CANCELS = 2
 _STAGE2_CANCELS: dict = {}  # (card_id, remove_upgrade) → 本进程里阶段 2 因找不到那张而取消的次数
 
 
-LAST_CHANGED: dict | None = None  # 最近一次阶段 2 实际换出的卡 {card_id, upgrade}（成功时写，开始时清空）：给记账取实际强化次数
-CHANGE_GUESS_ART_MIN = 0.40  # 同 deck.GRID_AGREE_MIN：已知要找哪张卡时，卡图相关第一是它、分数够就当候选（还要详情栏卡名核对）
+LAST_CHANGED: dict | None = (
+    None  # 最近一次阶段 2 实际换出的卡 {card_id, upgrade}（成功时写，开始时清空）：给记账取实际强化次数
+)
+CHANGE_GUESS_ART_MIN = (
+    0.40  # 同 deck.GRID_AGREE_MIN：已知要找哪张卡时，卡图相关第一是它、分数够就当候选（还要详情栏卡名核对）
+)
 
 
 def guess_unread_target(img, cards: list[dict], card_id: str, remove_upgrade: int | None = None) -> dict | None:
@@ -311,7 +340,9 @@ def guess_unread_target(img, cards: list[dict], card_id: str, remove_upgrade: in
         up = _plus(crop)
         if remove_upgrade is not None and up is not None and up != remove_upgrade:
             continue
-        hits.append({**c, "card_id": card_id, "name": card.name, "upgrade": up, "guessed": True, "art": round(art[0][1], 3)})
+        hits.append(
+            {**c, "card_id": card_id, "name": card.name, "upgrade": up, "guessed": True, "art": round(art[0][1], 3)}
+        )
     return hits[0] if len(hits) == 1 else None
 
 
@@ -380,11 +411,16 @@ def change_stage2(self, index: int = 0, card_id: str | None = None, cancel: bool
     if target is None and not cancel and card_id:
         guess = guess_unread_target(img, dialog["cards"], card_id, remove_upgrade)
         if guess is not None:
-            target, why = guess, f"{why}；认不出的格子 {guess['index']} 卡图最像它（{guess['art']}），点后按详情栏卡名核对"
+            target, why = (
+                guess,
+                f"{why}；认不出的格子 {guess['index']} 卡图最像它（{guess['art']}），点后按详情栏卡名核对",
+            )
     if target is None:
         if card_id and not cancel:
             _STAGE2_CANCELS[key] = _STAGE2_CANCELS.get(key, 0) + 1
-        logger.warning("换卡阶段 2：%s，不换，点「キャンセル」（卡格 %s）", why, [c.get("name") for c in dialog["cards"]])
+        logger.warning(
+            "换卡阶段 2：%s，不换，点「キャンセル」（卡格 %s）", why, [c.get("name") for c in dialog["cards"]]
+        )
         device.click(*CHANGE_CANCEL_TAP)
         _sleep(CHANGE_POLL)
         run.snap(device.screenshot(), "stage2-cancel")
@@ -399,15 +435,25 @@ def change_stage2(self, index: int = 0, card_id: str | None = None, cancel: bool
     sel = picked.get("selected_card") or {}
     chosen, chosen_up = sel.get("card_id"), sel.get("upgrade")
     if target.get("guessed") and chosen != target["card_id"]:
-        logger.warning("换卡阶段 2：猜的格子 %s 详情栏读到 %s，不是要换的 %s，点「キャンセル」", target["index"], chosen, target["card_id"])
+        logger.warning(
+            "换卡阶段 2：猜的格子 %s 详情栏读到 %s，不是要换的 %s，点「キャンセル」",
+            target["index"],
+            chosen,
+            target["card_id"],
+        )
         device.click(*CHANGE_CANCEL_TAP)
         return False
-    if chosen and (chosen != target["card_id"] or (target.get("upgrade") is not None and chosen_up is not None and chosen_up != target["upgrade"])):
+    if chosen and (
+        chosen != target["card_id"]
+        or (target.get("upgrade") is not None and chosen_up is not None and chosen_up != target["upgrade"])
+    ):
         logger.warning("换卡阶段 2：选中的是 %s（强化 %s），不是要换的 %s（强化 %s），点「キャンセル」", chosen, chosen_up, target["card_id"],
                        target.get("upgrade"))  # fmt: skip
         device.click(*CHANGE_CANCEL_TAP)
         return False
-    logger.info("换卡阶段 2：换出「%s」（%s，强化 %s，%s）", target.get("name"), target["card_id"], target.get("upgrade"), why)
+    logger.info(
+        "换卡阶段 2：换出「%s」（%s，强化 %s，%s）", target.get("name"), target["card_id"], target.get("upgrade"), why
+    )
     deadline = time.monotonic() + CHANGE_STAGE_TIMEOUT
     gone = 0
     while time.monotonic() < deadline:
@@ -473,8 +519,20 @@ def confirm_change_dialog(img, run=None) -> bool:
         return False
 
 
-def _card_op(kind: str, card_id: str | None, *, shoot=None, click=None, clock=time.monotonic, sleep=_sleep, ocr=None,
-             calib: bool = True, choose=None, swipe=None, expected_size: int | None = None) -> bool:
+def _card_op(
+    kind: str,
+    card_id: str | None,
+    *,
+    shoot=None,
+    click=None,
+    clock=time.monotonic,
+    sleep=_sleep,
+    ocr=None,
+    calib: bool = True,
+    choose=None,
+    swipe=None,
+    expected_size: int | None = None,
+) -> bool:
     """全屏选卡页（删卡 / 强化）：read_card_dialog 定位 card_id → 点卡 → 核对选中 → 点「削除 / 強化」→（确认框）→ 页面关闭。
 
     取消键：只有相談里点「削除」进的删卡页有「キャンセル」（数据集 20261029-224103 第 141–148 帧）；
@@ -551,7 +609,9 @@ def _card_op(kind: str, card_id: str | None, *, shoot=None, click=None, clock=ti
         if merged["problems"]:
             logger.warning("%s：牌组拼接有问题 %s", label, merged["problems"])
         if not merged["complete"]:
-            return give_up(f"牌组拼接不可信（{len(deck_cards)} 张，{merged['problems']}），不交决策")  # 第十四局拼成 36 张
+            return give_up(
+                f"牌组拼接不可信（{len(deck_cards)} 张，{merged['problems']}），不交决策"
+            )  # 第十四局拼成 36 张
         logger.info("%s：牌组 %d 屏共 %d 张", label, len(screens), len(deck_cards))
     if not card_id and choose is not None:
         card_id = choose(deck_cards)
@@ -561,7 +621,9 @@ def _card_op(kind: str, card_id: str | None, *, shoot=None, click=None, clock=ti
     want = next((c.get("upgrade") for c in deck_cards if c.get("card_id") == card_id), None)
 
     def find(cs):
-        return next((c for c in cs if c.get("card_id") == card_id and (want is None or c.get("upgrade") in (want, None))), None)
+        return next(
+            (c for c in cs if c.get("card_id") == card_id and (want is None or c.get("upgrade") in (want, None))), None
+        )
 
     if not scrollable:
         target = find(cards)
@@ -604,7 +666,9 @@ def _card_op(kind: str, card_id: str | None, *, shoot=None, click=None, clock=ti
         d = read_card_dialog(im, region)
         got["sel"] = d
         sel = (d.get("selected_card") or {}).get("card_id")
-        return sel == card_id or (sel is None and d.get("selected") is not None and d["cards"][d["selected"]].get("card_id") == card_id)
+        return sel == card_id or (
+            sel is None and d.get("selected") is not None and d["cards"][d["selected"]].get("card_id") == card_id
+        )
 
     sleep(CARD_OP_PICK_SETTLE)
     ok, img = run.until(picked, CARD_OP_TIMEOUT, min_checks=CARD_OP_PICK_CHECKS)
@@ -628,7 +692,9 @@ def _card_op(kind: str, card_id: str | None, *, shoot=None, click=None, clock=ti
         boxes = run.ocr(im)
         if find_text(boxes, CARD_OP_DONE[kind]) is not None:
             return True
-        if run.clock() - last[0] >= 1.0 and (b := find_text(boxes, CARD_OP_CONFIRM[kind], region=(360, 1080, 720, 1240))):
+        if run.clock() - last[0] >= 1.0 and (
+            b := find_text(boxes, CARD_OP_CONFIRM[kind], region=(360, 1080, 720, 1240))
+        ):
             run.snap(im, "confirm")
             run.tap(b)
             last[0] = run.clock()
@@ -685,7 +751,14 @@ def pitem_commit(self, index: int, *, shoot=None, click=None, clock=time.monoton
             w = wait_change(img, done=lambda im: acquire_lit(im, base_val), timeout=PITEM_LIT_TIMEOUT, **kw)
             img = w.img
             if not w.changed:
-                logger.info("P 道具：点第 %d 个背包 (%d, %d) 后 %.1fs「受け取る」没变亮（第 %d 次）", index, x, y, w.waited_s, attempt + 1)
+                logger.info(
+                    "P 道具：点第 %d 个背包 (%d, %d) 后 %.1fs「受け取る」没变亮（第 %d 次）",
+                    index,
+                    x,
+                    y,
+                    w.waited_s,
+                    attempt + 1,
+                )
                 continue
         bx, by, bw, bh = PITEM_ACQUIRE_BTN
         click(bx + bw // 2, by + bh // 2)
@@ -700,7 +773,11 @@ def pitem_commit(self, index: int, *, shoot=None, click=None, clock=time.monoton
 
 
 # ---------------------------------------------------------------- 选饮料（差し入れ / 活動支給 等三选一，替换 KAA DrinkSelectContext）
-DRINK_SELECT_BOXES = ((157, 820, 285, 948), (296, 820, 424, 948), (435, 820, 563, 948))  # 三瓶的位置（同 KAA POSTIONS，x1 y1 x2 y2）
+DRINK_SELECT_BOXES = (
+    (157, 820, 285, 948),
+    (296, 820, 424, 948),
+    (435, 820, 563, 948),
+)  # 三瓶的位置（同 KAA POSTIONS，x1 y1 x2 y2）
 DRINK_SELECT_MAX_TRIES = 8  # KAA 的提交循环没有上限；这里点这么多轮还是灰的「受け取る」就交回主循环
 
 

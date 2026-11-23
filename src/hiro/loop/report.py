@@ -6,7 +6,7 @@ LLM 调用次数与 token、故障恢复次数、页面切换、每场考试结�
 
 import argparse
 import json
-import statistics
+import statistics  # noqa: F401
 import sys
 from collections import Counter
 from pathlib import Path
@@ -33,8 +33,12 @@ def llm_summary(llm_calls: list) -> dict:
         "output_tokens": sum(c.output_tokens or 0 for c in llm_calls),
         "cache_read": sum(getattr(c, "cache_read_input_tokens", None) or 0 for c in llm_calls),
         "cache_creation": sum(getattr(c, "cache_creation_input_tokens", None) or 0 for c in llm_calls),
-        "total_input": sum((c.input_tokens or 0) + (getattr(c, "cache_read_input_tokens", None) or 0)
-                           + (getattr(c, "cache_creation_input_tokens", None) or 0) for c in llm_calls),
+        "total_input": sum(
+            (c.input_tokens or 0)
+            + (getattr(c, "cache_read_input_tokens", None) or 0)
+            + (getattr(c, "cache_creation_input_tokens", None) or 0)
+            for c in llm_calls
+        ),
         "cost_usd": round(sum(getattr(c, "cost_usd", None) or 0.0 for c in llm_calls), 4),
         "seconds_median": _pct([c.seconds for c in llm_calls], 0.5),
         "adapters": dict(Counter(f"{c.adapter}:{c.model}" for c in llm_calls)),
@@ -65,7 +69,7 @@ def summarize(steps: list[Step], run_meta: dict | None = None) -> dict:
         for n in s.notes:
             if n.startswith("recover:"):
                 recov[n.split(":")[1]] += 1
-    page_changes = sum(1 for a, b in zip(steps, steps[1:]) if a.state.page.name != b.state.page.name)
+    page_changes = sum(1 for a, b in zip(steps, steps[1:]) if a.state.page.name != b.state.page.name)  # noqa: RUF007
     exams: dict[str, dict] = {}
     for s in steps:
         label = s.state.exam_session.label
@@ -80,7 +84,11 @@ def summarize(steps: list[Step], run_meta: dict | None = None) -> dict:
     # 再挑戦时结果页出现多次，取最后一次（最终采用的那次挑战）
     for s in steps:
         f = s.observation.fields if s.observation is not None else {}
-        if s.observation is not None and s.observation.page.name == "HIF_FINALS_RANKING" and f.get("round_score") is not None:
+        if (
+            s.observation is not None
+            and s.observation.page.name == "HIF_FINALS_RANKING"
+            and f.get("round_score") is not None
+        ):
             rnd = f.get("finals_round") or f.get("round_result")
             if rnd in (1, 2):
                 exams.setdefault(f"r{rnd}", {"decisions": 0, "turns": 0, "score": None})["score"] = f["round_score"]
@@ -130,8 +138,10 @@ def _settle_line(st: dict | None) -> str:
     if not st or not st["n"]:
         return "- 考试判稳：没有考试步"
     f = st["settle_fast_ms"]
-    return (f"- 考试判稳：n={st['n']}，settle_fast 中位 {f['median']} ms、p90 {f['p90']} ms、最大 {f['max']} ms；"
-            f"等满没稳 {st['settle_timeout']} 次，决策帧过时 {st['stale_frames']} 次，重新决策 {st['redo']} 次")
+    return (
+        f"- 考试判稳：n={st['n']}，settle_fast 中位 {f['median']} ms、p90 {f['p90']} ms、最大 {f['max']} ms；"
+        f"等满没稳 {st['settle_timeout']} 次，决策帧过时 {st['stale_frames']} 次，重新决策 {st['redo']} 次"
+    )
 
 
 def markdown(r: dict) -> str:
@@ -141,7 +151,8 @@ def markdown(r: dict) -> str:
         f"# 运行报告 {r.get('trace', '')}",
         "",
         f"- 步数 {r['steps']}，决策 {r['decisions']}（来源 {r['decisions_by_source']}；决策器 {r['decisions_by_decider']}）",
-        f"- 兜底 {r.get('fallbacks', 0)} 次；各决策器来源：" + "；".join(f"{d} {dict(c)}" for d, c in (r.get("decisions_by_decider_source") or {}).items()),
+        f"- 兜底 {r.get('fallbacks', 0)} 次；各决策器来源："
+        + "；".join(f"{d} {dict(c)}" for d, c in (r.get("decisions_by_decider_source") or {}).items()),
         f"- 页面切换 {r['page_changes']} 次，终止页面 {r['final_page']}",
         f"- 考试内截图→点击：n={lat['n']}，中位 {lat['median']} ms，p90 {lat['p90']} ms，最大 {lat['max']} ms",
         _settle_line(r.get("exam_settle")),

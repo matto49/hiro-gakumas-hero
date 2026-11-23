@@ -1,13 +1,13 @@
 """ExamAdvisor / ExamStateSource 默认实现：不需要模拟器、KAA、识别层也能跑（合成局面）。"""
 
-import pytest
-
 from hiro import plugins
-from hiro.brain.cards import CardView, DrinkView
+from hiro.brain.cards import CardView, DrinkView  # noqa: F401
 from hiro.brain.state import CAMPUS_HIRO, BattleState, ExamMemory
 from hiro.contracts import Action, Preview
 from hiro.defaults.advisor import RuleLLMAdvisor, preview_rows
 from hiro.defaults.exam_state import ScreenExamStateSource, screen_state
+
+import pytest
 
 
 def _card(slot, name, cid, available=True):
@@ -16,10 +16,28 @@ def _card(slot, name, cid, available=True):
 
 def _state(hand, drinks=(), remaining=8):
     mem = ExamMemory(exam="r1")
-    st = BattleState.build(mem, CAMPUS_HIRO, source="screen", remaining_turns=remaining, hp=20, genki=10, motivation=5,
-                           impression=0, score=1000, buffs={}, attr="Da", multiplier_permil=None, npc_scores=None,
-                           my_rank_index=None, deck_count=None, pitem_charges=None, statuses=None, attr_permil=None,
-                           hand=list(hand), drinks=list(drinks))
+    st = BattleState.build(
+        mem,
+        CAMPUS_HIRO,
+        source="screen",
+        remaining_turns=remaining,
+        hp=20,
+        genki=10,
+        motivation=5,
+        impression=0,
+        score=1000,
+        buffs={},
+        attr="Da",
+        multiplier_permil=None,
+        npc_scores=None,
+        my_rank_index=None,
+        deck_count=None,
+        pitem_charges=None,
+        statuses=None,
+        attr_permil=None,
+        hand=list(hand),
+        drinks=list(drinks),
+    )
     return st, mem
 
 
@@ -34,7 +52,9 @@ def test_plugins_resolve_defaults():
 
     adv = plugins.get("exam_advisor")
     src = plugins.get("exam_state_source")
-    assert isinstance(adv, BenchAdvisor) and isinstance(src, ScreenExamStateSource)  # 缺省出招：bench 算法（测试里关着，走规则）
+    assert isinstance(adv, BenchAdvisor) and isinstance(
+        src, ScreenExamStateSource
+    )  # 缺省出招：bench 算法（测试里关着，走规则）
     assert isinstance(adv, plugins.ExamAdvisor) and isinstance(src, plugins.ExamStateSource)
 
 
@@ -49,9 +69,11 @@ def test_advisor_with_previews_follows_best_expected(monkeypatch):
     monkeypatch.setenv("HIRO_EXAM_POLICY", "expert")  # expert：按预演期望选；默认 llm 时预演只进提示词
     st, mem = _state([_card(0, "A", "c-a"), _card(1, "B", "c-b")])
     legal = [Action.from_legal(a) for a in st.legal_actions()]
-    previews = [Preview(action=Action.from_legal("play:0"), expected=1000.0, vs_best_se=0.0),
-                Preview(action=Action.from_legal("play:1"), expected=5000.0, vs_best_se=0.0),
-                Preview(action=Action.from_legal("skip"), expected=10.0, vs_best_se=0.0)]
+    previews = [
+        Preview(action=Action.from_legal("play:0"), expected=1000.0, vs_best_se=0.0),
+        Preview(action=Action.from_legal("play:1"), expected=5000.0, vs_best_se=0.0),
+        Preview(action=Action.from_legal("skip"), expected=10.0, vs_best_se=0.0),
+    ]
     rows = preview_rows(previews, legal)
     assert rows[0]["legal_action"] == "play:1"
     d = RuleLLMAdvisor(CAMPUS_HIRO).decide(st, mem, previews, legal)
@@ -67,7 +89,9 @@ class _Frame:
 def test_state_source_reads_screen_fields(monkeypatch):
     import hiro.defaults.exam_state as es
 
-    monkeypatch.setattr(es, "screen_fields", lambda raw, session=None, img=None: {"remaining_turns": 6, "hp": 15, "score": 2000})
+    monkeypatch.setattr(
+        es, "screen_fields", lambda raw, session=None, img=None: {"remaining_turns": 6, "hp": 15, "score": 2000}
+    )
     src = ScreenExamStateSource()
     src.begin({"profile": CAMPUS_HIRO})
     st, why = src.read(_Frame({"hand_layout": "ok"}), ExamMemory(exam="r1"))

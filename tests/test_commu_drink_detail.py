@@ -4,10 +4,10 @@
 
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.runtime import interrupts, play
 from hiro.runtime.frame import Frame
+
+import pytest
 from test_runtime import frame as fake_frame
 from test_runtime import runtime
 
@@ -64,7 +64,7 @@ def test_drink_detail_taps_cancel_only():
     rt, _ = runtime([fake_frame()])
     msg = interrupts.check(Frame(_real(DETAIL), 0.0), rt)
     assert msg and "Pドリンク詳細" in msg
-    (x, y), = rt.raw_device.taps
+    ((x, y),) = rt.raw_device.taps
     assert x < 360 and abs(y - 1160) < 20  # 左下キャンセル；捨てる 在 (605,889)、使う 在 (516,1160)
 
 
@@ -91,10 +91,12 @@ def test_rank_certificate_taps_tap_next():
     rt = _rt_img(img)
     f = Frame(img, 0.0)
     assert play.advance(rt, f, NS(name="unknown", fields={}))
-    (x, y), = rt.taps
+    ((x, y),) = rt.taps
     assert abs(x - 360) < 40 and abs(y - 1147) < 20
     rt.t = 0.5
-    assert play.advance(rt, Frame(img, 0.5), NS(name="unknown", fields={})) and len(rt.taps) == 1  # 刚点过：等翻页，不连点
+    assert (
+        play.advance(rt, Frame(img, 0.5), NS(name="unknown", fields={})) and len(rt.taps) == 1
+    )  # 刚点过：等翻页，不连点
 
 
 def test_tap_next_blocked_by_button_words():

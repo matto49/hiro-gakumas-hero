@@ -42,7 +42,7 @@ def count(seg: Path) -> tuple[Counter, Counter]:
                 pages[(page.get("name") or "unknown", page.get("source") or NO_SOURCE)] += 1
             for note in step.get("notes") or []:
                 if isinstance(note, str) and note.startswith(MISJUDGED):
-                    misjudged[note[len(MISJUDGED):].strip()] += 1
+                    misjudged[note[len(MISJUDGED) :].strip()] += 1
     return pages, misjudged
 
 
@@ -54,7 +54,12 @@ def table(pages: Counter, misjudged: Counter, title: str) -> str:
     total = Counter()
     for (_, src), n in pages.items():
         total[src] += n
-    lines = [f"## {title}", "", "观测总数 " + str(sum(total.values())) + "；按来源：" + "、".join(f"{s} {total[s]}" for s in sources), ""]
+    lines = [
+        f"## {title}",
+        "",
+        "观测总数 " + str(sum(total.values())) + "；按来源：" + "、".join(f"{s} {total[s]}" for s in sources),
+        "",
+    ]
     lines.append("| 页面 | " + " | ".join(sources) + " | 合计 |")
     lines.append("|---" * (len(sources) + 2) + "|")
     for name, c in sorted(by_page.items(), key=lambda kv: (-kv[1]["kaa"], -sum(kv[1].values()), kv[0])):

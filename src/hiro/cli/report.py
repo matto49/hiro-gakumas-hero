@@ -27,8 +27,10 @@ def traces_dir() -> Path:
 
 def segments(traces: Path, base: str) -> list[Path]:
     """一个任务的 trace：<编号> 和续跑段 <编号>-rN（按 N 排）。"""
-    segs = [traces / base] + sorted(traces.glob(base + "-r*"), key=lambda p: int(p.name.rsplit("-r", 1)[1])
-                                     if p.name.rsplit("-r", 1)[1].isdigit() else 0)
+    segs = [traces / base] + sorted(
+        traces.glob(base + "-r*"),
+        key=lambda p: int(p.name.rsplit("-r", 1)[1]) if p.name.rsplit("-r", 1)[1].isdigit() else 0,
+    )
     return [s for s in segs if (s / "steps.jsonl").is_file()]
 
 
@@ -86,9 +88,17 @@ def summarize(base: str) -> dict:
                 by_source[dec.get("source") or "?"] += 1
                 llm += len(dec.get("llm") or [])
             recov += sum(1 for n in rec.get("notes") or [] if str(n).startswith("recover:"))
-    return {"job": base, "segments": [s.name for s in segs], "steps": steps, "decisions": decisions,
-            "by_source": dict(by_source), "llm_calls": llm, "recoveries": recov, "final_page": final_page,
-            "exams": exam_scores(base, traces)}
+    return {
+        "job": base,
+        "segments": [s.name for s in segs],
+        "steps": steps,
+        "decisions": decisions,
+        "by_source": dict(by_source),
+        "llm_calls": llm,
+        "recoveries": recov,
+        "final_page": final_page,
+        "exams": exam_scores(base, traces),
+    }
 
 
 def score_line(exams: list[dict]) -> str:

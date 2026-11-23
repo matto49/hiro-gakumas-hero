@@ -11,28 +11,28 @@
 - ExamAdvisor.decide(state, memory, previews, legal) → Decision（契约）；默认实现（hiro.defaults.advisor）= 社区规则 + LLM。
 """
 
-
+import logging
 import os
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
-from collections.abc import Callable
 
 from hiro import master
-import logging
-from hiro.devices.active import Loop, device, sleep
-
 from hiro.brain.battle import BattleBrain
-from hiro.brain.rules import Decision
 from hiro.brain.cards import card_view, drink_view
+from hiro.brain.rules import Decision
 from hiro.brain.state import BattleState, ExamMemory
-from hiro.contracts import Action, Decision as DecisionContract, ExecutionResult
+from hiro.contracts import Action, ExecutionResult
+from hiro.contracts import Decision as DecisionContract  # noqa: F401
+from hiro.devices.active import Loop, device, sleep
+from hiro.exec import schedule_probe
 from hiro.perception.lesson import _read_int
 from hiro.produce import ops
 from hiro.recorder import Recorder
-from hiro.exec import schedule_probe
 from hiro.vision.hif import EXAM_CACHE, hand_cards
 from hiro.vision.ocr import Box, Text, find_text, screen_texts
+from hiro.vision.textnorm import contains  # OCR 容错匹配（用户 11-21）
 from hiro.vision.ui_templates import box, tap, tpl
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,6 @@ STABLE_WAIT_S = 6.0  # 画面一直不稳定时最多等这么久，之后用单
 EXAM_STALL_S = 180.0  # 考试里这么久没有进展（没有一个动作生效、残りターン 也没变）就退出 run_exam，交回主循环（主循环有自己的看门狗）。
 # 偶像之路不合格名次页认不出「结束」时 run_exam 空转 5 分钟没日志（Mac 稳定性测试 11-14）；不看画面变不变：名次页背景是动的
 SLOW_DIALOG_AFTER = 5.0  # 画面不像考试帧超过这么久（回合切换动画约 2–3s 不算），弹窗检查才退回整帧 OCR（横屏 LIVE 开始提示等没有标题条的页面）
-
 
 
 def _hud_int(img, box, kaa_box) -> int | None:
@@ -116,7 +115,7 @@ class Frame:
         self.genki = _hud_int(img, hif.BOX_GENKI, box("InProduce.InLesson.BoxGenki"))
         self.cards = hand_cards(img, cache=EXAM_CACHE)  # 位置 / 能不能打 / 卡面认出的卡（hiro.vision.hif.hand_cards）
         self.drinks: list[tuple[master.Drink, tuple]] = _drinks(img)
-        self._hand: list[dict] | None | bool = False  # 识别层手牌，按需读（见 hand）
+        self._hand: list[dict] | bool | None = False  # 识别层手牌，按需读（见 hand）
 
     @property
     def hand(self) -> list[dict] | None:
@@ -138,7 +137,9 @@ class Frame:
             from hiro.vision.observe import battle_observation
 
             return battle_observation({"hand": self.hand})["hand"]
-        return [card_view(i, c.card if c else None, available=bool(c and c.available)) for i, c in enumerate(self.cards)]
+        return [
+            card_view(i, c.card if c else None, available=bool(c and c.available)) for i, c in enumerate(self.cards)
+        ]
 
     @property
     def signature(self) -> tuple:
@@ -197,7 +198,43 @@ def _roi_texts(img, y1: int, y2: int) -> list[Text]:
 
 def _selects(img) -> list[Text]:
     """手牌下方的「SELECT」标签（只识别条带）。"""
-    return [t for t in _roi_texts(img, *SELECT_BAND) if _is_select(t.text)]
+    return _select_markers(img, _roi_texts(img, *SELECT_BAND))
+
+
+def _select_markers(img, boxes: list[Text]) -> list[Text]:
+    """SIMD 偶尔把卡名和 SELECT 合框。只用复核过的按钮位置。"""
+    hits = [t for t in boxes if _is_select(t.text)]
+    if hits or not boxes or img is None:
+        return hits
+    from hiro.vision.ocr import engine, ocr_line
+
+    if engine() != "simd":
+        return hits
+    import cv2
+
+    for t in boxes:
+        if (
+            not t.text.strip().upper().replace(" ", "").endswith("SELECT")
+            or t.rect.w < 105
+            or not 1080 < t.rect.center.y < 1140
+        ):
+            continue
+        right, y = int(t.rect.x2), int(t.rect.center.y)
+        x1, x2, y1, y2 = max(0, right - 94), min(img.shape[1], right + 5), y - 10, y + 25
+        crop = img[y1:y2, x1:x2]
+        if not crop.size:
+            continue
+        orange = cv2.inRange(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV), (14, 130, 178), (30, 255, 255))
+        if cv2.countNonZero(orange) <= 200:
+            continue
+        try:
+            crop_text = ocr_line(crop)
+        except Exception:  # noqa: BLE001  识别出错（辅助进程重启后仍失败）不能打断出牌：这个候选当作读不出
+            logger.warning("局部 OCR 出错（SELECT 候选 y %d–%d）", y1, y2, exc_info=True)
+            continue
+        if _is_select(crop_text):
+            hits.append(Text("SELECT", Box(x1, y1, x2, y2)))
+    return hits
 
 
 def _dialog_top(img) -> int | None:
@@ -247,7 +284,10 @@ HIF_DIALOGS = (
     ("カスタマイズ確認", "実行する", 1000),  # 定制页已选中一项（决策器已选），按「実行する」
     ("カスタマイズを実行", "決定", 1000),  # 定制的二次确认弹窗「以下のPアイテムにカスタマイズを実行します」
 )
-DANGER_WORDS = ("リタイア", "破棄")  # 危险弹窗（リタイア / データ破棄）：绝不点确认，只点キャンセル（识别 DIALOG.danger 同一判据）
+DANGER_WORDS = (
+    "リタイア",
+    "破棄",
+)  # 危险弹窗（リタイア / データ破棄）：绝不点确认，只点キャンセル（识别 DIALOG.danger 同一判据）
 
 
 SELECT_RECHECK_S = 0.8  # SELECT 重点前等画面稳定再核对一次
@@ -261,7 +301,7 @@ def _is_select(text: str) -> bool:
 
 def _confirm_dialog(boxes, texts) -> bool:
     """按 OCR 结果处理确认框：危险弹窗只点キャンセル；HIF_DIALOGS 里的点对应按钮。返回是否点了。"""
-    if any(w in t for t in texts for w in DANGER_WORDS):
+    if any(contains(t, w) for t in texts for w in DANGER_WORDS):
         pos = _ocr_button("キャンセル", min_y=600, boxes=boxes)
         if pos:
             logger.warning("危险弹窗（リタイア / 破棄）→ 只点キャンセル %s", pos)
@@ -277,7 +317,13 @@ def _confirm_dialog(boxes, texts) -> bool:
 
         # 调用方给的可能只是弹窗区的局部 OCR（_exam_dialogs），开关在整个弹窗里：重新整帧 OCR 一次
         img = device.screenshot()
-        r = skip_settings.handle(ocr_boxes(img), shoot=device.screenshot, ocr=ocr_boxes, click=lambda x, y: device.click(x, y)) if img is not None else None
+        r = (
+            skip_settings.handle(
+                ocr_boxes(img), shoot=device.screenshot, ocr=ocr_boxes, click=lambda x, y: device.click(x, y)
+            )
+            if img is not None
+            else None
+        )
         if r is not None and r["ok"]:
             return True
     # 顺序要紧：确认框叠在详情框上面，先处理上层
@@ -304,19 +350,28 @@ def _select_retap(sel: Text) -> bool:
     sx, sy = int(sel.rect.center.x), int(sel.rect.center.y)
     sleep(SELECT_RECHECK_S)
     img = device.screenshot()
-    again = next((t for t in _selects(img) if abs(t.rect.center.x - sx) <= 30 and abs(t.rect.center.y - sy) <= 30), None)
+    again = next(
+        (t for t in _selects(img) if abs(t.rect.center.x - sx) <= 30 and abs(t.rect.center.y - sy) <= 30), None
+    )
     if again is None:
         logger.info("H.I.F SELECT 已消失或移位（卡已打出 / 手牌重排），不再点")
         return False
     now = time.monotonic()
-    if _RETAP["pos"] is not None and abs(_RETAP["pos"][0] - sx) <= 30 and abs(_RETAP["pos"][1] - sy) <= 30 and now - _RETAP["t0"] <= RETAP_WINDOW_S:
+    if (
+        _RETAP["pos"] is not None
+        and abs(_RETAP["pos"][0] - sx) <= 30
+        and abs(_RETAP["pos"][1] - sy) <= 30
+        and now - _RETAP["t0"] <= RETAP_WINDOW_S
+    ):
         _RETAP["n"] += 1
     else:
         _RETAP.update(pos=(sx, sy), n=1, t0=now)
     if _RETAP["n"] > RETAP_MAX:
         # 同一张卡反复停在选中态：多半是「使用可能になる条件を満たしていません」（第二十一局选拔① T1 デイドリーミング+，再点 12 分钟）。
         # 点舞台取消选中，交给主循环把这个动作本回合禁用，不当作已打出
-        logger.warning("H.I.F 同一张卡连续 %d 次停在选中态（使用条件不满足？）→ 取消选中，本回合禁用该动作", _RETAP["n"])
+        logger.warning(
+            "H.I.F 同一张卡连续 %d 次停在选中态（使用条件不满足？）→ 取消选中，本回合禁用该动作", _RETAP["n"]
+        )
         device.click(*DESELECT_TAP)
         _RETAP.update(pos=None, n=0, t0=0.0)
         UNPLAYABLE["hit"] = True
@@ -397,7 +452,9 @@ def _settle_fast(img, *, on_tick=None, clock=time.monotonic):
         else:
             same = prev is not None and _lite_same(prev, sig)
             if prev is not None and not same:
-                _count("settle_sig_hud" if sig[1] == prev[1] else "settle_sig_hand")  # 画面还在变：HUD 数字变 / 手牌位置变
+                _count(
+                    "settle_sig_hud" if sig[1] == prev[1] else "settle_sig_hand"
+                )  # 画面还在变：HUD 数字变 / 手牌位置变
             calm = calm + 1 if same else 0
             calm_t = (calm_t if same and calm_t is not None else now) if prev is not None else now
             prev = sig
@@ -476,11 +533,9 @@ def _guard_dialog_loop(img, session, memory, last_action, exam) -> None:
     """通用防空转：考试循环弹窗阶段每轮都点了东西又回来、手牌 / HUD 不变（_lite_sig 相同）、上一个动作也没变 → 连续 REPEAT_MAX 轮
     就点舞台空白取消选中、本回合禁用上一个动作。第二十一局选拔①：卡停在选中态再点 404 次、17.8 分钟，期间没有一个决策步。
     HUD 被弹窗挡住（_lite_sig 读不到）时不计数：那是真弹窗，交给弹窗处理和空转看门狗。"""
-    from hiro.loop.repeat_guard import REPEAT_MAX, action_key
+    from hiro.loop.repeat_guard import REPEAT_MAX, SCREEN_DIFF, _thumb, action_key
 
     import numpy as np
-
-    from hiro.loop.repeat_guard import SCREEN_DIFF, _thumb
 
     if session is None or last_action is None or getattr(session, "guard", None) is None:
         return
@@ -497,7 +552,9 @@ def _guard_dialog_loop(img, session, memory, last_action, exam) -> None:
     session.guard.reset_streak()
     device.click(*DESELECT_TAP)
     memory.block(last_action)
-    msg = f"重复无效动作：[{exam}] 弹窗阶段同一画面连续 {REPEAT_MAX} 轮（上一个动作 {last_action}），取消选中、本回合禁用"
+    msg = (
+        f"重复无效动作：[{exam}] 弹窗阶段同一画面连续 {REPEAT_MAX} 轮（上一个动作 {last_action}），取消选中、本回合禁用"
+    )
     logger.warning(msg)
     session.recover("tap_no_effect", msg)
     session.note("blunder:repeat_no_effect " + msg)
@@ -509,7 +566,10 @@ def _lite_sig(img):
     from hiro.vision.hand_slots import card_letters
 
     try:
-        hud = tuple(_hud_int(img, hb, box(f"InProduce.InLesson.{kb}")) for hb, kb in ((hif.BOX_TURNS, "BoxRemainingTurns"), (hif.BOX_HP, "BoxHp"), (hif.BOX_GENKI, "BoxGenki")))
+        hud = tuple(
+            _hud_int(img, hb, box(f"InProduce.InLesson.{kb}"))
+            for hb, kb in ((hif.BOX_TURNS, "BoxRemainingTurns"), (hif.BOX_HP, "BoxHp"), (hif.BOX_GENKI, "BoxGenki"))
+        )
         letters = tuple(sorted((int(r.x1) // 8, int(r.y1) // 8) for r in card_letters(img)))
     except Exception:
         return None
@@ -557,7 +617,7 @@ def _hif_drink_dialogs(*, force: bool = False, boxes=None) -> bool:
         _last_dialog_ocr = now
         boxes = screen_texts(device.screenshot())
     texts = [t.text for t in boxes]
-    if any(w in t for t in texts for w in DANGER_WORDS):
+    if any(contains(t, w) for t in texts for w in DANGER_WORDS):
         return _confirm_dialog(boxes, texts)
     sel = next((t for t in boxes if _is_select(t.text) and t.rect.center.y > 1000), None)
     if sel is not None and not any("ドリンク" in t or "確認" in t or "ターン終了" in t for t in texts):
@@ -605,7 +665,7 @@ def _handle_dialogs(img=None, *, slow: bool = False, select: bool = True) -> boo
     """处理出牌过程中会弹出的对话框（读最近一次截图 img）。返回是否处理了什么。
     处理后等弹窗区域变化 / 画面稳定再返回，不固定睡 2s。"""
     img = img if img is not None else device.screenshot()
-    if tpl("InProduce.IconTitleSkillCardMove").exists(img):
+    if tpl("InProduce.IconTitleSkillCardMove").exists(img):  # noqa: SIM102
         if _skill_card_move():
             ops.wait_stable(timeout=DIALOG_SETTLE)
             return True
@@ -622,7 +682,9 @@ def _handle_dialogs(img=None, *, slow: bool = False, select: bool = True) -> boo
 
 
 def _usable(f: Frame) -> bool:
-    return f.remaining is not None and (bool(f.cards) or find_text(f.img, "0枚", rect=box("InProduce.BoxNoSkillCard")) is not None)
+    return f.remaining is not None and (
+        bool(f.cards) or find_text(f.img, "0枚", rect=box("InProduce.BoxNoSkillCard")) is not None
+    )
 
 
 SIG_FIELDS = ("remaining", "hp", "genki", "hand", "drinks")
@@ -769,7 +831,9 @@ def _after_use() -> None:
 
 
 PLAY_CONFIRM_TIMEOUT = 1.6  # 第一下之后最多等多久看 SELECT
-PLAY_RESULT = {"confirmed": False}  # 上一次 _play_card 是否看到 SELECT 并点了确认（D34 核对用：没确认的才可能「没打出去」）
+PLAY_RESULT = {
+    "confirmed": False
+}  # 上一次 _play_card 是否看到 SELECT 并点了确认（D34 核对用：没确认的才可能「没打出去」）
 PLAY_RETAPS = 1  # 没看到 SELECT 且手牌没变时再点几次（第二十六局：上一张牌还在结算时点击不被接收）
 PLAY_POLL = 0.2
 DESELECT_TAP = (360, 330)  # 舞台空白处：点了会取消手牌选中（main13 R2 实测）
@@ -787,7 +851,14 @@ def _play_card(x: int, y: int, img=None) -> list[list[int]]:
     # 出牌前已有别的牌停在选中态（main13 R2 再挑戦 T3：止められない想い+ 选中，决策点 ゆめみごこち，
     # 两张牌来回切换选中 7 次没打出）：先点舞台空白处取消选中，再点目标
     with _phase("pre_check"):
-        other = next((t for t in _selects(img if img is not None else device.screenshot()) if abs(t.rect.center.x - x) > SELECT_DX), None)
+        other = next(
+            (
+                t
+                for t in _selects(img if img is not None else device.screenshot())
+                if abs(t.rect.center.x - x) > SELECT_DX
+            ),
+            None,
+        )
     if other is not None:
         logger.info("出牌前另一张牌停在选中态（SELECT x=%d）→ 点舞台空白处取消", int(other.rect.center.x))
         device.click(*DESELECT_TAP)
@@ -801,13 +872,15 @@ def _play_card(x: int, y: int, img=None) -> list[list[int]]:
             taps.append([x, y])
             t0 = time.monotonic()
             seen: list[Text] = []
+            markers: list[Text] = []
             now = None
             while time.monotonic() - t0 < PLAY_CONFIRM_TIMEOUT:
                 sleep(PLAY_POLL)
                 now = device.screenshot()
                 band = _roi_texts(now, *SELECT_BAND)
                 seen = band or seen
-                sel = next((t for t in band if _is_select(t.text) and abs(t.rect.center.x - x) <= SELECT_DX), None)
+                markers = _select_markers(now, band)
+                sel = next((t for t in markers if abs(t.rect.center.x - x) <= SELECT_DX), None)
                 if sel is not None:
                     # 点下去 → 看到 SELECT 的时间（第三十局：第一下丢点 21 次、每次等满 1.6s 才补点；按这个分布再定能不能早点判「没收到」）
                     PHASES["play_select_ms"] = PHASES.get("play_select_ms", 0.0) + (time.monotonic() - t0) * 1000
@@ -817,12 +890,20 @@ def _play_card(x: int, y: int, img=None) -> list[list[int]]:
                     return taps + [[x, y]]
             # 第二十六局：剪枝预演后决策快了，点击常落在上一张牌还在结算的 1.5–3.5s 里，游戏不收（34 次，以前空等 10s 再决策）。
             # 手牌没变（卡没打出去）、条带上也没有任何 SELECT（没选中别的）：马上再点一次
-            if attempt >= PLAY_RETAPS or before is None or now is None or any(_is_select(t.text) for t in seen):
+            if (
+                attempt >= PLAY_RETAPS
+                or before is None
+                or now is None
+                or markers
+                or any(_is_select(t.text) for t in seen)
+            ):
                 break
             after = _lite_sig(now)
             if after is None or not _lite_same(before, after):
                 break  # 手牌变了（第一下其实打出去了 / 动画中）：不再点，交给主循环
-            logger.info("出牌 (%d,%d)：%.1fs 内没看到 SELECT、手牌没变（点击没被接收？）→ 再点一次", x, y, PLAY_CONFIRM_TIMEOUT)
+            logger.info(
+                "出牌 (%d,%d)：%.1fs 内没看到 SELECT、手牌没变（点击没被接收？）→ 再点一次", x, y, PLAY_CONFIRM_TIMEOUT
+            )
             _count("play_retap")
     # 诊断（main13 R2：常常 1.6s 内看不到 SELECT、靠兜底补点）：记下最后一次条带识别到的文字和位置（不再整帧 OCR）
     logger.info("出牌 (%d,%d)：%.1fs 内没看到 SELECT，手牌下方文字 %s", x, y, PLAY_CONFIRM_TIMEOUT,
@@ -891,7 +972,6 @@ ACTIONS_FIX_SETTLE = 3.0  # 离上一步不到这么久，行动数为 0 时先�
 TURN_END_CHECK_S = 3.0  # 只点了一下的出牌：点完最多等这么久读 HUD，核对回合有没有在没打出的情况下结束
 
 
-
 def _turn_ending(frame) -> bool:
     """行动数为 0、画面还停在出牌界面：离上一步不到 ACTIONS_FIX_SETTLE 秒就等到那时再看一眼，剩余回合 / 手牌变了（或读不到）= 回合正在自动结束。"""
     since = time.monotonic() - _LAST_EXEC["t"]
@@ -916,7 +996,10 @@ def _play_observable(card_id: str | None, upgrade: int | None) -> bool:
     if c is None:
         return True
     text = (c.produce_descriptions or "") + c.effect_display_text
-    other_cost = bool(c.cost_value) and (c.cost_type or "").rsplit("_", 1)[-1] not in ("", "Unknown")  # 消耗好印象 / やる気 等
+    other_cost = bool(c.cost_value) and (c.cost_type or "").rsplit("_", 1)[-1] not in (
+        "",
+        "Unknown",
+    )  # 消耗好印象 / やる気 等
     return bool(c.stamina or c.force_stamina or other_cost) or "元気" in text or "体力" in text
 
 
@@ -948,7 +1031,10 @@ def _screen_hand_names(frame) -> list | None:
     """识别层手牌（live_slot_mismatch 记录用）：[[card_id, upgrade, name]…]；没有识别层手牌时退回 KAA 的卡。"""
     if getattr(frame, "hand", None) is not None:
         return [[c.get("card_id"), c.get("upgrade"), c.get("name")] for c in frame.hand]
-    return [[c.card._id, None, c.card.name] if c is not None and c.card is not None else [None, None, None] for c in frame.cards or []]
+    return [
+        [c.card._id, None, c.card.name] if c is not None and c.card is not None else [None, None, None]
+        for c in frame.cards or []
+    ]
 
 
 def _screen_slot(frame, state, d) -> int | None:
@@ -967,8 +1053,15 @@ def _screen_slot(frame, state, d) -> int | None:
 
         if d.slot < len(ids) and same(d.slot, True):
             return d.slot
-        found = next((i for i in range(len(ids)) if same(i, True)), next((i for i in range(len(ids)) if same(i, False)), None))
-        if found is None and getattr(frame, "hand", None) is not None and len(ids) == len(state.hand) and d.slot < len(ids):
+        found = next(
+            (i for i in range(len(ids)) if same(i, True)), next((i for i in range(len(ids)) if same(i, False)), None)
+        )
+        if (
+            found is None
+            and getattr(frame, "hand", None) is not None
+            and len(ids) == len(state.hand)
+            and d.slot < len(ids)
+        ):
             # 排除法（只用识别层手牌；KAA 兜底在动画中可能错位，不用）：张数一致、其余位置都和存档对得上，只有这一格认不出（main12 R2 T2/T3 エウレカ / えいえいおー 认不出被禁用，
             # 期望 19.9 万 → 11.8 万）：手牌顺序与存档一致，按存档槽位点
             # 只在那一格真的认不出（card_id None）时用；认得出但不是目标（续推抽错的牌）不能点（识屏 c573b72 提醒）
@@ -1013,7 +1106,6 @@ def _save_fields(state: BattleState) -> dict:
     }  # fmt: skip
 
 
-
 MEMORY_FILE = "exam_memory.json"
 MEMORY_MAX_AGE_S = 3 * 3600
 
@@ -1046,14 +1138,17 @@ def load_exam_memory(trace_dir, label: str) -> tuple[ExamMemory, Path] | None:
             data = json.loads(f.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        if data.get("label") != label or data.get("finished") or time.time() - data.get("saved_at", 0) > MEMORY_MAX_AGE_S:
+        if (
+            data.get("label") != label
+            or data.get("finished")
+            or time.time() - data.get("saved_at", 0) > MEMORY_MAX_AGE_S
+        ):
             continue
         found.append((data["saved_at"], d, data["memory"]))
     if not found:
         return None
     _, d, mem = max(found, key=lambda x: x[0])
     return ExamMemory.from_dict(mem), d
-
 
 
 def _plugin(kind: str):
@@ -1068,13 +1163,33 @@ def r1_deck_to_note(exam: str, session, context: dict) -> list | None:
     if exam != "r1" or session is None or context.get("deck"):
         return None
     rows = (getattr(session.state, "produce", None) or {}).get("deck") or []
-    return [(c["card_id"], int(c.get("upgrade") or 0)) for c in rows if isinstance(c, dict) and c.get("card_id")] or None
+    return [
+        (c["card_id"], int(c.get("upgrade") or 0)) for c in rows if isinstance(c, dict) and c.get("card_id")
+    ] or None
 
 
-def seed_max_hp(memory: ExamMemory, session, rec=None) -> int | None:
+def _exam_family(label: str | None, session) -> str | None:
+    """这场考试属于哪个模式家族（hif / hajime / nia / tower）：先看局面的 produce.mode，再看考试标签。"""
+    from hiro.state.modes import family
+
+    produce = (getattr(getattr(session, "state", None), "produce", None) or {}) if session is not None else {}
+    if (f := family(produce.get("mode"))) is not None:
+        return f
+    lab = str(label or "").lower()
+    if lab in ("r1", "r2") or lab.startswith("qualify"):
+        return "hif"
+    for f in ("hajime", "nia", "tower"):
+        if lab.startswith(f):
+            return f
+    return None
+
+
+def seed_max_hp(memory: ExamMemory, session, rec=None, profile=None) -> int | None:
     """开考时给本场考试记忆填最大体力：取培育页头部 OCR 读到的「体力 x/上限」（主循环状态 produce.max_stamina）。
     最大体力随偶像卡等级、开花、账号等级、支援卡等浮动，不写死；考试画面只显示当前体力，所以要在培育页读。
-    记忆里已经有（续跑读回）就不覆盖；读不到就留 None（不猜），日志写明。"""
+    记忆里已经有（续跑读回）就不覆盖；读不到时用构筑表里这个模式已知的值兜底（IdolProfile.known_max_hp，广 H.I.F 33，
+    来源记 profile_known，协调 11-20：续跑 / 开考前没经过培育页 / DMM 页头没读出时，广的固有道具和本战配额模板全失效）；
+    再没有就留 None（不猜），日志写明。"""
     if getattr(memory, "max_hp", None):
         return memory.max_hp
     if not hasattr(memory, "set_max_hp"):
@@ -1083,6 +1198,15 @@ def seed_max_hp(memory: ExamMemory, session, rec=None) -> int | None:
     value = produce.get("max_stamina")
     if memory.set_max_hp(value, "produce_screen"):
         logger.info("[%s] 最大体力 %s（培育页读数）", memory.exam, memory.max_hp)
+    elif (
+        known := (getattr(profile, "known_max_hp", None) or {}).get(_exam_family(memory.exam, session))
+    ) and memory.set_max_hp(known, "profile_known"):
+        logger.warning(
+            "[%s] 培育页没读出体力上限：最大体力按构筑表兜底 %s（%s 的已知值）",
+            memory.exam,
+            memory.max_hp,
+            getattr(profile, "name", "?"),
+        )
     else:
         logger.warning("[%s] 最大体力未读到（培育页没读出体力上限）：半血 / 道具判断按未知处理", memory.exam)
     if rec is not None:
@@ -1142,14 +1266,34 @@ def run_exam(
         session.state.exam_session.label = exam
         if (got := load_exam_memory(session.trace.dir, exam)) is not None:
             memory, restored = got
-            rec.log("exam_memory_restored", exam=exam, source=str(restored), turn=memory.turn, last_remaining=memory.last_remaining)
+            rec.log(
+                "exam_memory_restored",
+                exam=exam,
+                source=str(restored),
+                turn=memory.turn,
+                last_remaining=memory.last_remaining,
+            )
             session.note(f"读回本场考试记忆（{restored.name}）：T{memory.turn}")
-    seed_max_hp(memory, session, rec)
-    source.begin({"exam": exam, "profile": brain.profile, "target_score": target_score, "session": session, "brain": brain, "rec": rec})
+    seed_max_hp(memory, session, rec, brain.profile)
+    source.begin(
+        {
+            "exam": exam,
+            "profile": brain.profile,
+            "target_score": target_score,
+            "session": session,
+            "brain": brain,
+            "rec": rec,
+        }
+    )
     advisor.on_round_start(round_no if round_no is not None else (2 if exam == "r2" else 1),
                            {"exam": exam, "idol": brain.profile.idol_id if brain.profile else None, "brain": brain, "max_hp": getattr(memory, "max_hp", None),
                             "deck": _round_deck(session), "session": session})  # fmt: skip
-    rec.log("exam_brain_start", exam=exam, profile=brain.profile.idol_id if brain.profile else None, source=source.confidence())
+    rec.log(
+        "exam_brain_start",
+        exam=exam,
+        profile=brain.profile.idol_id if brain.profile else None,
+        source=source.confidence(),
+    )
     failures = 0
     wait_state = BoundedWait(LIVE_WAIT_S)  # 局面来源暂时给不出（返回 None）时最多等这么久，之后换帧重读
     stable_wait = BoundedWait(STABLE_WAIT_S)
@@ -1168,8 +1312,12 @@ def run_exam(
         for _ in Loop(interval=0.1):
             if (idle := time.monotonic() - progress_t) >= EXAM_STALL_S:
                 stalled = True
-                logger.error("[%s] 考试 %.0fs 没有进展（没有动作生效、残りターン 没变），退出考试循环交回主循环", exam, idle)
-                rec.log("exam_stalled", exam=exam, idle_s=round(idle, 1), turn=memory.turn, remaining=progress_remaining)
+                logger.error(
+                    "[%s] 考试 %.0fs 没有进展（没有动作生效、残りターン 没变），退出考试循环交回主循环", exam, idle
+                )
+                rec.log(
+                    "exam_stalled", exam=exam, idle_s=round(idle, 1), turn=memory.turn, remaining=progress_remaining
+                )
                 if session is not None:
                     session.recover("unhandled", f"考试 {idle:.0f}s 没有进展，退出考试循环交回主循环")
                 break
@@ -1209,10 +1357,19 @@ def run_exam(
                 if session is not None:
                     session.recover("tap_no_effect", f"{last_action} {why}，本回合禁用")
             if restored is not None:
-                if frame.remaining is not None and memory.last_remaining is not None and frame.remaining > memory.last_remaining:
-                    rec.log("exam_memory_discarded", exam=exam, screen_remaining=frame.remaining, memory_remaining=memory.last_remaining)
+                if (
+                    frame.remaining is not None
+                    and memory.last_remaining is not None
+                    and frame.remaining > memory.last_remaining
+                ):
+                    rec.log(
+                        "exam_memory_discarded",
+                        exam=exam,
+                        screen_remaining=frame.remaining,
+                        memory_remaining=memory.last_remaining,
+                    )
                     memory = brain.new_memory(exam)  # 画面剩余回合比记忆多：不是同一场（再挑戦 / 新开）
-                    seed_max_hp(memory, session, rec)
+                    seed_max_hp(memory, session, rec, brain.profile)
                 restored = None
             if stable_wait.waited >= STABLE_WAIT_S and session is not None:
                 session.note(f"画面 {stable_wait.waited:.0f}s 不稳定，用单帧出决策")
@@ -1242,7 +1399,13 @@ def run_exam(
                     _move_to_redo()
                     animating = True
                     continue
-                rec.log("exam_state_unavailable", exam=exam, reason=why, waited=round(wait_state.waited, 1), remaining=frame.remaining)
+                rec.log(
+                    "exam_state_unavailable",
+                    exam=exam,
+                    reason=why,
+                    waited=round(wait_state.waited, 1),
+                    remaining=frame.remaining,
+                )
                 if session is not None:
                     session.note(f"局面来源 {wait_state.waited:.1f}s 给不出局面（{why}），换帧重读")
                 wait_state.reset()
@@ -1258,14 +1421,20 @@ def run_exam(
             legal = [Action.from_legal(a) for a in state.legal_actions()]
             contract = advisor.decide(state, memory, previews, legal)
             d = contract.to_battle()
-            rec.log("battle_decision", image=frame.img, exam=exam, source=source.confidence(), contract=contract.to_dict())
+            rec.log(
+                "battle_decision", image=frame.img, exam=exam, source=source.confidence(), contract=contract.to_dict()
+            )
             logger.info("[%s T%s] %s ← %s：%s", exam, memory.turn, d.action, d.source, d.reason)
             todo = d
             if d.kind == "drink" or (source.confidence() == "save" and d.kind == "play"):
                 # 局面槽位（存档顺序 / 饮料栏格位）→ 画面槽位：按卡 / 饮料 ID 映射
                 slot = _screen_slot(frame, state, d)
                 if slot is None:
-                    what = next((x.name for x in state.drinks if x.slot == d.slot), d.action) if d.kind == "drink" else state.hand[d.slot].name
+                    what = (
+                        next((x.name for x in state.drinks if x.slot == d.slot), d.action)
+                        if d.kind == "drink"
+                        else state.hand[d.slot].name
+                    )
                     memory.block(d.action)
                     contract.warnings.append(f"{what} 在画面上定位不到，本回合不再选它")
                     if session is not None:
@@ -1283,7 +1452,9 @@ def run_exam(
                 logger.warning("[%s] 决策帧已过时（%s）：不点 %s，重新决策", exam, stale, d.action)
                 _not_executed(advisor, d.action, f"决策帧已过时（{stale}）")
                 if session is not None:
-                    session.recover("page_misjudged", f"决策帧与点击前画面不一致（{stale}），{d.action} 不执行，重新决策")
+                    session.recover(
+                        "page_misjudged", f"决策帧与点击前画面不一致（{stale}），{d.action} 不执行，重新决策"
+                    )
                 animating = True
                 _move_to_redo((time.monotonic() - t_decide) * 1000)
                 continue
@@ -1299,7 +1470,11 @@ def run_exam(
             if changed and todo.kind == "play":
                 with _phase("play_verify"):
                     card = state.hand[d.slot] if d.kind == "play" and 0 <= d.slot < len(state.hand) else None
-                    observable = _play_observable(getattr(card, "card_id", None), getattr(card, "upgrade", None)) if card else True
+                    observable = (
+                        _play_observable(getattr(card, "card_id", None), getattr(card, "upgrade", None))
+                        if card
+                        else True
+                    )
                     if _play_missed(frame, PLAY_RESULT["confirmed"], observable):
                         missed = "回合自动结束了，牌没打出去（没看到 SELECT、没点确认；剩余回合减少、元気 / 体力没变）"
             t_done = time.monotonic()
@@ -1329,7 +1504,9 @@ def run_exam(
                 _not_executed(advisor, d.action, "执行后画面未变化")
                 rec.log("battle_action_no_effect", exam=exam, action=d.action, failures=failures)
                 if session is not None:
-                    session.recover("tap_no_effect", f"{d.action} 执行后画面 {CHANGE_TIMEOUT:.0f}s 未变（第 {failures} 次）")
+                    session.recover(
+                        "tap_no_effect", f"{d.action} 执行后画面 {CHANGE_TIMEOUT:.0f}s 未变（第 {failures} 次）"
+                    )
                 if failures >= 3:
                     logger.warning("连续 %d 次动作无效，跳过回合", failures)
                     device.click(*SKIP_BUTTON.center)
@@ -1361,5 +1538,7 @@ def run_exam(
         source.end(result_info or None)
         advisor.on_round_end(result_info or None)
         if session is not None:
-            save_exam_memory(session.trace.dir, memory, finished=not stalled)  # 卡住退出的不算打完：主循环再进考试时读回记忆
+            save_exam_memory(
+                session.trace.dir, memory, finished=not stalled
+            )  # 卡住退出的不算打完：主循环再进考试时读回记忆
     return memory

@@ -2,7 +2,11 @@
 """界面预览截图：bun run preview:build 之后，把每个页面离屏渲染成 png（不弹窗、不抢焦点）。
 用法：python3 scripts/preview-snap.py [页面 ...]   输出 .preview/shots/<页面>.png
 截图工具 wksnap（离屏 WKWebView 截图的小程序）：用 WKSNAP 环境变量指过去，没设时从 PATH 里找。"""
-import os, re, subprocess, sys
+
+import os
+import re
+import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / ".preview"
@@ -14,7 +18,7 @@ html = (ROOT / "preview/index.html").read_text()
 m = re.search(r'<script type="module" crossorigin src="([^"]+)"></script>', html)
 if m:
     js = (ROOT / "preview" / m.group(1)).resolve().read_text()
-    html = html.replace(m.group(0), "<script type=\"module\">" + js.replace("</script", "<\\/script") + "</script>")
+    html = html.replace(m.group(0), '<script type="module">' + js.replace("</script", "<\\/script") + "</script>")
 (ROOT / "shots").mkdir(exist_ok=True)
 for v in VIEWS:
     page = ROOT / "preview" / f"{v}.html"

@@ -21,10 +21,10 @@ class CatalogUnavailable(RuntimeError):
 
 def _decode(row: sqlite3.Row) -> dict:
     out = {}
-    for k in row.keys():
+    for k in row.keys():  # noqa: SIM118  sqlite3.Row 直接迭代得到的是值，不是列名
         v = row[k]
         if isinstance(v, str) and v[:1] in "[{":
-            try:
+            try:  # noqa: SIM105
                 v = json.loads(v)
             except ValueError:
                 pass

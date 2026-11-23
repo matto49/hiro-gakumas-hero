@@ -5,6 +5,9 @@ __pycache__/
 /reports/
 /datasets/
 .temp/
+/.deps/
+/tools/simd-ocr/bin/
+/tools/simd-ocr/obj/
 
 # 游戏数据 / 自建素材（KAA 公开数据下载目录、使用者自建素材包）：只在本机，绝不提交
 /resources/
@@ -30,3 +33,11 @@ vendor/gakumas-player/data/master/*/manifest.json
 vendor/gakumas-player/data/master/*/build.json
 vendor/gakumas-player/**/__pycache__/
 vendor/gakumas-player/gakumas_exam_rs/target/
+
+# pip install -e . 的产物
+*.egg-info/
+
+# 覆盖率
+.coverage
+coverage.md
+coverage.xml

@@ -5,13 +5,13 @@ import copy
 import json
 from pathlib import Path
 
-import pytest
-
 import hiro.sim  # noqa: F401
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import ActionKind, GameState
 from hiro.sim import interval as iv
+
+import pytest
 
 FIX = json.loads((Path(__file__).parent / "fixtures" / "interval" / "main30_interval.json").read_text(encoding="utf-8"))
 GAINS = {k: tuple(v) for k, v in FIX["gains"].items()}
@@ -59,4 +59,6 @@ def test_value_table_buys_blend(env, monkeypatch):
     monkeypatch.setattr(iv, "VALUE_TABLE_SCALE", True)
     iv.value_table_scale.cache_clear()
     d = run(198)
-    assert d.action.kind is ActionKind.INTERVAL_BUY and d.action.args == {"index": 7} and "ブレンド" in d.reason, d.reason
+    assert d.action.kind is ActionKind.INTERVAL_BUY and d.action.args == {"index": 7} and "ブレンド" in d.reason, (
+        d.reason
+    )

@@ -3,13 +3,13 @@
 import json
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision import assets
 from hiro.vision.hif import is_hif_exam, read_hif_exam
 from hiro.vision.offline import load
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures") / "hif_hud"
 
@@ -134,14 +134,16 @@ def test_multiplier_occluded_first_digit():
         a = _parse_attr("".join(t for t, _ in ocr(_attr_crop(img))))
         return _vote_multiplier(img, a["multiplier_pct"], None, a["attr"])
 
-    v, votes = read(occluded)
+    v, _votes = read(occluded)
     assert v in (None, 1481) and 7481 not in ([v] if v else [])  # 没有记忆时不猜（两种读法一致时也只能是 1481）
     assert read(clear)[0] == 1481
     assert read(occluded)[0] == 1481
     hif._MULT_SEEN.clear()
 
 
-@pytest.mark.vision_only("模拟「没有数字字体」时 ddddocr 两读不一致、用 OCR 判的路径；Windows / DMM 用随仓库的素材包（assets/pack/font 带数字字体），实机走字形比对，不走这条")
+@pytest.mark.vision_only(
+    "模拟「没有数字字体」时 ddddocr 两读不一致、用 OCR 判的路径；Windows / DMM 用随仓库的素材包（assets/pack/font 带数字字体），实机走字形比对，不走这条"
+)
 def test_no_font_hud_numbers(monkeypatch):
     """没有数字字体（开源默认素材）：HUD 数字走 ddddocr（整框 / 收左边两次，不一致用 Apple Vision 判）。
     元気 0 曾被整框读成 10（体力条右端的圆头当成「1」）；白点花纹背景上收左边会丢首位（1283→283）。"""

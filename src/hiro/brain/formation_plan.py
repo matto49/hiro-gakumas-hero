@@ -26,7 +26,11 @@ REPORT_PATH = "reports/live/formation-plan.md"
 SUPPORT_INVENTORY = "reports/live/support-inventory.json"
 MEMORY_INVENTORY = "reports/live/memory-inventory.json"
 ATTRS = ("Vo", "Da", "Vi")
-GROWTH_KEY = {"Vo": "produceVocalGrowthRatePermil", "Da": "produceDanceGrowthRatePermil", "Vi": "produceVisualGrowthRatePermil"}
+GROWTH_KEY = {
+    "Vo": "produceVocalGrowthRatePermil",
+    "Da": "produceDanceGrowthRatePermil",
+    "Vi": "produceVisualGrowthRatePermil",
+}
 # 项目里已经定过的主属性（用户 / 决策-07：Campus 広 主 Da，虽然成长率 Vo 最高）；其他偶像默认按成长率最高的属性
 DEFAULT_MAIN = {"i_card-shro-3-007": "Da"}
 # 按模式的默认主属性，优先于 DEFAULT_MAIN（用户 11-20：Campus 広 在初里主 Vo，初 LEGEND 排行榜 89% 是 Vo 最高；
@@ -41,6 +45,8 @@ def default_main(idol_card: str, mode: str | None = None) -> str | None:
     cid = idol_card.replace("i_card-skin-", "i_card-")
     fam = family(mode) or mode
     return DEFAULT_MAIN_BY_MODE.get((cid, fam)) or DEFAULT_MAIN.get(cid)
+
+
 # 回忆属性词条的作用基数（memory_priority.PARAM_GAINS / PARAM_FINALS 按主属性 / 第二 / 第三属性重排；数值取自 main8，粗估）
 GAIN_BY_RANK = (2900, 1900, 950)
 FINAL_BY_RANK = (3150, 2170, 1170)
@@ -60,7 +66,9 @@ def idol_info(idol: str, main_attr: str | None = None, mode: str | None = None) 
     guided = None if main_attr else guide_main(mode, cid)
     fixed = default_main(cid, mode)
     default = main_attr or (guided[0] if guided else None) or fixed or max(ATTRS, key=lambda a: growth[a])
-    main_why = ("指定" if main_attr else f"攻略 {guided[1]}" if guided else "项目已定（按模式）" if fixed else "成长率最高")
+    main_why = (
+        "指定" if main_attr else f"攻略 {guided[1]}" if guided else "项目已定（按模式）" if fixed else "成长率最高"
+    )
     profile, caveat = profile_for_idol(cid)
     order = [default] + sorted((a for a in ATTRS if a != default), key=lambda a: -growth[a])
     return {"idol_card_id": cid, "name": row.get("name"), "plan": row["planType"], "effect": row.get("examEffectType"),
@@ -87,7 +95,14 @@ def build(idol: str, *, support_inventory: dict | None, memory_inventory: dict |
     from hiro.brain.formation import select_memories
 
     info = idol_info(idol, main_attr, mode)
-    out = {"version": 1, "created": time.strftime("%Y-%m-%d %H:%M:%S"), "idol": info, "profile": info["profile"], "mode": mode, "notes": []}
+    out = {
+        "version": 1,
+        "created": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "idol": info,
+        "profile": info["profile"],
+        "mode": mode,
+        "notes": [],
+    }
     if info["profile_caveat"]:
         out["notes"].append(info["profile_caveat"])
 
@@ -104,7 +119,9 @@ def build(idol: str, *, support_inventory: dict | None, memory_inventory: dict |
                 r = ss.choose(inv, size=size)
             r = dict(r, main_attr_why=f"指定主属性 {info['default_main']}（不比较逆练）")
         else:
-            r = ss.choose_main(inv, plan=info["plan"], default_attr=info["default_main"], size=size, main_count=main_count)
+            r = ss.choose_main(
+                inv, plan=info["plan"], default_attr=info["default_main"], size=size, main_count=main_count
+            )
         if "error" in r:
             sup["error"] = r["error"]
             sup["main_attr_candidates"] = r.get("main_attr_candidates")
@@ -118,7 +135,9 @@ def build(idol: str, *, support_inventory: dict | None, memory_inventory: dict |
                                       "why": "租借格按「可租到的满级 SSR」估（Lv60，偏乐观）；开局第 2 步按编成价值从实际租借列表挑 [ep08]"}  # fmt: skip
             out["notes"].extend(r.get("notes") or [])
             if all(all(w.startswith("事件") for w in o.get("why") or []) for o in r["own"]):
-                out["notes"].append("支援卡技能数据缺失（只算到支援事件收益）：支援卡方案只按事件、属性、等级排，不可靠，建议手动挑")
+                out["notes"].append(
+                    "支援卡技能数据缺失（只算到支援事件收益）：支援卡方案只按事件、属性、等级排，不可靠，建议手动挑"
+                )
     else:
         sup["error"] = "没有支援卡库存（先跑 tools.support_inventory --list）"
     out["support"] = sup
@@ -149,15 +168,19 @@ def guide_check(mode: str, idol_card: str, sup: dict, mem: dict, support_invento
     """偶像卡攻略的 formation.support / formation.memory 推荐 和 这份方案对照（设计文档 4.9-3：具体选哪张由数字小广按库存和估值算，
     攻略只给推荐、卡池要求和依据）。列出：推荐里库存有、方案也选了的；推荐里库存有、方案没选的（写进 notes 提醒人看）；推荐里库存没有的。"""
     from hiro.brain import guides
+    from hiro.brain import support_select as ss
     from hiro.brain.idol_know import lookup
 
-    from hiro.brain import support_select as ss
-
     chosen_sup = {o.get("support_card_id") for o in (sup.get("own") or []) if isinstance(o, dict)} - {None}
-    owned_sup = {c.get("support_card_id") for c in ss.normalize_inventory(support_inventory or {}).get("cards") or []} - {None}
+    owned_sup = {
+        c.get("support_card_id") for c in ss.normalize_inventory(support_inventory or {}).get("cards") or []
+    } - {None}
     chosen_mem = set(mem.get("cards") or [])
     out = {"notes": []}
-    for decision, chosen, owned in (("formation.support", chosen_sup, owned_sup), ("formation.memory", chosen_mem, None)):
+    for decision, chosen, owned in (
+        ("formation.support", chosen_sup, owned_sup),
+        ("formation.memory", chosen_mem, None),
+    ):
         rows = []
         for it in guides.merge(lookup(mode, idol_card, decision)):
             if it.side != "prefer":
@@ -168,7 +191,9 @@ def guide_check(mode: str, idol_card: str, sup: dict, mem: dict, support_invento
         out[decision] = rows
         miss = [r["id"] for r in rows if r["owned"] and not r["chosen"]][:5]
         if miss:
-            out["notes"].append(f"{decision}：攻略推荐、库存里有但方案没选的：{'、'.join(miss)}（按估值没选，人看一下）")
+            out["notes"].append(
+                f"{decision}：攻略推荐、库存里有但方案没选的：{'、'.join(miss)}（按估值没选，人看一下）"
+            )
     return out
 
 
@@ -186,13 +211,17 @@ def format_report(plan: dict) -> str:
         lines.append(f"没有方案：{sup['error']}")
     else:
         for i, o in enumerate(sup["own"], 1):
-            lines.append(f"{i}. {o['attr']} **{o['name']}** Lv{o['level']}，价值 {o['value']}：{'；'.join(o['why'][:4])}")
+            lines.append(
+                f"{i}. {o['attr']} **{o['name']}** Lv{o['level']}，价值 {o['value']}：{'；'.join(o['why'][:4])}"
+            )
         if sup.get("rental"):
             est = "（估：按满级 SSR，开局按实际列表挑）" if sup.get("rental_estimated") else ""
             lines.append(f"6. 租借 {sup['rental']['name']}（价值 {sup['rental']['value']}）{est}")
         elif sup.get("rental_rule"):
             lines.append(f"6. 租借格：{sup['rental_rule']['why']}")
-        lines.append(f"\n总价值 {sup['value']}，属性分布 {sup['counts']}，主属性课程走 SP 约 {sup.get('sp_lessons')} 次")
+        lines.append(
+            f"\n总价值 {sup['value']}，属性分布 {sup['counts']}，主属性课程走 SP 约 {sup.get('sp_lessons')} 次"
+        )
         if sup.get("main_attr_candidates"):
             lines.append("各属性当主属性：" + "，".join(f"{a} {v}" for a, v in sup["main_attr_candidates"].items()))
         if sup.get("runner_up"):
@@ -206,19 +235,29 @@ def format_report(plan: dict) -> str:
     else:
         target = prof["ab_target"]
         if target:
-            lines.append(f"社区配比：A 栏（一次性压缩 / 过牌）{target[0]} 张、B 栏（循环核心，要强化 / 定制）{target[1]} 张\n")
+            lines.append(
+                f"社区配比：A 栏（一次性压缩 / 过牌）{target[0]} 张、B 栏（循环核心，要强化 / 定制）{target[1]} 张\n"
+            )
         for i, c in enumerate(mem["chosen"], 1):
             col = f"{c['slot']} 栏，" if c.get("slot") else ""
             when = "开局" if c["timing"] == "start" else "中间试验后" if c["timing"] == "mid" else "时机未读出"
-            lines.append(f"{i}. **{c['name']}{'+' * (c['upgrade'] or 0)}**（回忆 {c['id']}，{col}{c.get('role') or '表外卡'}；{when}入手）")
-            lines.append(f"   - 社区 {'、'.join(c['sources']) or '—'}；优先度 {c['weight']}，回忆质量 {c['quality']}；{'；'.join(c['why']) or '无定制 / 能力信息'}")
+            lines.append(
+                f"{i}. **{c['name']}{'+' * (c['upgrade'] or 0)}**（回忆 {c['id']}，{col}{c.get('role') or '表外卡'}；{when}入手）"
+            )
+            lines.append(
+                f"   - 社区 {'、'.join(c['sources']) or '—'}；优先度 {c['weight']}，回忆质量 {c['quality']}；{'；'.join(c['why']) or '无定制 / 能力信息'}"
+            )
         if mem.get("runner_up"):
             ru = mem["runner_up"]
             lines.append(f"\n次优：{ru['swap']}，总分低 {ru['gap']}")
         if mem.get("notes"):
             lines.append("注意：" + "；".join(mem["notes"]))
         if mem.get("farm"):
-            lines += ["", "值得刷的回忆：", *[f"- {f['name']}（现有 {f['owned']} 份）：{'；'.join(f['want'])}" for f in mem["farm"][:6]]]
+            lines += [
+                "",
+                "值得刷的回忆：",
+                *[f"- {f['name']}（现有 {f['owned']} 份）：{'；'.join(f['want'])}" for f in mem["farm"][:6]],
+            ]
     if plan.get("notes"):
         lines += ["", "## 说明", "", *[f"- {n}" for n in plan["notes"]]]
     lines += ["", "## 开局前", "",
@@ -256,7 +295,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--memory-set", type=int, default=None, help="方案要存进的メモリー编成号（1–20）")
     ap.add_argument("--main-attr", choices=ATTRS, default=None, help="默认主属性（不给按项目已定 / 成长率最高）")
     ap.add_argument("--fixed-main", action="store_true", help="只用 --main-attr，不比较逆练")
-    ap.add_argument("--mode", default=None, help="初 / N.I.A 的 produce id（produce-002 等）：查偶像卡攻略（默认主属性、支援卡 / 回忆推荐对照）")
+    ap.add_argument(
+        "--mode",
+        default=None,
+        help="初 / N.I.A 的 produce id（produce-002 等）：查偶像卡攻略（默认主属性、支援卡 / 回忆推荐对照）",
+    )
     ap.add_argument("--out", default=PLAN_PATH)
     ap.add_argument("--report", default=REPORT_PATH)
     args = ap.parse_args(argv)

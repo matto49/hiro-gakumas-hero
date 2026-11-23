@@ -7,13 +7,13 @@ import copy
 import json
 from pathlib import Path
 
-import pytest
-
 import hiro.sim  # noqa: F401
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import ActionKind, GameState
 from hiro.sim import interval as iv
+
+import pytest
 
 FIX = json.loads((Path(__file__).parent / "fixtures" / "interval" / "main27_interval.json").read_text(encoding="utf-8"))
 GAINS = {k: tuple(v) for k, v in FIX["gains"].items()}
@@ -63,7 +63,9 @@ def test_main27_after_cap_reroll_for_targets(env):
 
 
 def test_target_calibration_scales_only_targets(monkeypatch):
-    monkeypatch.setattr(iv, "VALUE_TABLE_SCALE", False)  # 测手调倍率本身；价值表开时被 drink_scale.json 取代（test_value_table_finals）
+    monkeypatch.setattr(
+        iv, "VALUE_TABLE_SCALE", False
+    )  # 测手调倍率本身；价值表开时被 drink_scale.json 取代（test_value_table_finals）
     monkeypatch.setattr(iv, "TARGET_SCALE_V2", False)  # 第一版比例（V2 默认开后单独测）
     g = iv.calibrated_gains(GAINS)
     assert g["pdrink_00-2-008"][0] == round(GAINS["pdrink_00-2-008"][0] * 1.43)  # ブースト

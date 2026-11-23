@@ -8,11 +8,11 @@ KAA 与签名都认不出这一页（判为 unknown）。背包里是什么道�
   按钮可点时哪一个被选中，暂按「外框明显比另外两个大」判断——还没有选中态的样本，未验证，判不出给 None。
 """
 
+from hiro.vision.hif import _match_white
+
 import cv2
 import numpy as np
 from cv2.typing import MatLike
-
-from hiro.vision.hif import _match_white
 
 TITLE_BOX = (60, 560, 660, 700)
 TITLE_MIN = 0.6

@@ -12,9 +12,9 @@ FIX = Path(__file__).parent / "fixtures/settings"
 
 def _read(name):
     pytest.importorskip("kotonebot", reason="读设置页要 OCR（KAA / kotonebot，pip install -e '.[play]'）")
-    from check_settings import read_toggles
-
     from hiro.produce.ops import ocr_boxes
+
+    from check_settings import read_toggles
 
     img = cv2.resize(cv2.imread(str(FIX / name)), (720, 1280))
     return read_toggles(ocr_boxes(img))

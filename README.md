@@ -146,6 +146,8 @@ scripts/setup.sh                                        # 装依赖、生成 KAA
 PYTHONPATH=src .venv/bin/python -m pytest -q            # 没有截图样例时，读截图的用例会跳过
 ```
 
+开发时的代码检查、格式、类型检查和 CI 见 [docs/development.md](docs/development.md)。
+
 1. **素材**：公开游戏数据由 `setup.sh` 下载，识别用的图标、卡面、字体随仓库（`assets/pack/`），不用再准备。
    客户端更新出新界面、新图标时，用自己的截图跑 `tools/assets/capture_icons.py` 补。详见 [docs/assets.md](docs/assets.md)。
 2. **打一局**（游戏停在首页，已编好支援卡 / 回忆编成）：
@@ -175,7 +177,7 @@ PYTHONPATH=src .venv/bin/python -m pytest -q            # 没有截图样例时�
    - **DMM 版要用日文原版客户端。** 装了汉化补丁（比如 gakuen-imas-localify）的中文界面认不出来。
    - **内存**：hiro 的进程要 3 GB 多（图库、卡图索引、OCR 模型、主数据、模拟器），DMM 版游戏本身约 4 GB。
      内存吃紧时加 `-NoSim` 关掉模拟器；MuMu 被系统杀掉时加 `-Relaunch`，让程序自己拉起游戏。
-   - **文字识别**：Windows 缺省用 RapidOCR，macOS 缺省用系统自带的 Vision，用 `HIRO_OCR` 切换。
+   - **文字识别**：Windows 缺省用 RapidOCR，macOS 缺省用系统自带的 Vision；也可以选用[本机 SIMD OCR](docs/assets.md#可选simd-paddleocr)。
    - **Rust**：`setup.ps1` 找不到 cargo 时，会下载 CI 编好的考试引擎预编译包，不用自己装 Rust。
    - **DMM 版的截图 / 点击**（实验，缺省关）：`HIRO_DMM_DRIVER=maafw` 换成 MaaFramework 的 Win32 控制器，见 [AGENTS.md](AGENTS.md)「设备」。
 
@@ -239,7 +241,7 @@ open /tmp/hiro-view/demo-run.html
 | `docs/` | 契约、状态机、素材与退路、社区打法（H.I.F `hif-playbook.md`，初 / N.I.A `hajime-playbook.md`、`nia-playbook.md`、`hajime-nia-mechanics.md`） |
 | `vendor/gakumas-player` | 考试引擎 `gakumas_exam`、Rust 版 `gakumas_exam_rs`（含世界采样和 GNRPA 搜索）、培育公式 `gakumas_produce`（含初 / N.I.A 的日程和评价公式）；主数据由 `vendor/gakumas-player/scripts/fetch_master.py` 下载（setup 会跑），不进仓库 |
 | `vendor/kaa` | KAA（kotones-auto-assistant），子模块，固定版本 |
-| `.github/workflows/` | 测试；考试引擎 Rust 预编译包（Windows / macOS / Linux，发到 Release） |
+| `.github/workflows/` | 测试（带覆盖率）、代码检查 + 格式 + 类型检查（`lint.yml`）；考试引擎 Rust 预编译包（Windows / macOS / Linux，发到 Release） |
 
 ## 致谢与许可
 

@@ -12,13 +12,13 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import threading
 import time
 from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,22 @@ def active_clock() -> float:
     """扣掉录屏暂停时长的单调时钟（暂停期间不走）。"""
     now = time.monotonic()
     return now - paused_total(now)
+
+
+@contextmanager
+def hold():
+    """主线程自己在等人（例如未读剧情，hiro.runtime.unread_story）：这段时间按暂停计，active_clock 不走。
+    已经在暂停里（录屏旗标）就不重复记，也不替它结束。"""
+    mine = not paused()
+    if mine:
+        _mark(True)
+        _state["held"] = True
+    try:
+        yield
+    finally:
+        if mine:
+            _state["held"] = False
+            _mark(False)
 
 
 def _mark(pause: bool, now: float | None = None) -> None:
@@ -106,7 +122,7 @@ class Watcher:
             self._since = time.monotonic()
             self.flow.request_pause()
             self._event("rec_pause", why)
-        elif why is None and paused():
+        elif why is None and paused() and not _state.get("held"):  # 主线程自己在等人（hold）的暂停不归旗标管
             dur = time.monotonic() - getattr(self, "_since", time.monotonic())
             _mark(False)
             self.flow.request_resume()
@@ -117,7 +133,7 @@ class Watcher:
         logger.warning("录屏%s：%s", "中断，暂停对局" if kind == "rec_pause" else "恢复，继续对局", why)
         self.events.append({"kind": kind, "t": time.time(), "why": why})
         if self.session is not None:
-            try:
+            try:  # noqa: SIM105
                 self.session.note(msg)  # 跟下一条 Step 写进 trace（复盘按 note 前缀 rec_pause / rec_resume 列出来）
             except Exception:  # noqa: BLE001
                 pass
@@ -130,7 +146,7 @@ class Watcher:
                 logger.warning("录屏看守出错：%r", e)
             self._stop.wait(self.poll)
 
-    def start(self) -> "Watcher":
+    def start(self) -> Watcher:
         if ENABLED and self._thread is None:
             self._thread = threading.Thread(target=self._run, name="hiro-rec-pause", daemon=True)
             self._thread.start()
@@ -141,7 +157,7 @@ class Watcher:
         self._stop.set()
         if paused():  # 退出时别把主线程留在暂停里
             _mark(False)
-            try:
+            try:  # noqa: SIM105
                 self.flow.request_resume()
             except Exception:  # noqa: BLE001
                 pass

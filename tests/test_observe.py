@@ -3,9 +3,6 @@
 import json
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.brain.state import BattleState, ExamMemory, profile_for
 from hiro.vision.action import read_action_select
@@ -13,9 +10,18 @@ from hiro.vision.hif import read_hif_exam
 from hiro.vision.observe import battle_observation, produce_observation
 from hiro.vision.offline import load
 
+import cv2
+import pytest
+
 FIX = Path(__file__).with_name("fixtures")
 # 选拔①之前的日程（gakumas_produce produce-007），与画面「選抜試験1まで N日」推出的 step 对应
-SCHEDULE = {1: {"shop", "gift", "special_guidance"}, 2: {"training"}, 3: {"class"}, 4: {"training"}, 5: {"outing", "shop"}}
+SCHEDULE = {
+    1: {"shop", "gift", "special_guidance"},
+    2: {"training"},
+    3: {"class"},
+    4: {"training"},
+    5: {"outing", "shop"},
+}
 
 
 def test_produce_observation_matches_schedule():
@@ -46,9 +52,21 @@ def test_hif_result_observation():
     obs = observation(1, 0.0, "HIF_EXAM_RESULT", raw)
     assert obs.problems(strict=True) == []
     f = obs.fields
-    assert (f["score"], f["rank"], f["passed"], f["exam_no"], f["rank_line"], f["participants"]) == (8217, 1, True, 1, 64, 128)
+    assert (f["score"], f["rank"], f["passed"], f["exam_no"], f["rank_line"], f["participants"]) == (
+        8217,
+        1,
+        True,
+        1,
+        64,
+        128,
+    )
     assert [(e["score"], e["passed"], e["me"]) for e in f["entries"]] == [
-        (8217, True, True), (5962, True, False), (2477, False, False), (2409, False, False), (2362, False, False)]
+        (8217, True, True),
+        (5962, True, False),
+        (2477, False, False),
+        (2409, False, False),
+        (2362, False, False),
+    ]
     assert obs.field_meta["rank"].method == "derived" and obs.field_meta["score"].method == "ocr"
 
 
@@ -59,7 +77,14 @@ def test_hif_result_round2_and_split_pt(monkeypatch):
 
     img = cv2.imread(str(FIX / "hif_hud" / "result-r10-round2.jpg"))
     r = read_hif_result(img)
-    assert (r["exam_no"], r["my_score"], r["rank"], r["passed"], r["rank_line"], r["participants"]) == (2, 48603, 2, False, 32, 64)
+    assert (r["exam_no"], r["my_score"], r["rank"], r["passed"], r["rank_line"], r["participants"]) == (
+        2,
+        48603,
+        2,
+        False,
+        32,
+        64,
+    )
 
     real = ocr_mod.ocr_boxes
 
@@ -78,7 +103,11 @@ def test_hif_result_round2_and_split_pt(monkeypatch):
 
 
 # 三选一：推荐角标（可同时挂两张）与底部「あと N回」次数
-SELECT_CARD_TRUTH = {"00283": ([True, True, False], 0), "00309": ([False, True, False], 1), "00338": ([False, False, False], None)}
+SELECT_CARD_TRUTH = {
+    "00283": ([True, True, False], 0),
+    "00309": ([False, True, False], 1),
+    "00338": ([False, False, False], None),
+}
 
 
 def test_select_card_observation():
@@ -217,7 +246,10 @@ def test_consult_shelf():
         ("ブーストエキス", 52, True), ("センブリソーダ", 75, False), ("ルイボスティー", 50, False), ("リカバリドリンク", 75, False)]  # fmt: skip
     assert all(s["card_id"] for s in shelf[:4]) and all(s["drink_id"] for s in shelf[4:])
     assert not any(s["purchased"] for s in shelf)
-    assert obs.fields["services"] == {"upgrade": {"price": 100, "available": True, "used": False}, "delete": {"price": 100, "available": True, "used": False}}
+    assert obs.fields["services"] == {
+        "upgrade": {"price": 100, "available": True, "used": False},
+        "delete": {"price": 100, "available": True, "used": False},
+    }
     assert obs.fields["rerolls_left"] == 1 and obs.fields["complete"] is True
 
 
@@ -227,7 +259,9 @@ def test_missing_raw_keys_are_none_not_empty():
 
     obs = observation(1, 0.0, "HIF_EXAM", {"remaining_turns": 3, "hp": 10})
     assert all(obs.fields[k] is None for k in ("hand", "drinks", "buffs", "statuses", "drink_slots"))
-    obs = observation(1, 0.0, "HIF_EXAM", {"remaining_turns": 3, "hand": [], "drinks": [], "statuses": [], "drink_slots": []})
+    obs = observation(
+        1, 0.0, "HIF_EXAM", {"remaining_turns": 3, "hand": [], "drinks": [], "statuses": [], "drink_slots": []}
+    )
     assert obs.fields["hand"] == [] and obs.fields["statuses"] == [] and obs.fields["buffs"] == {}
     assert obs.problems(strict=True) == []
 
@@ -242,11 +276,23 @@ def test_hif_result_during_list_animation():
     obs = observation(1, 0.0, "HIF_EXAM_RESULT", raw)
     assert obs.problems(strict=True) == []
     f = obs.fields
-    assert (f["score"], f["passed"], f["rank"], f["exam_no"], f["rank_line"], f["participants"]) == (38380, False, 2, 2, 32, 64)
+    assert (f["score"], f["passed"], f["rank"], f["exam_no"], f["rank_line"], f["participants"]) == (
+        38380,
+        False,
+        2,
+        2,
+        32,
+        64,
+    )
     assert f["retry"] == {"left": 2, "free": False}
     assert obs.field_meta["passed"].method == "derived" and "突破线" in obs.field_meta["passed"].note
     assert [(e["score"], e["passed"], e["me"]) for e in f["entries"]] == [
-        (49168, True, False), (38380, None, True), (15232, False, False), (12588, False, False), (11462, False, False)]
+        (49168, True, False),
+        (38380, None, True),
+        (15232, False, False),
+        (12588, False, False),
+        (11462, False, False),
+    ]
 
 
 def test_hif_result_retry_variants():

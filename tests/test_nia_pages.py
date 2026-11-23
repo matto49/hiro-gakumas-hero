@@ -3,12 +3,12 @@
 from pathlib import Path
 from types import SimpleNamespace as NS
 
+from hiro.contracts import Action, ActionKind, Decision
+from hiro.runtime.loop import DONE, STAY
+
 import cv2
 import numpy as np
 import pytest
-
-from hiro.contracts import Action, ActionKind, Decision
-from hiro.runtime.loop import DONE, STAY
 
 FIX = Path(__file__).with_name("fixtures") / "pages"
 
@@ -31,7 +31,11 @@ def _read(name):
 def test_sales_place_reading():
     name, f = _read("nia-sales-place.png")
     assert name == "NIA_SALES_PLACE" and not f["expanded"]
-    assert [(p["kind"], p["gain"], p["hp_cost"]) for p in f["places"]] == [("local", 2400, 5), ("corporate", 2400, 0), ("commercial", 2400, 5)]
+    assert [(p["kind"], p["gain"], p["hp_cost"]) for p in f["places"]] == [
+        ("local", 2400, 5),
+        ("corporate", 2400, 0),
+        ("commercial", 2400, 5),
+    ]
     name, f = _read("nia-sales-place-expanded.png")
     assert name == "NIA_SALES_PLACE" and f["expanded"] and f["selected"] == 2 and f["start"][1] > 980
 
@@ -39,7 +43,11 @@ def test_sales_place_reading():
 def test_sales_event_reading():
     name, f = _read("nia-sales-event.png")
     assert name == "NIA_SALES_EVENT"
-    assert [(c["text"], c["attr"]) for c in f["choices"]] == [("学生時代の話", "Vo"), ("現役アイドルの仕事の話", "Da"), ("アドバイスをもらう", "Vi")]
+    assert [(c["text"], c["attr"]) for c in f["choices"]] == [
+        ("学生時代の話", "Vo"),
+        ("現役アイドルの仕事の話", "Da"),
+        ("アドバイスをもらう", "Vi"),
+    ]
 
 
 def test_audition_select_reading():
@@ -109,7 +117,9 @@ def test_audition_two_steps_sets_audition_number():
     core, _ = _core(1, number=2)
     p = NiaPages(core)
     rt, now, taps = _rt()
-    assert p.on_audition_select(rt, None, NS(fields={"tiers": tiers, "expanded": False, "stage": "mid2"})) is DONE and taps == [(360, 891)]
+    assert p.on_audition_select(
+        rt, None, NS(fields={"tiers": tiers, "expanded": False, "stage": "mid2"})
+    ) is DONE and taps == [(360, 891)]
     assert core.nia_audition_number == 2 and core.nia_stage == "mid2"
     now[0] += ACT_WAIT_S
     chosen = {"tiers": tiers[1:], "expanded": True, "chosen_need": 4000, "start": [360, 889]}
@@ -121,7 +131,10 @@ def test_sales_event_taps_choice():
 
     core, _ = _core(2)
     rt, _, taps = _rt()
-    choices = [{"index": i, "text": t, "attr": a, "center": [360, y]} for i, (t, a, y) in enumerate((("a", "Vo", 699), ("b", "Da", 800), ("c", "Vi", 901)))]
+    choices = [
+        {"index": i, "text": t, "attr": a, "center": [360, y]}
+        for i, (t, a, y) in enumerate((("a", "Vo", 699), ("b", "Da", 800), ("c", "Vi", 901)))
+    ]
     assert NiaPages(core).on_sales_event(rt, None, NS(fields={"choices": choices})) is DONE and taps == [(360, 901)]
 
 
@@ -195,7 +208,7 @@ def test_audition_bonus_is_show_page(name, tmp_path):
     core, _ = _core(0)
     rt, _, taps = _rt()
     assert NiaPages(core).on_audition_bonus(rt, None, hit) is DONE
-    (x, y), = taps
+    ((x, y),) = taps
     assert abs(x - 360) < 20 and abs(y - 1222) < 15
 
 
@@ -210,9 +223,13 @@ def test_audition_select_second_stage():
 
 def test_resort_layout_reading():
     """协调 11-17：リゾート施設（绿，+2,800，消費なし）/ 企業 +4,000 / 商業 +4,000 -5；展开态把リゾート施設读成「ノゾート施談」也认。"""
-    name, f = _read("nia-sales-place-resort.png")
-    assert [(p["kind"], p["gain"], p["hp_cost"]) for p in f["places"]] == [("resort", 2800, 0), ("corporate", 4000, 0), ("commercial", 4000, 5)]
-    name, f = _read("nia-sales-place-camp-expanded.png")
+    name, f = _read("nia-sales-place-resort.png")  # noqa: RUF059
+    assert [(p["kind"], p["gain"], p["hp_cost"]) for p in f["places"]] == [
+        ("resort", 2800, 0),
+        ("corporate", 4000, 0),
+        ("commercial", 4000, 5),
+    ]
+    _name, f = _read("nia-sales-place-camp-expanded.png")
     assert f["places"][0]["kind"] == "resort" and f["expanded"] and f["selected"] == 0 and abs(f["start"][1] - 779) < 15
 
 
@@ -257,7 +274,9 @@ def test_sales_place_by_icons_without_names(name, kinds, costs):
 def test_sales_place_expanded_rewards_by_icon():
     from hiro.vision.nia import read_sales_place
 
-    f = read_sales_place([("営業先を選択してください", (200, 540, 520, 560))], _img("nia-sales-place-camp-expanded.png"))
+    f = read_sales_place(
+        [("営業先を選択してください", (200, 540, 520, 560))], _img("nia-sales-place-camp-expanded.png")
+    )
     assert f["selected"] == 0 and f["rewards"] == ["card", "stamina"] and abs(f["start"][1] - 779) < 15
     f = read_sales_place([("営業先を選択してください", (200, 540, 520, 560))], _img("nia-sales-place-expanded.png"))
     assert f["selected"] == 2 and f["rewards"] == ["card_plus"]
@@ -268,7 +287,12 @@ def test_sales_event_attr_by_icon_shape(name):
     """营業话题：按左侧图标形状（话筒 Vo / 鞋 Da / 人像 Vi）定属性，文字没意义也一样。"""
     from hiro.vision.nia import read_sales_event
 
-    texts = [("営業", (91, 52, 134, 75)), ("xxxx", (100, 690, 300, 710)), ("yyyy", (100, 790, 300, 810)), ("zzzz", (100, 890, 300, 910))]
+    texts = [
+        ("営業", (91, 52, 134, 75)),
+        ("xxxx", (100, 690, 300, 710)),
+        ("yyyy", (100, 790, 300, 810)),
+        ("zzzz", (100, 890, 300, 910)),
+    ]
     assert [c["attr"] for c in read_sales_event(texts, _img(name))["choices"]] == ["Vo", "Da", "Vi"]
 
 
@@ -286,7 +310,7 @@ def test_briefing_tapped_through_quick_path(tmp_path):
     rt.sleep = lambda s: None
     rt._quick_wait = None
     assert play.advance(rt, Frame(img, 0.0), hit) is True
-    (x, y), = taps
+    ((x, y),) = taps
     assert abs(x - 363) < 30 and abs(y - 1199) < 20
 
 
@@ -312,7 +336,9 @@ def test_exam_stage_survives_resume(tmp_path):
     tiers = [{"index": 0, "number": 2, "vote_need": 28000, "locked": False, "center": [360, 891]}]
     core, _ = _core(0, number=2)
     rt, _, _ = _rt()
-    NiaPages(core, persist=path).on_audition_select(rt, None, NS(fields={"tiers": tiers, "expanded": False, "stage": "final"}))
+    NiaPages(core, persist=path).on_audition_select(
+        rt, None, NS(fields={"tiers": tiers, "expanded": False, "stage": "final"})
+    )
     assert path.exists()
     Core = ns.nia_core("produce-004")  # resume 后的新进程
     c = Core.__new__(Core)

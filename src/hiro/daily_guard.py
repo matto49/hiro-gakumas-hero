@@ -10,18 +10,36 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections.abc import Callable
 
-import logging
+from hiro.vision.textnorm import contains  # OCR 容错匹配（用户 11-21）
 
 logger = logging.getLogger(__name__)
 
-INFO_TITLES = ("獲得", "お知らせ", "について", "ヘルプ", "説明", "受け取り")  # 受け取り：サークル「リクエスト受け取り」只有「閉じる」（2026-11-03 club_reward 挂 300s）
+INFO_TITLES = (
+    "獲得",
+    "お知らせ",
+    "について",
+    "ヘルプ",
+    "説明",
+    "受け取り",
+)  # 受け取り：サークル「リクエスト受け取り」只有「閉じる」（2026-11-03 club_reward 挂 300s）
 CLOSE_TEXTS = ("閉じる",)
 CANCEL_TEXTS = ("キャンセル",)
-ACTION_TEXTS = ("受け取る", "決定", "OK", "はい", "購入", "交換", "使用", "開始", "実行")  # 有这些按钮的框不是纯说明框，不碰
+ACTION_TEXTS = (
+    "受け取る",
+    "決定",
+    "OK",
+    "はい",
+    "購入",
+    "交換",
+    "使用",
+    "開始",
+    "実行",
+)  # 有这些按钮的框不是纯说明框，不碰
 BUTTON_BAND = (1080, 1240)  # 弹窗底部按钮行（720x1280）
 
 
@@ -35,7 +53,7 @@ def classify_popup(boxes) -> tuple[str, tuple[int, int]] | None:
     texts = [(t.replace(" ", ""), _center(b)) for t, _, b in boxes]
     buttons = [(t, c) for t, c in texts if BUTTON_BAND[0] <= c[1] <= BUTTON_BAND[1]]
     cancel = next((c for t, c in buttons if any(k in t for k in CANCEL_TEXTS)), None)
-    if any("ジュエル" in t for t, _ in texts):
+    if any(contains(t, "ジュエル") for t, _ in texts):
         return ("cancel", cancel) if cancel else None  # 含ジュエル：只认キャンセル，没有就不碰
     close = next((c for t, c in buttons if any(k in t for k in CLOSE_TEXTS)), None)
     if close is None or any(any(k in t for k in ACTION_TEXTS) for t, _ in buttons):
@@ -68,7 +86,9 @@ class PopupGuard:
         if self._hits < self.confirm:
             return None
         kind, pos = hit
-        logger.warning("日常兜底：弹窗 %s，点 %s", "含ジュエル → キャンセル" if kind == "cancel" else "说明框 → 閉じる", pos)
+        logger.warning(
+            "日常兜底：弹窗 %s，点 %s", "含ジュエル → キャンセル" if kind == "cancel" else "说明框 → 閉じる", pos
+        )
         self.click(*pos)
         self.actions.append(hit)
         if self.on_action:

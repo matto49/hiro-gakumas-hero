@@ -15,7 +15,12 @@ def rig(monkeypatch, start, *, moves=True, readable=True):
             state["n"] += 1 if (x, y) == nxt else -1
 
     monkeypatch.setattr(prep_steps, "set_number", lambda img: state["n"] if readable else None)
-    kw = dict(shoot=lambda: None, tap=tap, sleep=lambda s: state.__setitem__("now", state["now"] + s), clock=lambda: state["now"])
+    kw = {
+        "shoot": lambda: None,
+        "tap": tap,
+        "sleep": lambda s: state.__setitem__("now", state["now"] + s),
+        "clock": lambda: state["now"],
+    }
     return kw, taps, nxt, prv
 
 
@@ -31,5 +36,5 @@ def test_select_set_forward_backward_and_stay(monkeypatch):
 def test_select_set_gives_up(monkeypatch):
     kw, taps, *_ = rig(monkeypatch, 1, readable=False)
     assert not prep_steps.select_set(3, **kw) and taps == []  # 读不出：超时放弃（KAA 原版会一直等）
-    kw, taps, nxt, _ = rig(monkeypatch, 1, moves=False)
+    kw, taps, _nxt, _ = rig(monkeypatch, 1, moves=False)
     assert not prep_steps.select_set(3, **kw) and len(taps) == 2 * prep_steps.RETRIES  # 点了没反应：重试 3 轮放弃

@@ -3,11 +3,13 @@
 import os
 from pathlib import Path
 
-import pytest
-
 from hiro.brain import hajime_nia_rules as hr
 
-SOURCES_DIR = Path(os.environ.get("HIRO_HAJIME_NIA_SOURCES", "")) if os.environ.get("HIRO_HAJIME_NIA_SOURCES") else None  # 攻略原文目录（本机才有）
+import pytest
+
+SOURCES_DIR = (
+    Path(os.environ.get("HIRO_HAJIME_NIA_SOURCES", "")) if os.environ.get("HIRO_HAJIME_NIA_SOURCES") else None
+)  # 攻略原文目录（本机才有）
 
 
 def test_rules_well_formed():
@@ -27,7 +29,9 @@ def test_cite_and_applies():
     assert not hr.applies("nia.lesson_sp", "hajime", "pro")
 
 
-@pytest.mark.skipif(SOURCES_DIR is None or not SOURCES_DIR.is_dir(), reason="没设 HIRO_HAJIME_NIA_SOURCES（攻略原文目录）")
+@pytest.mark.skipif(
+    SOURCES_DIR is None or not SOURCES_DIR.is_dir(), reason="没设 HIRO_HAJIME_NIA_SOURCES（攻略原文目录）"
+)
 def test_quotes_found_in_saved_pages():
     texts = {p.name: p.read_text(encoding="utf-8") for p in SOURCES_DIR.glob("*.txt")}
     by_url = {t.split("\n", 1)[0].strip(): t for t in texts.values()}

@@ -2,9 +2,9 @@
 
 数字的出处见 docs/hajime-nia-mechanics.md。"""
 
-import pytest
-
 import hiro.sim  # noqa: F401  把 vendor/gakumas-player 放进 sys.path
+
+import pytest
 
 pytestmark = pytest.mark.sim_master
 
@@ -43,7 +43,11 @@ def test_nia_pro_rules_from_master(hn):
     r = hn.rules("produce-004", HIRO)
     assert (r.family, r.steps, r.param_cap) == ("nia", 27, 2000)
     assert [(t.number, t.vote_unlock, t.base_score) for t in r.auditions["final"]] == [
-        (1, 0, 12800), (2, 28000, 20400), (3, 40000, 32550), (4, 57000, 58150)]
+        (1, 0, 12800),
+        (2, 28000, 20400),
+        (3, 40000, 32550),
+        (4, 57000, 58150),
+    ]
     assert all(t.rank_threshold == 1 for s in r.auditions.values() for t in s)
     assert r.self_lessons[(1, True)] == (8, 100) and r.self_lessons[(3, False)] == (6, 120)
     # 营业：卡 / 饮料 / P 点场所同票，绿（体力）少；大成功 = 1.3 倍；属性 60 / 80 / 100
@@ -108,7 +112,9 @@ def test_nia_evaluation_tiers(hn):
 
 def test_nia_sim_walk(hn):
     r = hn.rules("produce-004", HIRO)
-    s = hn.Sim(r, params={"Vo": 155, "Da": 191, "Vi": 159}, growth_permil={"Vo": 1272, "Da": 1472, "Vi": 1135}, max_stamina=30)
+    s = hn.Sim(
+        r, params={"Vo": 155, "Da": 191, "Vi": 159}, growth_permil={"Vo": 1272, "Da": 1472, "Vi": 1135}, max_stamina=30
+    )
     assert s.self_lesson("Da", sp=True) == 100 + 47 and s.stamina == 22 and s.pp == 20
     assert s.business("produce_point", "Vo", excellent=True) == 3120
     assert (s.params["Vo"], s.pp, s.stamina) == (215, 70, 17)
@@ -133,7 +139,9 @@ def test_nia_sim_walk(hn):
 
 def test_hajime_sim_walk(hn):
     r = hn.rules("produce-001", HIRO)
-    s = hn.Sim(r, params={"Vo": 155, "Da": 187, "Vi": 159}, growth_permil={"Vo": 1272, "Da": 1472, "Vi": 1135}, max_stamina=30)
+    s = hn.Sim(
+        r, params={"Vo": 155, "Da": 187, "Vi": 159}, growth_permil={"Vo": 1272, "Da": 1472, "Vi": 1135}, max_stamina=30
+    )
     with pytest.raises(hn.Unsupported):
         s.lesson("Da", stamina_used=8)  # 档位由日程定，不给 level / clear 不猜
     assert s.lesson("Da", level=1, stamina_used=8) == 50 + 23  # 满分线 50，加成 +47.2%
@@ -161,7 +169,9 @@ def test_calendar(hn):
     with pytest.raises(hn.Unsupported):
         hn.calendar("produce-003")  # 三种周表要指定
     reg = hn.calendar("produce-001")  # 实机一局还原（篠澤広）
-    assert len(reg) == 13 and reg[4] == ["oikomi"] and reg[5] == ["mid"] and reg[11] == ["oikomi"] and reg[12] == ["final"]
+    assert (
+        len(reg) == 13 and reg[4] == ["oikomi"] and reg[5] == ["mid"] and reg[11] == ["oikomi"] and reg[12] == ["final"]
+    )
     assert [i + 1 for i, w in enumerate(reg) if "outing" in w] == [4, 7, 8, 11]  # g8 推荐的 4 / 7 / 11 周都能外出
     for pid in ("produce-002", "produce-004", "produce-005"):
         with pytest.raises(hn.Unsupported):

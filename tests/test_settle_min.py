@@ -6,7 +6,9 @@ import importlib.util as _iu
 import numpy as np
 import pytest
 
-pytestmark = pytest.mark.skipif(_iu.find_spec("kotonebot") is None or _iu.find_spec("kaa") is None, reason="要装 KAA / kotonebot")
+pytestmark = pytest.mark.skipif(
+    _iu.find_spec("kotonebot") is None or _iu.find_spec("kaa") is None, reason="要装 KAA / kotonebot"
+)
 
 
 def _run(monkeypatch, min_s, shot_s=0.19):
@@ -47,5 +49,5 @@ def test_min_duration_waits(monkeypatch):
 def test_min_duration_capped_by_settle_max(monkeypatch):
     from hiro.exec import exam as ex
 
-    f, reads = _run(monkeypatch, ex.SETTLE_FAST_MAX + 1)
+    f, _reads = _run(monkeypatch, ex.SETTLE_FAST_MAX + 1)
     assert f is None  # 要求比上限还长：照旧超时交回 _stable_frame

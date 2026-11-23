@@ -46,7 +46,14 @@ def _evidence(text: str) -> list[dict]:
 
 
 def card_pick_entry() -> dict:
-    from hiro.state.knowledge import CONFLICT_CARDS, CULL_AS_IMPRESSION, OFF_PLAN_CARDS, SMALL_DECK_CORE, YARUKI_CARDS, core_keep
+    from hiro.state.knowledge import (
+        CONFLICT_CARDS,
+        CULL_AS_IMPRESSION,
+        OFF_PLAN_CARDS,
+        SMALL_DECK_CORE,
+        YARUKI_CARDS,
+        core_keep,
+    )
 
     prefer, ev_text = [], []
     conflicts = set(CONFLICT_CARDS) | set(OFF_PLAN_CARDS) | set(CULL_AS_IMPRESSION)
@@ -68,7 +75,11 @@ def card_pick_entry() -> dict:
         if cid not in YARUKI_CARDS:
             prefer.append({"id": cid, "keep": core_keep(cid), "note": why})
             ev_text.append(why)
-    avoid = [{"id": cid, "role": "conflict", "note": why} for table in (CONFLICT_CARDS, OFF_PLAN_CARDS, CULL_AS_IMPRESSION) for cid, why in table.items()]
+    avoid = [
+        {"id": cid, "role": "conflict", "note": why}
+        for table in (CONFLICT_CARDS, OFF_PLAN_CARDS, CULL_AS_IMPRESSION)
+        for cid, why in table.items()
+    ]
     ev_text += [it["note"] for it in avoid]
     prefer.sort(key=lambda it: -(it.get("weight") or 0))
     return {"id": f"any.idol.{HIRO}.card_pick.yaruki-cards", "kind": "written", "scope": {"idol_card": HIRO}, "decision": "card_pick",
@@ -91,10 +102,18 @@ def card_upgrade_entry() -> dict:
 
 
 MAIN_ATTR_WHY = {
-    "hif": ("开局编成的默认主属性：H.I.F 主 Da（成长率 Vo 最高，但项目定的是 Da）", [{"kind": "decision", "ref": "决策-07"}]),
+    "hif": (
+        "开局编成的默认主属性：H.I.F 主 Da（成长率 Vo 最高，但项目定的是 Da）",
+        [{"kind": "decision", "ref": "决策-07"}],
+    ),
     "nia": ("开局编成的默认主属性：N.I.A 暂时沿用 H.I.F 的 Da，等用户定", [{"kind": "decision", "ref": "决策-07"}]),
-    "hajime": ("开局编成的默认主属性：初主 Vo（初 LEGEND 排行榜 89% 是 Vo 最高）",
-               [{"kind": "decision", "ref": "用户 2026-11-20"}, {"kind": "ranking", "mode": "hajime", "n": 100, "share": 0.89, "fetched": "2026-11-19"}]),
+    "hajime": (
+        "开局编成的默认主属性：初主 Vo（初 LEGEND 排行榜 89% 是 Vo 最高）",
+        [
+            {"kind": "decision", "ref": "用户 2026-11-20"},
+            {"kind": "ranking", "mode": "hajime", "n": 100, "share": 0.89, "fetched": "2026-11-19"},
+        ],
+    ),
 }
 
 

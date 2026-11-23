@@ -239,11 +239,11 @@ func (msgs Messages) ModelKey() string {
 	return Catalog.Format(msgs.locale, "modelKey", nil)
 }
 
-// ModelKeySaved says "Key 已保存（存在系统钥匙串里，这里不显示）；要换就填新的。"
+// ModelKeySaved says "Key 已保存（存在本机数据目录，只有你能读，这里不显示）；要换就填新的。"
 // in the language the app shows.
 func ModelKeySaved() string { return In(i18n.Locale()).ModelKeySaved() }
 
-// ModelKeySaved says "Key 已保存（存在系统钥匙串里，这里不显示）；要换就填新的。"
+// ModelKeySaved says "Key 已保存（存在本机数据目录，只有你能读，这里不显示）；要换就填新的。"
 // in the language of msgs.
 func (msgs Messages) ModelKeySaved() string {
 	return Catalog.Format(msgs.locale, "modelKeySaved", nil)

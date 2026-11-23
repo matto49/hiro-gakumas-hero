@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 
 from hiro.contracts import GameState, Observation, Step
-from hiro.loop.reduce import DEBOUNCE, reduce
+from hiro.loop.reduce import DEBOUNCE, reduce  # noqa: F401
 
 
 def load_observations(path: Path) -> tuple[list[list[Observation]], list[GameState | None]]:
@@ -39,7 +39,11 @@ def load_observations(path: Path) -> tuple[list[list[Observation]], list[GameSta
     return groups, recorded
 
 
-def run(groups: list[list[Observation]] | list[Observation], initial: GameState | None = None, events: list[list] | None = None) -> list[GameState]:
+def run(
+    groups: list[list[Observation]] | list[Observation],
+    initial: GameState | None = None,
+    events: list[list] | None = None,
+) -> list[GameState]:
     """逐组走主循环同一条路径（互验 → reduce → 事件），返回每组结束时的状态。也接受扁平的 Observation 列表。"""
     from hiro.loop.events import apply_event, reduce_checked, settle
 
@@ -47,10 +51,10 @@ def run(groups: list[list[Observation]] | list[Observation], initial: GameState 
     preds: list = []
     out = []
     for i, g in enumerate(groups):
-        for o in (g if isinstance(g, list) else [g]):
+        for o in g if isinstance(g, list) else [g]:
             s, checks = reduce_checked(s, o, preds)
             preds = settle(preds, checks)
-        for ev in (events[i] if events and i < len(events) else []):
+        for ev in events[i] if events and i < len(events) else []:
             s, p = apply_event(s, ev)
             preds.extend(p)
         out.append(s)
@@ -108,7 +112,9 @@ def main() -> int:
     ap.add_argument("path", type=Path)
     ap.add_argument("--out", type=Path)
     args = ap.parse_args()
-    out = args.out or Path("reports/replay") / (args.path.parent.name if args.path.name == "steps.jsonl" else args.path.stem).replace("-observations", "") 
+    out = args.out or Path("reports/replay") / (
+        args.path.parent.name if args.path.name == "steps.jsonl" else args.path.stem
+    ).replace("-observations", "")
     out = out.with_suffix(".jsonl")
     r = report(args.path, out)
     print(json.dumps(r, ensure_ascii=False, indent=1, default=str))

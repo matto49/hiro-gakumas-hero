@@ -44,7 +44,10 @@ def test_full_schedule_matches_screen(order):
     assert {e["week"]: (e["kind"], [_opt(o) for o in e["options"]]) for e in m["weeks"]} == TRUTH
     by = {e["week"]: e for e in m["weeks"]}
     assert [by[w]["done"] for w in (1, 2, 3, 4, 5)] == [True, True, True, False, False]
-    assert by[3]["faded"] == [True, False] and by[3]["chosen"] == {"option": "allowance", "attr": None}  # 第 3 周选了活動支給
+    assert by[3]["faded"] == [True, False] and by[3]["chosen"] == {
+        "option": "allowance",
+        "attr": None,
+    }  # 第 3 周选了活動支給
     assert by[8]["exam"] == {"stage": "mid1", "line": 150} and by[18]["exam"] == {"stage": "final", "line": 400}
 
 
@@ -70,7 +73,9 @@ def test_schedule_in_page_fields_on_action_select():
 
     sch = {"weeks": [{"week": 1, "kind": "normal", "options": []}], "current_week": 1, "total": 18}
     st = GameState(produce={"mode": "produce-003", "schedule": sch})
-    o = Observation(seq=1, t=0.0, page=PageObs(name="ACTION_SELECT", area="produce", stable_frames=3), fields={"stamina": 20})
+    o = Observation(
+        seq=1, t=0.0, page=PageObs(name="ACTION_SELECT", area="produce", stable_frames=3), fields={"stamina": 20}
+    )
     for _ in range(3):
         st = reduce(st, o)
     assert st.page_fields["schedule"] == sch

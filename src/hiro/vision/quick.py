@@ -63,32 +63,59 @@ LOGIN_BONUS_TAP = (360, 1180)  # 活动登录奖励：底部空白（正中央�
 DECK_LIST_CLOSE = (360, 1157)  # 牌组一览底部「閉じる」（同总控 controller.DECK_LIST_CLOSE）
 DIALOG_HEADER_MAX_Y = 1100
 GRAY_TPL = {  # 名称 → (搜索区域, 阈值)
-    "quick_pitem_custom_title": ((100, 640, 620, 760), 0.85),  # 「カスタム後を選択してください」：正例 0.98–1.0，反例 ≤ 0.30
+    "quick_pitem_custom_title": (
+        (100, 640, 620, 760),
+        0.85,
+    ),  # 「カスタム後を選択してください」：正例 0.98–1.0，反例 ≤ 0.30
     "quick_gift_label": ((40, 20, 200, 90), 0.9),  # 左上「差し入れ」标签（选饮料 / 选卡页也有，要再看没有选择面板）
-    "quick_drink_gain": ((150, 660, 560, 800), 0.8),  # 礼物袋打开后的「Pドリンク獲得」光效：正例 0.93–1.0（q15–q18 9 帧），反例 ≤ 0.52
+    "quick_drink_gain": (
+        (150, 660, 560, 800),
+        0.8,
+    ),  # 礼物袋打开后的「Pドリンク獲得」光效：正例 0.93–1.0（q15–q18 9 帧），反例 ≤ 0.52
     "quick_tap_en": ((300, 1180, 420, 1260), 0.85),  # 「TAP」：正例 0.95–1.0，反例 ≤ 0.63
     "quick_tap_ja": ((240, 1160, 490, 1240), 0.85),  # 「タップして次へ」：正例 0.92–1.0（动画中 0.74，下一帧再认）
-    "quick_hud_label": ((500, 10, 690, 80), 0.8),  # 右上「審査基準」：培育画面才有（剧情对话框、事件过场、主页菜单没有）
+    "quick_hud_label": (
+        (500, 10, 690, 80),
+        0.8,
+    ),  # 右上「審査基準」：培育画面才有（剧情对话框、事件过场、主页菜单没有）
     "quick_pass_label": ((20, 580, 220, 680), 0.9),  # 考前说明页「合格条件」条（选拔）：正例 0.96–1.0，反例 ≤ 0.75
     "quick_finals_label": ((20, 580, 220, 680), 0.8),
     "quick_ptecho_label": ((560, 660, 720, 760), 0.8),
 }
 WHITE_TPL = {  # 白色字形模板（背景会变）：名称 → (搜索区域, 阈值)
     "quick_commu_skip": ((150, 1160, 300, 1240), 0.6),  # 剧情底栏「▶SKIP」：剧情帧 0.78–1.0，其他 ≤ 0.26
-    "quick_commu_auto": ((410, 1160, 570, 1240), 0.6),  # 「▶▶AUTO」：两个都对上才算剧情（不是剧情时 SKIP 的位置是饮料栏第 3 格）
-    "quick_now_loading": ((400, 1150, 720, 1280), 0.75),  # 右下「NOW LOADING…」（HIF 蓝紫读取 / 选拔试验标题）：正例 0.82–1.0，反例 ≤ 0.10
+    "quick_commu_auto": (
+        (410, 1160, 570, 1240),
+        0.6,
+    ),  # 「▶▶AUTO」：两个都对上才算剧情（不是剧情时 SKIP 的位置是饮料栏第 3 格）
+    "quick_now_loading": (
+        (400, 1150, 720, 1280),
+        0.75,
+    ),  # 右下「NOW LOADING…」（HIF 蓝紫读取 / 选拔试验标题）：正例 0.82–1.0，反例 ≤ 0.10
     "quick_now_loading2": ((400, 1150, 720, 1280), 0.5),  # 「移動中」读取（字号略小）：正例 0.54–1.0，反例 ≤ 0.36
     "quick_custom_cutin": ((150, 740, 570, 870), 0.8),
     "quick_pdrink_max_title": ((40, 60, 560, 170), 0.8),
-    "quick_event_period": ((40, 180, 500, 290), 0.85),  # 活动弹窗标志下「開催期間: …まで」白字：正例 1.0，fixtures 反例 ≤ 0.52
+    "quick_event_period": (
+        (40, 180, 500, 290),
+        0.85,
+    ),  # 活动弹窗标志下「開催期間: …まで」白字：正例 1.0，fixtures 反例 ≤ 0.52
     # 第二十一局选拔可点过场（执行 23e6965 清单；得分：第二十一局 150 帧 + fixtures 313 张）
     "quick_select_bonus": ((100, 100, 620, 240), 0.8),  # 「選抜試験ボーナス」：正例 0.96–1.0，反例 ≤ 0.37
-    "quick_star_gain": ((100, 340, 620, 470), 0.7),  # 「スター性獲得」：正例 0.89–1.0（淡入淡出 0.54–0.77），反例 ≤ 0.51
+    "quick_star_gain": (
+        (100, 340, 620, 470),
+        0.7,
+    ),  # 「スター性獲得」：正例 0.89–1.0（淡入淡出 0.54–0.77），反例 ≤ 0.51
     "quick_toppa": ((200, 760, 520, 960), 0.85),  # 「選抜試験 第N回 突破」的「突破」：正例 1.0，反例 ≤ 0.63
-    "quick_custom_pitem": ((60, 370, 660, 500), 0.8),  # 「カスタムPアイテム」（アイテム獲得 / カスタム選択）：正例 0.98–1.0，反例 ≤ 0.21
+    "quick_custom_pitem": (
+        (60, 370, 660, 500),
+        0.8,
+    ),  # 「カスタムPアイテム」（アイテム獲得 / カスタム選択）：正例 0.98–1.0，反例 ≤ 0.21
     "quick_custom_pitem_get": ((10, 190, 710, 330), 0.8),  # 「カスタムPアイテム獲得」：正例 1.0，反例 ≤ 0.49
     "quick_tap_de_next": ((200, 1100, 520, 1200), 0.8),  # 选拔试验评价页「TAPで次へ」：正例 1.0，反例 ≤ 0.26
-    "quick_select_eval_title": ((60, 100, 660, 280), 0.8),  # 「選抜試験評価」标题：选拔 1.0，本战「最終プロデュース評価」0.40（那页 KAA 认作 PRODUCE_END，交给它）  # 「Pドリンク所持上限」标题白字：溢出页 1.0，其他 ≤ 0.22（17,595 帧）  # 「カスタム選択」过场（之后是定制后三选一）：正例 0.996–1.0，反例 ≤ 0.32
+    "quick_select_eval_title": (
+        (60, 100, 660, 280),
+        0.8,
+    ),  # 「選抜試験評価」标题：选拔 1.0，本战「最終プロデュース評価」0.40（那页 KAA 认作 PRODUCE_END，交给它）  # 「Pドリンク所持上限」标题白字：溢出页 1.0，其他 ≤ 0.22（17,595 帧）  # 「カスタム選択」过场（之后是定制后三选一）：正例 0.996–1.0，反例 ≤ 0.32
 }
 REFRESH_TITLE_MIN = 0.8  # 标题白字「リフレッシュ」（也覆盖「リフレッシュ実行確認」「相談リフレッシュ確認」）：正例 1.0（main18 39 帧），其他确认框 ≤ 0.39
 FLASH_CYAN_MIN = 0.6  # 整屏青色闪屏（课程 / 事件之间的转场）：闪屏 0.83–1.0，其他 ≤ 0.18
@@ -182,7 +209,9 @@ class _Frame:
 def _white_hit(img: MatLike, name: str) -> bool:
     (x1, y1, x2, y2), thr = WHITE_TPL[name]
     full = _Frame.white_mask(img)
-    region = full[y1:y2, x1:x2] if full is not None else _white(img[y1:y2, x1:x2])  # 逐像素阈值：整帧掩码切片与区域单算完全一致
+    region = (
+        full[y1:y2, x1:x2] if full is not None else _white(img[y1:y2, x1:x2])
+    )  # 逐像素阈值：整帧掩码切片与区域单算完全一致
     return float(cv2.matchTemplate(region, _white_tpl(name), cv2.TM_CCOEFF_NORMED).max()) >= thr
 
 
@@ -218,7 +247,9 @@ def _runs(flags: np.ndarray, y1: int, y2: int, min_len: int) -> list[tuple[int, 
 
 def _acquire_bar(hsv: np.ndarray) -> bool:
     x1, x2 = ACQ_BAR_X
-    w = ((hsv[ACQ_BAR_Y[0] : ACQ_BAR_Y[1], x1:x2, 2] >= 230) & (hsv[ACQ_BAR_Y[0] : ACQ_BAR_Y[1], x1:x2, 1] <= 30)).mean(axis=1) >= 0.6
+    w = ((hsv[ACQ_BAR_Y[0] : ACQ_BAR_Y[1], x1:x2, 2] >= 230) & (hsv[ACQ_BAR_Y[0] : ACQ_BAR_Y[1], x1:x2, 1] <= 30)).mean(
+        axis=1
+    ) >= 0.6
     return ACQ_BAR_ROWS[0] <= int(w.sum()) <= ACQ_BAR_ROWS[1]
 
 
@@ -264,7 +295,10 @@ def _receive_button(hsv: np.ndarray) -> bool:
     原来被认成 GIFT，read_gift 取最大亮色块正好是这颗按钮 → 没经过决策就收下了（第二十一局选拔 #47、r3 #4）。"""
     x1, y1, x2, y2 = RECEIVE_BTN_BOX
     b = hsv[y1:y2, x1:x2]
-    return float(((b[:, :, 0] >= 3) & (b[:, :, 0] <= 20) & (b[:, :, 1] >= 100) & (b[:, :, 2] >= 150)).mean()) >= RECEIVE_BTN_MIN
+    return (
+        float(((b[:, :, 0] >= 3) & (b[:, :, 0] <= 20) & (b[:, :, 1] >= 100) & (b[:, :, 2] >= 150)).mean())
+        >= RECEIVE_BTN_MIN
+    )
 
 
 def _refresh_dialog(img: MatLike) -> int | None:
@@ -276,7 +310,10 @@ def _refresh_dialog(img: MatLike) -> int | None:
         if not _title_white(img, y1, y2):
             continue
         reg = _white(img[max(0, y1 - 6) : y2 + 6, 40:420])
-        if reg.shape[0] >= tpl.shape[0] and float(cv2.matchTemplate(reg, tpl, cv2.TM_CCOEFF_NORMED).max()) >= REFRESH_TITLE_MIN:
+        if (
+            reg.shape[0] >= tpl.shape[0]
+            and float(cv2.matchTemplate(reg, tpl, cv2.TM_CCOEFF_NORMED).max()) >= REFRESH_TITLE_MIN
+        ):
             return (y1 + y2) // 2
     return None
 
@@ -306,13 +343,19 @@ def quick_page(img: MatLike) -> dict | None:
     t0 = time.perf_counter()
 
     def done(page: str, *, tap=None, dispatch=None, fields=None) -> dict:
-        return {"page": page, "tap": tap, "dispatch": dispatch, "fields": fields or {}, "ms": round((time.perf_counter() - t0) * 1000, 1)}
+        return {
+            "page": page,
+            "tap": tap,
+            "dispatch": dispatch,
+            "fields": fields or {},
+            "ms": round((time.perf_counter() - t0) * 1000, 1),
+        }
 
     from hiro.vision.deck import is_deck_list
 
     if is_deck_list(img):
         # 牌组一览（「所持スキルカード」）挂在画面上：排在 P 道具三选一之前——KAA 的 TextPItem 会命中一览底部「Pアイテム」标签
-        #（第二十局开局停机，总控 2026-11-03）。主循环不在这里读牌（读整副由执行的 deck_review 自己开 / 滑 / 关），点「閉じる」。
+        # （第二十局开局停机，总控 2026-11-03）。主循环不在这里读牌（读整副由执行的 deck_review 自己开 / 滑 / 关），点「閉じる」。
         return done("DECK_LIST", tap=DECK_LIST_CLOSE)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     if is_select_pitem(img) or _hit(gray, "quick_pitem_custom_title"):
@@ -320,7 +363,9 @@ def quick_page(img: MatLike) -> dict | None:
     hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
     if _pale(hsv) >= LOADING_PALE_MIN:
         return done("LOADING")  # 读取 / 过场：不点，等一下（原来每轮 KAA + 整帧 OCR 3–6 秒，过场结束后要多等一轮）
-    if _white_hit(img, "quick_event_period"):  # 开源版不带活动 Logo 美术模板，只靠「開催期間」白字（全帧验证可单独认出）
+    if _white_hit(
+        img, "quick_event_period"
+    ):  # 开源版不带活动 Logo 美术模板，只靠「開催期間」白字（全帧验证可单独认出）
         # 日切换（04:00）后的活动登录奖励弹窗（每周三「学マス水曜日」：道具图标 + 数量，没有按钮）：点空白就过。
         # 第二十六局开局前收尾阶段卡 180 秒（协调 2026-11-04）；收尾 / 回首页阶段由执行接推进器调 quick_page
         if event_purchase_page(img):
@@ -332,10 +377,14 @@ def quick_page(img: MatLike) -> dict | None:
     if _cyan(hsv) >= FLASH_CYAN_MIN:
         return done("TRANSITION", fields={"kind": "flash"})  # 整屏青色闪屏：不点
     if _white_hit(img, "quick_custom_cutin"):
-        return done("TRANSITION", tap=SKIP_TAP, fields={"kind": "custom_cutin"})  # 「カスタムPアイテム / カスタム選択」过场，接着是定制后三选一
+        return done(
+            "TRANSITION", tap=SKIP_TAP, fields={"kind": "custom_cutin"}
+        )  # 「カスタムPアイテム / カスタム選択」过场，接着是定制后三选一
     if _white_hit(img, "quick_commu_skip") and _white_hit(img, "quick_commu_auto"):
         (x1, y1, x2, y2), _ = WHITE_TPL["quick_commu_skip"]
-        return done("commu", tap=((x1 + x2) // 2, (y1 + y2) // 2))  # 剧情：点 SKIP（之后的「スキップ確認」框交给原流程）
+        return done(
+            "commu", tap=((x1 + x2) // 2, (y1 + y2) // 2)
+        )  # 剧情：点 SKIP（之后的「スキップ確認」框交给原流程）
     if _acquire_bar(hsv):  # 名称栏的彩色边框会被当成「标题条」，所以在确认框判断之前
         from hiro.vision.deck import read_acquire_popup
 
@@ -373,18 +422,24 @@ def quick_page(img: MatLike) -> dict | None:
         return done("TRANSITION", tap=hint_xy, fields={"kind": "tap_hint"})
     if _white_hit(img, "quick_tap_de_next") and _white_hit(img, "quick_select_eval_title"):
         (x1, y1, x2, y2), _ = WHITE_TPL["quick_tap_de_next"]
-        return done("TRANSITION", tap=((x1 + x2) // 2, (y1 + y2) // 2), fields={"kind": "tap_hint"})  # 选拔试验评价「TAPで次へ」（本战最终评价不碰）
+        return done(
+            "TRANSITION", tap=((x1 + x2) // 2, (y1 + y2) // 2), fields={"kind": "tap_hint"}
+        )  # 选拔试验评价「TAPで次へ」（本战最终评价不碰）
     if _white_hit(img, "quick_star_gain"):
         from hiro.vision.pages import read_star_gain
 
-        return done("STAR_GAIN", tap=SKIP_TAP, fields=read_star_gain(img))  # スター性獲得：读本次 +N（约 0.5 秒），点 (12,12)
+        return done(
+            "STAR_GAIN", tap=SKIP_TAP, fields=read_star_gain(img)
+        )  # スター性獲得：读本次 +N（约 0.5 秒），点 (12,12)
     for name, kind in (("quick_select_bonus", "select_bonus"), ("quick_toppa", "toppa"), ("quick_custom_pitem_get", "custom_pitem_get"),
                        ("quick_custom_pitem", "custom_pitem")):  # fmt: skip
         if _white_hit(img, name):
             return done("TRANSITION", tap=SKIP_TAP, fields={"kind": kind})  # 第二十一局选拔：点 (12,12) 就过的演出
     if _hit(gray, "quick_hud_label") and not _hit(gray, "quick_gift_label") and _pitem_note(hsv) is not None:
         # 「差し入れ」标签在 = 礼物 / 选饮料流程（浮条叠在选饮料弹窗上时点上方可能点到弹窗外），交给原流程
-        return done("TRANSITION", tap=PITEM_NOTE_TAP, fields={"kind": "pitem_note"})  # P 道具效果说明浮条：点上方空白（叠在相談上时点的是顶部说明面板，无副作用）
+        return done(
+            "TRANSITION", tap=PITEM_NOTE_TAP, fields={"kind": "pitem_note"}
+        )  # P 道具效果说明浮条：点上方空白（叠在相談上时点的是顶部说明面板，无副作用）
     if _hit(gray, "quick_gift_label") and _hit(gray, "quick_drink_gain"):
         # 礼物袋已打开、「Pドリンク獲得」光效：接着淡入饮料三选一弹窗。光效是最大的高亮色块，原来被当礼物袋点，
         # 点击落在淡入中的弹窗说明文字上（第十八局 #21 #22，执行 23e6965 报）。不点，等弹窗。
@@ -401,14 +456,18 @@ def quick_page(img: MatLike) -> dict | None:
         return done("TRANSITION", fields={"kind": "day_countdown", "text": cd})
     if _schedule_overlay(hsv):
         return done("TRANSITION", tap=SCHEDULE_CLOSE, fields={"kind": "schedule"})  # 日程表覆盖层：点底部 ✕ 关掉
-    if _hit(gray, "quick_hud_label"):  # 剧情对话框 / 事件过场 / 主页菜单下方也有白块：只在培育画面（右上「審査基準」）认气泡
+    if _hit(  # noqa: SIM102
+        gray, "quick_hud_label"
+    ):  # 剧情对话框 / 事件过场 / 主页菜单下方也有白块：只在培育画面（右上「審査基準」）认气泡
         if (bubble := bottom_bubble(img, hsv, white)) is not None:
             page, fields = bubble
             return done(page, tap=SKIP_TAP, fields=fields)
     return None
 
 
-def bottom_bubble(img: MatLike, hsv: np.ndarray | None = None, white: np.ndarray | None = None) -> tuple[str, dict] | None:
+def bottom_bubble(
+    img: MatLike, hsv: np.ndarray | None = None, white: np.ndarray | None = None
+) -> tuple[str, dict] | None:
     """底部白色消息气泡（上方没有选择面板）→ read_bubble 的 (页面名, 字段)；没有气泡 None。
     不看是不是培育画面：调用方自己把关（quick_page 要右上「審査基準」；N.I.A 采样只在认不出的画面上用）。"""
     if hsv is None:
@@ -477,7 +536,9 @@ def read_bubble(img: MatLike, y1: int, y2: int) -> tuple[str, dict]:
         from hiro.vision.customize import read_customize_result
 
         return "CUSTOMIZE_RESULT", read_customize_result(text)
-    if m := re.search(r"を(削.|除去)しまし", text):  # OCR 偶尔把「除」读成「味」；N.I.A 営業奖励「ふれあい+を除去しました」
+    if m := re.search(
+        r"を(削.|除去)しまし", text
+    ):  # OCR 偶尔把「除」读成「味」；N.I.A 営業奖励「ふれあい+を除去しました」
         return "DELETE_RESULT", {"cards": split_card_names(text[: m.start()]), "text": text}
     return "TRANSITION", {"kind": "message", "text": text}
 

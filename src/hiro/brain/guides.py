@@ -20,7 +20,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from functools import lru_cache
+from functools import cache, lru_cache  # noqa: F401
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ def norm_idol(idol_card: str | None) -> str | None:
     return idol_card.replace("i_card-skin-", "i_card-") if idol_card else None
 
 
-@lru_cache(maxsize=None)
+@cache
 def idol_traits(idol_card: str | None) -> tuple[str | None, str | None]:
     """偶像卡 → (plan, style)。先查 KAA 主数据，没有这张卡（新偶像）再查模拟器主数据；都查不到 (None, None)。"""
     cid = norm_idol(idol_card)
@@ -153,7 +153,7 @@ def eval_when(cond, ctx: Ctx | None) -> bool | None:
     """结构化谓词 → True / False；判不了（不认识的谓词、局面缺字段）→ None。"""
     if not isinstance(cond, dict) or len(cond) != 1:
         return None
-    (k, v), = cond.items()
+    ((k, v),) = cond.items()
     if k in ("all", "any"):
         vals = [eval_when(c, ctx) for c in v or []]
         if k == "all":
@@ -220,7 +220,14 @@ def select(entries: list[Entry], *, mode: str | None, difficulty: str | None, id
            pool: Pool | None = None, ctx: Ctx | None = None, layer: int | None = None) -> list[Hit]:  # fmt: skip
     """定稿第 5 节 1–3 步：过滤 + 排序。卡池不知道时，带 pool.requires 的条目不用（判不了是否满足，宁可不推荐要求卡池的东西）。"""
     plan, style = idol_traits(idol_card)
-    want = {"mode": mode, "difficulty": difficulty, "plan": plan, "style": style, "idol_card": norm_idol(idol_card), "layer": layer}
+    want = {
+        "mode": mode,
+        "difficulty": difficulty,
+        "plan": plan,
+        "style": style,
+        "idol_card": norm_idol(idol_card),
+        "layer": layer,
+    }
     hits = []
     for e in entries:
         if e.decision != decision:
@@ -272,7 +279,7 @@ def cache_dir() -> Path:
     return Path(os.environ.get("HIRO_GUIDES_DIR") or Path.home() / ".cache" / "hiro" / "guides")
 
 
-@lru_cache(maxsize=None)
+@cache
 def _load_pack(mode: str, root: str) -> tuple[Entry, ...]:
     d = Path(root)
     try:
@@ -302,11 +309,14 @@ def lookup(*, mode: str | None, difficulty: str | None, idol_card: str | None, d
     if norm_idol(idol_card) == HIRO_IDOL and not hiro_enabled():
         return []
     pool_entries = list(entries(mode)) + list(extra or [])
-    return select(pool_entries, mode=mode, difficulty=difficulty, idol_card=idol_card, decision=decision, pool=pool, ctx=ctx)
+    return select(
+        pool_entries, mode=mode, difficulty=difficulty, idol_card=idol_card, decision=decision, pool=pool, ctx=ctx
+    )
 
 
-def fetch(base: str = BASE_URL, modes=("hajime", "nia"), timeout: float = 30.0) -> dict:
-    """下载 manifest 和各模式的发布包到缓存目录（版本没变就不下）。返回 {mode: version 或错误}。"""
+def fetch(base: str = BASE_URL, modes=("hajime", "nia", "hif"), timeout: float = 30.0) -> dict:
+    """下载 manifest 和各模式的发布包到缓存目录（版本没变就不下）。返回 {mode: version 或错误}。
+    新版下好后删掉这个模式的旧版文件（prune_old）；新版没下成的模式旧版留着。"""
     import urllib.request
 
     d = cache_dir()
@@ -333,7 +343,35 @@ def fetch(base: str = BASE_URL, modes=("hajime", "nia"), timeout: float = 30.0) 
         out[mode] = info["name"]
     (d / "manifest.json").write_bytes(man_raw)
     _load_pack.cache_clear()
+    removed = prune_old(
+        d,
+        {
+            m: (man.get("packs") or {})[m]["name"]
+            for m in modes
+            if out.get(m) == ((man.get("packs") or {}).get(m) or {}).get("name")
+        },
+    )
+    if removed:
+        out["removed"] = removed
     return out
+
+
+def prune_old(d: Path, current: dict) -> list[str]:
+    """删掉缓存目录里 current 这些模式的旧版攻略包（文件名 <mode>-<版本>.json，不是 current[mode] 的）。返回删掉的文件名。
+    只删认得出模式前缀、带数字版本号的 json，别的文件不碰（用户 11-21：攻略包每天更新，旧包会一直攒着）。"""
+    import re
+
+    removed = []
+    for mode, name in current.items():
+        pat = re.compile(rf"^{re.escape(mode)}-\d[\d-]*\.json$")
+        for f in d.glob(f"{mode}-*.json"):
+            if f.stem != name and pat.match(f.name):
+                try:
+                    f.unlink()
+                    removed.append(f.name)
+                except OSError as e:
+                    logger.warning("删旧攻略包 %s 失败：%r", f.name, e)
+    return sorted(removed)
 
 
 FRESH_HOURS = 24
@@ -380,7 +418,10 @@ def _main(argv=None) -> int:
         print(json.dumps(fetch(a.base), ensure_ascii=False))
         return 0
     for h in select(list(entries(a.mode)), mode=a.mode, difficulty=a.difficulty, idol_card=a.idol, decision=a.decision):
-        print(f"[{h.entry.level}/{h.entry.layer}] {h.entry.id}：{h.entry.content.get('why') or ''}（{h.entry.sources()}）" + (f"；注意：{h.note}" if h.note else ""))
+        print(
+            f"[{h.entry.level}/{h.entry.layer}] {h.entry.id}：{h.entry.content.get('why') or ''}（{h.entry.sources()}）"
+            + (f"；注意：{h.note}" if h.note else "")
+        )
     return 0
 
 

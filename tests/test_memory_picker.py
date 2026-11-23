@@ -3,12 +3,12 @@
 import json
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.produce import memory_picker as mp
 from hiro.produce import ops
+
+import cv2
+import pytest
 
 FIX = Path(__file__).parent / "fixtures" / "memory"
 
@@ -17,19 +17,25 @@ def frame(name):
     return cv2.resize(cv2.imread(str(FIX / name)), (720, 1280))
 
 
-@pytest.mark.lowres_sample("回忆选择页样例 picker-*.jpg 是 360x640 截图放大，RapidOCR 读不出「開始時 / 後に獲得」；DMM 回忆页待编成库存扫描取实机帧补进回归集")
+@pytest.mark.lowres_sample(
+    "回忆选择页样例 picker-*.jpg 是 360x640 截图放大，RapidOCR 读不出「開始時 / 後に獲得」；DMM 回忆页待编成库存扫描取实机帧补进回归集"
+)
 def test_page_readers_on_real_frames():
     p1 = frame("picker-p1-daydreaming.jpg")
     b = ops.ocr_boxes(p1)
     assert mp.picker_open(b) and mp.detail_page(b) == 1
     assert mp.read_stats(b) == {"Vo": 139, "Da": 130, "Vi": 15, "hp": 0}
     card = mp.read_card_page(b)
-    assert card["timing"] == "start" and card["card"]["card_id"] == "p_card-02-act-1_037" and card["card"]["upgrade"] == 1
+    assert (
+        card["timing"] == "start" and card["card"]["card_id"] == "p_card-02-act-1_037" and card["card"]["upgrade"] == 1
+    )
     k = mp.read_card_page(ops.ocr_boxes(frame("picker-p1-kamifubuki.jpg")))
     assert k["timing"] == "mid" and k["card"]["card_id"] == "p_card-02-act-2_062"
 
 
-@pytest.mark.lowres_sample("回忆选择页样例 picker-*.jpg 是 360x640 截图放大，RapidOCR 读不出「開始時 / 後に獲得」；DMM 回忆页待编成库存扫描取实机帧补进回归集")
+@pytest.mark.lowres_sample(
+    "回忆选择页样例 picker-*.jpg 是 360x640 截图放大，RapidOCR 读不出「開始時 / 後に獲得」；DMM 回忆页待编成库存扫描取实机帧补进回归集"
+)
 def test_ability_tiles_grouped():
     ab = mp.read_ability_page(ops.ocr_boxes(frame("picker-p2.jpg")))
     texts = [a["text"] for a in ab]
@@ -42,7 +48,9 @@ def test_ability_tiles_grouped():
 def test_grid_three_full_rows_nine_cells(name):
     img = frame(name)
     rows = mp.grid_rows(img)
-    assert len(rows) in (2, 3) and all(108 <= y2 - y1 <= 128 and y2 <= mp.ROW_BOTTOM_MAX for y1, y2 in rows)  # 压到浮动按钮的行不算
+    assert len(rows) in (2, 3) and all(
+        108 <= y2 - y1 <= 128 and y2 <= mp.ROW_BOTTOM_MAX for y1, y2 in rows
+    )  # 压到浮动按钮的行不算
     cells = mp.grid_cells(img)
     assert len(cells) == 3 * len(rows) and len({c["hash"] for c in cells}) == len(cells)
     assert [c["center"][0] for c in cells[:3]] == list(mp.COL_X)
@@ -83,16 +91,24 @@ class FakeDevice:
         self.t += s
 
 
-@pytest.mark.lowres_sample("回忆选择页样例 picker-*.jpg 是 360x640 截图放大，RapidOCR 读不出「開始時 / 後に獲得」；DMM 回忆页待编成库存扫描取实机帧补进回归集")
+@pytest.mark.lowres_sample(
+    "回忆选择页样例 picker-*.jpg 是 360x640 截图放大，RapidOCR 读不出「開始時 / 後に獲得」；DMM 回忆页待编成库存扫描取实机帧补进回归集"
+)
 @pytest.mark.fixtures
 def test_scan_reads_each_cell_and_cancels(tmp_path):
     dev = FakeDevice()
     picker = mp.Picker(dev.shoot, dev.click, dev.swipe, ocr=dev.ocr, clock=dev.clock, sleep=dev.sleep)
     out = tmp_path / "inv.json"
     inv = mp.scan(picker, out)
-    assert len(inv["entries"]) == 3 * len(mp.grid_rows(dev.frames["p1"]))  # 每个格子一条（同内容的回忆分开记，不再按内容去重）
+    assert len(inv["entries"]) == 3 * len(
+        mp.grid_rows(dev.frames["p1"])
+    )  # 每个格子一条（同内容的回忆分开记，不再按内容去重）
     e = inv["entries"][0]
-    assert e["card"]["name"] == "デイドリーミング" and e["timing"] == "start" and any("初期Pポイント" in a["text"] for a in e["abilities"])
+    assert (
+        e["card"]["name"] == "デイドリーミング"
+        and e["timing"] == "start"
+        and any("初期Pポイント" in a["text"] for a in e["abilities"])
+    )
     assert inv["complete"] and dev.state == "closed"  # 画面不动 = 到顶也到底
     assert (475, 1160) not in dev.taps  # 从不点「決定」
     assert json.loads(out.read_text(encoding="utf-8"))["entries"][0]["card"]["card_id"] == "p_card-02-act-1_037"
@@ -109,16 +125,18 @@ def test_scan_refuses_outside_picker(tmp_path):
 
 # ---------------------------------------------------------------- 滚动核对（2026-11-01 实机：快滑带惯性，整行漏扫）
 
-import numpy as np
+import numpy as np  # noqa: E402
 
-PAGES = [cv2.imread(str(FIX / f"scan-{n}.jpg")) for n in ("0001-page000", "0002-page001", "0003-page002", "0004-page003")]
+PAGES = [
+    cv2.imread(str(FIX / f"scan-{n}.jpg")) for n in ("0001-page000", "0002-page001", "0003-page002", "0004-page003")
+]
 
 
 def list_rows():
     """4 张实拍页的完整行（实机核对过页与页之间没有重叠，行各不相同；压到浮动按钮的行不算）。"""
     out = []
     for img in PAGES:
-        for y1, y2 in mp.grid_rows(img):
+        for y1, _y2 in mp.grid_rows(img):
             out.append(img[y1 : y1 + 118, :].copy())
     return out
 
@@ -135,7 +153,11 @@ class ScrollList:
                 self.rows[i] = self.rows[i].copy()
                 for c in range(3):  # 每格都打一块（压进缩略图区），重复的几份行也对不上
                     x0 = mp.COL_X[c] - 60
-                    self.rows[i][30:90, x0 : x0 + 120] = ((i * 37 + c * 80) % 255, (i * 91) % 255, (i * 53 + c * 40) % 255)
+                    self.rows[i][30:90, x0 : x0 + 120] = (
+                        (i * 37 + c * 80) % 255,
+                        (i * 91) % 255,
+                        (i * 53 + c * 40) % 255,
+                    )
         self.slop, self.stuck = slop, set(stuck)
         self.dead_after_row = dead_after_row  # 滚到这一行之后，从原起点 (360, SWIPE_FROM) 起滑列表不动（起点落在锁格上，11-16 账号 2 假到底）
         gap = self.base[575:580, 40:680].reshape(-1, 3).mean(0)
@@ -147,16 +169,18 @@ class ScrollList:
     def shoot(self):
         img = self.base.copy()
         for i, row in enumerate(self.rows):
-            y = int(round(self.TOP + i * mp.ROW_PITCH - self.offset))
+            y = int(round(self.TOP + i * mp.ROW_PITCH - self.offset))  # noqa: RUF046
             y1, y2 = max(y, mp.GRID_Y[0] - 5), min(y + 118, mp.GRID_Y[1] + 60)
             if y2 > y1:
                 img[y1:y2] = row[y1 - y : y2 - y]
         if self.selected is not None:
             r, c = self.selected
-            y = int(round(self.TOP + r * mp.ROW_PITCH - self.offset))
+            y = int(round(self.TOP + r * mp.ROW_PITCH - self.offset))  # noqa: RUF046
             x = mp.COL_X[c] - mp.CELL_W // 2
             if mp.GRID_Y[0] <= y and y + 118 <= mp.GRID_Y[1] + 60:
-                cv2.rectangle(img, (x + 6, y + 6), (x + mp.CELL_W - 7, y + 111), (0, 140, 255), 12)  # 选中框画在格子里（伸进缩略图区）
+                cv2.rectangle(
+                    img, (x + 6, y + 6), (x + mp.CELL_W - 7, y + 111), (0, 140, 255), 12
+                )  # 选中框画在格子里（伸进缩略图区）
         img[1005:1060, 30:690] = (250, 250, 250)  # 浮在列表上的「編成詳細 / 筛选 / 排序」按钮
         return img
 
@@ -176,7 +200,9 @@ class ScrollList:
 
 class ListPicker(mp.Picker):
     def __init__(self, lst):
-        super().__init__(lst.shoot, lambda x, y: None, lst.swipe, ocr=lambda im: [], clock=lambda: 0.0, sleep=lambda s: None)
+        super().__init__(
+            lst.shoot, lambda x, y: None, lst.swipe, ocr=lambda im: [], clock=lambda: 0.0, sleep=lambda s: None
+        )
         self.lst = lst
 
     def select(self, cell):
@@ -207,7 +233,11 @@ def test_scan_reads_every_row_once(tmp_path, monkeypatch):
     lst.offset = 4 * mp.ROW_PITCH  # 从列表中间开始：先滑回顶部
     inv = run_scan(tmp_path, lst, monkeypatch)
     assert sorted(set(lst.read)) == all_cells(lst) and len(lst.read) == len(all_cells(lst))
-    assert inv["complete"] and inv["gaps"] == [] and [e["slot"] for e in inv["entries"]] == list(range(len(all_cells(lst))))
+    assert (
+        inv["complete"]
+        and inv["gaps"] == []
+        and [e["slot"] for e in inv["entries"]] == list(range(len(all_cells(lst))))
+    )
 
 
 @pytest.mark.fixtures
@@ -305,7 +335,6 @@ def test_mark_suspects_rules():
     assert [e.get("suspect") for e in es] == [None, "same_as_prev", None, "card_unread", "detail_not_refreshed"]
 
 
-
 @pytest.mark.fixtures
 def test_dead_swipe_start_is_not_the_end(tmp_path, monkeypatch):
     """账号 2 11-16：第 15 行之后原起点滑不动，扫描判成到底（48 份、complete=True，实际 100 多份）。换起点再滑，扫完整个列表。"""
@@ -344,7 +373,11 @@ def test_purple_locked_rows_are_detected():
     """紫色锁格（只有卡种徽记、「SS 開」、锁图标，没有偶像照片，账号 2 第 16 行起）：照样是完整行、每格一个指纹。"""
     import os
 
-    path = Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures")) / "pages" / "memory-picker-purple-locked-rows.png"
+    path = (
+        Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures"))
+        / "pages"
+        / "memory-picker-purple-locked-rows.png"
+    )
     if not path.exists():
         pytest.skip("需要实机截图 pages/memory-picker-purple-locked-rows.png")
     img = cv2.resize(cv2.imread(str(path)), (720, 1280))
@@ -389,7 +422,7 @@ def test_select_checked_never_taps_same_cell_twice():
     still = np.zeros((1280, 720, 3), np.uint8)
     taps = []
     p = mp.Picker(lambda: still, lambda x, y: taps.append((x, y)), lambda *a: None, ocr=lambda im: [("キャンセル", 1, (0, 0, 1, 1)),
-                  ("決定", 1, (0, 0, 1, 1)), ("編成詳細", 1, (0, 0, 1, 1))], clock=iter(range(0, 10_000)).__next__, sleep=lambda s: None)  # fmt: skip
+                  ("決定", 1, (0, 0, 1, 1)), ("編成詳細", 1, (0, 0, 1, 1))], clock=iter(range(10_000)).__next__, sleep=lambda s: None)  # fmt: skip
     changed, _ = p.select_checked({"center": [360, 700]})
     assert not changed and taps == [(360, 700)]
     p.ocr = lambda im: []  # 选择页不见了
@@ -425,7 +458,7 @@ def test_select_checked_does_not_tap_preselected_cell():
     img = _bracketed(rect)
     taps = []
     p = mp.Picker(lambda: img, lambda x, y: taps.append((x, y)), lambda *a: None, ocr=lambda im: [("キャンセル", 1, (0, 0, 1, 1)),
-                  ("決定", 1, (0, 0, 1, 1)), ("編成詳細", 1, (0, 0, 1, 1))], clock=iter(range(0, 10_000)).__next__, sleep=lambda s: None)  # fmt: skip
+                  ("決定", 1, (0, 0, 1, 1)), ("編成詳細", 1, (0, 0, 1, 1))], clock=iter(range(10_000)).__next__, sleep=lambda s: None)  # fmt: skip
     changed, got = p.select_checked({"rect": rect, "center": [140, 645], "row": 0})
     assert changed and got is img and taps == []
     p.select_checked({"rect": [255, 585, 210, 120], "center": [360, 645], "row": 0})
@@ -445,13 +478,23 @@ def test_fuzzy_card_recovers_dropped_or_wrong_kanji():
 def test_scroll_splits_big_distance_inside_list_area():
     """11-17 开局第 3 步：一次滑约 16 行，终点 y 成负数，kotonebot swipe 报 argument out of range。拆成每次 ≤ 3 行、起止点都在列表区。"""
     swipes = []
-    p = mp.Picker(lambda: None, lambda x, y: None, lambda x1, y1, x2, y2: swipes.append((y1, y2)), ocr=lambda im: [], sleep=lambda s: None)
+    p = mp.Picker(
+        lambda: None,
+        lambda x, y: None,
+        lambda x1, y1, x2, y2: swipes.append((y1, y2)),
+        ocr=lambda im: [],
+        sleep=lambda s: None,
+    )
     p.scroll(px=int(16 * mp.ROW_PITCH))
     assert sum(a - b for a, b in swipes) == int(16 * mp.ROW_PITCH) and len(swipes) >= 6
-    assert all(abs(a - b) <= mp.SCROLL_STEP_MAX and mp.GRID_Y[0] <= min(a, b) and max(a, b) <= mp.GRID_Y[1] for a, b in swipes)
+    assert all(
+        abs(a - b) <= mp.SCROLL_STEP_MAX and mp.GRID_Y[0] <= min(a, b) and max(a, b) <= mp.GRID_Y[1] for a, b in swipes
+    )
     swipes.clear()
     p.scroll(px=-int(5 * mp.ROW_PITCH))
-    assert sum(b - a for a, b in swipes) == int(5 * mp.ROW_PITCH) and all(mp.GRID_Y[0] <= min(a, b) and max(a, b) <= mp.GRID_Y[1] for a, b in swipes)
+    assert sum(b - a for a, b in swipes) == int(5 * mp.ROW_PITCH) and all(
+        mp.GRID_Y[0] <= min(a, b) and max(a, b) <= mp.GRID_Y[1] for a, b in swipes
+    )
 
 
 def test_cancel_finds_button_by_ocr():
@@ -492,11 +535,12 @@ def test_one_bad_frame_does_not_count_as_picker_closed():
 
 def test_picker_really_closed_after_repeated_checks():
     calls = []
-    p = mp.Picker(lambda: None, lambda x, y: None, lambda *a: None, ocr=lambda im: calls.append(1) or [], sleep=lambda s: None)
+    p = mp.Picker(
+        lambda: None, lambda x, y: None, lambda *a: None, ocr=lambda im: calls.append(1) or [], sleep=lambda s: None
+    )
     with pytest.raises(mp.PickerClosed):
         p.ensure_open()
     assert len(calls) == 1 + mp.CLOSED_CONFIRM
-
 
 
 def test_detail_page_when_slash_is_dropped():
@@ -506,3 +550,12 @@ def test_detail_page_when_slash_is_dropped():
     assert mp.detail_page([("12", 1, box)]) == 1
     assert mp.detail_page([("1/2", 1, box)]) == 1 and mp.detail_page([("212", 1, box)]) == 2
     assert mp.detail_page([("22", 1, (40, 517, 90, 549))]) is None  # 不在居中位置（别处的数字）不算
+
+
+@pytest.mark.fixtures
+def test_scan_logs_progress_every_few_pages(tmp_path, monkeypatch, caplog):
+    """初星助手的驾驶舱靠日志看进度：扫描过程中每 PROGRESS_EVERY 页打一行（11-23 账号 2 扫了半小时只看到「开始」）。"""
+    monkeypatch.setattr(mp, "PROGRESS_EVERY", 1)
+    caplog.set_level("INFO", logger=mp.logger.name)
+    run_scan(tmp_path, ScrollList(), monkeypatch)
+    assert any("回忆扫描：第 1 页" in r.getMessage() for r in caplog.records)

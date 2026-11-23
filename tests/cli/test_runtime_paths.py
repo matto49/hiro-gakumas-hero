@@ -1,6 +1,6 @@
 """任务在 HIRO_HOME/work 里跑：主数据、自建素材、编成方案的路径要明确传过去（这些工具缺省按当前目录找）。"""
 
-from pathlib import Path
+from pathlib import Path  # noqa: F401
 
 
 def test_jobs_get_data_and_plan_paths(hiro_home, monkeypatch, tmp_path):

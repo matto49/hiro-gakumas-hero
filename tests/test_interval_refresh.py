@@ -2,12 +2,12 @@
 
 import copy
 
-import pytest
-
 from hiro.brain import deciders as dmod
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import ActionKind, GameState
+
+import pytest
 
 WIN7 = {"stamina": 17, "max_stamina": 33, "produce_point": 580, "complete": True, "dialog": None, "interval": {
     "cards": [{"index": 0, "price": 50, "purchased": False, "card_id": "p_card-02-men-2_056", "name": "止められない想い+", "upgrade": 1}],
@@ -17,7 +17,12 @@ WIN7 = {"stamina": 17, "max_stamina": 33, "produce_point": 580, "complete": True
     "refresh": {"price": 10, "available": True}}}  # fmt: skip
 
 
-ROTATE = ["p_card-02-men-2_056", "p_card-02-men-2_008", "p_card-02-men-2_054", "p_card-00-men-3_012"]  # 第七局轮间货架上的卡
+ROTATE = [
+    "p_card-02-men-2_056",
+    "p_card-02-men-2_008",
+    "p_card-02-men-2_054",
+    "p_card-00-men-3_012",
+]  # 第七局轮间货架上的卡
 
 
 def _decide(fields, d=None):
@@ -57,5 +62,3 @@ def test_on_no_refresh(patch):
     f = copy.deepcopy(WIN7)
     patch(f)
     assert _decide(f)[1].action.kind is not ActionKind.REROLL
-
-

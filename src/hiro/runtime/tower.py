@@ -67,5 +67,11 @@ class TowerRun:
         return "stop"
 
     def summary(self) -> dict:
-        return {"tower_id": self.tower_id, "tries": dict(self.tries), "best_stars": dict(self.best), "cleared": sorted(self.cleared), "gave_up_three": list(self.gave_up_three),
-                "rankings": dict(self.rankings)}
+        return {
+            "tower_id": self.tower_id,
+            "tries": dict(self.tries),
+            "best_stars": dict(self.best),
+            "cleared": sorted(self.cleared),
+            "gave_up_three": list(self.gave_up_three),
+            "rankings": dict(self.rankings),
+        }

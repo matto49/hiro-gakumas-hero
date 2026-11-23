@@ -38,10 +38,16 @@ def _acquire(obs, f: dict) -> list[Event]:
         return []  # 名称栏只在精确命中主数据时才判 ACQUIRE，正常到不了这里；万一没有 id 就不发（免得和动作事件配不上、多算一张）
     if kind == "card":
         agree = f.get("agree")
-        conf, note = {True: (1.0, None), None: (0.8, "缩略图没认出，只按名称栏"), False: (0.5, "名称栏与缩略图不一致，以名称栏为准")}[agree]
+        conf, note = {
+            True: (1.0, None),
+            None: (0.8, "缩略图没认出，只按名称栏"),
+            False: (0.5, "名称栏与缩略图不一致，以名称栏为准"),
+        }[agree]
         args = {"card_id": f.get("card_id"), "upgrade": f.get("upgrade")}
         if f.get("memory_effect"):
-            args["memory_effect"] = True  # 回忆效果展示：没配上动作、牌组里已有低一级的同一张时状态层记成强化（hiro.loop.events）
+            args["memory_effect"] = (
+                True  # 回忆效果展示：没配上动作、牌组里已有低一级的同一张时状态层记成强化（hiro.loop.events）
+            )
         return [_event(obs, "CARD_ACQUIRE", args, confirmed=True, confidence=conf, note=note)]
     if kind == "drink":
         return [_event(obs, "DRINK_ACQUIRE", {"drink_id": f.get("drink_id")}, confirmed=True, confidence=1.0)]
@@ -60,7 +66,12 @@ def _confirm(obs, c: dict | None, *, deck_index: int | None = None) -> list[Even
     if not c:
         return []
     item = c.get("item") or {}
-    args: dict[str, Any] = {"price": c.get("price"), "p_before": c.get("p_before"), "p_after": c.get("p_after"), "sale": c.get("sale")}
+    args: dict[str, Any] = {
+        "price": c.get("price"),
+        "p_before": c.get("p_before"),
+        "p_after": c.get("p_after"),
+        "sale": c.get("sale"),
+    }
     if item.get("kind") == "drink":
         args["drink_id"] = item.get("drink_id")
     else:
@@ -68,7 +79,13 @@ def _confirm(obs, c: dict | None, *, deck_index: int | None = None) -> list[Even
     if c.get("kind") == "delete":
         args["deck_index"] = deck_index
     missing = [k for k in ("price",) if args[k] is None]
-    conf, note = (1.0, None) if item and not missing else (0.6, "P 数没读全，price 为 None") if item else (0.3, "弹窗里的物品名没认出")
+    conf, note = (
+        (1.0, None)
+        if item and not missing
+        else (0.6, "P 数没读全，price 为 None")
+        if item
+        else (0.3, "弹窗里的物品名没认出")
+    )
     kind = {"exchange": "SHOP_BUY", "delete": "CARD_DELETE"}.get(c.get("kind"))
     return [_event(obs, kind, args, confirmed=None, confidence=conf, note=note)] if kind else []
 
@@ -77,7 +94,16 @@ def _upgrade_result(obs, f: dict) -> list[Event]:
     """「〜を強化しました」：强化已完成。args.upgrade 是强化后的等级；卡名认不出时 card_id / upgrade 为 None（牌组记 pending）。"""
     ok = f.get("card_id") is not None
     args = {"card_id": f.get("card_id"), "upgrade": f.get("upgrade")}
-    return [_event(obs, "CARD_UPGRADE", args, confirmed=True, confidence=1.0 if ok else None, note=None if ok else f"卡名「{f.get('name')}」没认出")]
+    return [
+        _event(
+            obs,
+            "CARD_UPGRADE",
+            args,
+            confirmed=True,
+            confidence=1.0 if ok else None,
+            note=None if ok else f"卡名「{f.get('name')}」没认出",
+        )
+    ]
 
 
 def _star_gain(obs, f: dict) -> list[Event]:
@@ -126,10 +152,26 @@ PAGE_EVENTS = {
     "DIALOG": lambda obs, f: _confirm(obs, f.get("confirm")),
     "SKILL_CARD_REMOVAL": _card_dialog,
     "UPGRADE_RESULT": _upgrade_result,
-    "DELETE_RESULT": lambda obs, f: [_event(obs, "CARD_DELETE", {"card_id": c["card_id"], "upgrade": c["upgrade"]}, confirmed=True, confidence=1.0,
-                                            note="「〜を削除しました」（考试后自动处理基础卡 / 相談删卡）") for c in f.get("cards") or []],  # fmt: skip
-    "CUSTOMIZE_RESULT": lambda obs, f: [_event(obs, "CARD_CUSTOMIZE", {"card_id": f.get("card_id"), "upgrade": f.get("upgrade")}, confirmed=True,
-                                               confidence=1.0 if f.get("card_id") else None)],  # 「〜をカスタマイズしました」
+    "DELETE_RESULT": lambda obs, f: [
+        _event(
+            obs,
+            "CARD_DELETE",
+            {"card_id": c["card_id"], "upgrade": c["upgrade"]},
+            confirmed=True,
+            confidence=1.0,
+            note="「〜を削除しました」（考试后自动处理基础卡 / 相談删卡）",
+        )
+        for c in f.get("cards") or []
+    ],  # fmt: skip  # noqa: RUF028
+    "CUSTOMIZE_RESULT": lambda obs, f: [
+        _event(
+            obs,
+            "CARD_CUSTOMIZE",
+            {"card_id": f.get("card_id"), "upgrade": f.get("upgrade")},
+            confirmed=True,
+            confidence=1.0 if f.get("card_id") else None,
+        )
+    ],  # 「〜をカスタマイズしました」
     "STAR_GAIN": _star_gain,
     "PDRINK_MAX": _pdrink_max,
     "HIF_EXAM_RESULT": _exam_result,

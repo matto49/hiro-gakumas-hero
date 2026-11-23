@@ -1,12 +1,12 @@
 """偶像之路编成决策（TOWER_FORMATION / TOWER_RETRY）：考试 × 主回忆用模拟评估排序，副回忆按倍率公式贪心挑；接近交 LLM；失败重试按差距。
 层设置、倍率公式、评估函数都换成假的（只验证决策逻辑；真跑 bench 的对照在离线脚本里）。"""
 
-import pytest
-
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.llm import MockLLM
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import ActionKind, GameState
+
+import pytest
 
 LEX = {"tower_id": "tower_001-hmsz", "layer": 26, "mechanic": "exam_lesson_buff", "turns": 16, "border": 500000,
        "exam": {"produce_exam_battle_config_id": "cfg", "produce_exam_gimmick_effect_group_id": "g-0001",
@@ -18,8 +18,8 @@ def _fake_tower(monkeypatch):
     from hiro.bench_bridge import tower as tw
 
     monkeypatch.setenv("HIRO_PRODUCE_LLM", "off")
-    monkeypatch.setattr(tw, "layer_mechanics", lambda t, l: ["exam_lesson_buff"])
-    monkeypatch.setattr(tw, "layer_exam", lambda t, l, m=None: dict(LEX))
+    monkeypatch.setattr(tw, "layer_mechanics", lambda t, l: ["exam_lesson_buff"])  # noqa: E741
+    monkeypatch.setattr(tw, "layer_exam", lambda t, l, m=None: dict(LEX))  # noqa: E741
     monkeypatch.setattr(tw, "score_bonus_permils", lambda cfg, params: [1000 + p for p in params])
 
 
@@ -29,8 +29,15 @@ def _cands(n=4):
 
 
 def _state(n=4, sub_slots=1):
-    return GameState(page_fields={"tower_id": "tower_001-hmsz", "layer": 26, "idol_card_id": "i_card-hmsz-3-020", "sub_slots": sub_slots,
-                                  "candidates": _cands(n)})
+    return GameState(
+        page_fields={
+            "tower_id": "tower_001-hmsz",
+            "layer": 26,
+            "idol_card_id": "i_card-hmsz-3-020",
+            "sub_slots": sub_slots,
+            "candidates": _cands(n),
+        }
+    )
 
 
 CALLS = []
@@ -38,21 +45,33 @@ CALLS = []
 
 def _eval(table, noise=1000, star_line=530000):
     """假评估：分数 = 表里的值 + 波动；≥ 过关线算第 1，≥ star_line 算三星。"""
+
     def run(loadouts, seeds, detail=False, workers=1, **kw):
         CALLS.append(len(loadouts) * len(seeds))
         out = []
         for lo in loadouts:
             row = []
-            for i, sd in enumerate(seeds):
+            for _i, sd in enumerate(seeds):
                 sc = table[lo["produce_cards"][0][-1]] + ((sd * 7) % 5 - 2) * noise
-                row.append({"score": sc, "first": sc >= LEX["border"], "stars": 3 if sc >= star_line else 2 if sc >= LEX["border"] else 1} if detail else sc)
+                row.append(
+                    {
+                        "score": sc,
+                        "first": sc >= LEX["border"],
+                        "stars": 3 if sc >= star_line else 2 if sc >= LEX["border"] else 1,
+                    }
+                    if detail
+                    else sc
+                )
             out.append(row)
         return out
+
     return run
 
 
 def test_clear_winner_picked_by_sim(monkeypatch):
-    monkeypatch.setattr(ProduceDeciders, "TOWER_EVAL", staticmethod(_eval({"0": 300000, "1": 520000, "2": 450000, "3": 200000})))
+    monkeypatch.setattr(
+        ProduceDeciders, "TOWER_EVAL", staticmethod(_eval({"0": 300000, "1": 520000, "2": 450000, "3": 200000}))
+    )
     d = ProduceDeciders(CAMPUS_HIRO, None).decide("TOWER_FORMATION", _state())
     assert d.source == "sim" and d.action.kind is ActionKind.SELECT_FORMATION
     a = d.action.args
@@ -63,12 +82,13 @@ def test_clear_winner_picked_by_sim(monkeypatch):
 
 def test_three_star_rate_beats_higher_mean(monkeypatch):
     """1 号平均分高（90 万 / 30 万交替，均 60 万）但三星只有一半；2 号每局 54.5 万稳定三星：按三星概率选 2 号。"""
+
     def run(loadouts, seeds, detail=False, workers=1, **kw):
         out = []
         for lo in loadouts:
             m = lo["produce_cards"][0][-1]
             row = []
-            for i, sd in enumerate(seeds):
+            for _i, sd in enumerate(seeds):
                 sc = {"1": 900000 if sd % 2 else 300000, "2": 545000}.get(m, 100000)
                 row.append({"score": sc, "first": sc >= LEX["border"], "stars": 3 if sc >= 540000 else 1})
             out.append(row)
@@ -80,7 +100,9 @@ def test_three_star_rate_beats_higher_mean(monkeypatch):
 
 
 def test_cache_reused_until_inventory_changes(monkeypatch):
-    monkeypatch.setattr(ProduceDeciders, "TOWER_EVAL", staticmethod(_eval({"0": 300000, "1": 520000, "2": 450000, "3": 200000})))
+    monkeypatch.setattr(
+        ProduceDeciders, "TOWER_EVAL", staticmethod(_eval({"0": 300000, "1": 520000, "2": 450000, "3": 200000}))
+    )
     dec = ProduceDeciders(CAMPUS_HIRO, None)
     CALLS.clear()
     dec.decide("TOWER_FORMATION", _state())
@@ -95,7 +117,11 @@ def test_cache_reused_until_inventory_changes(monkeypatch):
 
 def test_close_call_goes_to_llm(monkeypatch):
     monkeypatch.setenv("HIRO_PRODUCE_LLM", "tower_formation")
-    monkeypatch.setattr(ProduceDeciders, "TOWER_EVAL", staticmethod(_eval({"0": 540000, "1": 541000, "2": 100000, "3": 100000}, noise=40000)))
+    monkeypatch.setattr(
+        ProduceDeciders,
+        "TOWER_EVAL",
+        staticmethod(_eval({"0": 540000, "1": 541000, "2": 100000, "3": 100000}, noise=40000)),
+    )
     llm = MockLLM(replies=[{"choice": 1, "reason": "牌组更合这一层的机关"}])
     d = ProduceDeciders(CAMPUS_HIRO, llm).decide("TOWER_FORMATION", _state())
     assert d.source == "llm" and llm.calls
@@ -104,18 +130,23 @@ def test_close_call_goes_to_llm(monkeypatch):
 def test_eval_unavailable_falls_back_by_bonus(monkeypatch):
     def boom(*a, **k):
         raise RuntimeError("没有 GKMS")
+
     monkeypatch.setattr(ProduceDeciders, "TOWER_EVAL", staticmethod(boom))
     d = ProduceDeciders(CAMPUS_HIRO, None).decide("TOWER_FORMATION", _state())
     assert d.source == "fallback" and d.action.args["main"] == 3 and "模拟评估不可用" in d.reason
 
 
 def test_missing_candidates_waits():
-    d = ProduceDeciders(CAMPUS_HIRO, None).decide("TOWER_FORMATION", GameState(page_fields={"tower_id": "x", "layer": 1, "candidates": []}))
+    d = ProduceDeciders(CAMPUS_HIRO, None).decide(
+        "TOWER_FORMATION", GameState(page_fields={"tower_id": "x", "layer": 1, "candidates": []})
+    )
     assert d.action.kind is ActionKind.WAIT
 
 
 def test_retry_rules(monkeypatch):
-    monkeypatch.setattr(ProduceDeciders, "TOWER_EVAL", staticmethod(_eval({"0": 300000, "1": 520000, "2": 450000, "3": 200000})))
+    monkeypatch.setattr(
+        ProduceDeciders, "TOWER_EVAL", staticmethod(_eval({"0": 300000, "1": 520000, "2": 450000, "3": 200000}))
+    )
     dec = ProduceDeciders(CAMPUS_HIRO, None)
     first = dec.decide("TOWER_FORMATION", _state()).action.args
     base = {"tower_id": "tower_001-hmsz", "layer": 26, "border": 500000, "last_pick": first}
@@ -133,7 +164,7 @@ def test_condition_rate_breaks_tie_when_uinet_never_gets_three_stars(monkeypatch
     from hiro.bench_bridge import tower as tw
 
     lex = dict(LEX, star_conditions=[{"text": "除外 SSR ≤ 5", "field": "lost_ssr", "op": "<=", "value": 5}])
-    monkeypatch.setattr(tw, "layer_exam", lambda t, l, m=None: dict(lex))
+    monkeypatch.setattr(tw, "layer_exam", lambda t, l, m=None: dict(lex))  # noqa: E741
 
     def run(loadouts, seeds, detail=False, workers=1, **kw):
         out = []
@@ -144,8 +175,14 @@ def test_condition_rate_breaks_tie_when_uinet_never_gets_three_stars(monkeypatch
                 first = {"1": True, "2": sd % 3 != 0}.get(m, False)
                 lost = {"1": 8, "2": 4 if sd % 2 else 7}.get(m, 9)
                 ok = lost <= 5
-                row.append({"score": 600000 if first else 300000, "first": first, "stars": 2 if first else 1,
-                            "conditions": [{"text": "除外 SSR ≤ 5", "field": "lost_ssr", "got": lost, "ok": ok}]})
+                row.append(
+                    {
+                        "score": 600000 if first else 300000,
+                        "first": first,
+                        "stars": 2 if first else 1,
+                        "conditions": [{"text": "除外 SSR ≤ 5", "field": "lost_ssr", "got": lost, "ok": ok}],
+                    }
+                )
             out.append(row)
         return out
 
@@ -161,9 +198,11 @@ def test_lost_ssr_is_soft_penalty_not_filter(monkeypatch):
     from hiro.brain import tower as tf
 
     lex = dict(LEX, star_conditions=[{"text": "除外 SSR ≤ 5", "field": "lost_ssr", "op": "<=", "value": 5}])
-    monkeypatch.setattr(tw, "layer_exam", lambda t, l, m=None: dict(lex))
+    monkeypatch.setattr(tw, "layer_exam", lambda t, l, m=None: dict(lex))  # noqa: E741
     monkeypatch.setattr(tf, "lost_ssr_count", lambda deck: 8 if deck[0].endswith("1") else 3)  # 1 号牌组 8 张
-    monkeypatch.setattr(ProduceDeciders, "TOWER_EVAL", staticmethod(_eval({"0": 300000, "1": 900000, "2": 450000, "3": 200000})))
+    monkeypatch.setattr(
+        ProduceDeciders, "TOWER_EVAL", staticmethod(_eval({"0": 300000, "1": 900000, "2": 450000, "3": 200000}))
+    )
     d = ProduceDeciders(CAMPUS_HIRO, None).decide("TOWER_FORMATION", _state())
     assert d.action.args["main"] == 1 and "不筛" in d.reason, d.reason
 

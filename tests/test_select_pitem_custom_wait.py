@@ -3,13 +3,13 @@
 
 from types import SimpleNamespace as NS
 
-import cv2
-import numpy as np
-import pytest
-
 import hiro.produce.hif as hif
 from hiro.contracts import Action, ActionKind, Decision
 from hiro.vision import pitem_custom as pc
+
+import cv2
+import numpy as np
+import pytest
 
 
 def _blue_slots():
@@ -34,7 +34,9 @@ def _core(monkeypatch, decisions, frames):
     monkeypatch.setattr(hif, "sleep", lambda s: None)
     monkeypatch.setattr("hiro.vision.extract.extract", lambda page, img: ({"options": []}, 0))
     monkeypatch.setattr("hiro.vision.pitem_custom.candidates_present", lambda img: [img == "ready"] * 3)
-    monkeypatch.setattr(hif.HifCore, "_custom_options", lambda self, img, opts: [{"slot": i, "name": f"x{i}"} for i in range(3)])
+    monkeypatch.setattr(
+        hif.HifCore, "_custom_options", lambda self, img, opts: [{"slot": i, "name": f"x{i}"} for i in range(3)]
+    )
     monkeypatch.setattr("hiro.produce.card_ops.pitem_commit", lambda ctx, i: commits.append(i) or True)
     state = NS(page=NS(name="SELECT_PITEM"), page_fields={"pitems": [1]})
     core.s = NS(state=state, observe=lambda **kw: kw["img"], record=lambda *a, **kw: None)

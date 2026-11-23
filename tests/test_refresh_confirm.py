@@ -3,12 +3,12 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision.pages import classify_page, read_interval, read_refresh_confirm
 from hiro.vision.quick import quick_page
+
+import cv2
+import pytest
 
 # 「キャンセル」按钮宽约 270（中心 x≈215）：RapidOCR 给的文字框比 Vision 窄、中心 x≈240，点下去仍在按钮里
 CANCEL_TOL_X = 40
@@ -34,8 +34,14 @@ def test_quick_page_cancels(n):
     """快速判页认成 DIALOG refresh_confirm（不再落成 UNKNOWN），点「キャンセル」：刷新动作自己会按更新，
     落到主循环的是没有刷新决策时挂着的框（总控 2026-11-02，约定同执行 f0f2d10）。"""
     q = quick_page(_img(n))
-    assert q["page"] == "DIALOG" and q["fields"]["kind"] == "refresh_confirm" and q["fields"]["confirm"]["p_after"] == 325
-    assert q["tap"] == tuple(q["fields"]["confirm"]["cancel"]) and abs(q["tap"][0] - 215) <= CANCEL_TOL_X and abs(q["tap"][1] - 1160) <= 20
+    assert (
+        q["page"] == "DIALOG" and q["fields"]["kind"] == "refresh_confirm" and q["fields"]["confirm"]["p_after"] == 325
+    )
+    assert (
+        q["tap"] == tuple(q["fields"]["confirm"]["cancel"])
+        and abs(q["tap"][0] - 215) <= CANCEL_TOL_X
+        and abs(q["tap"][1] - 1160) <= 20
+    )
 
 
 def test_interval_overlay_dialog():

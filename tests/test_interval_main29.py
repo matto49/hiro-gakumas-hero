@@ -6,13 +6,13 @@ import copy
 import json
 from pathlib import Path
 
-import pytest
-
 import hiro.sim  # noqa: F401
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import ActionKind, GameState
 from hiro.sim import interval as iv
+
+import pytest
 
 FIX = json.loads((Path(__file__).parent / "fixtures" / "interval" / "main29_interval.json").read_text(encoding="utf-8"))
 GAINS = {k: tuple(v) for k, v in FIX["gains"].items()}
@@ -44,7 +44,9 @@ def test_main29_stale_holding_ignored(env):
     for seq in (187, 188):
         dec.decide("HIF_ROUND_INTERVAL", st(seq))
     d = dec.decide("HIF_ROUND_INTERVAL", st(189))
-    assert d.action.kind is ActionKind.INTERVAL_BUY and d.action.args == {"index": 6}, d.reason  # ブースト（实机：强化）
+    assert d.action.kind is ActionKind.INTERVAL_BUY and d.action.args == {"index": 6}, (
+        d.reason
+    )  # ブースト（实机：强化）
     assert "持有 空" in d.reason, d.reason
     assert any("不一致" in w for w in d.warnings), d.warnings  # produce.drinks 和 R1 结束剩余不一致：报警
     s2 = st(189, p=345)
@@ -56,7 +58,9 @@ def test_main29_stale_holding_ignored(env):
 def test_fresh_screen_read_wins(env):
     s = st(189)
     s.field_status["produce.drinks"] = "observed"
-    s.sources["produce.drinks"] = type(s.sources["produce.drinks"])(**{**vars(s.sources["produce.drinks"]), "seq": s.seq})
+    s.sources["produce.drinks"] = type(s.sources["produce.drinks"])(
+        **{**vars(s.sources["produce.drinks"]), "seq": s.seq}
+    )
     s.produce["drinks"] = ["pdrink_00-3-001"]
     dec = ProduceDeciders(CAMPUS_HIRO, None)
     assert dec._interval_held(s, dec.produce_state(s)) == ["pdrink_00-3-001"]  # 本帧画面读到：按画面
@@ -71,5 +75,12 @@ def test_exam_end_sync_is_not_fresh_read(env, monkeypatch):
     s.field_status["produce.drinks"] = "observed"
     s.produce["drinks"] = ["pdrink_00-3-001"]  # 来源 seq 仍是旧帧
     dec = ProduceDeciders(CAMPUS_HIRO, None)
-    dec._interval_ledger = {"key": ("produce-008", 6), "drinks": ["pdrink_00-3-001"], "cards": [], "upgraded": [], "rerolls": 0, "pending": None}
+    dec._interval_ledger = {
+        "key": ("produce-008", 6),
+        "drinks": ["pdrink_00-3-001"],
+        "cards": [],
+        "upgraded": [],
+        "rerolls": 0,
+        "pending": None,
+    }
     assert dec._interval_held(s, dec.produce_state(s)) == ["pdrink_00-3-001"]

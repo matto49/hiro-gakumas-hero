@@ -32,7 +32,7 @@ def test_sampler_saves_on_change_and_scene_and_stalls(tmp_path):
         s.scene = scene
         assert dev.screenshot_hook_after(logical(v)) is not None
         now[0] += 1
-    rows = [json.loads(l) for l in (tmp_path / "frames" / "frames.jsonl").read_text(encoding="utf-8").splitlines()]
+    rows = [json.loads(l) for l in (tmp_path / "frames" / "frames.jsonl").read_text(encoding="utf-8").splitlines()]  # noqa: E741
     assert [r["scene"] for r in rows] == ["start", "start", "ACTION_SELECT"]  # 第二张没变不存；页面类型变了就存
     assert rows[0]["native"] == [1032, 1838] and (tmp_path / "frames" / rows[0]["file"]).exists()  # 原尺寸
     assert rows[0]["file"].endswith(".jpg")  # JPEG q95（PNG 一局 4.1 GB 把盘写满）
@@ -66,7 +66,7 @@ def test_blind_choice_three_hits_saves_frame_and_stops(tmp_path, monkeypatch):
     flag["pending"] = True
     with pytest.raises(m.SampleBlocked):
         s.after(img)
-    rows = [json.loads(l) for l in (tmp_path / "frames" / "frames.jsonl").read_text(encoding="utf-8").splitlines()]
+    rows = [json.loads(l) for l in (tmp_path / "frames" / "frames.jsonl").read_text(encoding="utf-8").splitlines()]  # noqa: E741
     assert rows[-1]["scene"] == "BLIND_CHOICE" and len(rows) == 2  # 画面没变也存这一帧
 
 
@@ -90,7 +90,9 @@ def test_resume_enters_and_runs_kaa_controller(monkeypatch):
         def run(self):
             calls.append("run")
 
-    pm = NS(resolve_deck=lambda idol, deck_id: f"{idol}/{deck_id}", ProduceController=Controller, StandardStrategy="std")
+    pm = NS(
+        resolve_deck=lambda idol, deck_id: f"{idol}/{deck_id}", ProduceController=Controller, StandardStrategy="std"
+    )
     m.resume(pm, "REGULAR", "i_card-x")
     assert calls == ["enter", ("session", {"idol_card": "i_card-x", "scenario": "REGULAR", "is_resumed": True, "deck": "i_card-x/deck-1"}),
                      ("controller", "REGULAR", "std"), "run", "clear"]  # fmt: skip

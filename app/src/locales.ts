@@ -86,7 +86,7 @@ export interface Messages {
    */
   modelKey(): string;
   /**
-   * `Key 已保存（存在系统钥匙串里，这里不显示）；要换就填新的。`
+   * `Key 已保存（存在本机数据目录，只有你能读，这里不显示）；要换就填新的。`
    */
   modelKeySaved(): string;
   /**
@@ -247,7 +247,7 @@ const catalog = createCatalog<Messages>({
       "modelBaseUrl": "接口地址",
       "modelBaseUrlHint": "填服务商给的 OpenAI 兼容地址，一般以 /v1 结尾",
       "modelKey": "API Key",
-      "modelKeySaved": "Key 已保存（存在系统钥匙串里，这里不显示）；要换就填新的。",
+      "modelKeySaved": "Key 已保存（存在本机数据目录，只有你能读，这里不显示）；要换就填新的。",
       "modelKeyMissing": "还没填。",
       "modelKeyWhere": "到 {url} 登录后创建 Key，复制过来粘贴。",
       "modelKeyPlaceholderSaved": "已保存",

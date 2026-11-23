@@ -6,13 +6,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-import numpy as np
-import pytest
-
 from hiro.runtime import guard
 from hiro.runtime.frame import Frame
 from hiro.runtime.guard import DangerBlocked
 from hiro.tool_device import ToolDevice, open_tool_device
+
+import numpy as np
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 

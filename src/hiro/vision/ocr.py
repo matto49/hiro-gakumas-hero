@@ -10,11 +10,15 @@
 - ppocr5：rapidocr 包里的 PaddleOCR PP-OCRv5（中日英一个模型，onnxruntime），比 KAA 自带的 RapidOCR 模型新；
   Mac / Windows 结果一致。中日混合模型会把部分汉字认成简体（强化、交换済），按 _SIMPLIFIED 换回日文写法。
 
-HIRO_OCR=auto（缺省：macOS 且能导入 Vision → vision，否则 rapidocr）/ vision / rapidocr / winocr / ppocr5。
+- simd：可选的本机 SIMD PaddleOCR PP-OCRv6 medium，同时供 Hiro 与 KAA 使用（安装见 docs/assets.md）。
+
+HIRO_OCR=auto（缺省：macOS 且能导入 Vision → vision，否则 rapidocr）/ vision / rapidocr / winocr / ppocr5 / simd。
+rapidocr 的推理设备：HIRO_OCR_DEVICE=auto（缺省 CUDA → DirectML → CPU）/ cuda / dml / cpu；CPU 线程数 HIRO_OCR_THREADS（见 ocr_device_order）。
 """
 
 from __future__ import annotations
 
+import logging
 import os
 import re
 import sys
@@ -26,7 +30,9 @@ from typing import NamedTuple
 import cv2
 from cv2.typing import MatLike
 
-ENGINES = ("auto", "vision", "rapidocr", "winocr", "ppocr5")
+logger = logging.getLogger(__name__)
+
+ENGINES = ("auto", "vision", "rapidocr", "winocr", "ppocr5", "simd")
 _engine: str | None = None
 
 
@@ -57,8 +63,10 @@ def _vision_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, floa
     import Vision
     from Foundation import NSData
 
-    ok, buf = cv2.imencode(".png", img)
-    handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(NSData.dataWithBytes_length_(buf.tobytes(), len(buf)), None)
+    _ok, buf = cv2.imencode(".png", img)
+    handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(
+        NSData.dataWithBytes_length_(buf.tobytes(), len(buf)), None
+    )
     request = Vision.VNRecognizeTextRequest.alloc().init()
     request.setRecognitionLevel_(0)  # accurate
     request.setRecognitionLanguages_(list(languages))
@@ -69,12 +77,21 @@ def _vision_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, floa
         cand = obs.topCandidates_(1)[0]
         bb = obs.boundingBox()  # 归一化坐标，原点在左下
         x1, y1 = bb.origin.x * w, (1 - bb.origin.y - bb.size.height) * h
-        out.append((str(cand.string()), float(cand.confidence()), (round(x1), round(y1), round(x1 + bb.size.width * w), round(y1 + bb.size.height * h))))
+        out.append(
+            (
+                str(cand.string()),
+                float(cand.confidence()),
+                (round(x1), round(y1), round(x1 + bb.size.width * w), round(y1 + bb.size.height * h)),
+            )
+        )
     return out
 
 
 RAPID_DIR = Path(__file__).resolve().parents[3] / "cache" / "rapidocr"
-RAPID_MODELS = {"ja": "japan_PP-OCRv3_rec_infer.onnx", "en": "en_PP-OCRv3_rec_infer.onnx"}  # 识别模型；检测用 rapidocr_onnxruntime 自带的
+RAPID_MODELS = {
+    "ja": "japan_PP-OCRv3_rec_infer.onnx",
+    "en": "en_PP-OCRv3_rec_infer.onnx",
+}  # 识别模型；检测用 rapidocr_onnxruntime 自带的
 RAPID_PAD = 631  # 小图居中补白到 631×631 再识别（PaddleOCR 模型图太小准确率低；与原先经 kotonebot 调用时一致）
 _rapid: dict = {}
 
@@ -95,12 +112,69 @@ def _rapid_model(tag: str) -> Path:
     raise RuntimeError(f"HIRO_OCR=rapidocr 要的模型 {name} 不在 {own.parent}，也没装 kaa 包")
 
 
+OCR_DEVICES = ("cuda", "dml", "cpu")  # HIRO_OCR_DEVICE=auto 时按这个顺序试
+_EP = {"cuda": "CUDAExecutionProvider", "dml": "DmlExecutionProvider", "cpu": "CPUExecutionProvider"}
+
+
+def ocr_device_order(want: str | None = None, available: list[str] | None = None) -> list[str]:
+    """RapidOCR 推理设备的尝试顺序。HIRO_OCR_DEVICE：auto（缺省：CUDA → DirectML → CPU，装了哪种 onnxruntime 就有哪种）/ cuda / dml / cpu。
+    指定的设备这台机器的 onnxruntime 没有时退回 CPU（日志写明）。CUDA 要 onnxruntime-gpu 且 CUDA / cuDNN 版本对得上；
+    DirectML 要 onnxruntime-directml（Windows，任意显卡）。三者互斥，同一个环境只能装一种。"""
+    want = (want if want is not None else os.environ.get("HIRO_OCR_DEVICE", "auto")).strip().lower() or "auto"
+    if available is None:
+        import importlib
+
+        # 按模块名导入：类型检查环境（CI 只装 .[dev]）没有 onnxruntime
+        available = list(importlib.import_module("onnxruntime").get_available_providers())
+    providers: list[str] = available
+    if want not in ("auto", *OCR_DEVICES):
+        raise ValueError(f"HIRO_OCR_DEVICE 只能是 auto / cuda / dml / cpu，不是 {want!r}")
+    order = [d for d in (OCR_DEVICES if want == "auto" else (want,)) if _EP[d] in providers]
+    if want not in ("auto", "cpu") and not order:
+        logger.warning(
+            "HIRO_OCR_DEVICE=%s，但 onnxruntime 没有 %s（现有 %s），文字识别用 CPU", want, _EP[want], providers
+        )
+    return order if "cpu" in order else [*order, "cpu"]
+
+
+def _ocr_threads() -> int:
+    """HIRO_OCR_THREADS：CPU 推理用几个线程（缺省 -1 = onnxruntime 自己定，通常占满所有核）。CPU 模式下调小能降占用和风扇声，单帧会慢一些。"""
+    try:
+        return int(os.environ.get("HIRO_OCR_THREADS") or -1)
+    except ValueError:
+        return -1
+
+
+def _session_device(engine) -> str:
+    """引擎实际在用的设备（看检测模型 session 的第一个 provider；onnxruntime 加载 CUDA / DirectML 失败时会悄悄退回 CPU）。"""
+    try:
+        first = engine.text_det.infer.session.get_providers()[0]
+    except Exception:  # noqa: BLE001
+        return "cpu"
+    return next((d for d, ep in _EP.items() if ep == first), "cpu")
+
+
 def _rapid_engine(languages):
     from rapidocr_onnxruntime import RapidOCR
 
     tag = "en" if tuple(languages) == ("en-US",) else "ja"  # 只要英文时用英文模型（数字），否则日文模型
     if tag not in _rapid:
-        _rapid[tag] = RapidOCR(rec_model_path=str(_rapid_model(tag)), use_det=True, use_cls=False, use_rec=True)
+        threads = _ocr_threads()
+        engine = None
+        for dev in ocr_device_order():
+            flags = {
+                f"{part}_{k}": dev == d
+                for part in ("det", "rec")
+                for k, d in (("use_cuda", "cuda"), ("use_dml", "dml"))
+            }
+            engine = RapidOCR(rec_model_path=str(_rapid_model(tag)), use_det=True, use_cls=False, use_rec=True,
+                              det_intra_op_num_threads=threads, rec_intra_op_num_threads=threads, **flags)  # fmt: skip
+            got = _session_device(engine)
+            if got == dev:
+                break
+            logger.warning("文字识别：%s 没加载成功（实际 %s），试下一个", dev, got)
+        logger.info("文字识别（RapidOCR %s 模型）用 %s", tag, _session_device(engine))
+        _rapid[tag] = engine
     return _rapid[tag]
 
 
@@ -111,7 +185,11 @@ def _pad_to(img: MatLike, size: int) -> tuple[MatLike, int, int]:
     if not ph and not pw:
         return img, 0, 0
     top, left = ph // 2, pw // 2
-    return cv2.copyMakeBorder(img, top, ph - top, left, pw - left, cv2.BORDER_CONSTANT, value=(255, 255, 255)), left, top
+    return (
+        cv2.copyMakeBorder(img, top, ph - top, left, pw - left, cv2.BORDER_CONSTANT, value=(255, 255, 255)),
+        left,
+        top,
+    )
 
 
 def _rapid_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, tuple[int, int, int, int]]]:
@@ -123,8 +201,13 @@ def _rapid_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, 
     out = []
     for box, text, conf in res or []:
         xs, ys = [int(p[0]) - ox for p in box], [int(p[1]) - oy for p in box]
-        out.append((sanitize(text), float(conf),
-                    (round(min(xs) / scale), round(min(ys) / scale), round(max(xs) / scale), round(max(ys) / scale))))
+        out.append(
+            (
+                sanitize(text),
+                float(conf),
+                (round(min(xs) / scale), round(min(ys) / scale), round(max(xs) / scale), round(max(ys) / scale)),
+            )
+        )
     return out
 
 
@@ -191,7 +274,7 @@ def _win_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, tu
     eng, loop = _win_engine(languages)
     bgra = cv2.cvtColor(img, cv2.COLOR_GRAY2BGRA if img.ndim == 2 else cv2.COLOR_BGR2BGRA)
     h, w = bgra.shape[:2]
-    if min(h, w) < 40:   # 太小的图 Windows OCR 读不出，向右下补到 40（不影响原坐标）
+    if min(h, w) < 40:  # 太小的图 Windows OCR 读不出，向右下补到 40（不影响原坐标）
         bgra = cv2.copyMakeBorder(bgra, 0, max(0, 40 - h), 0, max(0, 40 - w), cv2.BORDER_REPLICATE)
         h, w = bgra.shape[:2]
     dw = DataWriter()
@@ -200,7 +283,10 @@ def _win_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, tu
     res = loop.run_until_complete(eng.recognize_async(bmp))
     out = []
     for line in res.lines:
-        ws = [(wd.text, (wd.bounding_rect.x, wd.bounding_rect.y, wd.bounding_rect.width, wd.bounding_rect.height)) for wd in line.words]
+        ws = [
+            (wd.text, (wd.bounding_rect.x, wd.bounding_rect.y, wd.bounding_rect.width, wd.bounding_rect.height))
+            for wd in line.words
+        ]
         if not ws:
             continue
         ws.sort(key=lambda t: t[1][0])
@@ -209,16 +295,22 @@ def _win_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, tu
             y1 = min(b[1] for _, b in seg)
             x2 = max(b[0] + b[2] for _, b in seg)
             y2 = max(b[1] + b[3] for _, b in seg)
-            out.append((_join_words(seg), 1.0, (round(x1 / scale), round(y1 / scale), round(x2 / scale), round(y2 / scale))))
+            out.append(
+                (_join_words(seg), 1.0, (round(x1 / scale), round(y1 / scale), round(x2 / scale), round(y2 / scale)))
+            )
     return out
 
 
 # 只在简体中文里出现、日文不用的字 → 日文写法（PP-OCRv5 中日混合模型的读法；两边写法相同的字不收）
-_SIMPLIFIED = str.maketrans(dict(zip(
-    "强换查选择认识确战试验费结气动习课讲获领张级时间开关闭门问题说话读买卖价钱饮剧场进还对应实际现发处务员东车运转轮输边过达连补态优胜败负记录设计让训练绩续继绝经给线红约纪细终组织编缘网罗义书页顶项顺须预频颜风飞饰马驱鱼鸟乐兴举产亲亿传伤众华单卫历压变叶听启园围图圣坏块报备头夺奋宽导层岁岛带广库废异弹归忆怀总恶惊惯戏户扩扫护损据挥摄敌无显晓暂术机杂权极构标样树桥检欢测济满灵烧热爱猎环电疗盘盖监码础种积稳竞笔简类紧纯纸绘统维综绿缓缩罚职联脑艺节范药营虑见观规视览觉议许论访证评诉词译诗该详语误请诸谁调谈谢谱贝贡财责贤货质贩贯贵贴贸资赏赖赞赠跃践轻载较辅辈迁远违适递遗邮邻释钟钢银锁锐错键镜长闪闻阳阶阵陆险隐难额馆骑鲜鸣",
-    "強換査選択認識確戦試験費結気動習課講獲領張級時間開関閉門問題説話読買売価銭飲劇場進還対応実際現発処務員東車運転輪輸辺過達連補態優勝敗負記録設計譲訓練績続継絶経給線紅約紀細終組織編縁網羅義書頁頂項順須預頻顔風飛飾馬駆魚鳥楽興挙産親億伝傷衆華単衛歴圧変葉聴啓園囲図聖壊塊報備頭奪奮寛導層歳島帯広庫廃異弾帰憶懐総悪驚慣戯戸拡掃護損拠揮摂敵無顕暁暫術機雑権極構標様樹橋検歓測済満霊焼熱愛猟環電療盤蓋監碼礎種積穏競筆簡類緊純紙絵統維総緑緩縮罰職聯脳芸節範薬営慮見観規視覧覚議許論訪証評訴詞訳詩該詳語誤請諸誰調談謝譜貝貢財責賢貨質販貫貴貼貿資賞頼賛贈躍践軽載較輔輩遷遠違適逓遺郵隣釈鐘鋼銀鎖鋭錯鍵鏡長閃聞陽階陣陸険隠難額館騎鮮鳴",
-    strict=True,
-)))
+_SIMPLIFIED = str.maketrans(
+    dict(
+        zip(
+            "强换查选择认识确战试验费结气动习课讲获领张级时间开关闭门问题说话读买卖价钱饮剧场进还对应实际现发处务员东车运转轮输边过达连补态优胜败负记录设计让训练绩续继绝经给线红约纪细终组织编缘网罗义书页顶项顺须预频颜风飞饰马驱鱼鸟乐兴举产亲亿传伤众华单卫历压变叶听启园围图圣坏块报备头夺奋宽导层岁岛带广库废异弹归忆怀总恶惊惯戏户扩扫护损据挥摄敌无显晓暂术机杂权极构标样树桥检欢测济满灵烧热爱猎环电疗盘盖监码础种积稳竞笔简类紧纯纸绘统维综绿缓缩罚职联脑艺节范药营虑见观规视览觉议许论访证评诉词译诗该详语误请诸谁调谈谢谱贝贡财责贤货质贩贯贵贴贸资赏赖赞赠跃践轻载较辅辈迁远违适递遗邮邻释钟钢银锁锐错键镜长闪闻阳阶阵陆险隐难额馆骑鲜鸣",
+            "強換査選択認識確戦試験費結気動習課講獲領張級時間開関閉門問題説話読買売価銭飲劇場進還対応実際現発処務員東車運転輪輸辺過達連補態優勝敗負記録設計譲訓練績続継絶経給線紅約紀細終組織編縁網羅義書頁頂項順須預頻顔風飛飾馬駆魚鳥楽興挙産親億伝傷衆華単衛歴圧変葉聴啓園囲図聖壊塊報備頭奪奮寛導層歳島帯広庫廃異弾帰憶懐総悪驚慣戯戸拡掃護損拠揮摂敵無顕暁暫術機雑権極構標様樹橋検歓測済満霊焼熱愛猟環電療盤蓋監碼礎種積穏競筆簡類緊純紙絵統維総緑緩縮罰職聯脳芸節範薬営慮見観規視覧覚議許論訪証評訴詞訳詩該詳語誤請諸誰調談謝譜貝貢財責賢貨質販貫貴貼貿資賞頼賛贈躍践軽載較輔輩遷遠違適逓遺郵隣釈鐘鋼銀鎖鋭錯鍵鏡長閃聞陽階陣陸険隠難額館騎鮮鳴",
+            strict=True,
+        )
+    )
+)
 _pp: dict = {}
 
 
@@ -254,20 +346,31 @@ def _pp_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, tup
     out = []
     for box, text, conf in zip(res.boxes, res.txts, res.scores, strict=False):
         xs, ys = [p[0] for p in box], [p[1] for p in box]
-        out.append((str(text).translate(_SIMPLIFIED), float(conf),
-                    (round(min(xs) / scale), round(min(ys) / scale), round(max(xs) / scale), round(max(ys) / scale))))
+        out.append(
+            (
+                str(text).translate(_SIMPLIFIED),
+                float(conf),
+                (round(min(xs) / scale), round(min(ys) / scale), round(max(xs) / scale), round(max(ys) / scale)),
+            )
+        )
     return out
 
 
-def ocr_boxes(img: MatLike, *, scale: float = 3.0, languages=("ja-JP", "en-US")) -> list[tuple[str, float, tuple[int, int, int, int]]]:
+def ocr_boxes(
+    img: MatLike, *, scale: float = 3.0, languages=("ja-JP", "en-US")
+) -> list[tuple[str, float, tuple[int, int, int, int]]]:
     """每段文字、置信度和它在 img 中的外接框 (x1, y1, x2, y2)。空图（裁剪框落到画面外）返回 []，不抛异常（Mac h8 11-15：
     弹窗标题条贴着画面底边，正文裁出空图，cv2.resize 报 !ssize.empty()，主循环崩溃）。"""
     if img is None or getattr(img, "size", 0) == 0 or min(img.shape[:2]) < 1:
         return []
+    eng = engine()
+    if eng == "simd":
+        from hiro.vision.simd_ocr import simd_engine
+
+        return simd_engine().read(img, scale=scale)
     h, w = img.shape[:2]
     if scale != 1:
         img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-    eng = engine()
     if eng == "vision":
         return _vision_raw(img, w, h, languages)
     if eng == "winocr":
@@ -279,6 +382,17 @@ def ocr_boxes(img: MatLike, *, scale: float = 3.0, languages=("ja-JP", "en-US"))
 
 def ocr(img: MatLike, *, scale: float = 3.0, languages=("ja-JP", "en-US")) -> list[tuple[str, float]]:
     return [(t, c) for t, c, _ in ocr_boxes(img, scale=scale, languages=languages)]
+
+
+def ocr_line(img: MatLike, *, scale: float = 3.0, languages=("ja-JP", "en-US")) -> str:
+    """已知只有一行字的框（比如 HUD 上固定位置的数字）：SIMD 后端跳过文字检测、只跑识别。"""
+    if img is None or not img.size:
+        return ""
+    if engine() == "simd":
+        from hiro.vision.simd_ocr import simd_engine
+
+        return "".join(t for t, _, _ in simd_engine().read(img, scale=scale, only_rec=True))
+    return "".join(t for t, _ in ocr(img, scale=scale, languages=languages))
 
 
 # ---------------------------------------------------------------- 整帧 / 区域文字（页面判定、找按钮）

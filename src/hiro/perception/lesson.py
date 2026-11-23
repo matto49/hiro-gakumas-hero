@@ -7,12 +7,12 @@
 
 from dataclasses import asdict, dataclass, field
 
-from cv2.typing import MatLike
-
 from hiro.vision.cards import full_text
 from hiro.vision.digits import dddd_digits
 from hiro.vision.hif import hand_cards
 from hiro.vision.ui_templates import box
+
+from cv2.typing import MatLike
 
 
 @dataclass

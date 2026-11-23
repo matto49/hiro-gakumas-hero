@@ -8,9 +8,9 @@ FIX = Path(__file__).parent / "fixtures" / "tower" / "pages"
 
 
 def _hit(name):
-    import cv2
-
     from hiro.vision.classify import classify
+
+    import cv2
 
     path = FIX / name
     if not path.exists():
@@ -24,7 +24,9 @@ def test_list_layers_info():
     assert name == "TOWER_LIST" and [(i["stage"], i["name"], i["progress"]) for i in f["idols"][:3]] == [
         (22, "花海咲季", "62/81"), (14, "月村手毬", "37/81"), (25, "藤田ことね", "75/81")]  # fmt: skip
     name, f = _hit("04_idol_layers.png")
-    assert name == "TOWER_LAYERS" and f["idol"] == "月村手毬" and f["stage"] == 15 and f["challenge"] and not f["locked"]
+    assert (
+        name == "TOWER_LAYERS" and f["idol"] == "月村手毬" and f["stage"] == 15 and f["challenge"] and not f["locked"]
+    )
     # 层号取居中放大那层的大数字（左栏「STAGE 15 報酬」滑动后不变）；星数是那层的三颗星；最前沿锁着时挑戦する是灰的
     for frame, stage, stars, locked in (("21_layers_after_clear.png", 15, 1, False), ("22_layers_scroll_down1.png", 13, 2, False),
                                         ("23_layers_scroll_down2.png", 10, 3, False), ("26_layers_frontier.png", 16, 0, True)):  # fmt: skip
@@ -47,7 +49,9 @@ def test_formation_reads_loadout_fields():
 def test_memory_select_result_retry_exam():
     assert _hit("07_memory_select.png")[0] == "TOWER_MEMORY_SELECT"
     name, f = _hit("09_result.png")
-    assert name == "TOWER_RESULT" and (f["cleared"], f["layer"], f["stars"]) == (True, 15, 1) and f["back"] and f["retry"]
+    assert (
+        name == "TOWER_RESULT" and (f["cleared"], f["layer"], f["stars"]) == (True, 15, 1) and f["back"] and f["retry"]
+    )
     name, f = _hit("10_retry_confirm.png")
     assert name == "TOWER_RETRY_CONFIRM" and f["cost"] is None and f["same"] and f["ok"]  # 没有消耗字样
     assert _hit("11_retry_started.png")[0] == "TOWER_EXAM"  # 先于 KAA 的 EXAM 模板
@@ -59,15 +63,25 @@ def test_formation_page2_reads_deck():
     assert name == "TOWER_FORMATION" and f["page"] == 2 and f["memory_ratings"] == [12075, 10773, 9978]
     d = f["deck"]
     assert [sum(c["dim"] for c in r) for r in d["rows"]] == [1, 3, 4]
-    assert "p_card-01-ido-2_017+1" in d["cards"] and "p_card-00-sup-3_027" in d["cards"] and len(d["cards"]) + d["unread"] == 10
-    assert "p_card-01-act-2_032+1" in d["cards"] and d["unread"] == 0  # スタンドプレー+：带等级 / 角标，卡格规则没把握，两票对一票认出
+    assert (
+        "p_card-01-ido-2_017+1" in d["cards"]
+        and "p_card-00-sup-3_027" in d["cards"]
+        and len(d["cards"]) + d["unread"] == 10
+    )
+    assert (
+        "p_card-01-act-2_032+1" in d["cards"] and d["unread"] == 0
+    )  # スタンドプレー+：带等级 / 角标，卡格规则没把握，两票对一票认出
 
 
 def test_ranking_page_after_exam():
     """考完的名次页（第一次实机 r1：判成 unknown，180 秒停机）：左上名次徽章、各行分数、「次へ」。"""
     name, f = _hit("40_after_r1_stop.png")
     assert name == "TOWER_RANKING" and f["my_rank"] == 3 and f["next"]
-    assert [(r["rank"], r["name"]) for r in f["rows"][:3]] == [(1, "白草四音"), (2, "暁美みずき"), (3, "月村手毬")] and f["rows"][2]["score"] == 54009
+    assert [(r["rank"], r["name"]) for r in f["rows"][:3]] == [
+        (1, "白草四音"),
+        (2, "暁美みずき"),
+        (3, "月村手毬"),
+    ] and f["rows"][2]["score"] == 54009
     name, f = _hit("06_challenge.png")
     assert (f["idol_name"], f["idol_card_title"]) == ("月村手毬", "一匹狼")
 
@@ -81,9 +95,9 @@ def test_failed_ranking_page():
 
 
 def test_exam_over_on_ranking_not_in_exam():
-    import cv2
-
     from hiro.runtime.tower_play import exam_over
+
+    import cv2
 
     for name in ("60_failed_ranking.png", "40_after_r1_stop.png", "09_result.png"):
         if not (FIX / name).exists():
@@ -95,7 +109,9 @@ def test_exam_over_on_ranking_not_in_exam():
 def test_perfect_result_page():
     """三星（1 位）的结果页标题是「PERFECT」不是「CLEAR」（Mac 手毬 14 层 11-15，原来判成 unknown 卡住）：照样是 TOWER_RESULT，星数 3。"""
     name, f = _hit("100_perfect_result.png")
-    assert name == "TOWER_RESULT" and (f["cleared"], f["layer"], f["stars"]) == (True, 14, 3) and f["back"] and f["retry"]
+    assert (
+        name == "TOWER_RESULT" and (f["cleared"], f["layer"], f["stars"]) == (True, 14, 3) and f["back"] and f["retry"]
+    )
 
 
 def test_list_card_found_when_stage_sparkles():

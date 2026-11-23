@@ -1,14 +1,14 @@
 """reduce：纯函数、防抖、来源优先级、字段归属、数据集重放确定性。"""
 
 import copy
-from pathlib import Path
-
-import pytest
+from pathlib import Path  # noqa: F401
 
 from hiro.contracts import GameState, Observation, PageObs
 from hiro.loop.reduce import DEBOUNCE, STABLE, reduce
-from hiro.loop.replay import flaps, run
+from hiro.loop.replay import flaps, run  # noqa: F401
 from hiro.loop.transitions import allowed, mode_of, successors
+
+import pytest  # noqa: F401
 
 
 def obs(seq, page, fields=None, *, source="screen", area="produce"):
@@ -19,7 +19,11 @@ def test_transitions():
     assert allowed("unknown", "ACTION_SELECT") and allowed("ACTION_SELECT", "CONSULT") and allowed("HIF_EXAM", "commu")
     assert allowed("HIF_EXAM", "IDLE") and allowed("IDLE", "SELECT_CARD")
     assert not allowed("HIF_EXAM", "ACTION_SELECT") and not allowed("ACTION_SELECT", "HIF_EXAM_RESULT")
-    assert "HIF_EXAM_RESULT" in successors("HIF_EXAM") and mode_of("ACTION_SELECT") == "produce" and mode_of("home") == "home"
+    assert (
+        "HIF_EXAM_RESULT" in successors("HIF_EXAM")
+        and mode_of("ACTION_SELECT") == "produce"
+        and mode_of("home") == "home"
+    )
     assert mode_of("commu", "produce") == "produce" and mode_of("commu") == "unknown"
 
 
@@ -39,7 +43,7 @@ def test_none_keeps_old_value_and_stable_counter():
     s = reduce(s, obs(2, "ACTION_SELECT", {"stamina": None, "star": 45}))
     assert (s.produce["stamina"], s.produce["star"]) == (20, 45)
     assert s.sources["produce.stamina"].seq == 1 and s.sources["produce.star"].seq == 2
-    assert s.page.stable is (2 >= STABLE) and s.page.frames == 2
+    assert s.page.stable is (STABLE <= 2) and s.page.frames == 2
 
 
 def test_debounce_illegal_jump_and_flap():
@@ -95,5 +99,3 @@ def test_weak_idle_does_not_flap_dialog():
     assert s.page.name == "SELECT_CARD" and s.page_fields["candidates"] and s.pending_page.name == "IDLE"
     s = reduce(s, obs(4, "SELECT_CARD", {"candidates": [{"slot": 1}]}))
     assert s.page.name == "SELECT_CARD" and s.pending_page is None and s.page_fields["candidates"] == [{"slot": 1}]
-
-

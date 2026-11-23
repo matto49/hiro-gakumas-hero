@@ -19,9 +19,27 @@ DEBOUNCE = 3  # 不合法跳变需要连续多少帧才接受
 STABLE = 2  # 连续多少帧算稳定
 
 # 页面局部字段：换页清空，不进 produce / exam
-PAGE_LOCAL = {"options", "complete", "advice", "candidates", "recommended", "cards", "problems", "exam_next", "weeks_left", "schedule"}
+PAGE_LOCAL = {
+    "options",
+    "complete",
+    "advice",
+    "candidates",
+    "recommended",
+    "cards",
+    "problems",
+    "exam_next",
+    "weeks_left",
+    "schedule",
+}
 # 哪个页面的字段写进哪个分区
-SECTION = {"ACTION_SELECT": "produce", "DECK_LIST": "produce", "HIF_EXAM": "exam", "SELECT_CARD": None, "SELECT_DRINK": None, "HIF_EXAM_RESULT": None}
+SECTION = {
+    "ACTION_SELECT": "produce",
+    "DECK_LIST": "produce",
+    "HIF_EXAM": "exam",
+    "SELECT_CARD": None,
+    "SELECT_DRINK": None,
+    "HIF_EXAM_RESULT": None,
+}
 # 考试页面里整段替换（不逐项合并）的列表 / 字典字段
 REPLACE_WHOLE = {"hand", "drinks", "buffs", "pitems", "params", "growth_permil", "deck"}
 MAX_CONFLICTS = 20
@@ -78,7 +96,9 @@ def _enter(s: GameState, page: str, area: str, seq: int, *, frames: int = 1) -> 
         for k in [k for k in s.sources if k.startswith("exam.")]:
             del s.sources[k]
     if page == "HIF_EXAM_RESULT":
-        s.exam_session.brief_permil = None  # 一场考试结束：说明页倍率作废（下一场没拍到说明页时不拿旧值比，数据确认 a41939a）
+        s.exam_session.brief_permil = (
+            None  # 一场考试结束：说明页倍率作废（下一场没拍到说明页时不拿旧值比，数据确认 a41939a）
+        )
     if prev in EXAM_PAGES and page not in EXAM_PAGES:
         _sync_exam_drinks(s, seq)
     if s.mode == "produce" and s.produce is None:
@@ -171,7 +191,7 @@ def _reduce_fields(s: GameState, obs: Observation) -> None:
             s.exam_session.label = str(value)
             continue
         if section is None and key in ANY_PAGE_PRODUCE and s.produce is not None:
-            section_key = "produce"  # 相談等页面底栏的持有饮料：也写进 produce（识别 3804ac8）
+            section_key = "produce"  # 相談等页面底栏的持有饮料：也写进 produce（识别 3804ac8）  # noqa: F841
             s.produce[key] = copy.deepcopy(value)
             s.sources[f"produce.{key}"] = Source(origin, obs.seq)
             s.page_fields[key] = value
@@ -193,7 +213,9 @@ def _reduce_fields(s: GameState, obs: Observation) -> None:
     if obs.page.name == "ACTION_SELECT":
         _hajime_nia_step(s, obs, origin)
         if (s.produce or {}).get("schedule"):
-            s.page_fields["schedule"] = s.produce["schedule"]  # 整局日程（选行动页左上点开的日程列表，hiro.produce.schedule_probe）
+            s.page_fields["schedule"] = s.produce[
+                "schedule"
+            ]  # 整局日程（选行动页左上点开的日程列表，hiro.produce.schedule_probe）
         _declined(s)
     if obs.page.name == "CONSULT":
         _consult_price(s, obs, origin)

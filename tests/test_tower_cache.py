@@ -3,11 +3,11 @@
 import json
 from types import SimpleNamespace as NS
 
-import pytest
-
 from hiro.runtime import tower_cache as tc
 from hiro.runtime import tower_play as tp
 from hiro.runtime.tower import TowerRun
+
+import pytest
 
 
 @pytest.fixture(autouse=True)
@@ -17,7 +17,9 @@ def _cache(tmp_path, monkeypatch):
 
 
 def _h(*cards):
-    return [{"slot": i, "card_id": c.split("+")[0], "upgrade": 1 if c.endswith("+") else 0} for i, c in enumerate(cards)]
+    return [
+        {"slot": i, "card_id": c.split("+")[0], "upgrade": 1 if c.endswith("+") else 0} for i, c in enumerate(cards)
+    ]
 
 
 def _st(turn, hand, played=None, unrecognized=0):
@@ -25,8 +27,13 @@ def _st(turn, hand, played=None, unrecognized=0):
 
 
 def test_signature():
-    assert tc.signature("i_card-ttmr-2-000", [12075, 10773, 9978], [2348, 1701, 611]) == "i_card-ttmr-2-000.12075-10773-9978"
-    assert tc.signature("i_card-ttmr-2-000", None, [2348, 1701, 611]) == "i_card-ttmr-2-000.2348-1701-611"  # 评价值读不全退回三属性
+    assert (
+        tc.signature("i_card-ttmr-2-000", [12075, 10773, 9978], [2348, 1701, 611])
+        == "i_card-ttmr-2-000.12075-10773-9978"
+    )
+    assert (
+        tc.signature("i_card-ttmr-2-000", None, [2348, 1701, 611]) == "i_card-ttmr-2-000.2348-1701-611"
+    )  # 评价值读不全退回三属性
     assert tc.signature(None, [1, 2, 3], None) is None and tc.signature("i", [1, 2], None) is None
 
 
@@ -44,9 +51,11 @@ DECK = {"p_card-a": {0, 1}, "p_card-b": {0}, "p_card-c": {0}, "p_card-d": {0}, "
 
 def test_infer_draws_turns_and_mid_turn_draw():
     a, b, c, d, e = "p_card-a", "p_card-b", "p_card-c", "p_card-d", "p_card-e"
-    steps = [_st(15, _h(a + "+", b, c), played=2),  # 开局 3 张；打出 c，抽到 d（同一回合）
-             _st(15, _h(d, a + "+", b), played=0),
-             _st(14, _h(e, b, a + "+"))]  # 新回合：整手算抽到（同名的 b、a+ 也是新抽的）
+    steps = [
+        _st(15, _h(a + "+", b, c), played=2),  # 开局 3 张；打出 c，抽到 d（同一回合）
+        _st(15, _h(d, a + "+", b), played=0),
+        _st(14, _h(e, b, a + "+")),
+    ]  # 新回合：整手算抽到（同名的 b、a+ 也是新抽的）
     draws, skipped, why = tc.infer_draws(steps, DECK)
     assert why is None and skipped == 0
     assert draws == [{"id": a, "u": 1}, {"id": b, "u": 0}, {"id": c, "u": 0}, {"id": d, "u": 0},
@@ -69,10 +78,12 @@ def test_infer_draws_fixes_first_frame_misread():
     """r1 T1：トークタイム+ 刚抽到那帧读成準備運動+（不在牌组里，先当生成卡跳过），同一回合下一步同一位置读对了：补回原位。"""
     a, b, c, d = "p_card-a", "p_card-b", "p_card-c", "p_card-d"
     ghost = "p_card-01-act-1_022"
-    steps = [_st(15, _h(ghost, b, c), played=2),  # 打出 c
-             _st(15, _h(a, b)),  # 位置 0 读对了：是 a
-             _st(14, _h(d, "p_card-00-acc-0_002", b), played=0),
-             _st(14, _h("p_card-00-acc-0_002", b))]  # 眠気一直是眠気：照样跳过
+    steps = [
+        _st(15, _h(ghost, b, c), played=2),  # 打出 c
+        _st(15, _h(a, b)),  # 位置 0 读对了：是 a
+        _st(14, _h(d, "p_card-00-acc-0_002", b), played=0),
+        _st(14, _h("p_card-00-acc-0_002", b)),
+    ]  # 眠気一直是眠気：照样跳过
     draws, skipped, why = tc.infer_draws(steps, DECK)
     assert why is None and skipped == 1
     assert [x["id"] for x in draws] == [a, b, c, d, b]
@@ -108,11 +119,16 @@ def test_exam_steps_from_trace(tmp_path):
     p = tmp_path / "steps.jsonl"
     p.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
     st = tc.exam_steps(p, "tower-15", after_seq=5)
-    assert [(s["remaining_turns"], s["played"]) for s in st] == [(15, 1), (15, None)]  # 开考前的、没手牌的不算；没点成的不算打出
+    assert [(s["remaining_turns"], s["played"]) for s in st] == [
+        (15, 1),
+        (15, None),
+    ]  # 开考前的、没手牌的不算；没点成的不算打出
 
 
 def _play(tmp_path):
-    return tp.TowerPlay(NS(), TowerRun("tower_001-ttmr"), idol_name="月村手毬", layers=1, loadout_path=tmp_path / "lo.json")
+    return tp.TowerPlay(
+        NS(), TowerRun("tower_001-ttmr"), idol_name="月村手毬", layers=1, loadout_path=tmp_path / "lo.json"
+    )
 
 
 def test_retry_without_formation_uses_cached_loadout(tmp_path):
@@ -142,13 +158,18 @@ def test_draws_saved_with_rivals(tmp_path):
     p.loadout = {"tower_id": "tower_001-ttmr", "layer": 15, "formation_signature": "sig", "idol_card_id": "i_card-ttmr-2-000",
                  "produce_cards": ["p_card-a+1", "p_card-b"]}  # fmt: skip
     steps = tmp_path / "steps.jsonl"
-    steps.write_text(json.dumps({"seq": 8, "observation": {"fields": {"hand": _h("p_card-a+", "p_card-b"), "remaining_turns": 15}}}), encoding="utf-8")
+    steps.write_text(
+        json.dumps({"seq": 8, "observation": {"fields": {"hand": _h("p_card-a+", "p_card-b"), "remaining_turns": 15}}}),
+        encoding="utf-8",
+    )
     p.record_draws(steps, "tower-15", 0)
     out = tmp_path / "cache" / "tower_001-ttmr-15-sig.json"
     assert json.loads(out.read_text(encoding="utf-8"))["rivals"] == []
     rows = [{"rank": 1, "name": "白草四音", "score": 105438}, {"rank": 2, "name": "暁美みずき", "score": 76661},
             {"rank": 3, "name": "月村手毬", "score": 54009}]  # fmt: skip
-    p.on_ranking(NS(device=NS(tap=lambda x, y: None)), None, NS(fields={"my_rank": 3, "rows": rows, "next": [361, 1160]}))
+    p.on_ranking(
+        NS(device=NS(tap=lambda x, y: None)), None, NS(fields={"my_rank": 3, "rows": rows, "next": [361, 1160]})
+    )
     assert json.loads(out.read_text(encoding="utf-8")) == {
         "tower_id": "tower_001-ttmr", "layer": 15, "formation_signature": "sig",
         "draws": [{"id": "p_card-a", "u": 1}, {"id": "p_card-b", "u": 0}], "rivals": [105438, 76661], "skipped_generated": 0}  # fmt: skip
@@ -162,18 +183,22 @@ def test_rivals_unread_score_gives_empty():
 
 def test_progress_survives_restart_same_game_day(tmp_path, monkeypatch):
     """跨进程记每层挑战次数（协调 11-17：重启后从 0 算，手毬 16 层实际打了 3 次、日志每次都写 1）：同一游戏日读回来，换日不读。"""
-    from datetime import datetime
+    from datetime import datetime, timedelta, timezone
 
     from hiro.runtime.tower import TowerRun
 
-    from datetime import timedelta, timezone
-
-    assert tc.game_day(datetime(2026, 11, 17, 4, 59)) == "2026-11-16" and tc.game_day(datetime(2026, 11, 17, 5, 0)) == "2026-11-17"  # 日本时间 5 点换日
+    assert (
+        tc.game_day(datetime(2026, 11, 17, 4, 59)) == "2026-11-16"
+        and tc.game_day(datetime(2026, 11, 17, 5, 0)) == "2026-11-17"
+    )  # 日本时间 5 点换日
     cst = timezone(timedelta(hours=8))  # 北京时间 04:05 = 日本 05:05：协调 11-17 实机这时弹了「日付変更」
     assert tc.game_day(datetime(2026, 11, 17, 4, 5, tzinfo=cst)) == "2026-11-17"
     assert tc.game_day(datetime(2026, 11, 17, 3, 59, tzinfo=cst)) == "2026-11-16"  # 登录奖励「04:59まで」（日本时间）
     utc = timezone.utc  # 别的时区的机器：照样按日本时间算
-    assert tc.game_day(datetime(2026, 11, 16, 19, 59, tzinfo=utc)) == "2026-11-16" and tc.game_day(datetime(2026, 11, 16, 20, 0, tzinfo=utc)) == "2026-11-17"
+    assert (
+        tc.game_day(datetime(2026, 11, 16, 19, 59, tzinfo=utc)) == "2026-11-16"
+        and tc.game_day(datetime(2026, 11, 16, 20, 0, tzinfo=utc)) == "2026-11-17"
+    )
     run = TowerRun("tower_001-ttmr")
     run.after_result(16, False, 0)
     run.after_result(16, False, 0)
@@ -192,9 +217,15 @@ def test_tower_play_loads_and_saves_progress(tmp_path):
     run = TowerRun("tower_001-ttmr")
     run.after_result(16, True, 1)
     tc.save_progress(run)
-    p = tp.TowerPlay(NS(), TowerRun("tower_001-ttmr"), idol_name="月村手毬", layers=1, loadout_path=tmp_path / "lo.json")
+    p = tp.TowerPlay(
+        NS(), TowerRun("tower_001-ttmr"), idol_name="月村手毬", layers=1, loadout_path=tmp_path / "lo.json"
+    )
     assert p.run.tries == {16: 1} and 16 in p.run.cleared  # 启动时读回
     rt = NS(device=NS(tap=lambda x, y: None), sleep=lambda s: None)
     p.layer = 16
-    p.on_result(rt, None, NS(fields={"cleared": True, "layer": 16, "stars": 2, "retry": [129, 1160], "back": [350, 1160]}))
-    assert json.loads(tc.progress_path("tower_001-ttmr").read_text(encoding="utf-8"))["tries"] == {"16": 2}  # 每次结果后落盘
+    p.on_result(
+        rt, None, NS(fields={"cleared": True, "layer": 16, "stars": 2, "retry": [129, 1160], "back": [350, 1160]})
+    )
+    assert json.loads(tc.progress_path("tower_001-ttmr").read_text(encoding="utf-8"))["tries"] == {
+        "16": 2
+    }  # 每次结果后落盘

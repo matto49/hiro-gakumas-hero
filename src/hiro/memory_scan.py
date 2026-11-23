@@ -7,6 +7,7 @@
 """
 
 import argparse
+import logging
 import time
 from pathlib import Path
 
@@ -20,8 +21,14 @@ def main():
     parser.add_argument("--out", default="reports/live/memory-inventory.json")
     parser.add_argument("--max-pages", type=int, default=400)
     parser.add_argument("--no-calib", action="store_true", help="scan 时不存每页截图")
-    parser.add_argument("--from-home", action="store_true", help="从首页 / 编成菜单开始：先进回忆编成页、点第 1 格打开选择页（初星助手的扫描按钮用）")
+    parser.add_argument(
+        "--from-home",
+        action="store_true",
+        help="从首页 / 编成菜单开始：先进回忆编成页、点第 1 格打开选择页（初星助手的扫描按钮用）",
+    )
     args = parser.parse_args()
+    # 不配的话扫描过程的 logger.info 全被丢掉：初星助手里只看到「开始」，半小时没有进度
+    logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s")
     d = open_tool_device()
     stamp = time.strftime("%Y%m%d-%H%M%S")
     calib = None if args.no_calib else Path(f"reports/live/calib/{stamp}-回忆扫描")
@@ -32,7 +39,9 @@ def main():
         from hiro.produce import formation_menu
         from hiro.produce.memory_picker import picker_open
 
-        formation_menu.open_picker(formation_menu.tool_device(d), "memory", ready=lambda img: picker_open(picker.ocr(img)))
+        formation_menu.open_picker(
+            formation_menu.tool_device(d), "memory", ready=lambda img: picker_open(picker.ocr(img))
+        )
     if args.command == "explore":
         out = Path(f"reports/live/memory-explore/{stamp}")
         explore(picker, out)

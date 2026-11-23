@@ -1,7 +1,7 @@
 """导出 / 核对各契约的 JSON schema 文件。
 
-    python -m hiro.contracts.schemas            # 写入 src/hiro/contracts/schemas/*.json
-    python -m hiro.contracts.schemas --check    # 只核对文件与代码一致（CI / 测试用）
+python -m hiro.contracts.schemas            # 写入 src/hiro/contracts/schemas/*.json
+python -m hiro.contracts.schemas --check    # 只核对文件与代码一致（CI / 测试用）
 """
 
 import argparse

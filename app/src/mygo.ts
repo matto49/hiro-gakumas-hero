@@ -108,12 +108,12 @@ export const Assistant = {
   ask: bind<[Turn[], string], Reply>("Assistant.Ask", (history: Turn[], text: string) => [history, text]),
   /**
    * Models 列出这家服务商这个 Key 能用的模型（GET /models），设置页的下拉框用。
-   * key 为空时用钥匙串里已存的；baseURL 只对自定义服务商有用。
+   * key 为空时用已存的；baseURL 只对自定义服务商有用。
    */
   models: bind<[string, string, string], string[]>("Assistant.Models", (provider: string, baseURL: string, key: string) => [provider, baseURL, key]),
   /** Providers 是设置页的服务商列表（预设地址、缺省模型、创建 Key 的地址）。 */
   providers: bind<[], Preset[]>("Assistant.Providers", () => []),
-  /** Save 保存模型设置；key 非空时存进这家服务商的钥匙串条目（空的不动已存的）。 */
+  /** Save 保存模型设置；key 非空时存进这家服务商的 Key（model-keys.json；空的不动已存的）。 */
   save: bind<[Settings, string], void>("Assistant.Save", (s: Settings, key: string) => [s, key]),
   /** Settings 读模型设置。 */
   settings: bind<[], Settings>("Assistant.Settings", () => []),

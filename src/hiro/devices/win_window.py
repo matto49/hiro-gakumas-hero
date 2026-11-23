@@ -23,7 +23,7 @@ def _user32():
     import ctypes
 
     u = ctypes.windll.user32
-    try:
+    try:  # noqa: SIM105
         u.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))  # PER_MONITOR_AWARE_V2：拿物理像素
     except Exception:  # noqa: BLE001  老系统没有这个函数
         pass
@@ -85,6 +85,31 @@ def set_client_size(hwnd: int, width: int, height: int) -> tuple[int, int]:
     swp_nozorder, swp_noactivate = 0x0004, 0x0010
     _user32().SetWindowPos(hwnd, None, left, top, width + dw, height + dh, swp_nozorder | swp_noactivate)
     return client_size(hwnd)
+
+
+def center_pos(win_w: int, win_h: int, work: tuple[int, int, int, int]) -> tuple[int, int]:
+    """窗口（外框尺寸 win_w x win_h）放在工作区正中的左上角坐标；放不下时贴工作区左上角，保证标题栏在屏幕内。"""
+    left, top, right, bottom = work
+    return max(left, left + (right - left - win_w) // 2), max(top, top + (bottom - top - win_h) // 2)
+
+
+def center(title: str = WINDOW_TITLE) -> tuple[int, int] | None:
+    """把游戏窗口挪到主显示器工作区正中并提到最前（尺寸不变），让人能看剧情（hiro.runtime.unread_story）。
+    DMM 后台点击会把窗口挪到点击点落在光标下的位置（hiro.loop.win_desktop），之后点击时会再挪回去，这里不用还原。
+    要管理员（游戏以管理员运行）。找不到窗口返回 None。"""
+    import ctypes
+    from ctypes import wintypes
+
+    hwnd = find(title)
+    if hwnd is None:
+        return None
+    u = _user32()
+    r = wintypes.RECT()
+    u.GetWindowRect(hwnd, ctypes.byref(r))
+    x, y = center_pos(r.right - r.left, r.bottom - r.top, work_area())
+    swp_nosize, swp_showwindow = 0x0001, 0x0040
+    u.SetWindowPos(hwnd, 0, x, y, 0, 0, swp_nosize | swp_showwindow)  # HWND_TOP
+    return x, y
 
 
 def ensure(size: tuple[int, int] | None = None, title: str = WINDOW_TITLE) -> tuple[tuple[int, int], tuple[int, int]]:

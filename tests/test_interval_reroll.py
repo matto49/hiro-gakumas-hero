@@ -7,11 +7,11 @@
 
 from pathlib import Path
 
-import cv2
-
 from hiro.contracts import Action, ActionKind, Decision, ExecutionResult
 from hiro.produce import interval, shop
 from tests.test_interval import Fake
+
+import cv2
 
 FIX = Path(__file__).parent / "fixtures/interval_reroll"
 
@@ -50,7 +50,13 @@ def test_reroll_confirms_dialog():
 
 
 def test_reroll_never_spends_jewels():
-    texts = {"confirm": [("ジュエルを消費してリフレッシュしますか？", (360, 700)), ("キャンセル", (220, 1160)), ("リフレッシュする", (500, 1160))]}
+    texts = {
+        "confirm": [
+            ("ジュエルを消費してリフレッシュしますか？", (360, 700)),
+            ("キャンセル", (220, 1160)),
+            ("リフレッシュする", (500, 1160)),
+        ]
+    }
     fake = Fake(_frames(), {("idle", REFRESH): "confirm", ("confirm", (220, 1160)): "idle"}, "idle", texts=texts)
     res = _run(fake)
     assert not res.ok and "ジュエル" in res.error
@@ -100,8 +106,16 @@ def test_interval_loop_clears_purchased_after_reroll():
 def test_reroll_confirm_titles_from_settings():
     """总控设置页确认：轮间「リフレッシュ実行確認」、相談「相談リフレッシュ確認」都开着。按钮文字读不到时按标题点右下确认。"""
     for title in ("リフレッシュ実行確認", "相談リフレッシュ確認"):
-        texts = {"confirm": [(title, (200, 600)), ("Pポイントを10消費してリフレッシュしますか？", (360, 700)), ("キャンセル", (220, 1160))]}
-        fake = Fake(_frames(), {("idle", REFRESH): "confirm", ("confirm", shop.REROLL_OK_TAP): "after"}, "idle", texts=texts)
+        texts = {
+            "confirm": [
+                (title, (200, 600)),
+                ("Pポイントを10消費してリフレッシュしますか？", (360, 700)),
+                ("キャンセル", (220, 1160)),
+            ]
+        }
+        fake = Fake(
+            _frames(), {("idle", REFRESH): "confirm", ("confirm", shop.REROLL_OK_TAP): "after"}, "idle", texts=texts
+        )
         res = _run(fake)
         assert res.ok, (title, res.error)
         assert shop.REROLL_OK_TAP in fake.clicks and (220, 1160) not in fake.clicks

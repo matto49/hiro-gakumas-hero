@@ -46,47 +46,73 @@ class Store:
         self.db = sqlite3.connect(path)
         self.db.executescript(_SCHEMA)
 
-    def save_snapshot(self, kind: str, rows: list[dict], source: str, *, scanned_at: str | None = None,
-                      complete: bool | None = None, raw: dict | list | None = None) -> int:
+    def save_snapshot(
+        self,
+        kind: str,
+        rows: list[dict],
+        source: str,
+        *,
+        scanned_at: str | None = None,
+        complete: bool | None = None,
+        raw: dict | list | None = None,
+    ) -> int:
         """raw：扫描工具的原始输出（编成方案要用原格式的库存），原样另存一份。"""
         if kind not in KINDS:
             raise ValueError(f"未知类别 {kind}")
         with self.db:
             cur = self.db.execute(
                 "INSERT INTO snapshots(kind, scanned_at, source, complete, count) VALUES (?,?,?,?,?)",
-                (kind, scanned_at or now(), source, None if complete is None else int(complete), len(rows)))
+                (kind, scanned_at or now(), source, None if complete is None else int(complete), len(rows)),
+            )
             sid = cur.lastrowid
-            self.db.executemany("INSERT INTO rows(snapshot_id, idx, data) VALUES (?,?,?)",
-                                [(sid, i, json.dumps(r, ensure_ascii=False)) for i, r in enumerate(rows)])
+            self.db.executemany(
+                "INSERT INTO rows(snapshot_id, idx, data) VALUES (?,?,?)",
+                [(sid, i, json.dumps(r, ensure_ascii=False)) for i, r in enumerate(rows)],
+            )
             if raw is not None:
-                self.db.execute("INSERT INTO raw(snapshot_id, data) VALUES (?,?)", (sid, json.dumps(raw, ensure_ascii=False)))
+                self.db.execute(
+                    "INSERT INTO raw(snapshot_id, data) VALUES (?,?)", (sid, json.dumps(raw, ensure_ascii=False))
+                )
         return sid
 
     def _meta(self, row) -> dict:
         sid, scanned_at, source, complete, count = row
-        return {"snapshot": sid, "scanned_at": scanned_at, "source": source,
-                "complete": None if complete is None else bool(complete), "count": count}
+        return {
+            "snapshot": sid,
+            "scanned_at": scanned_at,
+            "source": source,
+            "complete": None if complete is None else bool(complete),
+            "count": count,
+        }
 
     def latest(self, kind: str) -> tuple[dict | None, list[dict]]:
         row = self.db.execute(
             "SELECT id, scanned_at, source, complete, count FROM snapshots WHERE kind=? ORDER BY id DESC LIMIT 1",
-            (kind,)).fetchone()
+            (kind,),
+        ).fetchone()
         if row is None:
             return None, []
-        rows = [json.loads(d) for (d,) in self.db.execute(
-            "SELECT data FROM rows WHERE snapshot_id=? ORDER BY idx", (row[0],))]
+        rows = [
+            json.loads(d)
+            for (d,) in self.db.execute("SELECT data FROM rows WHERE snapshot_id=? ORDER BY idx", (row[0],))
+        ]
         return self._meta(row), rows
 
     def latest_raw(self, kind: str):
         """最新一次带原始输出的快照的原始输出；没有返回 None。"""
         row = self.db.execute(
             "SELECT r.data FROM raw r JOIN snapshots s ON s.id = r.snapshot_id WHERE s.kind=? ORDER BY s.id DESC LIMIT 1",
-            (kind,)).fetchone()
+            (kind,),
+        ).fetchone()
         return json.loads(row[0]) if row else None
 
     def history(self, kind: str) -> list[dict]:
-        return [self._meta(r) for r in self.db.execute(
-            "SELECT id, scanned_at, source, complete, count FROM snapshots WHERE kind=? ORDER BY id DESC", (kind,))]
+        return [
+            self._meta(r)
+            for r in self.db.execute(
+                "SELECT id, scanned_at, source, complete, count FROM snapshots WHERE kind=? ORDER BY id DESC", (kind,)
+            )
+        ]
 
 
 def open_store() -> Store:

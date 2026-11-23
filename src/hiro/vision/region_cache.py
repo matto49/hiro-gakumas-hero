@@ -29,7 +29,11 @@ class RegionCache:
         """命中返回 (True, 值)，否则 (False, 缩略图)；缩略图交给 put，避免重复计算。"""
         thumb = self._thumb(crop)
         item = self._items.get(key)
-        if item is not None and item[0].shape == thumb.shape and np.count_nonzero(cv2.absdiff(item[0], thumb) > PIXEL_DIFF) <= self.max_changed:
+        if (
+            item is not None
+            and item[0].shape == thumb.shape
+            and np.count_nonzero(cv2.absdiff(item[0], thumb) > PIXEL_DIFF) <= self.max_changed
+        ):
             self.hits += 1
             return True, item[1]
         self.misses += 1

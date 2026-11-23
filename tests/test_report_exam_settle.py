@@ -8,7 +8,9 @@ from hiro.loop.report import markdown, summarize
 
 def _step(seq, page, timings):
     st = GameState(page=PageState(name=page))
-    return Step(seq=seq, t=0.0, observation=Observation(seq=seq, t=0.0, page=PageObs(name=page)), state=st, timings_ms=timings)
+    return Step(
+        seq=seq, t=0.0, observation=Observation(seq=seq, t=0.0, page=PageObs(name=page)), state=st, timings_ms=timings
+    )
 
 
 def test_exam_settle_summary_and_markdown():
@@ -22,7 +24,9 @@ def test_exam_settle_summary_and_markdown():
     st = r["exam_settle"]
     assert st["n"] == 3 and st["settle_fast_ms"] == {"median": 600.0, "p90": 900.0, "max": 900.0}
     assert st["settle_timeout"] == 2 and st["stale_frames"] == 1 and st["redo"] == 2
-    assert "settle_fast 中位 600.0 ms" in markdown({**r, "trace": "t"}) and "决策帧过时 1 次" in markdown({**r, "trace": "t"})
+    assert "settle_fast 中位 600.0 ms" in markdown({**r, "trace": "t"}) and "决策帧过时 1 次" in markdown(
+        {**r, "trace": "t"}
+    )
 
 
 def test_no_exam_steps():

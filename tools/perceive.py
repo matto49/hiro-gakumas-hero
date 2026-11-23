@@ -1,17 +1,17 @@
 """离线感知：对截图文件输出结构化状态。
 
-    PYTHONPATH=src .venv/bin/python tools/perceive.py <截图...>
+PYTHONPATH=src .venv/bin/python tools/perceive.py <截图...>
 """
 
 import argparse
 import json
 import time
 
-import cv2
-
 import hiro  # noqa: F401  兼容层
 from hiro.context import ensure_offline_context
 from hiro.perception.lesson import read_lesson
+
+import cv2
 
 
 def main():

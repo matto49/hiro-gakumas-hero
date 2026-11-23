@@ -62,6 +62,7 @@ def recommended_effect_group(idol_row: dict) -> str:
 def is_recommended(card_row: dict, idol_row: dict) -> bool:
     return recommended_effect_group(idol_row) in (card_row.get("effectGroupIds") or [])
 
+
 # ---- 日程行动（seesaawiki / wikiwiki 表格）
 SUB_PARAMETER_MAJOR = 0.75  # wikiwiki 统计：副属性在剩余两项里，流行顺序靠前的约 75%
 OUTING_RECOVER_PERMIL = 600  # 外出：回复最大体力 60%

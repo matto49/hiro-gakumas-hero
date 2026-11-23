@@ -7,13 +7,13 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision.hif import read_hif_exam
 from hiro.vision.observe import observation
 from hiro.vision.offline import load
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures")
 
@@ -40,5 +40,5 @@ def test_unrecognized_status_slot_buffs_none(name):
 
 @pytest.mark.user_assets("status")
 def test_normal_frame_keeps_hand_and_buffs():
-    raw, obs = _obs("hif_hud/01694.jpg")
+    _raw, obs = _obs("hif_hud/01694.jpg")
     assert obs.fields["hand"] and isinstance(obs.fields["buffs"], dict)

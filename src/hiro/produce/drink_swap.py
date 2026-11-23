@@ -15,16 +15,17 @@
 所有等待按时间封顶。
 """
 
+import logging
 import time
 from collections.abc import Callable
 
+from hiro.contracts import Action, ActionKind, ExecutionResult
+from hiro.devices.active import device
+from hiro.devices.active import sleep as _sleep
+from hiro.produce.ops import Run, button_sv, find_text, orange_lit
+
 import cv2
 import numpy as np
-import logging
-from hiro.devices.active import device, sleep as _sleep
-
-from hiro.contracts import Action, ActionKind, ExecutionResult
-from hiro.produce.ops import Run, button_sv, find_text, orange_lit
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,10 @@ SLOT_EMPTY_SAT = 50  # 饮料图标平均饱和度 68–93，空槽 ≤ 45（hir
 OFFER_CENTERS = ((222, 880), (360, 880), (498, 880))  # hiro.vision.drinks.DIALOG_SLOTS_X / Y
 RECEIVE_BTN, RECEIVE_TAP = (260, 1062, 200, 50), (360, 1092)
 BUTTON_TEXT_REGION = (200, 1060, 520, 1125)  # 底部主按钮文字：勾了「受け取らない」时按钮也变成「受け取らない」
-SKIP_CHECKBOX = (253, 1006)  # 「受け取らない」勾选框（KAA CheckboxUnchecked 242–265, 997–1016；qualify6 frames/00409 核对）
+SKIP_CHECKBOX = (
+    253,
+    1006,
+)  # 「受け取らない」勾选框（KAA CheckboxUnchecked 242–265, 997–1016；qualify6 frames/00409 核对）
 # Pドリンク詳細
 DETAIL_TITLE = ("ドリンク詳細",)
 DISCARD_TEXT = ("捨てる",)
@@ -199,7 +203,7 @@ def resolve_overflow(
     discards = [int(discard)] if isinstance(discard, int) else [int(i) for i in discard]
     if [i for i in discards if not 0 <= i < len(owned)]:
         # 新饮料的说明很长时（センブリソーダ 四行），已有饮料的最后一行被对话框底边切掉、勾选框找不到
-        #（DMM 单局测试 dmmt2 选拔：要丢第 [2] 瓶，只看到 2 瓶，重试一次照样停机）。往上滑一点再找，取消要丢的那几瓶，再滑回来勾新饮料
+        # （DMM 单局测试 dmmt2 选拔：要丢第 [2] 瓶，只看到 2 瓶，重试一次照样停机）。往上滑一点再找，取消要丢的那几瓶，再滑回来勾新饮料
         do_swipe = swipe or (lambda x1, y1, x2, y2: device.swipe(x1, y1, x2, y2, duration=0.5))
         n0 = len(owned)
         for _ in range(OWNED_SCROLL_TRIES):
@@ -236,7 +240,8 @@ def resolve_overflow(
         receives.append(new[int(j)])
     # 先腾出名额再勾新的：已选满（あと0個選択）时游戏不让多勾（第十七局 #401）。没给 receive_indexes 时勾识别的 incoming = 最下面那瓶
     steps = ([] if discards_done else [(owned[i], False, f"已有第 {i} 瓶") for i in discards]) + [
-        (y, True, f"新饮料第 {new.index(y)} 瓶") for y in receives]
+        (y, True, f"新饮料第 {new.index(y)} 瓶") for y in receives
+    ]
     for y, want, what in steps:
         if err := _toggle(r, y, want, what):
             return r.result(False, err)
@@ -329,8 +334,11 @@ def discard_owned(r: Run, slot: int, slots: list[dict] | None = None) -> str | N
 
     def confirm_up(im):
         b = r.ocr(im)
-        return find_text(b, CONFIRM_TITLE) is not None or find_text(b, CONFIRM_TEXTS, region=DIALOG_BUTTONS) is not None \
+        return (
+            find_text(b, CONFIRM_TITLE) is not None
+            or find_text(b, CONFIRM_TEXTS, region=DIALOG_BUTTONS) is not None
             or find_text(b, DETAIL_TITLE) is None
+        )
 
     ok, img = r.tap_confirmed(discard_at, confirm_up, STEP_TIMEOUT, what="捨てる")
     if not ok:
@@ -363,7 +371,11 @@ def discard_owned(r: Run, slot: int, slots: list[dict] | None = None) -> str | N
 
     ok, img = r.until(settled, DISCARD_TIMEOUT)
     r.snap(img, "after-discard")
-    return None if ok else f"点「捨てる」后 {DISCARD_TIMEOUT:.0f}s 内饮料没少一瓶（之前 {before} 瓶，现在 {occupied(img, slots)} 瓶）"
+    return (
+        None
+        if ok
+        else f"点「捨てる」后 {DISCARD_TIMEOUT:.0f}s 内饮料没少一瓶（之前 {before} 瓶，现在 {occupied(img, slots)} 瓶）"
+    )
 
 
 def swap_receive(
@@ -402,10 +414,14 @@ def swap_receive(
         ok, img = r.until(lambda im: orange_lit(im, RECEIVE_BTN, base_val), LIT_TIMEOUT)
         r.snap(img, "picked-retry")
     if not ok:
-        return r.result(False, f"已丢掉第 {discard} 瓶，但选第 {pick} 个候选后「受け取る」{LIT_TIMEOUT:.0f}s 内没亮（点了两次）")
+        return r.result(
+            False, f"已丢掉第 {discard} 瓶，但选第 {pick} 个候选后「受け取る」{LIT_TIMEOUT:.0f}s 内没亮（点了两次）"
+        )
     if find_text(r.ocr(img), ("受け取らない",), region=BUTTON_TEXT_REGION) is not None:  # 按下去就是跳过：先取消勾选
         r.tap(SKIP_CHECKBOX)
-        ok, img = r.until(lambda im: find_text(r.ocr(im), ("受け取らない",), region=BUTTON_TEXT_REGION) is None, LIT_TIMEOUT)
+        ok, img = r.until(
+            lambda im: find_text(r.ocr(im), ("受け取らない",), region=BUTTON_TEXT_REGION) is None, LIT_TIMEOUT
+        )
         r.snap(img, "unchecked-skip")
         if not ok:
             return r.result(False, "底部按钮是「受け取らない」，取消勾选后没变回「受け取る」，不按")
@@ -447,12 +463,27 @@ def discard_then_receive(
     if entry is None or not entry.get("center") or not 0 <= pick_slot < len(OFFER_CENTERS):
         why = ("识别没给底栏饮料" if not held else f"底栏第 {held_index} 瓶没读出位置" if entry is None or not entry.get("center")
                else f"没有第 {pick_slot} 个候选")  # fmt: skip
-        r = Run(act, "SELECT_DRINK", shoot or device.screenshot, click or device.click, clock, sleep, label="饮料替换", ocr=ocr, calib=calib)
+        r = Run(
+            act,
+            "SELECT_DRINK",
+            shoot or device.screenshot,
+            click or device.click,
+            clock,
+            sleep,
+            label="饮料替换",
+            ocr=ocr,
+            calib=calib,
+        )
         return r.result(False, f"{why}，不点")
     slots = [{"slot": i, "state": "drink", "center": None} for i in range(len(BAR_X))]
     for h in held:
         if h.get("center") and 0 <= h.get("index", -1) < len(slots):
-            slots[h["index"]] = {"slot": h["index"], "state": "drink", "center": list(h["center"]), "drink_id": h.get("drink_id")}
+            slots[h["index"]] = {
+                "slot": h["index"],
+                "state": "drink",
+                "center": list(h["center"]),
+                "drink_id": h.get("drink_id"),
+            }
     logger.info("饮料替换：丢底栏第 %d 瓶「%s」，收第 %d 个候选", held_index, entry.get("name"), pick_slot)
     return swap_receive(pick_slot, held_index, slots=slots, action=act, shoot=shoot, click=click, clock=clock, sleep=sleep,
                         ocr=ocr, calib=calib)  # fmt: skip
@@ -489,7 +520,9 @@ def skip_incoming(*, sleep_s=_sleep) -> bool:
         logger.warning("饮料满：不要新饮料，但新饮料那一行是勾着的，不点「残す」（会丢持有的饮料）")
         return False
     if find_enabled("InProduce.ButtonLeave", img) is None:
-        chk = next((m for m in tpl("Common.CheckboxUnchecked").find_all(img) if checkbox_checked(img, m) is False), None)
+        chk = next(
+            (m for m in tpl("Common.CheckboxUnchecked").find_all(img) if checkbox_checked(img, m) is False), None
+        )
         if chk is not None:
             device.click(*chk.rect.center)
             sleep_s(0.2)
@@ -499,4 +532,3 @@ def skip_incoming(*, sleep_s=_sleep) -> bool:
         logger.info("饮料满：不要新饮料，点「離れる」/「残す」（留下持有的）")
         return True
     return False
-

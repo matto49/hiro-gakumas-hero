@@ -7,10 +7,11 @@ KAA 的 match_first_drinks 用颜色直方图，在选饮料弹窗里三个格�
 import os
 from functools import lru_cache
 
+from hiro import master
+
 import cv2
 import numpy as np
 from cv2.typing import MatLike
-from hiro import master
 
 SCALES = (1.05, 1.15, 1.25, 1.35)
 
@@ -57,7 +58,11 @@ def drink_info(asset_id: str | None) -> dict | None:
     d = master.drink_by_asset(asset_id)
     if d is None:
         return {"asset_id": asset_id}
-    return {"asset_id": asset_id, "name": d.name, "effect": getattr(d, "description", None) or getattr(d, "effect_display_text", None)}
+    return {
+        "asset_id": asset_id,
+        "name": d.name,
+        "effect": getattr(d, "description", None) or getattr(d, "effect_display_text", None),
+    }
 
 
 DIALOG_SLOTS_X = (222, 360, 498)

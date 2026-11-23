@@ -111,7 +111,17 @@ def live(pages: int, frames_dir: Path) -> list[dict]:
                            problems=problems + [f"缺 {k}" for k in ("card", "timing", "stats") if not rec.get(k)])  # fmt: skip
                 out.append(rec)
                 new_on_page += 1
-                print(idx, page, r, c, (rec.get("card") or {}).get("name"), rec.get("timing"), len(rec.get("stats") or []), problems, flush=True)
+                print(
+                    idx,
+                    page,
+                    r,
+                    c,
+                    (rec.get("card") or {}).get("name"),
+                    rec.get("timing"),
+                    len(rec.get("stats") or []),
+                    problems,
+                    flush=True,
+                )
         if new_on_page == 0:
             break  # 滑不动了（到底）
         x1, y1, x2, y2, dur = SWIPE
@@ -131,7 +141,10 @@ def main() -> None:
     a = ap.parse_args()
     recs = offline(a.offline) if a.offline else live(a.pages, Path(a.frames))
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(a.out).write_text(json.dumps({"generated": time.time(), "count": len(recs), "memories": recs}, ensure_ascii=False, indent=1), encoding="utf-8")
+    Path(a.out).write_text(
+        json.dumps({"generated": time.time(), "count": len(recs), "memories": recs}, ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
     print("wrote", a.out, len(recs))
 
 

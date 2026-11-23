@@ -2,14 +2,14 @@
 
 from types import SimpleNamespace
 
-import pytest
-
 from hiro.bench_bridge import advisor as A
 from hiro.bench_bridge.screen import ScreenTracker, exam_fields, from_screen
 from hiro.bench_bridge.uiobs import from_engine
 from hiro.brain.cards import CardView, DrinkView
 from hiro.brain.state import CAMPUS_HIRO, BattleState, ExamMemory
 from hiro.contracts import Action
+
+import pytest
 
 
 def _card(slot, cid, u=0, available=True, name=None):
@@ -28,36 +28,120 @@ def _state(hand, drinks=(), remaining=8, turn=1, statuses=None, motivation=5, im
 
 # ---------------------------------------------------------------- 引擎局面 → UIObs
 def _engine_card(cid, base=0, tmp=0, support=(), customize=(), grows=()):
-    return {"card_id": cid, "base_upgrade": base, "tmp_upgrade": tmp, "support_upgrades": list(support),
-            "customize_counts": list(customize), "custom_override": None, "grow_after": [{"id": g} for g in grows]}
+    return {
+        "card_id": cid,
+        "base_upgrade": base,
+        "tmp_upgrade": tmp,
+        "support_upgrades": list(support),
+        "customize_counts": list(customize),
+        "custom_override": None,
+        "grow_after": [{"id": g} for g in grows],
+    }
 
 
 def _engine_state(**kw):
     st = {
-        "cards": [_engine_card("c-a", 1), _engine_card("c-b", 0, support=[1]), _engine_card("c-c"), _engine_card("c-d", customize=[2])],
+        "cards": [
+            _engine_card("c-a", 1),
+            _engine_card("c-b", 0, support=[1]),
+            _engine_card("c-c"),
+            _engine_card("c-d", customize=[2]),
+        ],
         "zones": {"hand": [0, 1], "deck": [2], "grave": [3], "lost": [], "hold": []},
-        "status": {"effects": [
-            {"cls": "ReviewStatusEffect", "turn": 7, "limited": True, "passing": False, "value": 0, "extra": {}, "trig": None},
-            {"cls": "AggressiveStatusEffect", "turn": -1, "limited": False, "passing": False, "value": 12, "extra": {}, "trig": None},
-            {"cls": "LessonParameterMultipleStatusEffect", "turn": 2, "limited": True, "passing": False, "value": 300, "extra": {}, "trig": None},
-            {"cls": "StaminaConsumptionDownStatusEffect", "turn": 3, "limited": True, "passing": True, "value": 0, "extra": {}, "trig": None},
-            {"cls": "PlayableValueAddStatusEffect", "turn": 1, "limited": True, "passing": False, "value": 1, "extra": {}, "trig": None},
-            {"cls": "TriggerEffectStatusEffect", "turn": -1, "limited": False, "passing": False, "value": 0, "extra": {},
-             "trig": {"enchant_id": "enchant-x", "limit_count": 2, "trigger": {"id": "t"}}},
-            {"cls": "TriggerEffectStatusEffect", "turn": -1, "limited": False, "passing": False, "value": 0, "extra": {},
-             "trig": {"enchant_id": "enchant-used", "limit_count": 0, "trigger": {"id": "t2"}}},
-        ], "idol_type": 0, "idol_step": 0},
-        "current_turn": 3, "limit_turn": 12, "extra_turn": 0, "turn_types": [1, 2, 3] * 4,
-        "bonus_permil": [[1, 31000], [2, 32000], [3, 20000]], "stamina": 20, "max_stamina": 33, "block": 5, "score": 900,
-        "remaining_actions": 1, "turn_card_play_count": 0, "drinks": ["pdrink-1"], "play_log": [],
+        "status": {
+            "effects": [
+                {
+                    "cls": "ReviewStatusEffect",
+                    "turn": 7,
+                    "limited": True,
+                    "passing": False,
+                    "value": 0,
+                    "extra": {},
+                    "trig": None,
+                },
+                {
+                    "cls": "AggressiveStatusEffect",
+                    "turn": -1,
+                    "limited": False,
+                    "passing": False,
+                    "value": 12,
+                    "extra": {},
+                    "trig": None,
+                },
+                {
+                    "cls": "LessonParameterMultipleStatusEffect",
+                    "turn": 2,
+                    "limited": True,
+                    "passing": False,
+                    "value": 300,
+                    "extra": {},
+                    "trig": None,
+                },
+                {
+                    "cls": "StaminaConsumptionDownStatusEffect",
+                    "turn": 3,
+                    "limited": True,
+                    "passing": True,
+                    "value": 0,
+                    "extra": {},
+                    "trig": None,
+                },
+                {
+                    "cls": "PlayableValueAddStatusEffect",
+                    "turn": 1,
+                    "limited": True,
+                    "passing": False,
+                    "value": 1,
+                    "extra": {},
+                    "trig": None,
+                },
+                {
+                    "cls": "TriggerEffectStatusEffect",
+                    "turn": -1,
+                    "limited": False,
+                    "passing": False,
+                    "value": 0,
+                    "extra": {},
+                    "trig": {"enchant_id": "enchant-x", "limit_count": 2, "trigger": {"id": "t"}},
+                },
+                {
+                    "cls": "TriggerEffectStatusEffect",
+                    "turn": -1,
+                    "limited": False,
+                    "passing": False,
+                    "value": 0,
+                    "extra": {},
+                    "trig": {"enchant_id": "enchant-used", "limit_count": 0, "trigger": {"id": "t2"}},
+                },
+            ],
+            "idol_type": 0,
+            "idol_step": 0,
+        },
+        "current_turn": 3,
+        "limit_turn": 12,
+        "extra_turn": 0,
+        "turn_types": [1, 2, 3] * 4,
+        "bonus_permil": [[1, 31000], [2, 32000], [3, 20000]],
+        "stamina": 20,
+        "max_stamina": 33,
+        "block": 5,
+        "score": 900,
+        "remaining_actions": 1,
+        "turn_card_play_count": 0,
+        "drinks": ["pdrink-1"],
+        "play_log": [],
     }
     st.update(kw)
     return st
 
 
 def test_from_engine_maps_statuses_and_zones():
-    obs = from_engine(_engine_state(), {"produce": "produce-008", "step": "AUDITION_MID1", "plan": 3, "crit": [1, 2, 3]},
-                      [("play", 0), ("drink", 0), ("end",)], customize_ids=lambda cid, u: ["cz-1"])
+    obs = from_engine(
+        _engine_state(),
+        {"produce": "produce-008", "step": "AUDITION_MID1", "plan": 3, "crit": [1, 2, 3]},
+        [("play", 0), ("drink", 0), ("end",)],
+        customize_ids=lambda cid, u: ["cz-1"],
+    )
     st = {(k, t): v for k, v, t in obs["status"]}
     assert st[("review", -1)] == 7.0  # 好印象的数量存在 turn 里
     assert st[("aggressive", -1)] == 12.0
@@ -97,8 +181,15 @@ def test_types_fill_known_turns_and_final_three():
 def test_from_screen_builds_obs_and_drink_slots():
     hand = [_card(0, "p_card-a", 1), _card(1, "p_card-b", 0, available=False)]
     drinks = [DrinkView(2, "饮料2", "pdrink-2", ""), DrinkView(0, "饮料0", "pdrink-0", "")]
-    statuses = [{"type": "ProduceExamEffectType_ExamParameterBuff", "name": "好調", "value": 3, "unit": "turns"},
-                {"type": "ProduceExamEffectType_ExamLessonValueMultiple", "name": "パラメータ上昇量増加", "value": 30, "unit": "percent"}]
+    statuses = [
+        {"type": "ProduceExamEffectType_ExamParameterBuff", "name": "好調", "value": 3, "unit": "turns"},
+        {
+            "type": "ProduceExamEffectType_ExamLessonValueMultiple",
+            "name": "パラメータ上昇量増加",
+            "value": 30,
+            "unit": "percent",
+        },
+    ]
     st, mem = _state(hand, drinks, remaining=8, turn=3, statuses=statuses)
     t = ScreenTracker([("p_card-a", 1), ("p_card-b", 0), ("p_card-c", 0)], trend=("Vo", "Da", "Vi"))
     t.observe(st, mem)
@@ -137,7 +228,9 @@ class _Algo:
 
         self.seen.append(ctx.obs)
         self.ctx = ctx
-        return SimpleNamespace(action=self.action, meta={"top": [[list(self.action), 0.9]], "score_quantiles": {"50%": 123}})
+        return SimpleNamespace(
+            action=self.action, meta={"top": [[list(self.action), 0.9]], "score_quantiles": {"50%": 123}}
+        )
 
 
 def _advisor(monkeypatch, action):
@@ -151,7 +244,9 @@ def _advisor(monkeypatch, action):
 @pytest.mark.bench_on
 def test_bench_drink_maps_back_to_screen_slot(monkeypatch):
     adv, algo = _advisor(monkeypatch, ("drink", 1))
-    st, mem = _state([_card(0, "p_card-a")], [DrinkView(0, "饮料0", "pdrink-0", ""), DrinkView(3, "饮料3", "pdrink-3", "")])
+    st, mem = _state(
+        [_card(0, "p_card-a")], [DrinkView(0, "饮料0", "pdrink-0", ""), DrinkView(3, "饮料3", "pdrink-3", "")]
+    )
     d = adv.decide(st, mem, None, [Action.from_legal(a) for a in st.legal_actions()])
     assert d.source == "bench" and d.action.legal_key() == "drink:3"
     assert algo.seen[0]["drinks"] == ["pdrink-0", "pdrink-3"]
@@ -214,7 +309,9 @@ class _FakeEnchants:
 
 
 def test_tracker_records_item_and_played_card_enchants():
-    t = ScreenTracker([("c-sus", 0), ("c-once", 0), ("c-x", 0)], trend=("Vo", "Da", "Vi"), enchants=_FakeEnchants(), items=["pitem-x"])
+    t = ScreenTracker(
+        [("c-sus", 0), ("c-once", 0), ("c-x", 0)], trend=("Vo", "Da", "Vi"), enchants=_FakeEnchants(), items=["pitem-x"]
+    )
     assert t.ench == [["enchant-item", 5, -1]]
     st, mem = _state([_card(0, "c-sus"), _card(1, "c-once")], turn=1)
     t.observe(st, mem)
@@ -285,7 +382,9 @@ def test_engine_path_takes_screen_truths(monkeypatch):
     eng["cards"][0] = _engine_card("p_card-a", 1, tmp=2)  # 引擎 +++，画面 +
     eng["cards"][1] = _engine_card("p_card-b", 0)
     eng["status"]["effects"][1]["value"] = 26  # やる気 引擎 26，画面 37
-    st, mem = _state([_card(0, "p_card-a", 1), _card(1, "p_card-b", 0)], remaining=8, turn=1, motivation=37, impression=3)
+    st, mem = _state(
+        [_card(0, "p_card-a", 1), _card(1, "p_card-b", 0)], remaining=8, turn=1, motivation=37, impression=3
+    )
     st.attr = "Vi"
     st.sim_game = object()
     monkeypatch.setattr(A, "_engine_state", lambda game: eng)
@@ -311,7 +410,7 @@ def test_unread_hand_upgrade_falls_back_to_deck_base(monkeypatch):
 
 @pytest.mark.bench_on
 def test_default_uses_screen_path_even_with_sim_game(monkeypatch):
-    adv, algo = _advisor(monkeypatch, ("play", 0))
+    adv, _algo = _advisor(monkeypatch, ("play", 0))
     st, mem = _state([_card(0, "p_card-a", 0)])
     st.sim_game = object()
     monkeypatch.setattr(A, "_engine_state", lambda game: (_ for _ in ()).throw(AssertionError("不该读引擎局面")))
@@ -393,7 +492,9 @@ def test_tracker_drink_enchant_pitem_charges_and_status_names():
 def test_tracker_does_not_reshuffle_when_deck_still_has_cards():
     """qualifydmmw1 T3：持续效果塞进山札的第二张眠気被抽到，跟踪以为洗牌了，把 8 张弃牌倒回山札（存档：弃牌 8 张）。
     实际只有山札抽空才洗牌：山札还有牌时，找不到的卡当作看不见的插入。"""
-    t = ScreenTracker([("c-a", 0), ("c-b", 0), ("c-c", 0), ("c-d", 0), ("c-e", 0), ("c-f", 0)], trend=("Vo", "Da", "Vi"))
+    t = ScreenTracker(
+        [("c-a", 0), ("c-b", 0), ("c-c", 0), ("c-d", 0), ("c-e", 0), ("c-f", 0)], trend=("Vo", "Da", "Vi")
+    )
     t.grave[("p_card-00-acc-0_002", 0)] = 1
     t.grave[("c-z", 0)] = 1
     st, mem = _state([_card(0, "p_card-00-acc-0_002"), _card(1, "c-a")], turn=3)
@@ -435,9 +536,18 @@ def test_tower_context_from_loadout(monkeypatch):
     tc = tower_context(TOWER_LO)
     assert tc["turns"] == 15 and tc["permil_fixed"] == {"Vo": 23090, "Da": 11980, "Vi": 2600}
     assert tc["max_stamina"] == 46 and tc["idol"] == "i_card-ttmr-2-000"
-    assert tc["deck"] == [("p_card-a", 1), ("p_card-b", 0), ("p_card-c", 2), ("p_card-basic", 0)]  # 补基本卡，已有的不重复
+    assert tc["deck"] == [
+        ("p_card-a", 1),
+        ("p_card-b", 0),
+        ("p_card-c", 2),
+        ("p_card-basic", 0),
+    ]  # 补基本卡，已有的不重复
     assert tower_context({**TOWER_LO, "produce_cards": []})["deck"] == []  # 编成页没读牌组：不凭空补
-    assert tower_context({**TOWER_LO, "score_bonus_permils": {"1": 1, "2": 2, "3": 3}})["permil_fixed"] == {"Vo": 1, "Da": 2, "Vi": 3}
+    assert tower_context({**TOWER_LO, "score_bonus_permils": {"1": 1, "2": 2, "3": 3}})["permil_fixed"] == {
+        "Vo": 1,
+        "Da": 2,
+        "Vi": 3,
+    }
     assert tower_context({"turns": 15, "max_stamina": 46})["turns"] == 15  # 驱动手写的最小编成
 
 
@@ -448,7 +558,10 @@ def test_from_screen_tower_uses_loadout_after_restart():
 
     st, mem = _state([_card(0, "p_card-a", 1)], remaining=11, turn=1)
     st.max_hp = None
-    exam = {**exam_fields("tower-15", idol=None, plan=None), **{k: v for k, v in tower_context(TOWER_LO).items() if k != "deck"}}
+    exam = {
+        **exam_fields("tower-15", idol=None, plan=None),
+        **{k: v for k, v in tower_context(TOWER_LO).items() if k != "deck"},
+    }
     t = ScreenTracker([("p_card-a", 1), ("p_card-b", 0)])
     t.observe(st, mem)
     obs, _ = from_screen(st, mem, st.legal_actions(), t, exam)
@@ -526,7 +639,6 @@ def test_plays_left_counts_known_extra_plays_and_never_drops_below_one():
     assert any(a[0] == "play" for a in obs["legal"])  # 合法动作照旧
 
 
-
 def test_idol_initial_cards_by_exam_effect_type():
     """偶像之路开局另加 2 张基本卡：ExamInitialDeck「initial_deck-<主题>」，主题按主回忆偶像卡的 examEffectType（GKMS 6 局实机核过）。"""
     m = _init_master()
@@ -539,7 +651,10 @@ def test_idol_initial_cards_aggressive_row_name():
 
     m = Master(rows={"IdolCard": [{"id": "i_card-x", "examEffectType": "ProduceExamEffectType_ExamCardPlayAggressive"}],
                      "ExamInitialDeck": [{"id": "initial_deck-aggressive", "produceCardIds": ["p1", "p2"]}]})  # fmt: skip
-    assert m.idol_initial_cards("i_card-x") == ["p1", "p2"]  # やる気：examEffectType 是 CardPlayAggressive，行名是 aggressive
+    assert m.idol_initial_cards("i_card-x") == [
+        "p1",
+        "p2",
+    ]  # やる気：examEffectType 是 CardPlayAggressive，行名是 aggressive
 
 
 def _tower_advisor(monkeypatch, tmp_path, tower_spec, *, fail=False):
@@ -642,12 +757,14 @@ def test_tower_ctx_carries_known_draws(monkeypatch, tmp_path):
     cache.mkdir()
     monkeypatch.setenv("HIRO_TOWER_CACHE", str(cache))
     sig = {"formation_signature": "m1-s2", "tower_id": "tower_001-ttmr", "layer": 15}
-    (cache / "tower_001-ttmr-15-m1-s2.json").write_text(__import__("json").dumps({**sig, "draws": [{"id": "p_card-a", "u": 1}]}))
+    (cache / "tower_001-ttmr-15-m1-s2.json").write_text(
+        __import__("json").dumps({**sig, "draws": [{"id": "p_card-a", "u": 1}]})
+    )
     global TOWER_LO
     saved = TOWER_LO
     TOWER_LO = {**saved, **sig}
     try:
-        adv, hif, tower = _tower_advisor(monkeypatch, tmp_path, "my.gnrpa:Search")
+        adv, _hif, tower = _tower_advisor(monkeypatch, tmp_path, "my.gnrpa:Search")
     finally:
         TOWER_LO = saved
     st, mem = _state([_card(0, "p_card-a", 1)], remaining=15, turn=1)
@@ -655,7 +772,6 @@ def test_tower_ctx_carries_known_draws(monkeypatch, tmp_path):
     assert tower.ctx.known_draws == [{"id": "p_card-a", "u": 1}]
     adv.on_round_start(1, {"exam": "r1", "idol": "i_card-shro-3-007", "deck": [("p_card-x", 0)]})  # H.I.F：不给
     assert adv.known_draws is None
-
 
 
 def test_known_prefix_aligns_by_deck_contents():
@@ -691,7 +807,10 @@ def test_tower_loadout_gets_initial_cards(monkeypatch):
 
     from hiro.search import tower as st
 
-    monkeypatch.setattr("hiro.bench_bridge.tower.master", lambda: SimpleNamespace(idol_initial_cards=lambda idol: ["p_card-b0", "p_card-b1"]))
+    monkeypatch.setattr(
+        "hiro.bench_bridge.tower.master",
+        lambda: SimpleNamespace(idol_initial_cards=lambda idol: ["p_card-b0", "p_card-b1"]),
+    )
     assert st.with_initial_cards(["p_card-a+1", "p_card-b1"], "i_card-x") == ["p_card-a+1", "p_card-b1", "p_card-b0"]
     assert st.with_initial_cards(["p_card-a+1"], None) == ["p_card-a+1"]
 
@@ -726,7 +845,11 @@ def test_exam_fields_hajime_nia_like_bench():
     nia = exam_fields("nia-mid2", idol="i", plan=3, crit=[396, 483, 586], produce="produce-005")
     assert nia == {"produce": "produce-005", "step": "AUDITION_MID2", "plan": 3, "idol": "i", "crit": [396, 483, 586]}
     assert exam_fields("hajime-final", idol="i", plan=4)["produce"] == "produce-001"  # 缺省初 REGULAR
-    assert exam_fields("hajime-mid1", idol="i", plan=4)["crit"] == [0, 0, 0]  # 审查基准不知道：全 0，不填 H.I.F 的 [1,1,1]
+    assert exam_fields("hajime-mid1", idol="i", plan=4)["crit"] == [
+        0,
+        0,
+        0,
+    ]  # 审查基准不知道：全 0，不填 H.I.F 的 [1,1,1]
     lesson = exam_fields("hajime-lesson-32", idol="i", plan=4, produce="produce-006")
     assert lesson["step"] == 32 and lesson["lesson"] and lesson["crit"] == [0, 0, 0]
 
@@ -751,7 +874,11 @@ def test_advisor_uses_exam_loadout_for_nia(monkeypatch, tmp_path):
     monkeypatch.setattr(A, "load_algo", lambda *a, **k: algo)
     adv = A.BenchAdvisor(CAMPUS_HIRO)
     adv.on_round_start(1, {"exam": "nia-mid2", "idol": None, "deck": []})
-    assert adv.exam["produce"] == "produce-005" and adv.exam["step"] == "AUDITION_MID2" and adv.exam["crit"] == [396, 483, 586]
+    assert (
+        adv.exam["produce"] == "produce-005"
+        and adv.exam["step"] == "AUDITION_MID2"
+        and adv.exam["crit"] == [396, 483, 586]
+    )
     assert adv.exam["turns"] == 12 and adv.exam["max_stamina"] == 32 and adv.deck == [("p_card-a", 1)]
     assert adv.exam["permil_default"] == {}  # 不拿 H.I.F 的参考倍率
 
@@ -763,24 +890,65 @@ def test_allocate_turns_by_weights():
     assert allocate_turns({1: 1, 2: 1, 3: 1}, 0) == [] and len(allocate_turns({1: 1, 2: 1, 3: 1}, 4)) == 4
 
 
-
 # 本层考试设置直接写进来（Windows 本地塔数据可能没有 16 层，协调 11-17）：complete_loadout 有了 battle_config + gimmick 就不再查塔数据
-TTMR16_EXAM = {"produce_exam_battle_config_id": "p_exam_battle_config-tower_001-1954_1434_956-2079_1687_1062-turn_10",
-               "produce_exam_gimmick_effect_group_id": "p_exam_gimmick-tower_001-exam_lesson_buff-0001-stage_016",
-               "produce_exam_battle_npc_group_id": "p_npc_group-tower_001-ttmr-exam_lesson_buff-stage_016"}
-TTMR16 = {"produce_id": "tower", "tower_id": "tower_001-ttmr", "layer": 16, "mechanic": "exam_lesson_buff", "turns": 10,
-          "score_bonus_permils": [23090, 11980, 2600], "exam": TTMR16_EXAM, "produce_item_ids": ["pitem_tower_001-exam_lesson_buff-1-stage_016"],
-          "rivals": [18877, 13561, 9000], "max_stamina": 46, "idol_card_id": "i_card-ttmr-2-000",
-          "produce_cards": ["p_card-01-ido-2_017+1", "p_card-00-sup-3_027", "p_card-01-act-2_031", "p_card-01-act-2_001+1", "p_card-01-men-3_036+1",
-                            "p_card-01-act-1_021+1", "p_card-01-act-2_032+1", "p_card-01-men-2_038+1", "p_card-01-sup-2_090", "p_card-01-men-1_008+1"]}
-TTMR16_T1 = {"exam": {"produce": "tower", "turn": 1, "limit": 10, "types": [1] * 10, "permil": [23090, 11980, 2600]},
-             "num": {"score": 0, "stamina": 45, "max_stamina": 46, "block": 0},
-             "status": [], "hand": [{"id": "p_card-01-men-0_008", "u": 0}, {"id": "p_card-01-act-2_001", "u": 1}, {"id": "p_card-01-act-1_021", "u": 1},
-                                    {"id": "p_card-01-men-1_008", "u": 1}],
-             "deck": [{"id": c, "u": u} for c, u in (("p_card-00-sup-3_027", 0), ("p_card-01-act-0_028", 0), ("p_card-01-act-2_031", 0),
-                                                       ("p_card-01-act-2_032", 1), ("p_card-01-ido-2_017", 1), ("p_card-01-men-2_038", 1),
-                                                       ("p_card-01-men-3_036", 1), ("p_card-01-sup-2_090", 0))],
-             "grave": [], "lost": [], "drinks": [], "legal": [["play", 0], ["play", 1], ["play", 3], ["end"]]}  # fmt: skip  实机 tower-g5c T1
+TTMR16_EXAM = {
+    "produce_exam_battle_config_id": "p_exam_battle_config-tower_001-1954_1434_956-2079_1687_1062-turn_10",
+    "produce_exam_gimmick_effect_group_id": "p_exam_gimmick-tower_001-exam_lesson_buff-0001-stage_016",
+    "produce_exam_battle_npc_group_id": "p_npc_group-tower_001-ttmr-exam_lesson_buff-stage_016",
+}
+TTMR16 = {
+    "produce_id": "tower",
+    "tower_id": "tower_001-ttmr",
+    "layer": 16,
+    "mechanic": "exam_lesson_buff",
+    "turns": 10,
+    "score_bonus_permils": [23090, 11980, 2600],
+    "exam": TTMR16_EXAM,
+    "produce_item_ids": ["pitem_tower_001-exam_lesson_buff-1-stage_016"],
+    "rivals": [18877, 13561, 9000],
+    "max_stamina": 46,
+    "idol_card_id": "i_card-ttmr-2-000",
+    "produce_cards": [
+        "p_card-01-ido-2_017+1",
+        "p_card-00-sup-3_027",
+        "p_card-01-act-2_031",
+        "p_card-01-act-2_001+1",
+        "p_card-01-men-3_036+1",
+        "p_card-01-act-1_021+1",
+        "p_card-01-act-2_032+1",
+        "p_card-01-men-2_038+1",
+        "p_card-01-sup-2_090",
+        "p_card-01-men-1_008+1",
+    ],
+}
+TTMR16_T1 = {
+    "exam": {"produce": "tower", "turn": 1, "limit": 10, "types": [1] * 10, "permil": [23090, 11980, 2600]},
+    "num": {"score": 0, "stamina": 45, "max_stamina": 46, "block": 0},
+    "status": [],
+    "hand": [
+        {"id": "p_card-01-men-0_008", "u": 0},
+        {"id": "p_card-01-act-2_001", "u": 1},
+        {"id": "p_card-01-act-1_021", "u": 1},
+        {"id": "p_card-01-men-1_008", "u": 1},
+    ],
+    "deck": [
+        {"id": c, "u": u}
+        for c, u in (
+            ("p_card-00-sup-3_027", 0),
+            ("p_card-01-act-0_028", 0),
+            ("p_card-01-act-2_031", 0),
+            ("p_card-01-act-2_032", 1),
+            ("p_card-01-ido-2_017", 1),
+            ("p_card-01-men-2_038", 1),
+            ("p_card-01-men-3_036", 1),
+            ("p_card-01-sup-2_090", 0),
+        )
+    ],
+    "grave": [],
+    "lost": [],
+    "drinks": [],
+    "legal": [["play", 0], ["play", 1], ["play", 3], ["end"]],
+}  # fmt: skip  实机 tower-g5c T1
 
 
 def _tower_gnrpa_or_skip():
@@ -892,7 +1060,9 @@ def test_nia_tag_number_fills_loadout_and_ctx_gets_full_loadout(monkeypatch, tmp
 
 
 @pytest.mark.bench_on
-@pytest.mark.parametrize("spec, fail, uses", [(None, False, "hif"), ("my.gnrpa:Search", False, "search"), ("my.gnrpa:Search", True, "hif")])
+@pytest.mark.parametrize(
+    "spec, fail, uses", [(None, False, "hif"), ("my.gnrpa:Search", False, "search"), ("my.gnrpa:Search", True, "hif")]
+)
 def test_hajime_nia_search_switch_default_off(monkeypatch, spec, fail, uses):
     """初 / N.I.A：HIRO_EXAM_SEARCH_ALGO 设了才走搜索（缺省 uinet，行为变化开关默认关）；加载失败 uinet 兜底并写明。"""
     monkeypatch.delenv("HIRO_EXAM_LOADOUT", raising=False)
@@ -995,17 +1165,38 @@ def test_live_exam_loadout_built_on_first_decision(monkeypatch):
     algo = _Algo(("play", 0))
     monkeypatch.setattr(A, "load_algo", lambda *a, **k: algo)
     adv = A.BenchAdvisor(CAMPUS_HIRO)
-    sess = SimpleNamespace(state=SimpleNamespace(produce={"items": ["pitem_k"], "challenge_items": ["pitem_c"], "nia_easy_key": True}))
+    sess = SimpleNamespace(
+        state=SimpleNamespace(produce={"items": ["pitem_k"], "challenge_items": ["pitem_c"], "nia_easy_key": True})
+    )
     got_items = {}
-    monkeypatch.setattr("hiro.search.exam_env.npc_enhance_permil", lambda items: got_items.update(items=list(items)) or (-700, ["pitem_c"]))
-    adv.on_round_start(1, {"exam": "nia-mid2#audition-3", "idol": "i_card-x", "deck": [("p_card-a", 1), ("p_card-b", 0)], "session": sess})
+    monkeypatch.setattr(
+        "hiro.search.exam_env.npc_enhance_permil",
+        lambda items: got_items.update(items=list(items)) or (-700, ["pitem_c"]),
+    )
+    adv.on_round_start(
+        1,
+        {
+            "exam": "nia-mid2#audition-3",
+            "idol": "i_card-x",
+            "deck": [("p_card-a", 1), ("p_card-b", 0)],
+            "session": sess,
+        },
+    )
     st, mem = _state([_card(0, "p_card-a", 1)], remaining=12, turn=1)
-    st.attr_permils = {"Vo": 20000, "Da": 30000, "Vi": 10000}  # 画面三项都读到（倍率不全时要等，见 test_hajime_audition_permil_screen_first）
+    st.attr_permils = {
+        "Vo": 20000,
+        "Da": 30000,
+        "Vi": 10000,
+    }  # 画面三项都读到（倍率不全时要等，见 test_hajime_audition_permil_screen_first）
     adv.decide(st, mem, None, [Action.from_legal(a) for a in st.legal_actions()])
     lo = algo.ctx.loadout
     assert asked == {"idol": "i_card-x", "produce": "produce-004", "rnd": "mid2", "number": 3}
     assert lo["produce_cards"] == ["p_card-a+1", "p_card-b"] and lo["exam"]["produce_exam_battle_config_id"] == "bc"
-    assert lo["audition"]["rankThreshold"] == 1 and lo["produce_item_ids"] == ["pitem_k"] and lo["supports"] == [{"_supportCardId": "s"}]
+    assert (
+        lo["audition"]["rankThreshold"] == 1
+        and lo["produce_item_ids"] == ["pitem_k"]
+        and lo["supports"] == [{"_supportCardId": "s"}]
+    )
     assert lo["skills"] == [] and lo["round"] == "mid2" and lo["idol_card_id"] == "i_card-x"
     # 对手分增减：账本道具 + チャレンジP道具 + N.I.Aキー（平台记的 nia_easy_key，账本里没有）
     assert got_items["items"] == ["pitem_k", "pitem_c", "pitem_00-3-330-0"] and lo["npc_enhance_permil"] == -700
@@ -1030,7 +1221,10 @@ def test_live_lesson_from_screen(monkeypatch, screen, want):
     monkeypatch.setenv("HIRO_FORMATION_PLAN", "off")
     monkeypatch.setattr(tw, "master", lambda: SimpleNamespace(rows=lambda t: [{"id": "L", "limitTurn": 7, "successThreshold": 40,
                                                                                "resultTargetValueLimit": 80}]))  # fmt: skip
-    monkeypatch.setattr("hiro.search.loadout.run_loadout", lambda produce, plan: ({"items": ("pitem_k",), "supports": (), "skills": ()}, []))
+    monkeypatch.setattr(
+        "hiro.search.loadout.run_loadout",
+        lambda produce, plan: ({"items": ("pitem_k",), "supports": (), "skills": ()}, []),
+    )
     algo = _Algo(("play", 0))
     monkeypatch.setattr(A, "load_algo", lambda *a, **k: algo)
     es = SimpleNamespace(lesson=dict(screen) if screen else None)
@@ -1044,7 +1238,11 @@ def test_live_lesson_from_screen(monkeypatch, screen, want):
         assert adv.exam_loadout is None
         return
     les = algo.ctx.loadout["lesson"]
-    assert (les["limit_turn"], les["clear_score"], les["perfect_score"], les["parameter_type"], les["kind"]) == (*want, 2, "SP")
+    assert (les["limit_turn"], les["clear_score"], les["perfect_score"], les["parameter_type"], les["kind"]) == (
+        *want,
+        2,
+        "SP",
+    )
     assert algo.ctx.loadout["produce_item_ids"][0] == "pitem_k" and "exam" not in algo.ctx.loadout
 
 
@@ -1061,14 +1259,26 @@ def test_live_loadout_max_stamina_falls_back_for_other_idols(monkeypatch, produc
     monkeypatch.setenv("HIRO_FORMATION_PLAN", "off")
     monkeypatch.setattr(tw, "master", lambda: SimpleNamespace(rows=lambda t: [{"id": "L", "limitTurn": 7, "successThreshold": 40,
                                                                                "resultTargetValueLimit": 80}]))  # fmt: skip
-    monkeypatch.setattr("hiro.search.loadout.run_loadout", lambda produce, plan: ({"items": (), "supports": (), "skills": ()}, []))
+    monkeypatch.setattr(
+        "hiro.search.loadout.run_loadout", lambda produce, plan: ({"items": (), "supports": (), "skills": ()}, [])
+    )
     algo = _Algo(("play", 0))
     monkeypatch.setattr(A, "load_algo", lambda *a, **k: algo)
-    es = SimpleNamespace(lesson={"turns_total": 7, "clear_target": 40, "perfect_target": None, "level_ids": ["L"], "lesson_limit_up_score": 0})
+    es = SimpleNamespace(
+        lesson={
+            "turns_total": 7,
+            "clear_target": 40,
+            "perfect_target": None,
+            "level_ids": ["L"],
+            "lesson_limit_up_score": 0,
+        }
+    )
     sess = SimpleNamespace(state=SimpleNamespace(produce=dict(produce), exam_session=es))
     other = IdolProfile(idol_id="i_card-x", name="x", playbook=None)
     adv = A.BenchAdvisor(other)
-    adv.on_round_start(1, {"exam": "hajime-lesson-da-sp", "idol": "i_card-x", "deck": [("p_card-a", 0)], "session": sess})
+    adv.on_round_start(
+        1, {"exam": "hajime-lesson-da-sp", "idol": "i_card-x", "deck": [("p_card-a", 0)], "session": sess}
+    )
     st, mem = _state([_card(0, "p_card-a")], remaining=6, turn=1, profile=other)
     adv.decide(st, mem, None, [Action.from_legal(a) for a in st.legal_actions()])
     lo = algo.ctx.loadout
@@ -1098,7 +1308,11 @@ def test_live_lesson_perfect_read_midway(monkeypatch):
     adv.decide(st, mem, None, [Action.from_legal(a) for a in st.legal_actions()])
     assert algo.ctx.loadout["lesson"]["perfect_score"] == 360
     g = X.ExamGnrpa.__new__(X.ExamGnrpa)
-    g.lo, g.obj, g.stats = {"lesson": {"clear_score": 90, "perfect_score": None}}, {"rivals": [], "clear_score": 90}, __import__("collections").Counter()
+    g.lo, g.obj, g.stats = (
+        {"lesson": {"clear_score": 90, "perfect_score": None}},
+        {"rivals": [], "clear_score": 90},
+        __import__("collections").Counter(),
+    )
     g._update_lesson(algo.ctx.loadout)
     assert g.obj["score_cap"] == 360 and g.obj["clear_score"] == 90
 
@@ -1134,7 +1348,11 @@ def test_exam_gnrpa_holds_strong_drinks_in_lessons(monkeypatch):
     algo.hold_strong, algo.stats = True, __import__("collections").Counter()
     obs = {"drinks": ["strong", "weak"], "legal": [["play", 0], ["drink", 0], ["drink", 1], ["end"]]}
     d = algo.decide(SimpleNamespace(obs=obs, budget=3))
-    assert seen["obs"]["drinks"] == ["weak"] and seen["obs"]["legal"] == [["play", 0], ["drink", 0], ["end"]] and seen["budget"] == 3
+    assert (
+        seen["obs"]["drinks"] == ["weak"]
+        and seen["obs"]["legal"] == [["play", 0], ["drink", 0], ["end"]]
+        and seen["budget"] == 3
+    )
     assert d.action == ("drink", 1) and obs["drinks"] == ["strong", "weak"]  # 换回画面下标；原 obs 不动
     algo.hold_strong = False
     assert algo.decide(SimpleNamespace(obs=obs, budget=3)).action == ("drink", 0) and seen["obs"] is obs  # 考试不留
@@ -1167,10 +1385,19 @@ def test_hajime_audition_permil_screen_first(monkeypatch, params, reads, want):
     row = {"produceExamBattleConfigId": "bc", "produceExamGimmickEffectGroupId": "", "produceExamBattleNpcGroupId": "npc",
            "rankThreshold": 3, "baseScore": 0, "forceEndScore": 900, "voteCount": 0, "isStaticNpcScore": False, "number": 1}  # fmt: skip
     asked = {}
-    monkeypatch.setattr("hiro.search.exam_env.audition_row", lambda idol, produce, rnd, number=None: asked.update(produce=produce) or row)
-    monkeypatch.setattr(tw, "master", lambda: SimpleNamespace(battle_config=lambda cid: {"vocal": 30, "dance": 40, "visual": 30, "turn": 9}))
+    monkeypatch.setattr(
+        "hiro.search.exam_env.audition_row",
+        lambda idol, produce, rnd, number=None: asked.update(produce=produce) or row,
+    )
+    monkeypatch.setattr(
+        tw,
+        "master",
+        lambda: SimpleNamespace(battle_config=lambda cid: {"vocal": 30, "dance": 40, "visual": 30, "turn": 9}),
+    )
     monkeypatch.setattr(tw, "score_bonus_permils", lambda cid, p: asked.update(params=p) or [3060, 2710, 1990])
-    monkeypatch.setattr("hiro.search.loadout.run_loadout", lambda produce, plan: ({"items": (), "supports": (), "skills": ()}, []))
+    monkeypatch.setattr(
+        "hiro.search.loadout.run_loadout", lambda produce, plan: ({"items": (), "supports": (), "skills": ()}, [])
+    )
     hif, search = _Algo(("play", 0)), _Algo(("play", 0))
     monkeypatch.setattr(A, "load_algo", lambda s=None, **kw: search if s == A.EXAM_DEFAULT_ALGO else hif)
     sess = SimpleNamespace(state=SimpleNamespace(produce={"mode": "produce-002", "params": params}))
@@ -1185,7 +1412,11 @@ def test_hajime_audition_permil_screen_first(monkeypatch, params, reads, want):
         if w is None:
             assert len(hif.seen) == n_hif + 1 and len(search.seen) == n_search and "等画面读到倍率" in d.reason
         else:
-            assert len(search.seen) == n_search + 1 and search.ctx.loadout["score_bonus_permils"] == [w["Vo"], w["Da"], w["Vi"]]
+            assert len(search.seen) == n_search + 1 and search.ctx.loadout["score_bonus_permils"] == [
+                w["Vo"],
+                w["Da"],
+                w["Vi"],
+            ]
             assert "兜底" not in d.reason
     assert adv.round_algo is search  # 等倍率的步不算开局失败
 
@@ -1198,7 +1429,9 @@ def test_exam_gnrpa_refuses_zero_permils():
     for lo, msg in (({"idol_card_id": "i"}, "编成"), ({"produce_cards": ["p"], "score_bonus_permils": [0, 0, 0]}, "倍率"),
                     ({"produce_cards": ["p"], "score_bonus_permils": {"1": 1000, "2": 0, "3": 1000}}, "倍率")):  # fmt: skip
         with pytest.raises(ExamUnsupported, match=msg):
-            ExamGnrpa.__new__(ExamGnrpa).begin(SimpleNamespace(loadout=lo, meta={}))  # 不走构造（旧 Rust 包时构造会报错）
+            ExamGnrpa.__new__(ExamGnrpa).begin(
+                SimpleNamespace(loadout=lo, meta={})
+            )  # 不走构造（旧 Rust 包时构造会报错）
 
 
 def _guarded(monkeypatch, steps, lo=None):
@@ -1218,7 +1451,13 @@ def _guarded(monkeypatch, steps, lo=None):
     monkeypatch.setattr(ta.TowerGnrpa, "decide", fake)
     for screen, engine, q in it:
         try:
-            out.append(algo.decide(SimpleNamespace(obs={"num": {"score": screen}, "_engine": engine, "_q": q, "drinks": [], "legal": []})))
+            out.append(
+                algo.decide(
+                    SimpleNamespace(
+                        obs={"num": {"score": screen}, "_engine": engine, "_q": q, "drinks": [], "legal": []}
+                    )
+                )
+            )
         except X.SearchDistrust as e:
             out.append(e)
     return out
@@ -1228,16 +1467,31 @@ def test_guard_engine_vs_screen_calibration(monkeypatch):
     """引擎算的加分和画面实际加分对账：倍率为 0 时引擎每步 +0、画面 +40 → 3 步后判不可信（整场退回 uinet）；对得上的不报。"""
     from hiro.search.exam_algo import SearchDistrust
 
-    bad = _guarded(monkeypatch, [(0, 0, 50), (40, 40, 50), (80, 80, 50), (120, 120, 50), (160, 160, 50)])  # 引擎每步 +0，画面 +40
-    assert all(not isinstance(x, SearchDistrust) for x in bad[:3]) and isinstance(bad[3], SearchDistrust) and bad[3].whole_round
+    bad = _guarded(
+        monkeypatch, [(0, 0, 50), (40, 40, 50), (80, 80, 50), (120, 120, 50), (160, 160, 50)]
+    )  # 引擎每步 +0，画面 +40
+    assert (
+        all(not isinstance(x, SearchDistrust) for x in bad[:3])
+        and isinstance(bad[3], SearchDistrust)
+        and bad[3].whole_round
+    )
     ok = _guarded(monkeypatch, [(0, 45, 900), (40, 80, 900), (80, 130, 900), (120, 170, 900), (170, 200, 900)])
     assert not any(isinstance(x, SearchDistrust) for x in ok)
-    noisy = _guarded(monkeypatch, [(0, 20, 900), (40, 60, 900), (100, 120, 900), (160, 170, 900), (200, 230, 900)])  # 0.4 倍：bench 正常局有
+    noisy = _guarded(
+        monkeypatch, [(0, 20, 900), (40, 60, 900), (100, 120, 900), (160, 170, 900), (200, 230, 900)]
+    )  # 0.4 倍：bench 正常局有
     assert not any(isinstance(x, SearchDistrust) for x in noisy)
     # 画面分数读数晚一步（初 PRO 第一局：引擎出牌那步就 +406，画面下一步才读到）：累计比不误报
-    lag = _guarded(monkeypatch, [(22, 428, 900), (22, 301, 900), (428, 519, 900), (706, 740, 900), (706, 740, 900), (1504, 1600, 900)])
+    lag = _guarded(
+        monkeypatch,
+        [(22, 428, 900), (22, 301, 900), (428, 519, 900), (706, 740, 900), (706, 740, 900), (1504, 1600, 900)],
+    )
     assert not any(isinstance(x, SearchDistrust) for x in lag)
-    lesson = _guarded(monkeypatch, [(0, 0, 50), (40, 40, 50), (80, 80, 50), (120, 120, 50), (160, 160, 50)], lo={"lesson": {"clear_score": 40}})
+    lesson = _guarded(
+        monkeypatch,
+        [(0, 0, 50), (40, 40, 50), (80, 80, 50), (120, 120, 50), (160, 160, 50)],
+        lo={"lesson": {"clear_score": 40}},
+    )
     assert not any(isinstance(x, SearchDistrust) for x in lesson)  # 课程不查（追い込み加成等已知缺口会让比值很低）
 
 
@@ -1311,7 +1565,11 @@ def test_uiobs_uses_schedule_and_panel_permils(monkeypatch):
     st.attr_permils = {"Vo": 6440, "Da": 6800, "Vi": 4280}
     adv.decide(st, mem, None, [Action.from_legal(a) for a in st.legal_actions()])
     ex = algo.seen[-1]["exam"]
-    assert ex["types"] == [1, 3, 2, 2, 1, 1, 3, 2, 1] and ex["permil"] == [6440, 6800, 4280] and ex["produce"] == "produce-002"
+    assert (
+        ex["types"] == [1, 3, 2, 2, 1, 1, 3, 2, 1]
+        and ex["permil"] == [6440, 6800, 4280]
+        and ex["produce"] == "produce-002"
+    )
 
 
 @pytest.mark.bench_on
@@ -1326,9 +1584,15 @@ def test_late_loadout_passes_history_and_schedule(monkeypatch):
     row = {"produceExamBattleConfigId": "bc", "produceExamGimmickEffectGroupId": "", "produceExamBattleNpcGroupId": "npc",
            "rankThreshold": 3, "baseScore": 0, "forceEndScore": 1700, "voteCount": 0, "isStaticNpcScore": False, "number": 1}  # fmt: skip
     monkeypatch.setattr("hiro.search.exam_env.audition_row", lambda idol, produce, rnd, number=None: row)
-    monkeypatch.setattr(tw, "master", lambda: SimpleNamespace(battle_config=lambda cid: {"vocal": 30, "dance": 40, "visual": 30, "turn": 9}))
+    monkeypatch.setattr(
+        tw,
+        "master",
+        lambda: SimpleNamespace(battle_config=lambda cid: {"vocal": 30, "dance": 40, "visual": 30, "turn": 9}),
+    )
     monkeypatch.setattr(tw, "score_bonus_permils", lambda cid, p: [2990, 3580, 2330])
-    monkeypatch.setattr("hiro.search.loadout.run_loadout", lambda produce, plan: ({"items": (), "supports": (), "skills": ()}, []))
+    monkeypatch.setattr(
+        "hiro.search.loadout.run_loadout", lambda produce, plan: ({"items": (), "supports": (), "skills": ()}, [])
+    )
 
     class Begin(_Algo):
         def begin(self, ctx):
@@ -1369,7 +1633,15 @@ def test_exam_gnrpa_replays_history_before_first_decision(monkeypatch):
     g.rx, g.stats = Rx(), collections.Counter()
     monkeypatch.setattr(X.ExamGnrpa, "_align", lambda self, o: log.append(("align", o["i"])))
     g._replay([({"i": 0}, ["drink", 0]), ({"i": 1}, ["drink", 9]), ({"i": 2}, ["play", 1])])
-    assert log == [("align", 0), ("step", ("drink", 0)), ("advance",), ("align", 1), ("align", 2), ("step", ("play", 1)), ("advance",)]
+    assert log == [
+        ("align", 0),
+        ("step", ("drink", 0)),
+        ("advance",),
+        ("align", 1),
+        ("align", 2),
+        ("step", ("play", 1)),
+        ("advance",),
+    ]
     assert g.stats["replayed"] == 2 and g.stats["replay_failed"] == 1
 
 
@@ -1404,7 +1676,9 @@ def test_hajime_round_follows_panel_and_turns(monkeypatch, label, pass_line, lim
                                                                                           "turn": 9 if cid == "bc-mid" else 11}))  # fmt: skip
     algo = _Algo(("play", 0))
     monkeypatch.setattr(A, "load_algo", lambda *a, **k: algo)
-    sess = SimpleNamespace(state=SimpleNamespace(produce={"mode": "produce-002"}, exam={"pass_line": pass_line} if pass_line else {}))
+    sess = SimpleNamespace(
+        state=SimpleNamespace(produce={"mode": "produce-002"}, exam={"pass_line": pass_line} if pass_line else {})
+    )
     adv = A.BenchAdvisor(CAMPUS_HIRO)
     adv.on_round_start(1, {"exam": label, "idol": "i_card-x", "deck": [("p_card-a", 0)], "session": sess})
     st, mem = _state([_card(0, "p_card-a")], remaining=limit, turn=1)
@@ -1420,7 +1694,10 @@ def test_hajime_final_objective_prefers_first_place():
     from hiro.search.exam_env import stage_objective
 
     assert stage_objective({"audition": {"rankThreshold": 3, "forceEndScore": 0}}) == {"pass_rank": 3}
-    assert stage_objective({"audition": {"rankThreshold": 3, "forceEndScore": 1700}}) == {"pass_rank": 3, "score_cap": 1700}
+    assert stage_objective({"audition": {"rankThreshold": 3, "forceEndScore": 1700}}) == {
+        "pass_rank": 3,
+        "score_cap": 1700,
+    }
 
 
 @pytest.mark.parametrize("fam, stage, want", [
@@ -1441,8 +1718,13 @@ def test_nia_round_follows_panel_text_only(monkeypatch):
     monkeypatch.setattr(A.BenchAdvisor, "_audition_defaults", lambda self, idol, number: None)
     algo = _Algo(("play", 0))
     monkeypatch.setattr(A, "load_algo", lambda *a, **k: algo)
-    for pl, want in (({"rank": 1, "stage": "1位で2次オーディション突破"}, "nia-mid2#audition-2"), (None, "nia-mid1#audition-2")):
-        sess = SimpleNamespace(state=SimpleNamespace(produce={"mode": "produce-005"}, exam={"pass_line": pl} if pl else {}))
+    for pl, want in (
+        ({"rank": 1, "stage": "1位で2次オーディション突破"}, "nia-mid2#audition-2"),
+        (None, "nia-mid1#audition-2"),
+    ):
+        sess = SimpleNamespace(
+            state=SimpleNamespace(produce={"mode": "produce-005"}, exam={"pass_line": pl} if pl else {})
+        )
         adv = A.BenchAdvisor(CAMPUS_HIRO)
         adv.on_round_start(1, {"exam": "nia-mid1#audition-2", "idol": None, "deck": [("p_card-a", 0)], "session": sess})
         st, mem = _state([_card(0, "p_card-a")], remaining=12, turn=1)
@@ -1466,7 +1748,16 @@ def test_guard_undo_removes_not_executed_gain(monkeypatch):
         return ta.Decision(("play", 0), {"score_quantiles": {"50%": 900}})
 
     monkeypatch.setattr(ta.TowerGnrpa, "decide", fake)
-    seq = [(0, 300, True), (0, 300, True), (0, 300, False), (300, 600, True), (300, 600, False), (600, 900, False), (900, 1200, False), (1200, 1500, False)]
+    seq = [
+        (0, 300, True),
+        (0, 300, True),
+        (0, 300, False),
+        (300, 600, True),
+        (300, 600, False),
+        (600, 900, False),
+        (900, 1200, False),
+        (1200, 1500, False),
+    ]
     for screen, engine, stale in seq:
         algo.decide(SimpleNamespace(obs={"num": {"score": screen}, "_engine": engine, "drinks": [], "legal": []}))
         if stale:

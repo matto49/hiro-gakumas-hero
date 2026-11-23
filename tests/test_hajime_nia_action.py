@@ -1,9 +1,9 @@
 """初 / N.I.A 选行动（hiro.brain.hajime_nia.choose_action）：通关档的社区规则，每条规则至少一个用例。
 设计稿 （作者本机，未发布） 第四节；规则文件 src/hiro/defaults/hajime_nia_rules.json。"""
 
-import pytest
-
 from hiro.brain.hajime_nia import Status, choose_action
+
+import pytest
 
 
 def _opt(option, attr=None, sp=None, hp_cost=None):
@@ -11,7 +11,14 @@ def _opt(option, attr=None, sp=None, hp_cost=None):
 
 
 def _st(**kw):
-    base = dict(mode="produce-001", step=3, stamina=30, max_stamina=30, produce_point=0, params={"Vo": 300, "Da": 200, "Vi": 100})
+    base = {
+        "mode": "produce-001",
+        "step": 3,
+        "stamina": 30,
+        "max_stamina": 30,
+        "produce_point": 0,
+        "params": {"Vo": 300, "Da": 200, "Vi": 100},
+    }
     base.update(kw)
     return Status(**base)
 
@@ -92,13 +99,26 @@ def test_hajime_lesson_week_very_low_stamina_rests():
 
 
 def _nia(**kw):
-    base = dict(mode="produce-004", step=3, stamina=20, max_stamina=30, produce_point=0, params={"Vo": 300, "Da": 200, "Vi": 150}, rest_left=4)
+    base = {
+        "mode": "produce-004",
+        "step": 3,
+        "stamina": 20,
+        "max_stamina": 30,
+        "produce_point": 0,
+        "params": {"Vo": 300, "Da": 200, "Vi": 150},
+        "rest_left": 4,
+    }
     base.update(kw)
     return _st(**base)
 
 
 def test_nia_always_sp_lesson_lowest_attr():
-    opts = [_opt("training", "Vo", True, 8), _opt("training", "Vi", True, 8), _opt("training", "Da", False, 6), _opt("sales")]
+    opts = [
+        _opt("training", "Vo", True, 8),
+        _opt("training", "Vi", True, 8),
+        _opt("training", "Da", False, 6),
+        _opt("sales"),
+    ]
     o, _, rules = _pick(_nia(), opts)
     assert (o["attr"], o["sp"]) == ("Vi", True) and "nia.lesson_sp" in rules
 
@@ -116,7 +136,7 @@ def test_nia_lesson_stamina_at_least_cost():
 
 def test_nia_sales_when_no_lesson():
     opts = [_opt("sales"), _opt("gift"), _opt("rest")]
-    o, _, rules = _pick(_nia(), opts)
+    o, _, _rules = _pick(_nia(), opts)
     assert o["option"] == "sales"
 
 
@@ -223,7 +243,11 @@ def test_outing_skips_disabled():
 
 
 def test_hajime_study_main_attr_avoids_trouble():
-    chs = [_ch(0, text="ボーカル", attr="Vo"), _ch(1, text="ビジュアル", attr="Vi"), _ch(2, trouble=True, text="トラブル追加")]
+    chs = [
+        _ch(0, text="ボーカル", attr="Vo"),
+        _ch(1, text="ビジュアル", attr="Vi"),
+        _ch(2, trouble=True, text="トラブル追加"),
+    ]
     i, _, rules = choose_study(_st(main_attr="Vi", mode="produce-002"), chs)
     assert i == 1 and "hajime.study_avoid_trouble" in rules
 
@@ -239,8 +263,17 @@ def test_deciders_outing_study_route_by_family():
     from hiro.brain.state import CAMPUS_HIRO
     from hiro.contracts import GameState
 
-    prod = {"mode": "produce-004", "step": 5, "stamina": 20, "max_stamina": 30, "produce_point": 100, "params": {"Vo": 1, "Da": 1, "Vi": 1}}
-    d = ProduceDeciders(CAMPUS_HIRO, None).outing(GameState(produce=prod, page_fields={"choices": [_ch(0, 60), _ch(1, 40), _ch(2, 20)]}))
+    prod = {
+        "mode": "produce-004",
+        "step": 5,
+        "stamina": 20,
+        "max_stamina": 30,
+        "produce_point": 100,
+        "params": {"Vo": 1, "Da": 1, "Vi": 1},
+    }
+    d = ProduceDeciders(CAMPUS_HIRO, None).outing(
+        GameState(produce=prod, page_fields={"choices": [_ch(0, 60), _ch(1, 40), _ch(2, 20)]})
+    )
     assert d.action.args["select"] == 1 and "[g8-NIA]" in d.reason
     prod = dict(prod, mode="produce-002", main_attr="Vo")
     chs = [_ch(0, attr="Vo"), _ch(1, attr="Vi"), _ch(2, trouble=True)]
@@ -258,7 +291,9 @@ def _pl(i, kind, hp_cost=0):
 
 
 def test_sales_place_yellow_or_purple_when_stamina_ok():
-    i, _, rules = choose_sales_place(_nia(stamina=25), [_pl(0, "resort", 0), _pl(1, "local", 5), _pl(2, "commercial", 5)])
+    i, _, rules = choose_sales_place(
+        _nia(stamina=25), [_pl(0, "resort", 0), _pl(1, "local", 5), _pl(2, "commercial", 5)]
+    )
     assert i in (1, 2) and "nia.sales_yellow_purple" in rules
 
 
@@ -270,19 +305,23 @@ def test_sales_place_purple_when_points_enough_yellow_when_short():
 
 def test_sales_place_resort_when_stamina_would_block_lesson():
     """营业后体力会不到 SP 课程要的 8 以上：去绿（リゾート）回体力。"""
-    i, _, rules = choose_sales_place(_nia(stamina=12), [_pl(0, "resort", 0), _pl(1, "local", 5), _pl(2, "commercial", 5)])
+    i, _, rules = choose_sales_place(
+        _nia(stamina=12), [_pl(0, "resort", 0), _pl(1, "local", 5), _pl(2, "commercial", 5)]
+    )
     assert i == 0 and "nia.sales_green_low" in rules
 
 
 def test_sales_place_skips_unaffordable_and_reports_expected_votes():
     """去得了 = P 点 ≥ P 点消耗 且 体力 ≥ 体力消耗（客户端 CheckIfGoBusiness）；理由里带期望票数 = 票数 ×（1 + 0.3 × 大成功概率）。"""
-    places = [dict(_pl(0, "local", 5), p_cost=0, votes=3000, great_rate=0.5), dict(_pl(1, "commercial", 5), p_cost=150, votes=3000, great_rate=1.0)]
+    places = [
+        dict(_pl(0, "local", 5), p_cost=0, votes=3000, great_rate=0.5),
+        dict(_pl(1, "commercial", 5), p_cost=150, votes=3000, great_rate=1.0),
+    ]
     i, reason, _ = choose_sales_place(_nia(stamina=25, produce_point=120), places)  # P 点 ≥ 100 本来去紫，但紫要 150P
     assert i == 0 and "期望票数 3450" in reason
     unknown = [{"index": 0, "hp_cost": 3, "votes": 2000}, {"index": 1, "hp_cost": 5, "votes": 2000, "great_rate": 0.5}]
     i, reason, _ = choose_sales_place(_nia(stamina=25), unknown)
     assert i == 1 and "期望票数最高" in reason
-
 
 
 @pytest.mark.sim_master
@@ -301,7 +340,9 @@ def test_sales_place_expected_votes_from_master():
 
 
 def test_sales_place_corporate_when_low_stamina_and_no_resort():
-    i, _, _ = choose_sales_place(_nia(stamina=10), [_pl(0, "corporate", 0), _pl(1, "local", 5), _pl(2, "commercial", 5)])
+    i, _, _ = choose_sales_place(
+        _nia(stamina=10), [_pl(0, "corporate", 0), _pl(1, "local", 5), _pl(2, "commercial", 5)]
+    )
     assert i == 0
 
 
@@ -320,7 +361,10 @@ def test_audition_highest_unlocked_tier():
 
 def test_audition_lower_after_failure():
     """失败重来时降一档（N.I.A 失败可以降档，协调 11-17）。"""
-    tiers = [{"index": 0, "number": 1, "vote_need": 0, "locked": False}, {"index": 1, "number": 2, "vote_need": 4000, "locked": False}]
+    tiers = [
+        {"index": 0, "number": 1, "vote_need": 0, "locked": False},
+        {"index": 1, "number": 2, "vote_need": 4000, "locked": False},
+    ]
     i, number, reason, _ = choose_audition(_nia(), 6000, tiers, failed=1)
     assert (i, number) == (0, 1) and "降" in reason
 
@@ -330,14 +374,38 @@ def test_deciders_nia_pages_registered():
     from hiro.brain.state import CAMPUS_HIRO
     from hiro.contracts import GameState
 
-    prod = {"mode": "produce-004", "step": 9, "stamina": 25, "max_stamina": 30, "produce_point": 0, "params": {"Vo": 1, "Da": 1, "Vi": 1}, "votes": 5000}
+    prod = {
+        "mode": "produce-004",
+        "step": 9,
+        "stamina": 25,
+        "max_stamina": 30,
+        "produce_point": 0,
+        "params": {"Vo": 1, "Da": 1, "Vi": 1},
+        "votes": 5000,
+    }
     pd = ProduceDeciders(CAMPUS_HIRO, None)
-    d = pd.decide("NIA_SALES_PLACE", GameState(produce=prod, page_fields={"places": [_pl(0, "resort"), _pl(1, "local", 5)]}))
+    d = pd.decide(
+        "NIA_SALES_PLACE", GameState(produce=prod, page_fields={"places": [_pl(0, "resort"), _pl(1, "local", 5)]})
+    )
     assert d.action.args["select"] == 1 and d.decider == "sales_place"
-    d = pd.decide("NIA_AUDITION_SELECT", GameState(produce=prod, page_fields={"votes": 5000, "tiers": [
-        {"index": 0, "number": 1, "vote_need": 0, "locked": False}, {"index": 1, "number": 2, "vote_need": 4000, "locked": False}]}))
+    d = pd.decide(
+        "NIA_AUDITION_SELECT",
+        GameState(
+            produce=prod,
+            page_fields={
+                "votes": 5000,
+                "tiers": [
+                    {"index": 0, "number": 1, "vote_need": 0, "locked": False},
+                    {"index": 1, "number": 2, "vote_need": 4000, "locked": False},
+                ],
+            },
+        ),
+    )
     assert d.action.args == {"select": 1, "audition_number": 2} and d.decider == "audition_select"
-    d = pd.decide("NIA_SALES_EVENT", GameState(produce=prod, page_fields={"choices": [{"index": 0, "attr": "Vo"}, {"index": 1, "attr": "Da"}]}))
+    d = pd.decide(
+        "NIA_SALES_EVENT",
+        GameState(produce=prod, page_fields={"choices": [{"index": 0, "attr": "Vo"}, {"index": 1, "attr": "Da"}]}),
+    )
     assert d.action.args["select"] in (0, 1) and d.decider == "sales_event"
 
 
@@ -349,7 +417,9 @@ def _retry(prod_mode="produce-001", **pf):
     from hiro.brain.state import CAMPUS_HIRO
     from hiro.contracts import GameState
 
-    return ProduceDeciders(CAMPUS_HIRO, None).decide("EXAM_RETRY", GameState(produce={"mode": prod_mode}, page_fields=pf))
+    return ProduceDeciders(CAMPUS_HIRO, None).decide(
+        "EXAM_RETRY", GameState(produce={"mode": prod_mode}, page_fields=pf)
+    )
 
 
 @pytest.mark.parametrize("pf, confirm", [
@@ -377,7 +447,7 @@ def test_hajime_oikomi_takes_highest_exam_criteria():
     for o in opts:
         o["oikomi"] = True
     st = _st(params={"Vo": 252, "Da": 260, "Vi": 180}, criteria={"Vo": 0.45, "Da": 0.35, "Vi": 0.20}, stamina=34)
-    o, reason, rules = _pick(st, opts)
+    o, _reason, rules = _pick(st, opts)
     assert o["attr"] == "Vo" and "hajime.oikomi_bonus" in rules
 
 
@@ -396,8 +466,19 @@ def test_drinks_full_flag_caps_capacity():
     from hiro.brain.state import CAMPUS_HIRO
     from hiro.contracts import GameState
 
-    prod = {"idol_card_id": "i_card-shro-3-007", "mode": "produce-007", "step": 12, "stamina": 6, "max_stamina": 39, "produce_point": 278,
-            "params": {"Vo": 1, "Da": 1, "Vi": 1}, "growth_permil": {}, "star": 0, "drinks": ["a", "b", "c"], "drink_capacity": 4}
+    prod = {
+        "idol_card_id": "i_card-shro-3-007",
+        "mode": "produce-007",
+        "step": 12,
+        "stamina": 6,
+        "max_stamina": 39,
+        "produce_point": 278,
+        "params": {"Vo": 1, "Da": 1, "Vi": 1},
+        "growth_permil": {},
+        "star": 0,
+        "drinks": ["a", "b", "c"],
+        "drink_capacity": 4,
+    }
     pd = ProduceDeciders(CAMPUS_HIRO, None)
     assert pd.produce_state(GameState(produce=prod)).drink_capacity == 4
     assert pd.produce_state(GameState(produce=prod, page_fields={"drinks_full": True})).drink_capacity == 3
@@ -409,9 +490,19 @@ def test_action_select_skips_options_without_name():
     from hiro.brain.state import CAMPUS_HIRO
     from hiro.contracts import GameState
 
-    prod = {"mode": "produce-004", "step": 5, "stamina": 20, "max_stamina": 30, "produce_point": 0, "params": {"Vo": 1, "Da": 1, "Vi": 1}}
+    prod = {
+        "mode": "produce-004",
+        "step": 5,
+        "stamina": 20,
+        "max_stamina": 30,
+        "produce_point": 0,
+        "params": {"Vo": 1, "Da": 1, "Vi": 1},
+    }
     pd = ProduceDeciders(CAMPUS_HIRO, None)
-    d = pd.decide("ACTION_SELECT", GameState(produce=prod, page_fields={"options": [{"kind": "??", "center": [1, 1]}, _opt("sales")]}))
+    d = pd.decide(
+        "ACTION_SELECT",
+        GameState(produce=prod, page_fields={"options": [{"kind": "??", "center": [1, 1]}, _opt("sales")]}),
+    )
     assert d.action.args["option"] == "sales" and d.source == "rule"
     d = pd.decide("ACTION_SELECT", GameState(produce=prod, page_fields={"options": [{"kind": "??"}]}))
     assert d.action.kind.value == "Wait"
@@ -421,11 +512,19 @@ def test_nia_pitem_rules():
     """N.I.A 试镜后的 P 道具：PRO 选ワッペン [ww-NIA]、MASTER 选パスケース [ww-NIAM]；攻略没写的交回原有规则（None）。"""
     from hiro.brain.hajime_nia import choose_nia_pitem
 
-    pro = [{"index": 0, "name": "N.I.Aトートバッグ"}, {"index": 1, "name": "N.I.Aワッペン"}, {"index": 2, "name": "N.I.Aスマホリング"}]
+    pro = [
+        {"index": 0, "name": "N.I.Aトートバッグ"},
+        {"index": 1, "name": "N.I.Aワッペン"},
+        {"index": 2, "name": "N.I.Aスマホリング"},
+    ]
     i, _, rules = choose_nia_pitem(_nia(), pro, "ProducePlanType_Plan2")
     assert i == 1 and "nia.pitem_wappen" in rules
     assert choose_nia_pitem(_nia(), pro, "ProducePlanType_Plan3")[0] is None  # アノマリー除外
-    master = [{"index": 0, "name": "N.I.Aトートバッグ"}, {"index": 1, "name": "N.I.Aスマホリング"}, {"index": 2, "name": "N.I.Aパスケース"}]
+    master = [
+        {"index": 0, "name": "N.I.Aトートバッグ"},
+        {"index": 1, "name": "N.I.Aスマホリング"},
+        {"index": 2, "name": "N.I.Aパスケース"},
+    ]
     i, _, rules = choose_nia_pitem(_nia(mode="produce-005"), master)
     assert i == 2 and "nia.pitem_passcase" in rules
     assert choose_nia_pitem(_nia(mode="produce-005"), [{"index": 0, "name": "はつぼしブレスレット"}])[0] is None
@@ -436,10 +535,23 @@ def test_select_pitem_routes_nia():
     from hiro.brain.state import CAMPUS_HIRO
     from hiro.contracts import GameState
 
-    prod = {"mode": "produce-005", "step": 10, "stamina": 20, "max_stamina": 30, "produce_point": 0, "params": {"Vo": 1, "Da": 1, "Vi": 1},
-            "idol_card_id": "i_card-shro-3-007"}
-    items = [{"index": 0, "name": "N.I.Aトートバッグ"}, {"index": 1, "name": "N.I.Aスマホリング"}, {"index": 2, "name": "N.I.Aパスケース"}]
-    d = ProduceDeciders(CAMPUS_HIRO, None).decide("SELECT_PITEM", GameState(produce=prod, page_fields={"pitems": items}))
+    prod = {
+        "mode": "produce-005",
+        "step": 10,
+        "stamina": 20,
+        "max_stamina": 30,
+        "produce_point": 0,
+        "params": {"Vo": 1, "Da": 1, "Vi": 1},
+        "idol_card_id": "i_card-shro-3-007",
+    }
+    items = [
+        {"index": 0, "name": "N.I.Aトートバッグ"},
+        {"index": 1, "name": "N.I.Aスマホリング"},
+        {"index": 2, "name": "N.I.Aパスケース"},
+    ]
+    d = ProduceDeciders(CAMPUS_HIRO, None).decide(
+        "SELECT_PITEM", GameState(produce=prod, page_fields={"pitems": items})
+    )
     assert d.action.args["pick_indexes"] == [2] and "[ww-NIAM]" in d.reason
 
 
@@ -449,15 +561,29 @@ def test_nia_action_without_step_is_rule():
     from hiro.brain.state import CAMPUS_HIRO
     from hiro.contracts import GameState
 
-    prod = {"mode": "produce-004", "stamina": 20, "max_stamina": 30, "produce_point": 0, "params": {"Vo": 1, "Da": 1, "Vi": 1}}
-    d = ProduceDeciders(CAMPUS_HIRO, None).decide("ACTION_SELECT", GameState(produce=prod, page_fields={"options": [_opt("sales")]}))
+    prod = {
+        "mode": "produce-004",
+        "stamina": 20,
+        "max_stamina": 30,
+        "produce_point": 0,
+        "params": {"Vo": 1, "Da": 1, "Vi": 1},
+    }
+    d = ProduceDeciders(CAMPUS_HIRO, None).decide(
+        "ACTION_SELECT", GameState(produce=prod, page_fields={"options": [_opt("sales")]})
+    )
     assert d.source == "rule" and not d.warnings
 
 
 def test_hajime_tired_lesson_week_rests():
     """初 REGULAR 实机（协调 11-17）：中間まで 3 週、体力 9/30，可选 Vo / Da SP / Vi SP 课、授業、休む——累了（少了一半 / 15 以上）
     课程、授業让位给外出或休息，没有外出就休息 [g8-外出]（原来选了 Da SP 课，游戏弹「体力が低下しています」停 180 秒）。"""
-    opts = [_opt("training", "Vo", False), _opt("training", "Da", True), _opt("training", "Vi", True), _opt("class"), _opt("rest")]
+    opts = [
+        _opt("training", "Vo", False),
+        _opt("training", "Da", True),
+        _opt("training", "Vi", True),
+        _opt("class"),
+        _opt("rest"),
+    ]
     o, _, rules = _pick(_st(stamina=9, max_stamina=30, produce_point=40), opts)
     assert o["option"] == "rest" and "hajime.outing_when" in rules
 
@@ -482,8 +608,10 @@ def test_event_choice_pure_dialogue_picks_first():
 
     pd = ProduceDeciders(CAMPUS_HIRO, None)
     prod = {"mode": "produce-001", "stamina": 30, "max_stamina": 30, "params": {"Vo": 1, "Da": 1, "Vi": 1}}
-    for chs in ([{"index": 0, "text": "よろしく", "effect": ""}, {"index": 1, "text": "がんばろう", "effect": ""}],
-                [{"index": 0, "text": "A", "no_effect": True}, {"index": 1, "text": "B", "no_effect": True}]):
+    for chs in (
+        [{"index": 0, "text": "よろしく", "effect": ""}, {"index": 1, "text": "がんばろう", "effect": ""}],
+        [{"index": 0, "text": "A", "no_effect": True}, {"index": 1, "text": "B", "no_effect": True}],
+    ):
         d = pd.decide("EVENT_CHOICE", GameState(produce=prod, page_fields={"choices": chs}))
         assert d.action.args == {"select": 0} and d.source == "rule" and "没有效果" in d.reason
     # 平台的 page_fields.dialogue_only（ef07f2b）：选项只有文字、没读 effect，也直接选第一个；false 时照旧走粗估 / 停机
@@ -497,7 +625,7 @@ def test_event_choice_pure_dialogue_picks_first():
 def test_hajime_full_stamina_prefers_shop_over_outing():
     """初实机（协调 11-17）：体力 30/30、没课的周，原来选了外出。满体力外出回体力用不上：P 点够删卡时相談排在外出前。"""
     opts = [_opt("outing"), _opt("shop"), _opt("rest")]
-    o, reason, _ = _pick(_st(stamina=30, max_stamina=30, produce_point=150), opts)
+    o, _reason, _ = _pick(_st(stamina=30, max_stamina=30, produce_point=150), opts)
     assert o["option"] == "shop"
 
 
@@ -514,16 +642,23 @@ def test_hajime_shop_only_when_affordable():
     assert o["option"] == "rest"  # N.I.A 同样：相談做不成事排最后
 
 
-
 def test_declined_option_not_chosen_again():
     """平台点掉相談開始確認（P 点太少）后回到选行动页，page_fields.declined_options=["shop"]：这一周不再选相談。"""
     from hiro.contracts import GameState
 
-    prod = {"mode": "produce-001", "stamina": 29, "max_stamina": 30, "produce_point": 120, "params": {"Vo": 1, "Da": 1, "Vi": 1}}
+    prod = {
+        "mode": "produce-001",
+        "stamina": 29,
+        "max_stamina": 30,
+        "produce_point": 120,
+        "params": {"Vo": 1, "Da": 1, "Vi": 1},
+    }
     opts = [{"option": "shop"}, {"option": "outing"}]
     d = _pd().decide("ACTION_SELECT", GameState(produce=prod, page_fields={"options": opts}))
     assert d.action.args.get("option") == "shop"
-    d = _pd().decide("ACTION_SELECT", GameState(produce=prod, page_fields={"options": opts, "declined_options": ["shop"]}))
+    d = _pd().decide(
+        "ACTION_SELECT", GameState(produce=prod, page_fields={"options": opts, "declined_options": ["shop"]})
+    )
     assert d.action.args.get("option") == "outing"
     o, _, _ = _pick(_st(stamina=30, max_stamina=30), [_opt("outing"), _opt("rest")])
     assert o["option"] == "outing"  # 满体力不能休息、只剩外出
@@ -532,8 +667,18 @@ def test_declined_option_not_chosen_again():
 
 
 # ---- 初 / N.I.A 选卡（协调 11-17「N.I.A 必拿卡表」；实机 11-17：H.I.F 必拿表让每页为 せのびの魔法 刷新 / 禁用用光） ----
-TELEVI, GENKI_AISATSU, YURUFUWA, KAIKA = "p_card-00-men-3_012", "p_card-02-act-1_004", "p_card-02-act-1_028", "p_card-02-act-3_038"
-LOVELY_WINK, MINNA, HIGH_TENSION, KIRAKIRA = "p_card-02-act-2_046", "p_card-02-act-2_049", "p_card-00-men-2_014", "p_card-02-act-2_062"
+TELEVI, GENKI_AISATSU, YURUFUWA, KAIKA = (
+    "p_card-00-men-3_012",
+    "p_card-02-act-1_004",
+    "p_card-02-act-1_028",
+    "p_card-02-act-3_038",
+)
+LOVELY_WINK, MINNA, HIGH_TENSION, KIRAKIRA = (
+    "p_card-02-act-2_046",
+    "p_card-02-act-2_049",
+    "p_card-00-men-2_014",
+    "p_card-02-act-2_062",
+)
 RESTART, SHIKIRI, GAMUSHARA = "p_card-02-men-1_030", "p_card-00-men-3_005", "p_card-02-act-1_071"
 
 
@@ -550,7 +695,10 @@ def _card_pick(mode, cands, deck=(), rerolls=4, excludes=2):
             "params": {"Vo": 200, "Da": 200, "Vi": 200}, "growth_permil": {}, "star": 0, "rerolls_left": rerolls, "excludes_left": excludes,
             "deck": [{"card_id": c, "upgrade": 0} for c in deck]}  # fmt: skip
     pd = ProduceDeciders(CAMPUS_HIRO, None)
-    return pd.decide("SELECT_CARD", GameState(produce=prod, page_fields={"candidates": [{"card_id": c, "upgrade": 0} for c in cands]}))
+    return pd.decide(
+        "SELECT_CARD",
+        GameState(produce=prod, page_fields={"candidates": [{"card_id": c, "upgrade": 0} for c in cands]}),
+    )
 
 
 @pytest.mark.master
@@ -572,7 +720,9 @@ def test_card_pick_prefers_signature_buff_then_value():
     d = _card_pick("produce-004", [YURUFUWA, SHIKIRI, KAIKA])
     assert _picked(d) == 1  # 仕切り直し：社区 S
     d = _card_pick("produce-001", [KAIKA, GENKI_AISATSU, GAMUSHARA])
-    assert _picked(d) == 0  # 都是一次性、加やる気：SSR 開花 在 R がむしゃら（卡表里只是换卡保留）前（11-17 初实机这一页）
+    assert (
+        _picked(d) == 0
+    )  # 都是一次性、加やる気：SSR 開花 在 R がむしゃら（卡表里只是换卡保留）前（11-17 初实机这一页）
 
 
 @pytest.mark.master
@@ -607,7 +757,9 @@ def test_card_pick_loop_part_until_kept():
     assert _picked(d) == 1
     eieio, imetore = "p_card-02-men-1_031", "p_card-02-men-2_008"
     d = _card_pick("produce-001", [eieio, imetore, GAMUSHARA], deck=[GENKI_AISATSU])
-    assert _picked(d) == 0  # えいえいおー（固有 P 道具的触发牌，保留 2 张）还缺：排在一次性的 イメトレ 前（11-17 初实机这一页）
+    assert (
+        _picked(d) == 0
+    )  # えいえいおー（固有 P 道具的触发牌，保留 2 张）还缺：排在一次性的 イメトレ 前（11-17 初实机这一页）
 
 
 @pytest.mark.master
@@ -630,12 +782,23 @@ def test_card_pick_live_produce_without_step_star():
             "growth_permil": {}, "drinks": [], "param_cap": 1000, "deck_size": 2,
             "deck": [{"card_id": KAIKA, "upgrade": 0}, {"card_id": GENKI_AISATSU, "upgrade": 0}]}  # fmt: skip
     pd = ProduceDeciders(CAMPUS_HIRO, None)
-    d = pd.decide("SELECT_CARD", GameState(produce=prod, page_fields={"candidates": [{"card_id": RESTART}, {"card_id": YURUFUWA}, {"card_id": KAIKA}]}))
+    d = pd.decide(
+        "SELECT_CARD",
+        GameState(
+            produce=prod, page_fields={"candidates": [{"card_id": RESTART}, {"card_id": YURUFUWA}, {"card_id": KAIKA}]}
+        ),
+    )
     assert _picked(d) == 2 and "已有 1 张" in d.reason and "せのび" not in d.reason
 
 
 # ---- 初 / N.I.A 的局面（协调 11-17 ②：没有 star 是真值、step 缺失按未知）----
-LIVE_NIA_DECK = ["p_card-02-ido-3_105", "p_card-02-act-1_037", "p_card-00-act-0_001", "p_card-02-men-1_031", "p_card-02-men-2_004"]
+LIVE_NIA_DECK = [
+    "p_card-02-ido-3_105",
+    "p_card-02-act-1_037",
+    "p_card-00-act-0_001",
+    "p_card-02-men-1_031",
+    "p_card-02-men-2_004",
+]
 
 
 def _live_state(mode="produce-004", deck=LIVE_NIA_DECK, **pf):
@@ -743,8 +906,19 @@ def test_hajime_nia_drink_no_hif_sim():
 
 
 # ---- 主打好印象的卡（协调 11-18 N.I.A 第二局：拿了 キラメキ / キセキの魔法 / ファンシーチャーム）----
-KIRAMEKI, KISEKI, FANCY, TEBYOSHI = "p_card-02-act-2_048", "p_card-02-act-3_052", "p_card-02-men-2_058", "p_card-02-act-1_003"
-PASTEL, SHIAWASE, OTOME, HONBAN, OMOIDASHI = "p_card-02-men-1_033", "p_card-02-men-1_035", "p_card-02-men-2_060", "p_card-02-men-2_054", "p_card-02-men-1_032"
+KIRAMEKI, KISEKI, FANCY, TEBYOSHI = (
+    "p_card-02-act-2_048",
+    "p_card-02-act-3_052",
+    "p_card-02-men-2_058",
+    "p_card-02-act-1_003",
+)
+PASTEL, SHIAWASE, OTOME, HONBAN, OMOIDASHI = (
+    "p_card-02-men-1_033",
+    "p_card-02-men-1_035",
+    "p_card-02-men-2_060",
+    "p_card-02-men-2_054",
+    "p_card-02-men-1_032",
+)
 
 
 @pytest.mark.master
@@ -755,7 +929,10 @@ def test_impression_main_cards_detected():
     from hiro.brain.deciders import _impression_main
 
     assert all(_impression_main(c) for c in (KIRAMEKI, KISEKI, FANCY, TEBYOSHI))
-    assert not any(_impression_main(c) for c in ("p_card-02-men-2_057", "p_card-02-act-3_045", "p_card-02-men-2_111", "p_card-02-men-2_056", KAIKA))
+    assert not any(
+        _impression_main(c)
+        for c in ("p_card-02-men-2_057", "p_card-02-act-3_045", "p_card-02-men-2_111", "p_card-02-men-2_056", KAIKA)
+    )
 
 
 @pytest.mark.master
@@ -788,3 +965,29 @@ def test_consult_one_delete_per_visit():
     assert pd.decide("CONSULT", _live_state("produce-002", shelf=[], services=after)).action.kind.name == "SHOP_BUY"
     used = {"delete": {"price": 125, "available": True, "used": True}}
     assert _pd().decide("CONSULT", _live_state("produce-004", shelf=[], services=used)).action.kind.name == "SHOP_END"
+
+
+# ---------------------------------------------------------------- 属性上限（11-23 Mac 初 REGULAR：Vo 1000/1000 还选 Vo 课，游戏弹「レッスンパラメータ上限」卡住）
+
+
+def test_hajime_lesson_skips_capped_attr():
+    opts = [_opt("training", "Vo", True), _opt("training", "Da", False), _opt("training", "Vi", True)]
+    o, _, _ = _pick(_st(main_attr="Vo", params={"Vo": 1000, "Da": 288, "Vi": 275}), opts)
+    assert o["attr"] == "Vi" and o["sp"]  # Vo 封顶：剩下的里 SP 优先
+
+
+def test_hajime_oikomi_skips_capped_attr():
+    opts = [
+        {**_opt("training", "Vo"), "oikomi": True},
+        {**_opt("training", "Da"), "oikomi": True},
+        {**_opt("training", "Vi"), "oikomi": True},
+    ]
+    st = _st(main_attr="Vo", params={"Vo": 1000, "Da": 393, "Vi": 313}, criteria={"Vo": 0.4, "Da": 0.35, "Vi": 0.25})
+    o, _, _ = _pick(st, opts)
+    assert o["attr"] == "Da"  # Vo 封顶：审查基准第二高的
+
+
+def test_hajime_lesson_all_capped_falls_back():
+    opts = [_opt("training", "Vo", True), _opt("training", "Da", False)]
+    o, _, _ = _pick(_st(main_attr="Vo", params={"Vo": 1000, "Da": 1000, "Vi": 1000}), opts)
+    assert o["attr"] == "Vo"  # 都封顶了：照原来的规则选，不卡住

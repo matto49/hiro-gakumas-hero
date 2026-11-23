@@ -3,8 +3,8 @@
 from types import SimpleNamespace as NS
 
 import hiro.produce.hif as hif
-from hiro.vision.ocr import Box, Text
 from hiro.produce.hif import HiroHifStrategy
+from hiro.vision.ocr import Box, Text
 
 
 def b(text, y):

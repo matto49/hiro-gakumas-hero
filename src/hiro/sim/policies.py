@@ -56,7 +56,9 @@ class PreviewBrainPolicy(BrainPolicy):
         from hiro.sim.preview import preview_actions, prompt_block, slot_previews
 
         state = game.state()
-        previews = preview_actions(game.env, self.meta, worlds=self.worlds, seed=game.env.turn * 1000 + game.env.play_count)
+        previews = preview_actions(
+            game.env, self.meta, worlds=self.worlds, seed=game.env.turn * 1000 + game.env.play_count
+        )
         state.action_previews = prompt_block(slot_previews(previews, game))
         game.memory.plan = []  # 每步都有新的预演，不沿用旧计划
         d = self.brain.decide(state, game.memory)
@@ -67,7 +69,14 @@ class ExamPolicyPolicy(BrainPolicy):
     """实机 --exam-policy 的同一条选择逻辑（hiro.produce.exam_policy.decide_with_policy）+ 实机同款预演参数（16 世界、每步 deadline），
     用来做专家模式的离线验收（reports/analysis/expert-preview-pilot.md §5）。step_seconds 记每步决策耗时（含预演）。"""
 
-    def __init__(self, brain: BattleBrain, meta: dict | None, policy: str = "expert", worlds: int = 16, budget_s: float | None = None):
+    def __init__(
+        self,
+        brain: BattleBrain,
+        meta: dict | None,
+        policy: str = "expert",
+        worlds: int = 16,
+        budget_s: float | None = None,
+    ):
         super().__init__(brain)
         from hiro.produce.exam_policy import PREVIEW_BUDGET_S
 
@@ -106,7 +115,9 @@ class PreviewExpert:
     def act(self, game):
         from hiro.sim.preview import preview_actions
 
-        best = preview_actions(game.env, self.meta, worlds=self.worlds, seed=game.env.turn * 1000 + game.env.play_count, depth=self.depth)[0]
+        best = preview_actions(
+            game.env, self.meta, worlds=self.worlds, seed=game.env.turn * 1000 + game.env.play_count, depth=self.depth
+        )[0]
         return best.action, None, None
 
     def after(self, game, state, d):
@@ -170,10 +181,14 @@ def heuristic_action(env, rng: random.Random) -> dict:
     # 复制饮料：手里有可打的持续核心时先喝，接着打它
     for d in drinks:
         effects = env.drink_definitions[env.drinks[d["id"]]]["effects"]
-        if any(e["op"] == "repeat_card" for e in effects):
+        if any(e["op"] == "repeat_card" for e in effects):  # noqa: SIM102
             if env.actions >= 1 and any(_sustained(env.definition(a["id"])) for a in real):
                 return d
-    others = [d for d in drinks if not any(e["op"] == "repeat_card" for e in env.drink_definitions[env.drinks[d["id"]]]["effects"])]
+    others = [
+        d
+        for d in drinks
+        if not any(e["op"] == "repeat_card" for e in env.drink_definitions[env.drinks[d["id"]]]["effects"])
+    ]
     if others and (env.turn <= 2 or last):
         return rng.choice(others)
     if real:
@@ -191,7 +206,7 @@ def heuristic_action(env, rng: random.Random) -> dict:
     trouble = [a for a in plays if env.definition(a["id"]).get("trouble")]
     if trouble and rng.random() < 0.5:
         return trouble[0]  # 打出眠気：消耗行动、除外，压缩牌堆
-    return dict(kind="end_turn")
+    return {"kind": "end_turn"}
 
 
 # ---------- 社区打法续打（预演优化 P1，reports/analysis/preview-optimization-plan.md §2）----------
@@ -206,7 +221,7 @@ def _ops(defn) -> dict:
 
 
 def _mults(env) -> list:
-    return [t.get("bonus_permil") or 0 for t in env.turns[env.turn:]]
+    return [t.get("bonus_permil") or 0 for t in env.turns[env.turn :]]
 
 
 def _cash_value(env, defn, mult: int) -> float:
@@ -267,7 +282,9 @@ def community_value(env, a: dict) -> float:
     if _eureka_on(env) and env.hp * 2 > env.max_hp and (defn.get("cost") or {}).get("hp"):
         v += 15  # エウレカ：HP 压到半血以下才触发
     if CYCLE_RULES and "create_deck_random" in ops:
-        v -= sleep_insert_cost(env)  # 成長痛 / 気まぐれハート：往山札随机位置塞眠気，按局面权衡（用户：可以抉择，不一刀切）
+        v -= sleep_insert_cost(
+            env
+        )  # 成長痛 / 気まぐれハート：往山札随机位置塞眠気，按局面权衡（用户：可以抉择，不一刀切）
     return v
 
 
@@ -358,7 +375,17 @@ def _drink_cls(env, d) -> str:
         k = drink_class(did)
         if k == "other":  # master 里查不到（合成开局的饮料 id 也是 master id，一般不会走到这里）：按效果粗分
             ops = {e["op"] for e in env.drink_definitions[did]["effects"]}
-            k = "copy" if "repeat_card" in ops else "action" if "extra_action" in ops else "draw" if "draw" in ops else "burst" if "timed_score_boost" in ops else "other"
+            k = (
+                "copy"
+                if "repeat_card" in ops
+                else "action"
+                if "extra_action" in ops
+                else "draw"
+                if "draw" in ops
+                else "burst"
+                if "timed_score_boost" in ops
+                else "other"
+            )
         _CLASS_OF[did] = k
     return _CLASS_OF[did]
 
@@ -373,7 +400,12 @@ def drink_timing_ok(env, d, rem: int, good: list, targets: list, cash_now: bool,
     if k == "swap":
         return acts >= 1 and not good
     if k == "copy":
-        actives = [a for a in real if env.definition(a["id"]).get("category") in ("active", "ProduceCardCategory_ActiveSkill") or "shield_score" in _ops(env.definition(a["id"]))]
+        actives = [
+            a
+            for a in real
+            if env.definition(a["id"]).get("category") in ("active", "ProduceCardCategory_ActiveSkill")
+            or "shield_score" in _ops(env.definition(a["id"]))
+        ]
         return acts >= 1 and ((rem <= 6 and bool(targets)) or (rem <= 2 and bool(actives or targets)))
     if k == "action":
         return acts <= len(good) - 1 and rem <= 8
@@ -389,7 +421,9 @@ def drink_timing_ok(env, d, rem: int, good: list, targets: list, cash_now: bool,
 def community_action(env, rng: random.Random, allow_drinks: bool = True) -> dict:
     legal = env.legal_actions()
     plays = [a for a in legal if a["kind"] == "play"]
-    drinks = [a for a in legal if a["kind"] == "drink"] if allow_drinks else []  # allow_drinks=False：时机曲线工具（tools/drinktime）自己决定何时喝
+    drinks = (
+        [a for a in legal if a["kind"] == "drink"] if allow_drinks else []
+    )  # allow_drinks=False：时机曲线工具（tools/drinktime）自己决定何时喝
     rem = len(env.turns) - env.turn
     real = [a for a in plays if not env.definition(a["id"]).get("trouble")]
     vals = {a["id"]: community_value(env, a) for a in real}
@@ -435,10 +469,12 @@ def community_action(env, rng: random.Random, allow_drinks: bool = True) -> dict
     trouble = [a for a in plays if env.definition(a["id"]).get("trouble")]
     if trouble and rng.random() < 0.5:
         return trouble[0]
-    return dict(kind="end_turn")
+    return {"kind": "end_turn"}
 
 
-FINISHER_AT_2 = False  # v1（剩 2 回合只在本回合倍率不低于最后一回合时打，贴近用户规则）；v2（剩 2 就打）bench 与 v1 无显著差
+FINISHER_AT_2 = (
+    False  # v1（剩 2 回合只在本回合倍率不低于最后一回合时打，贴近用户规则）；v2（剩 2 就打）bench 与 v1 无显著差
+)
 # 续打策略：一律社区打法（用户 2026-11-02：「旧启发式明显有问题，参考社区打法」——heuristic_action 前 2 回合 / 末回合随机喝饮料）。
 # 不再读环境变量回退；离线对照工具要比 heuristic 时直接改这个属性（tools/annot/bench_q11.py 的 rollout 参数）
 ROLLOUT = "community"

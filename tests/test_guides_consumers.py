@@ -2,12 +2,17 @@
 
 import json
 
-import pytest
-
 from hiro.brain import guides
 
+import pytest
+
 FKTN = "i_card-fktn-3-000"
-TEBYOSHI, IMETORE, KAIKA, BASIC = "p_card-02-act-1_003", "p_card-02-men-2_008", "p_card-02-act-3_038", "p_card-00-act-0_001"
+TEBYOSHI, IMETORE, KAIKA, BASIC = (
+    "p_card-02-act-1_003",
+    "p_card-02-men-2_008",
+    "p_card-02-act-3_038",
+    "p_card-00-act-0_001",
+)
 OTOME, MINNA = "p_card-02-men-2_060", "p_card-02-act-2_049"
 ENTRIES = [
     {"id": "hajime.idol.i_card-fktn-3-000.card_pick.test", "kind": "written", "scope": {"idol_card": FKTN}, "decision": "card_pick",
@@ -27,8 +32,13 @@ ENTRIES = [
 @pytest.fixture
 def pack(monkeypatch, tmp_path):
     for mode in ("hajime", "nia"):
-        (tmp_path / f"{mode}-t.json").write_text(json.dumps({"schema": 1, "mode": mode, "version": "t", "entries": ENTRIES}, ensure_ascii=False))
-    (tmp_path / "manifest.json").write_text(json.dumps({"schema": 1, "packs": {m: {"name": f"{m}-t"} for m in ("hajime", "nia")}}))
+        (tmp_path / f"{mode}-t.json").write_text(
+            json.dumps({"schema": 1, "mode": mode, "version": "t", "entries": ENTRIES}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"schema": 1, "packs": {m: {"name": f"{m}-t"} for m in ("hajime", "nia")}}), encoding="utf-8"
+    )
     monkeypatch.setenv("HIRO_GUIDES_DIR", str(tmp_path))
     monkeypatch.delenv("HIRO_GUIDES", raising=False)
     guides._load_pack.cache_clear()
@@ -54,11 +64,16 @@ def test_card_pick_uses_guide(pack, monkeypatch):
     from hiro.contracts import GameState
 
     def pick(cands, deck=()):
-        d = _pd().decide("SELECT_CARD", GameState(produce=_prod(deck=deck), page_fields={"candidates": [{"card_id": c} for c in cands]}))
+        d = _pd().decide(
+            "SELECT_CARD",
+            GameState(produce=_prod(deck=deck), page_fields={"candidates": [{"card_id": c} for c in cands]}),
+        )
         return action_key(d.action), d.reason
 
     key, reason = pick([TEBYOSHI, IMETORE])
-    assert key == "pick:1" and "攻略" in reason  # 没有攻略时拿 手拍子（主打好印象）；攻略把它列为避开、イメトレ 列为强卡
+    assert (
+        key == "pick:1" and "攻略" in reason
+    )  # 没有攻略时拿 手拍子（主打好印象）；攻略把它列为避开、イメトレ 列为强卡
     key, _ = pick([MINNA, KAIKA], deck=[MINNA])
     assert key == "pick:0"  # みんな大好き：攻略 keep 2，牌组里 1 张还缺
     monkeypatch.setenv("HIRO_GUIDES", "0")
@@ -96,7 +111,13 @@ def test_stat_share_as_weight_and_no_custom():
     """统计条目：占比换成 weight（≥ 75% 算强卡）；card_upgrade 统计没有定制项，不当定制顺序。"""
     from hiro.brain.idol_know import CardKnow
 
-    k = CardKnow(prefer={"a": {"id": "a", "stat": {"share": 0.96}}, "b": {"id": "b", "stat": {"share": 0.5}}, "c": {"id": "c", "weight": 60}})
+    k = CardKnow(
+        prefer={
+            "a": {"id": "a", "stat": {"share": 0.96}},
+            "b": {"id": "b", "stat": {"share": 0.5}},
+            "c": {"id": "c", "weight": 60},
+        }
+    )
     assert k.weight("a") == 96 and k.strong("a") and not k.strong("b") and k.weight("c") == 60
 
 
@@ -104,10 +125,18 @@ def test_stat_share_as_weight_and_no_custom():
 def test_stat_upgrade_not_customize(monkeypatch, tmp_path):
     from hiro.brain.idol_know import customize_plan
 
-    e = {"id": "stat.nia.x.card_upgrade", "kind": "stat", "scope": {"mode": "nia", "idol_card": FKTN}, "decision": "card_upgrade",
-         "content": {"prefer": [{"id": OTOME, "stat": {"share": 0.7}}]}, "evidence": [{"kind": "ranking", "mode": "nia", "n": 100}]}
-    (tmp_path / "nia-s.json").write_text(json.dumps({"schema": 1, "entries": [e]}))
-    (tmp_path / "manifest.json").write_text(json.dumps({"schema": 1, "packs": {"nia": {"name": "nia-s"}}}))
+    e = {
+        "id": "stat.nia.x.card_upgrade",
+        "kind": "stat",
+        "scope": {"mode": "nia", "idol_card": FKTN},
+        "decision": "card_upgrade",
+        "content": {"prefer": [{"id": OTOME, "stat": {"share": 0.7}}]},
+        "evidence": [{"kind": "ranking", "mode": "nia", "n": 100}],
+    }
+    (tmp_path / "nia-s.json").write_text(json.dumps({"schema": 1, "entries": [e]}), encoding="utf-8")
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"schema": 1, "packs": {"nia": {"name": "nia-s"}}}), encoding="utf-8"
+    )
     monkeypatch.setenv("HIRO_GUIDES_DIR", str(tmp_path))
     guides._load_pack.cache_clear()
     assert customize_plan("produce-004", FKTN) is None
@@ -120,10 +149,18 @@ def test_review_pack_protect_and_genki_cash(monkeypatch, tmp_path):
     from hiro.brain.deciders import _flow_delete_pool
 
     genki = "p_card-02-act-1_004"  # 元気な挨拶：元気の110%分
-    e = {"id": "hajime.style-review.card_remove.t", "kind": "written", "scope": {"mode": "hajime", "style": "review"}, "decision": "card_remove",
-         "content": {"avoid": ["class:genki_cash"], "prefer": [KAIKA]}, "evidence": [{"kind": "guide", "ref": "t"}]}
-    (tmp_path / "hajime-r.json").write_text(json.dumps({"schema": 1, "entries": [e]}))
-    (tmp_path / "manifest.json").write_text(json.dumps({"schema": 1, "packs": {"hajime": {"name": "hajime-r"}}}))
+    e = {
+        "id": "hajime.style-review.card_remove.t",
+        "kind": "written",
+        "scope": {"mode": "hajime", "style": "review"},
+        "decision": "card_remove",
+        "content": {"avoid": ["class:genki_cash"], "prefer": [KAIKA]},
+        "evidence": [{"kind": "guide", "ref": "t"}],
+    }
+    (tmp_path / "hajime-r.json").write_text(json.dumps({"schema": 1, "entries": [e]}), encoding="utf-8")
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"schema": 1, "packs": {"hajime": {"name": "hajime-r"}}}), encoding="utf-8"
+    )
     monkeypatch.setenv("HIRO_GUIDES_DIR", str(tmp_path))
     guides._load_pack.cache_clear()
     cards = [{"index": 0, "card_id": KAIKA}, {"index": 1, "card_id": genki}]
@@ -137,5 +174,7 @@ def test_signature_buff_per_style():
     """拿手 buff：麻央 Fluorite 好調、莉波 Howling 集中、リーリヤ 極光 強気、ことね 好印象、广 やる気。"""
     from hiro.brain.deciders import _signature_buff
 
-    assert [_signature_buff(i) for i in ("i_card-amao-3-000", "i_card-hrnm-3-012", "i_card-kllj-3-008", FKTN, "i_card-shro-3-007")] == \
-        ["好調", "集中", "強気", "好印象", "やる気"]
+    assert [
+        _signature_buff(i)
+        for i in ("i_card-amao-3-000", "i_card-hrnm-3-012", "i_card-kllj-3-008", FKTN, "i_card-shro-3-007")
+    ] == ["好調", "集中", "強気", "好印象", "やる気"]

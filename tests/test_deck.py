@@ -9,11 +9,11 @@
 
 from pathlib import Path
 
-import cv2
-import pytest
-
 import hiro  # noqa: F401
 from hiro.vision import deck
+
+import cv2
+import pytest
 
 FIX = Path(__file__).with_name("fixtures")
 DIALOG = (0, 380, 720, 1080)
@@ -79,7 +79,10 @@ def test_find_deck_button():
     assert deck.find_deck_button(_img("select_card/00283.jpg")) == (654, 1200)
     assert deck.find_deck_button(_img("scenes/00041-ACTION_SELECT.jpg")) == (558, 1213)
     assert deck.find_deck_button(_img("shop/consult-r5.jpg")) == (558, 1213)
-    assert deck.find_deck_button(_img("deck/q7-action-select-icons.png")) == (558, 1213)  # 实机选行动页（文档 461 / 礼盒 558 / 菜单 653）
+    assert deck.find_deck_button(_img("deck/q7-action-select-icons.png")) == (
+        558,
+        1213,
+    )  # 实机选行动页（文档 461 / 礼盒 558 / 菜单 653）
     assert deck.find_deck_button(_img("deck/list-kaa.png")) is None
 
 
@@ -123,7 +126,7 @@ def test_deck_list_observation():
     assert obs.problems(strict=True) == []
     f = obs.fields
     assert f["deck"] is None and f["deck_size"] == 16 and f["complete"] is False and len(f["cards"]) == 12
-    assert set(f["cards"][0]) == set(("index", "row", "col", "card_id", "name", "upgrade", "customized", "center", "dimmed"))
+    assert set(f["cards"][0]) == {"index", "row", "col", "card_id", "name", "upgrade", "customized", "center", "dimmed"}
     assert obs.field_meta["complete"].note == "只看到 12 / 16 张（要滑动再读）"
 
     # 拼接后的完整牌组：deck 为 ProduceState.deck 格式
@@ -163,7 +166,17 @@ def test_merge_dialog_screens():
 
     def screen(first_row: int, n_rows: int) -> list[dict]:
         cells = [(r, c) for r in range(first_row, first_row + n_rows) for c in range(4) if r * 4 + c < len(full)]
-        return [{"row": r - first_row, "col": c, "card_id": full[r * 4 + c], "name": None, "upgrade": 0, "customized": False} for r, c in cells]
+        return [
+            {
+                "row": r - first_row,
+                "col": c,
+                "card_id": full[r * 4 + c],
+                "name": None,
+                "upgrade": 0,
+                "customized": False,
+            }
+            for r, c in cells
+        ]
 
     m = deck.merge_dialog_screens([screen(0, 3), screen(2, 3), screen(3, 3), screen(3, 3)])
     assert [c["card_id"] for c in m["cards"]] == full and [c["deck_index"] for c in m["cards"]] == list(range(22))
@@ -191,7 +204,9 @@ def test_merge_q14_no_scroll_wildcards():
 def test_merge_wildcard_needs_known_match():
     """全是没认出的格不能当对齐依据：两屏毫无重叠时 complete=False。"""
     unk = [{"row": 0, "col": c, "card_id": None, "name": None, "upgrade": None, "customized": None} for c in range(4)]
-    known = [{"row": 0, "col": c, "card_id": f"x{c}", "name": None, "upgrade": 0, "customized": False} for c in range(4)]
+    known = [
+        {"row": 0, "col": c, "card_id": f"x{c}", "name": None, "upgrade": 0, "customized": False} for c in range(4)
+    ]
     m = deck.merge_dialog_screens([unk, known])
     assert m["new_rows"] == [1, 1] and m["complete"] is False
 
@@ -216,7 +231,11 @@ def test_merge_deck_list_overlap():
     full = [f"c{i:02d}" for i in range(22)]
     r = merge_deck_list([_list_screen(full, 0), _list_screen(full, 2), _list_screen(full, 3)])
     assert r["complete"] is True and r["screens"] == 3 and len(r["deck"]) == 22
-    assert [d["card_id"] for d in r["deck"]] == full and r["deck"][5]["customized"] is True and r["deck"][3]["upgrade"] == 1
+    assert (
+        [d["card_id"] for d in r["deck"]] == full
+        and r["deck"][5]["customized"] is True
+        and r["deck"][3]["upgrade"] == 1
+    )
     assert [c["deck_index"] for c in r["cards"]] == list(range(22))
 
 
@@ -226,8 +245,14 @@ def test_merge_deck_list_fallback_and_mismatch():
 
     full = [f"c{i:02d}" for i in range(22)]
     r = merge_deck_list([_list_screen(full, 0), _list_screen(full, 3)])
-    assert r["complete"] is True and [d["card_id"] for d in r["deck"]] == full and "按首屏 + 末屏行号拼" in r["problems"][0]
-    bad = merge_deck_list([_list_screen(full, 0, size=25), _list_screen(full, 2, size=25), _list_screen(full, 3, size=25)])
+    assert (
+        r["complete"] is True
+        and [d["card_id"] for d in r["deck"]] == full
+        and "按首屏 + 末屏行号拼" in r["problems"][0]
+    )
+    bad = merge_deck_list(
+        [_list_screen(full, 0, size=25), _list_screen(full, 2, size=25), _list_screen(full, 3, size=25)]
+    )
     assert bad["deck"] is None and bad["complete"] is False and any("25" in p for p in bad["problems"])
 
 
@@ -252,7 +277,11 @@ def test_merged_deck_list_into_produce_deck():
     raw = merge_deck_list([_list_screen(full, 0), _list_screen(full, 2), _list_screen(full, 3)])
     obs = observation(1, 0.0, "DECK_LIST", raw)
     st = reduce(GameState(produce={}), obs)
-    assert [d["card_id"] for d in st.produce["deck"]] == full and st.produce["deck"][5] == {"card_id": "c05", "upgrade": 1, "customized": True}
+    assert [d["card_id"] for d in st.produce["deck"]] == full and st.produce["deck"][5] == {
+        "card_id": "c05",
+        "upgrade": 1,
+        "customized": True,
+    }
 
 
 def test_dialog_whole_deck_fields():
@@ -267,7 +296,11 @@ def test_dialog_whole_deck_fields():
                                                       "confirm": None, "deck_complete": m["complete"], "deck_screens": len(screens)})  # fmt: skip
     f = obs.fields
     assert f["deck_complete"] is True and f["deck_screens"] == 3 and len(f["cards"]) == 22
-    assert [c["deck_index"] for c in f["cards"]] == list(range(22)) and f["cards"][21]["screen"] == 2 and f["cards"][0]["dimmed"] is False
+    assert (
+        [c["deck_index"] for c in f["cards"]] == list(range(22))
+        and f["cards"][21]["screen"] == 2
+        and f["cards"][0]["dimmed"] is False
+    )
 
 
 def _main20_list():
@@ -307,7 +340,16 @@ def test_merge_deck_list_real_main20r1():
     assert r["complete"] is True and r["problems"] == [] and len(r["deck"]) == 20
     names = [c["name"] for c in r["cards"]]
     assert names[:4] == ["届いて！", "あのときの約束", "せのびの魔法", "エウレカ！"]
-    assert names[-8:] == ["ゆめみごこち", "成長痛", "えいえいおー", "えいえいおー", "えいえいおー", "思い出し笑い", "距離感の基本", "紅葉ランニング"]
+    assert names[-8:] == [
+        "ゆめみごこち",
+        "成長痛",
+        "えいえいおー",
+        "えいえいおー",
+        "えいえいおー",
+        "思い出し笑い",
+        "距離感の基本",
+        "紅葉ランニング",
+    ]
     assert [(d["upgrade"]) for d in r["deck"][12:16]] == [1, 1, 1, 0]
 
 
@@ -316,7 +358,7 @@ def _cell_with_red(blobs, size=141):
     import numpy as np
 
     img = np.full((size, size, 3), 255, np.uint8)
-    y1, x1 = int(round(deck.PLUS_BOX[0] * size)), int(round(deck.PLUS_BOX[2] * size))
+    y1, x1 = int(round(deck.PLUS_BOX[0] * size)), int(round(deck.PLUS_BOX[2] * size))  # noqa: RUF046
     for x, y, w, h in blobs:
         img[y1 + y : y1 + y + h, x1 + x : x1 + x + w] = (0, 0, 230)  # BGR 纯红
     return img

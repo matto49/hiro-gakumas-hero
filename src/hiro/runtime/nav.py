@@ -46,5 +46,3 @@ def goto_home(rt, timeout: float = HOME_TIMEOUT):
         return None
 
     return rt.drive(step, timeout, "回首页")
-
-

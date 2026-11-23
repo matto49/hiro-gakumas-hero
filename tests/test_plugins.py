@@ -1,11 +1,13 @@
-import pytest
-
 from hiro import plugins
+
+import pytest
 
 
 class Advisor:
     def on_round_start(self, round_no, context): ...
-    def decide(self, state, memory, previews, legal): return legal[0]
+    def decide(self, state, memory, previews, legal):
+        return legal[0]
+
     def on_round_end(self, result): ...
 
 

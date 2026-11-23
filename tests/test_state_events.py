@@ -1,9 +1,9 @@
 """预测器 hiro.state.events：docs/state-events.md §3 每个事件至少一个单测（H1 任务单）。"""
 
-import pytest
-
 import hiro.sim  # noqa: F401  gakumas-player 路径
 from hiro.state.events import EVENT_KINDS, check_value, deck_keys, initial_deck, make_event, predict
+
+import pytest
 
 DAY, TODOITE, EIEI, SLEEP = "p_card-02-act-1_037", "p_card-02-act-3_039", "p_card-02-men-1_031", "p_card-00-acc-0_002"
 # 第 6 局第 2 天（traces/lead35-qualify6-20261031-232418 #14）：普通 Da 课后实机为 Vo 436 / Da 426 / Vi 243、体力 27、P 340、星星 60
@@ -31,7 +31,18 @@ def test_initial_deck_matches_removal_frame():
     from hiro.state.context import card_name
 
     names = sorted(card_name(c["card_id"], c["upgrade"]) for c in initial_deck("i_card-shro-3-007"))
-    assert names == sorted(["アイコンタクトの基本", "仕草の基本", "えいえいおー+", "距離感の基本", "距離感の基本", "距離感の基本", "セルフケアの基本", "エウレカ！+"])
+    assert names == sorted(
+        [
+            "アイコンタクトの基本",
+            "仕草の基本",
+            "えいえいおー+",
+            "距離感の基本",
+            "距離感の基本",
+            "距離感の基本",
+            "セルフケアの基本",
+            "エウレカ！+",
+        ]
+    )
     assert len(initial_deck("i_card-shro-3-007", memories=[{"card_id": DAY, "upgrade": 1}])) == 9
 
 
@@ -63,7 +74,9 @@ def test_lesson_sub_known_is_tighter_and_catches_read_error():
 def test_study():
     f = _f("STUDY", {"attr": "Vo", "choice": "B"}, step=3)
     assert f["produce.params.Vo"].min == 556 and f["produce.stamina"].value == 28  # 120，不套成长率
-    assert _f("STUDY", {"attr": "Vo", "choice": "trouble"}, step=3)["produce.deck_size"].value == 5  # 获得日 +1、眠気 +1
+    assert (
+        _f("STUDY", {"attr": "Vo", "choice": "trouble"}, step=3)["produce.deck_size"].value == 5
+    )  # 获得日 +1、眠気 +1
 
 
 def test_outing():
@@ -99,7 +112,11 @@ def test_card_reroll_and_exclude():
 
 def test_card_upgrade_consult_price():
     f = _f("CARD_UPGRADE", {"card_id": TODOITE, "upgrade": 0, "source": "consult"})
-    assert f"{TODOITE}+1" in f["produce.deck"].value and f["produce.produce_point"].value == 210 and f["produce.upgrades_done"].value == 1
+    assert (
+        f"{TODOITE}+1" in f["produce.deck"].value
+        and f["produce.produce_point"].value == 210
+        and f["produce.upgrades_done"].value == 1
+    )
 
 
 def test_card_delete():
@@ -127,7 +144,10 @@ def test_card_customize():
 def test_shop_buy():
     f = _f("SHOP_BUY", {"kind": "card", "card_id": EIEI, "price": 100})
     assert f["produce.produce_point"].value == 210 and f["produce.deck_size"].value == 4
-    assert _f("SHOP_BUY", {"kind": "drink", "drink_id": "pdrink_00-3-001", "price": 75})["produce.drinks"].value == ["pdrink_00-3-001", "pdrink_02-3-010"]
+    assert _f("SHOP_BUY", {"kind": "drink", "drink_id": "pdrink_00-3-001", "price": 75})["produce.drinks"].value == [
+        "pdrink_00-3-001",
+        "pdrink_02-3-010",
+    ]
 
 
 def test_drink_acquire_use_discard():
@@ -153,7 +173,12 @@ def test_wappen_trigger():
 def test_exam_start():
     f = predict({"produce": {**DAY2, "stamina": 10}}, make_event("EXAM_START", {"exam_label": "r1"}))[0].fields
     assert f["exam.hp"].value == 26 and f["exam.remaining_turns"].value == 9
-    assert predict({"produce": {**DAY2, "stamina": 10}}, make_event("EXAM_START", {"exam_label": "r2"}))[0].fields["exam.hp"].value == 10
+    assert (
+        predict({"produce": {**DAY2, "stamina": 10}}, make_event("EXAM_START", {"exam_label": "r2"}))[0]
+        .fields["exam.hp"]
+        .value
+        == 10
+    )
 
 
 def test_exam_result_selection_and_finals():
@@ -167,7 +192,10 @@ def test_exam_result_selection_and_finals():
 def test_round_interval_buy():
     f = _f("ROUND_INTERVAL_BUY", {"service": "recover"}, stamina=17)
     assert f["produce.stamina"].value == 19 and f["produce.produce_point"].value == 300
-    assert _f("ROUND_INTERVAL_BUY", {"service": "card", "card_id": EIEI, "price": 30})["produce.produce_point"].value == 280
+    assert (
+        _f("ROUND_INTERVAL_BUY", {"service": "card", "card_id": EIEI, "price": 30})["produce.produce_point"].value
+        == 280
+    )
 
 
 def test_unmodeled_change_has_no_prediction():
@@ -185,6 +213,10 @@ def test_returns_contract_types():
     ev = make_event("REST")
     assert isinstance(ev, Event) and not ev.problems()
     p = predict({"produce": {**DAY2, "stamina": 10}}, ev)[0]
-    assert isinstance(p, Prediction) and isinstance(p.fields["produce.stamina"], Expect) and p.fields["produce.stamina"].exact
+    assert (
+        isinstance(p, Prediction)
+        and isinstance(p.fields["produce.stamina"], Expect)
+        and p.fields["produce.stamina"].exact
+    )
     assert predict({"produce": DAY2}, ev.to_dict())[0].fields["produce.stamina"].value == 33  # dict 事件也接
     assert predict({"produce": DAY2}, make_event("DECK_REVIEW", {"deck": []}, origin="review")) == []

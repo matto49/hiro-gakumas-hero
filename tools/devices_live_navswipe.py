@@ -7,10 +7,10 @@ import sys
 import time
 from pathlib import Path
 
+from hiro.devices.maafw_win32 import MaaFwWin32Device
+
 import cv2
 import numpy as np
-
-from hiro.devices.maafw_win32 import MaaFwWin32Device
 
 out = Path(sys.argv[1])
 out.mkdir(parents=True, exist_ok=True)

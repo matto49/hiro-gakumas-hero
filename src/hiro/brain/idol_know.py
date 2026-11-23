@@ -3,7 +3,8 @@
 - CardKnow（card_pick）：这张卡是不是社区强卡（weight ≥ 75，A 级起）、可复用核心卡留几张（keep）、是不是要避开（avoid）。
   广：默认用手写表（knowledge.YARUKI_CARDS / SMALL_DECK_CORE / 冲突表），HIRO_GUIDES_HIRO=1 且有条目时改从条目读，两者等价
   （tests/test_guides_hiro.py 核对）。别的偶像：条目在 flows / 流派优先表之上补充。
-- customize_plan（card_upgrade）：定制顺序 + 目标级数；没有条目时用广的 CUSTOMIZE_PRIORITY / CUSTOMIZE_LEVELS（H.I.F 照旧）。
+- customize_plan（card_upgrade）：定制顺序 + 目标级数；没有条目时用广的 CUSTOMIZE_PRIORITY / CUSTOMIZE_LEVELS。
+- H.I.F：HIRO_HIF_GUIDES=1 时也查攻略（hif_on / hif_other）；缺省关，照旧只用广的手写表。
 - main_attr（formation.main_attr）：开局编成的默认主属性。
 - notes（任意决策点）：条目的 why + 出处，拼进提示词的「偶像」一节。
 """
@@ -16,11 +17,30 @@ STRONG = 75  # 广的 A 级（guides_hiro.TIER_WEIGHT）
 TIER_OF_WEIGHT = {100: "必拿", 90: "S", 75: "A", 60: "B"}
 
 
+def hif_on(env: dict | None = None) -> bool:
+    """H.I.F 接攻略（HIRO_HIF_GUIDES=1，缺省关，用户 11-21）。广照旧要 HIRO_GUIDES_HIRO=1 才从条目读。"""
+    import os
+
+    return (env if env is not None else os.environ).get("HIRO_HIF_GUIDES", "0") == "1"
+
+
+def hif_other(mode_id: str | None, idol_card: str | None, env: dict | None = None) -> bool:
+    """H.I.F、开了 HIRO_HIF_GUIDES、偶像不是广（やる気流派）：选卡 / 删卡 / 换卡走流派规则 + 攻略（同初 / N.I.A），
+    不走广的必拿表（以前别的偶像也去刷 せのびの魔法 / 届いて！，11-20 有村麻央 实测）。"""
+    from hiro.brain import flows
+    from hiro.state.modes import HIF, family
+
+    return family(mode_id) == HIF and hif_on(env) and flows.flow(idol_card) not in (None, "yaruki")
+
+
 def _mode_diff(mode_id: str | None) -> tuple[str | None, str | None]:
-    """produce-00x → (攻略的 mode, difficulty)。初 / N.I.A 之外返回 (None, None)：H.I.F 这次不接攻略。"""
-    from hiro.state.modes import HAJIME, NIA, MODES
+    """produce-00x → (攻略的 mode, difficulty)。H.I.F 要开 HIRO_HIF_GUIDES（攻略包的 H.I.F 条目不分选拔 / 本战，difficulty 给 None）；
+    别的返回 (None, None)。"""
+    from hiro.state.modes import HAJIME, HIF, MODES, NIA
 
     m = MODES.get(mode_id or "")
+    if m is not None and m.family == HIF and hif_on():
+        return HIF, None
     if m is None or m.family not in (HAJIME, NIA):
         return None, None
     return m.family, m.difficulty
@@ -54,7 +74,7 @@ class CardKnow:
         if f.get("weight") is not None:
             return int(f["weight"])
         share = (f.get("stat") or {}).get("share")
-        return int(round(float(share) * 100)) if share is not None else 0
+        return int(round(float(share) * 100)) if share is not None else 0  # noqa: RUF046
 
     def strong(self, cid: str) -> bool:
         return self.weight(cid) >= STRONG

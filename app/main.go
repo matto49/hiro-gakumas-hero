@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"log"
+	"path/filepath"
 
 	"github.com/egoist/mygo"
 
@@ -12,14 +13,14 @@ import (
 )
 
 // AppName 是程序的显示名（窗口标题；mygo.config.ts 的 name、index.html 的标题要和它一致）。
-// 内部标识 top.matto.hiro-console、数据目录 hiro-console、命令行 hiro 都不随改名变（设置和钥匙串里的 Key 不丢）。
+// 内部标识 top.matto.hiro-console、数据目录 hiro-console、命令行 hiro 都不随改名变（设置和已存的 Key 不丢）。
 var AppName = locales.AppTitle()
 
 func main() {
 	fixPath()
 	hiro := &Hiro{}
 	mygo.Bind(hiro)
-	assistant := &Assistant{Home: HiroHome(), Keys: systemKeys{}, Hiro: hiro}
+	assistant := &Assistant{Home: HiroHome(), Keys: fileKeys{Path: filepath.Join(HiroHome(), "model-keys.json")}, Hiro: hiro}
 	hiro.Env = assistant.jobEnv
 	mygo.Bind(assistant)
 	mygo.Bind(&Threads{Home: HiroHome()})

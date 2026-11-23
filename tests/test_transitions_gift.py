@@ -5,6 +5,6 @@ from hiro.loop.transitions import allowed
 
 def test_gift_box_with_several_bags():
     seq = ["ACTION_SELECT", "GIFT", "SELECT_DRINK", "GIFT", "SELECT_CARD", "ACTION_SELECT"]
-    assert all(allowed(a, b) for a, b in zip(seq, seq[1:]))
+    assert all(allowed(a, b) for a, b in zip(seq, seq[1:]))  # noqa: RUF007
     for sel in ("SELECT_DRINK", "SELECT_CARD", "SELECT_PITEM"):
         assert allowed(sel, "GIFT")

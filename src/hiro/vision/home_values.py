@@ -74,8 +74,9 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(vals, ensure_ascii=False))
     if a.out:
         Path(a.out).parent.mkdir(parents=True, exist_ok=True)
-        Path(a.out).write_text(json.dumps({"scanned_at": time.strftime("%Y-%m-%d %H:%M:%S"), **vals}, ensure_ascii=False),
-                               encoding="utf-8")
+        Path(a.out).write_text(
+            json.dumps({"scanned_at": time.strftime("%Y-%m-%d %H:%M:%S"), **vals}, ensure_ascii=False), encoding="utf-8"
+        )
     return 0
 
 
