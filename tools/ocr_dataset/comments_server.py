@@ -19,7 +19,10 @@ DATA = os.environ.get("OCR_COMMENTS_FILE", "/var/lib/ocr-review/comments.jsonl")
 PORT = int(os.environ.get("OCR_COMMENTS_PORT", "19141"))
 MAX_BODY = 32 * 1024
 TEXT_MAX = 4000
-KINDS = ("格式", "标注错误", "类型/字段", "识别结果", "页面展示", "其他")
+# 各页面的意见类型（样例页 / 字段核对页 / 场景清单页），新页面加了类型要同步到这里，否则提交 400
+KINDS = ("格式", "标注错误", "类型/字段", "识别结果", "页面展示", "其他",
+         "不该读", "类型/方法",
+         "漏了", "不需要", "重要度不对", "示例写错", "描述不对")
 LOCK = threading.Lock()
 
 

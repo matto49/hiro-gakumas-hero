@@ -66,3 +66,18 @@ def test_clean_keeps_field_path():
     c = cs.clean({"target": "dmm-x-00001", "field": "hand[2].card_id", "kind": "标注错误", "text": "应该是 えいえいおー+"})
     assert c["field"] == "hand[2].card_id"
     assert len(cs.clean({"target": "p", "field": "x" * 500, "kind": "其他", "text": "a"})["field"]) == 200
+
+
+@pytest.mark.parametrize("kind", ["漏了", "不需要", "重要度不对", "示例写错", "描述不对", "不该读", "类型/方法", "标注错误", "其他"])
+def test_kinds_used_by_review_pages_are_accepted(kind):
+    """样例页 / 字段核对页 / 场景清单页的意见类型都要收（11-23 场景清单页提交全被 400）。"""
+    assert cs.clean({"target": "scenarios", "field": "exam/info/0", "kind": kind, "text": "a"})["kind"] == kind
+
+
+def test_fields_page_kinds_are_all_accepted():
+    import json as _json
+
+    from tools.ocr_dataset.fields_page import KINDS_JS
+
+    for k in _json.loads(KINDS_JS):
+        assert k in cs.KINDS, k
