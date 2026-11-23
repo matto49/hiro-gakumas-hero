@@ -17,7 +17,7 @@ def _strip_plus(name):
 
 def _exam(f: dict) -> dict:
     scores = list(f.get("npc_scores") or [])
-    if f.get("finals") and f.get("my_score") is not None and f.get("my_rank_index"):
+    if f.get("my_score") is not None and f.get("my_rank_index"):  # 选拔和本战的顶部排名条都包含自己的分数
         scores.insert(max(0, int(f["my_rank_index"]) - 1), f["my_score"])
     hand = []
     for h in sorted(f.get("hand") or [], key=lambda h: h.get("slot", 0)):
@@ -181,7 +181,9 @@ def score_buttons(buttons: list[dict], texts: list[tuple]) -> list[dict]:
         if not b.get("box"):
             continue
         x1, y1, x2, y2 = b["box"]
-        hit = next(((t, box) for t, box in texts if norm(b["label"]) in norm(t)), None)
+        # 包含按钮文字的段里取最贴近的（最短）：「削除」不能落到说明句「…強化や削除ができます」上
+        cands = [(t, box) for t, box in texts if norm(b["label"]) in norm(t)]
+        hit = min(cands, key=lambda tb: len(norm(tb[0]))) if cands else None
         if hit is None:
             res, got = "没读", None
         else:

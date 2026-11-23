@@ -77,7 +77,7 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
             )
         pages = " · ".join(f"{b} 判成 {e(str(sysrows[b][1]))}" for b in backends)
         secs.append(
-            f'<section class="frame" data-sc="{e(sid)}"><h2>{e(fid)}</h2><p class="meta">场景 <b>{e(scenario.load()[sid]["name"])}</b> · 平台 '
+            f'<section class="frame" id="{e(fid)}" data-sc="{e(sid)}"><h2>{e(fid)}</h2><p class="meta">场景 <b>{e(scenario.load()[sid]["name"])}</b> · 平台 '
             f'{e((fr.get("platform") or {}).get("kind") or "?")} · 系统判页：{pages}</p>'
             f'<div class="row"><img class="shot" src="img/{e(fid)}.jpg" loading="lazy" onclick="this.classList.toggle(\'big\')"><div class="tbl"><table>'
             f'<tr><th>信息项</th><th>真值</th>' + "".join(f"<th>{e(n)} 读</th>" for n in names)

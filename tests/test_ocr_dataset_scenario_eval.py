@@ -128,3 +128,14 @@ def test_turns_left_counts_extra_turns():
     truth = {"turns_left": 3, "extra_turns": 1}
     assert {r["path"]: r["result"] for r in se.score_frame("exam", truth, {"turns_left": 4})} == {"turns_left": "对"}
     assert {r["path"]: r["result"] for r in se.score_frame("exam", {"turns_left": 3, "extra_turns": 0}, {"turns_left": 3})} == {"turns_left": "对"}
+
+
+def test_selection_exam_inserts_own_score_too():
+    got = se.adapt("exam", {**EXAM_RAW, "finals": False, "my_score": 143069, "my_rank_index": 1, "npc_scores": [134524, 39654]})
+    assert got["top_scores"] == [143069, 134524, 39654]
+
+
+def test_button_check_prefers_best_matching_text():
+    texts = [("持っているスキルカードの強化や削除ができます。", (115, 884, 595, 912)), ("削除", (443, 954, 508, 984))]
+    rows = se.score_buttons([{"label": "削除", "box": [443, 954, 508, 984]}], texts)
+    assert rows[0]["result"] == "对" and rows[0]["got"] == "削除"
