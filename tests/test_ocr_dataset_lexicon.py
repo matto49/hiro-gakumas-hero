@@ -52,3 +52,9 @@ def test_cli_lexicon_writes_and_loads(tmp_path):
     assert r.returncode == 0, r.stderr
     lex = lexicon.load(tmp_path / "lex")
     assert "編" in lex.charset and lex.snap("リトライ") == "リトライ" and lex.version
+
+
+def test_norm_folds_decorative_stars():
+    from tools.ocr_dataset.lexicon import norm
+
+    assert norm("✦Pドリンク") == norm("★Pドリンク") == norm("☆Pドリンク")

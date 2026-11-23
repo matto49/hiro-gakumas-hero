@@ -103,3 +103,8 @@ def test_cli_init_and_validate(tmp_path):
     assert r.returncode == 0, r.stderr
     r = subprocess.run([*env_py, "validate", str(tmp_path / "x")], capture_output=True, text=True, cwd=ROOT)
     assert r.returncode == 0 and "0 个问题" in r.stdout, r.stdout + r.stderr
+
+
+def test_init_ignores_local_work_dir(tmp_path):
+    root = schema.init(tmp_path / "ds")
+    assert ".work/" in (root / ".gitignore").read_text(encoding="utf-8").split()

@@ -17,6 +17,7 @@ from pathlib import Path
 
 SCHEMA_VERSION = 1
 SETS = ("core", "hard")
+NATIVE_SUFFIX = ".native.png"  # 帧旁边可选的原生分辨率截图 <id>.native.png
 IMAGE_EXT = (".png", ".jpg", ".jpeg")
 STATUSES = ("agreed", "resolved", "disputed", "ignored")
 TYPES = ("button", "title", "name", "number", "body", "label", "other")
@@ -105,7 +106,10 @@ def validate_dir(root: str | Path) -> list[str]:
         if not d.is_dir():
             continue
         for img in sorted(p for p in d.iterdir() if p.suffix.lower() in IMAGE_EXT):
-            if not img.with_suffix(".json").exists():
+            if img.name.endswith(NATIVE_SUFFIX):  # 原生分辨率截图，跟着同 id 的帧
+                if not (d / (img.name[: -len(NATIVE_SUFFIX)] + ".json")).exists():
+                    errs.append(f"{s}/{img.name}：原生截图没有对应的帧标注")
+            elif not img.with_suffix(".json").exists():
                 errs.append(f"{s}/{img.name}：没有同名标注 .json")
         for js in sorted(d.glob("*.json")):
             rel = f"{s}/{js.name}"
@@ -146,6 +150,7 @@ def init(root: str | Path) -> Path:
         "README.md": SKELETON / "README.md",
         "CONTRIBUTING.md": SKELETON / "CONTRIBUTING.md",
         ".gitattributes": SKELETON / "gitattributes",
+        ".gitignore": SKELETON / "gitignore",
         ".github/workflows/validate.yml": SKELETON / "validate.yml",
         "schema/frame.schema.json": Path(__file__).with_name("frame.schema.json"),
         "tools/validate.py": Path(__file__),

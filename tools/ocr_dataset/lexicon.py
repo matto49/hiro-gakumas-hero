@@ -28,9 +28,12 @@ ASCII = {chr(c) for c in range(0x21, 0x7F)}
 WORD_MAX = 24
 
 
+FOLD = str.maketrans({c: "★" for c in "☆✦✧✩✪✫✬✭✮✯✰⭐"})  # 游戏里的装饰星号，各读者写法不一，比较时当同一个
+
+
 def norm(text: str) -> str:
-    """NFKC、去掉半角 / 全角空格（比较 OCR 文字用）。"""
-    return unicodedata.normalize("NFKC", text or "").replace(" ", "").replace("　", "")
+    """NFKC、去掉半角 / 全角空格、装饰星号归一（比较 OCR 文字用）。"""
+    return unicodedata.normalize("NFKC", text or "").replace(" ", "").replace("　", "").translate(FOLD)
 
 
 def tolerance(n: int) -> int:

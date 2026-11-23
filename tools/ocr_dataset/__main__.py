@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 from pathlib import Path
@@ -33,7 +34,37 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--n-dmm540", type=int, default=None, help="DMM 540 每格最多几张（缺省 5）")
     p.add_argument("--all", action="store_true", help="不分层抽样，去重后全收（做进阶集用）")
     p.add_argument("--dry-run", action="store_true", help="只打印挑中的分布，不写 inbox")
+    p.add_argument("--fill-types", action="store_true", help="对剩下的帧做文字检测，按文字类型补足每类 30 个框（Mac，慢）")
+    p = sub.add_parser("label", help="AI 标注 inbox 里的帧，移进 core/（Mac：要 Apple Vision）")
+    p.add_argument("inbox", nargs="+", help="inbox/<贡献者>/<日期> 目录")
+    p.add_argument("--dataset")
+    p.add_argument("--set", default="core", choices=schema.SETS)
+    p.add_argument("--llm", help="LLM 适配器（缺省 HIRO_LLM，再缺省 claude:opus）")
+    p.add_argument("--workers", type=int, default=2, help="同时标几帧（LLM 调用并行）")
+    p.add_argument("--limit", type=int)
+    p = sub.add_parser("spot-check", help="从 agreed 框里随机抽查，生成本地核对页")
+    p.add_argument("--dataset")
+    p.add_argument("-n", type=int, default=50)
+    p.add_argument("--seed", type=int)
     a = ap.parse_args(argv)
+    if a.cmd == "label":
+        import os
+
+        from tools.ocr_dataset import label
+
+        root = dataset_root(a.dataset)
+        readers = label.RealReaders(a.llm or os.environ.get("HIRO_LLM") or "claude:opus")
+        total = 0
+        for d in a.inbox:
+            total += label.run(root, d, readers=readers, set_=a.set, workers=a.workers, limit=a.limit)
+        disputed = json.loads((root / "disputed.json").read_text(encoding="utf-8"))
+        print(f"标完 {total} 帧；待定框 {len(disputed)} 个（disputed.json），用 review 处理")
+        return 0
+    if a.cmd == "spot-check":
+        from tools.ocr_dataset import label
+
+        print(label.spot_check(dataset_root(a.dataset), n=a.n, seed=a.seed))
+        return 0
     if a.cmd == "pick":
         from tools.ocr_dataset import pick
 
@@ -51,7 +82,12 @@ def main(argv: list[str] | None = None) -> int:
         if a.all:
             sel = [c for c in cands if c.sha not in known]
         else:
-            sel = pick.select(cands, n=a.n or pick.N_CELL, n_dmm540=a.n_dmm540 or pick.N_CELL_DMM540, known=known)
+            counter = None
+            if a.fill_types:
+                from tools.ocr_dataset import label
+
+                counter = label.type_counter(label.RealReaders())
+            sel = pick.select(cands, n=a.n or pick.N_CELL, n_dmm540=a.n_dmm540 or pick.N_CELL_DMM540, known=known, counter=counter)
         print(f"读到 {len(cands)} 帧（去重后），挑中 {len(sel)}")
         print(pick.summary(sel))
         if not a.dry_run and sel:
