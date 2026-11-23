@@ -44,5 +44,37 @@ def test_page_renders_groups_with_comment_hooks(tmp_path):
     reads = {b: {"a": {"fields": {}}} for b in B}
     groups = fp.aggregate([("core", frames)], {"core": reads}, B)
     html = fp.render(groups, B, out=tmp_path / "f.html").read_text(encoding="utf-8")
-    assert "覆盖缺口" in html and 'data-target="failures"' in html and 'data-field="覆盖缺口|exam deck_left"' in html
+    assert 'data-target="failures"' in html and 'data-field="覆盖缺口|exam deck_left"' in html
     assert 'href="check.html#a"' in html and 'src="img/a.jpg"' in html
+    # 人看得懂：中文标题、白话的问题类型、每处一句话
+    assert "考试 · 牌堆剩余张数" in html and "三个 OCR 都没读出来" in html and "画面上" in html
+    import re
+
+    visible = re.sub(r"<[^>]+>", " ", html.split("<script>")[0])  # 只看页面上显示的文字（标签属性里的内部名不算）
+    assert "deck_left" not in visible and "exam " not in visible
+    # 一键判定
+    for k in ("识别逻辑要改", "真值 / 定义问题", "可以接受"):
+        assert f'data-verdict="{k}"' in html
+
+
+def test_page_crops_the_region_of_the_item(tmp_path):
+    import cv2
+    import numpy as np
+
+    ds = tmp_path / "ds"
+    (ds / "core").mkdir(parents=True)
+    cv2.imwrite(str(ds / "core" / "a.jpg"), np.full((1280, 720, 3), 120, np.uint8))
+    frames = [_fr("a", {"deck_left": 5})]
+    frames[0]["image"] = "a.jpg"
+    reads = {b: {"a": {"fields": {}}} for b in B}
+    groups = fp.aggregate([("core", frames)], {"core": reads}, B)
+    out = fp.render(groups, B, out=tmp_path / "site" / "f.html", dataset=ds)
+    html = out.read_text(encoding="utf-8")
+    assert 'src="crops/a__deck_left.jpg"' in html
+    crop = cv2.imread(str(tmp_path / "site" / "crops" / "a__deck_left.jpg"))
+    assert crop is not None and crop.shape[0] > 170  # 放大过（牌堆区域 200×180 → 约 2 倍）
+
+
+def test_values_are_shown_in_plain_words():
+    assert fp.plain(True) == "有" and fp.plain(False) == "没有" and fp.plain(None) == "—"
+    assert fp.plain("green_heart") == "绿心" and fp.plain("vocal") == "Vo" and fp.plain([58, 2]) == "58、2"
