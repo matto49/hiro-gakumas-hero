@@ -148,7 +148,8 @@
       "key": "plus",
       "type": "bool",
       "desc": "卡名末尾有没有「+」",
-      "label": "有没有 +"
+      "label": "有没有 +",
+      "derivable": true
      },
      {
       "key": "cost_type",

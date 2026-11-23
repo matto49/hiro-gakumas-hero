@@ -155,3 +155,9 @@ def test_excluded_frames_are_not_scored():
     reads = {"a": {"page": "DELETE_RESULT", "fields": {}, "texts": []}, "b": {"page": "CONSULT", "fields": {"produce_point": 280}, "texts": []}}
     r = se.evaluate(frames, reads, backend="vision")
     assert r["frames"] == 1 and r["groups"]["all"]["n"] == 1 and r["groups"]["page"]["n"] == 1
+
+
+def test_plus_hidden_by_stacking_is_not_scored():
+    truth = {"hand": [{"name": "あのときの", "plus": None}]}
+    got = {"hand": [{"name": "あのときの約束", "plus": False}]}
+    assert {r["path"]: r["result"] for r in se.score_frame("exam", truth, got)} == {"hand[0].name": "对"}
