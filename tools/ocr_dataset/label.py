@@ -380,14 +380,16 @@ SPOT_JS = """
 function upd(){const all=document.querySelectorAll('.item');let bad=0;all.forEach(e=>{if(e.querySelector('input[type=checkbox]').checked)bad++});
 document.getElementById('acc').textContent=`错 ${bad} / ${all.length}，准确率 ${((all.length-bad)/all.length*100).toFixed(1)}%（≥ 98% 才合格）`}
 function save(){const out=[];document.querySelectorAll('.item').forEach(e=>{if(e.querySelector('input[type=checkbox]').checked)
-out.push({frame:e.dataset.frame,set:e.dataset.set,box:+e.dataset.box,text:e.dataset.text,fix:e.querySelector('input[type=text]').value})});
+{const fix=e.querySelector('input[type=text]').value.trim();const b={frame:e.dataset.frame,set:e.dataset.set,box:+e.dataset.box,was:e.dataset.text};
+if(fix)b.text=fix;else b.disputed=true;out.push(b)}});
 const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,1)],{type:'application/json'}));a.download='spot-result.json';a.click()}
 document.addEventListener('change',upd);upd();
 """
 
 
 def spot_check(dataset: str | Path, n: int = 50, seed: int | None = None) -> Path:
-    """从 agreed 框里随机抽 n 个，生成本地核对页（.work/spot-<日期>.html）：看错的打勾，页面实时算准确率、导出错框 JSON。"""
+    """从 agreed 框里随机抽 n 个，生成本地核对页（.work/spot-<日期>.html）：看错的打勾，页面实时算准确率、导出错框 JSON
+    （填了正确文字的写回成 resolved，没填的打回 disputed：python -m tools.ocr_dataset review --apply spot-result.json）。"""
     root = Path(dataset)
     pool = []
     for s in schema.SETS:

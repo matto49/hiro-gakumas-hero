@@ -46,7 +46,21 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dataset")
     p.add_argument("-n", type=int, default=50)
     p.add_argument("--seed", type=int)
+    p = sub.add_parser("review", help="待定框核对页；--apply 把导出的答案写回")
+    p.add_argument("--dataset")
+    p.add_argument("--apply", metavar="ANSWERS_JSON", help="review 页或抽查页导出的 JSON")
     a = ap.parse_args(argv)
+    if a.cmd == "review":
+        from tools.ocr_dataset import review
+
+        root = dataset_root(a.dataset)
+        if a.apply:
+            st = review.apply(root, a.apply)
+            left = json.loads((root / "disputed.json").read_text(encoding="utf-8"))
+            print(f"写回：resolved {st['resolved']}，ignored {st['ignored']}，打回待定 {st['disputed']}，没找到 {st['missing']}；剩余待定 {len(left)}")
+        else:
+            print(review.build(root))
+        return 0
     if a.cmd == "label":
         import os
 
