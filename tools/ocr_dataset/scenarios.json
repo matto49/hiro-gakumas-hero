@@ -70,7 +70,8 @@
      {
       "key": "name",
       "type": "text",
-      "desc": "卡面下方的卡名，不含末尾的「+」"
+      "desc": "卡面下方的卡名，不含末尾的「+」",
+      "prefix_ok": true
      },
      {
       "key": "plus",
@@ -86,13 +87,15 @@
        "buff",
        "none"
       ],
-      "desc": "卡右下角的消耗图标长什么样：绿色爱心 = green_heart，红色爱心 = red_heart，蓝色菱形的状态图标（拳头、太阳等）= buff；卡右下角没有消耗图标写 none"
+      "desc": "卡右下角的消耗图标长什么样：绿色爱心 = green_heart，红色爱心 = red_heart，蓝色菱形的状态图标（拳头、太阳等）= buff；卡右下角没有消耗图标写 none",
+      "derivable": true
      },
      {
       "key": "cost",
       "type": "int",
       "desc": "消耗图标上或旁边的数字，只写正数（「-2」写 2）；没有写 null",
-      "abs": true
+      "abs": true,
+      "derivable": true
      }
     ]
    },

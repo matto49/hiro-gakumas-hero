@@ -116,23 +116,49 @@ def _flat(sid: str, d: dict) -> dict:
 SKIP = ("disputed", "ignored")
 
 
+def _field_flags(sid: str) -> dict[str, set[str]]:
+    """场景定义里标了 prefix_ok（画面会截断的名字）/ derivable（画面可能被遮住、系统可从主数据补）的叶子路径（下标换成 []）。"""
+    out = {"prefix_ok": set(), "derivable": set()}
+    for it in scenario.load()[sid]["items"]:
+        for f in it.get("fields", []):
+            for flag in out:
+                if f.get(flag):
+                    out[flag].add(f"{it['key']}[].{f['key']}")
+    return out
+
+
+def _canon(sid: str, d: dict) -> dict:
+    """打分前两边都过一遍的等价规则：考试手牌消耗为 0 和「没有消耗」对决策是一回事（系统把 0 消耗记成没有消耗）。"""
+    if sid == "exam" and isinstance(d.get("hand"), list):
+        d = {**d, "hand": [({**h, "cost": None, "cost_type": "none"} if isinstance(h, dict) and h.get("cost") == 0 else h) for h in d["hand"]]}
+    return d
+
+
 def score_frame(sid: str, truth: dict, got: dict, item_status: dict | None = None) -> list[dict]:
     st = item_status or {}
-    ft = _flat(sid, truth)
-    fg = _flat(sid, scenario.normalize(sid, got or {}))
+    ft = _flat(sid, _canon(sid, truth))
+    fg = _flat(sid, _canon(sid, scenario.normalize(sid, got or {})))
+    flags = _field_flags(sid)
     rows = []
     for p, w in ft.items():
         if st.get(p) in SKIP:
             continue
         g = fg.get(p)
+        leaf = _norm_item(p)
+        if (w is None or w == "none") and leaf in flags["derivable"]:
+            continue  # 画面上被遮住 / 看不到，系统按主数据补出来的不算错
         if w is None:
             if g is None:
                 continue
             res = "错"
         elif g is None:
             res = "没读"
+        elif g == w:
+            res = "对"
+        elif leaf in flags["prefix_ok"] and isinstance(w, str) and isinstance(g, str) and len(w) >= 2 and g.startswith(w):
+            res = "对"  # 卡名在画面上被截断（手牌多时只显示前几个字），系统给的全名以画面上的部分开头就算对
         else:
-            res = "对" if g == w else "错"
+            res = "错"
         rows.append({"path": p, "want": w, "got": g, "result": res})
     return rows
 

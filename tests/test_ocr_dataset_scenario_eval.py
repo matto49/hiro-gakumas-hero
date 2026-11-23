@@ -101,3 +101,24 @@ def test_report_md_has_unread_section():
     r = se.evaluate(frames, {"b": {"page": "CONSULT", "fields": {"shelf": [{"price": 53}]}, "texts": []}}, backend="vision")
     md = se.report_md([r])
     assert "没读" in md and "shelf[].sale_from" in md
+
+
+def test_zero_cost_equals_no_cost():
+    truth = {"hand": [{"name": "リズミカル", "plus": False, "cost_type": "green_heart", "cost": 0}]}
+    got = {"hand": [{"name": "リズミカル", "plus": False, "cost_type": "none", "cost": None}]}
+    assert {r["path"]: r["result"] for r in se.score_frame("exam", truth, got)} == {
+        "hand[0].name": "对", "hand[0].plus": "对"}  # 消耗按「没有」算，可由主数据补的项不计
+
+
+def test_truncated_name_and_hidden_cost_are_not_errors():
+    truth = {"hand": [{"name": "ゆるふわおしゃ", "plus": False, "cost_type": "none", "cost": None},
+                      {"name": "頭上に注意", "plus": False, "cost_type": "red_heart", "cost": 3}]}  # fmt: skip
+    got = {"hand": [{"name": "ゆるふわおしゃべり", "plus": False, "cost_type": "green_heart", "cost": 4},
+                    {"name": "頭上に注意!", "plus": False, "cost_type": "red_heart", "cost": 3}]}  # fmt: skip
+    res = {r["path"]: r["result"] for r in se.score_frame("exam", truth, got)}
+    assert res == {"hand[0].name": "对", "hand[0].plus": "对", "hand[1].name": "对", "hand[1].plus": "对", "hand[1].cost_type": "对", "hand[1].cost": "对"}
+
+
+def test_prefix_rule_needs_two_chars_and_only_for_names():
+    res = {r["path"]: r["result"] for r in se.score_frame("exam", {"hand": [{"name": "ゆ"}]}, {"hand": [{"name": "ゆるふわ"}]})}
+    assert res["hand[0].name"] == "错"
