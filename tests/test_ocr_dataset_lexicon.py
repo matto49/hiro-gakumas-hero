@@ -58,3 +58,11 @@ def test_norm_folds_decorative_stars():
     from tools.ocr_dataset.lexicon import norm
 
     assert norm("✦Pドリンク") == norm("★Pドリンク") == norm("☆Pドリンク")
+
+
+def test_save_load_keeps_master_names(tmp_path):
+    from tools.ocr_dataset.lexicon import Lexicon, load, save
+
+    save(Lexicon(words={"編成", "次へ"}, charset={"編"}, version="v", names={"編成"}), tmp_path)
+    lex = load(tmp_path)
+    assert lex.names == {"編成"} and lex.words == {"編成", "次へ"}

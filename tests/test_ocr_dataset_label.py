@@ -293,3 +293,19 @@ def test_adjudicate_asks_second_llm_only_for_disputed_boxes(tmp_path):
     b = next(b for b in json.loads((ds / "core" / "dmm540-r-00001.json").read_text(encoding="utf-8"))["boxes"] if b["answers"]["llm"] == "絹成")
     assert (b["status"], b["text"], b["answers"]["llm2"]) == ("agreed", "編成", "編成")
     assert label.adjudicate(ds, sec, lex=LEX)["frames"] == 0  # 问过的不再问
+
+
+def test_type_of_master_name_falls_back_to_name():
+    names = {"えいえいおー+", "ブーストエキス"}
+    assert label.type_of("ブーストエキス", [264, 853, 464, 890], "ACQUIRE", names=names)["type"] == "name"
+    assert label.type_of("えいえいおー+", [100, 100, 300, 140], "HOME", names=names)["type"] == "name"
+    assert label.type_of("次へ", [100, 100, 300, 140], "HOME", names=names)["type"] == "other"
+
+
+def test_redecide_retags_master_names(tmp_path):
+    ds, inbox = _dataset(tmp_path)
+    label.run(ds, inbox, readers=FakeReaders(), lex=LEX, pad=0)
+    lex = Lexicon(words=LEX.words, charset=set(), version="t", names={"編成"})
+    label.redecide(ds, lex=lex)
+    fr = json.loads((ds / "core" / "dmm540-r-00001.json").read_text(encoding="utf-8"))
+    assert next(b for b in fr["boxes"] if b["text"] == "編成")["tags"]["type"] == "name"

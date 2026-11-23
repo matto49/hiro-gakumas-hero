@@ -205,6 +205,10 @@ def redecide(dataset: str | Path, lex: Lexicon | None = None) -> dict[str, int]:
                     b["text"], b["status"], b["ignore"] = text, status, status == "ignored"
                     changed += 1
                     dirty = True
+                tags = b.get("tags") or {}
+                if tags.get("field") is None and tags.get("type") in ("other", "body") and norm(text) in lex.names:
+                    b["tags"] = {**tags, "type": "name"}  # 主数据名字兜底（先标的帧没有这条规则）
+                    dirty = True
             if dirty:
                 js.write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
     return {"changed": changed, "disputed": len(rebuild_disputed(root))}
@@ -223,9 +227,9 @@ def header_bands(img) -> list[tuple[int, int]]:
         return []
 
 
-def type_of(text: str, box, page: str | None, bands=()) -> dict:
+def type_of(text: str, box, page: str | None, bands=(), names=()) -> dict:
     """{field, type}：先查字段映射表；对不上（或表里类型留空）走兜底：只有数字 → number，在标题条里 → title，
-    ≥ BODY_MIN_CHARS 字 → body，其余 other。"""
+    是主数据里的名字 → name，≥ BODY_MIN_CHARS 字 → body，其余 other。"""
     field_name, typ = fields.lookup(page, box)
     if typ is None:
         t = norm(text)
@@ -234,6 +238,8 @@ def type_of(text: str, box, page: str | None, bands=()) -> dict:
             typ = "number"
         elif any(y1 - 4 <= cy <= y2 + 4 for y1, y2 in bands):
             typ = "title"
+        elif t in names:
+            typ = "name"
         elif len(t) >= BODY_MIN_CHARS:
             typ = "body"
         else:
@@ -379,7 +385,7 @@ def label_frame(img, meta: dict, readers, lex: Lexicon, pad: int = PAD, bands=No
         answers["lexicon"] = lexicon_answer(answers, lex)
         text, status = decide(answers, lex)
         boxes.append({"id": i, "box": g["box"], "text": text, "status": status, "answers": answers,
-                      "tags": type_of(text or g["vision"] or g["rapidocr"], g["box"], page, bands), "ignore": status == "ignored"})  # fmt: skip
+                      "tags": type_of(text or g["vision"] or g["rapidocr"], g["box"], page, bands, lex.names), "ignore": status == "ignored"})  # fmt: skip
     plat = dict(meta.get("platform") or {})
     plat.setdefault("stored", [w, h])
     fr = {

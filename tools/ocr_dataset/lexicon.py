@@ -61,9 +61,11 @@ class Lexicon:
     words: set[str] = field(default_factory=set)
     charset: set[str] = field(default_factory=set)
     version: str = ""
+    names: set[str] = field(default_factory=set)  # 只来自主数据的名字（卡、饮料、P 道具、偶像……），给文字类型兜底用
 
     def __post_init__(self) -> None:
         self.words = {norm(w) for w in self.words if norm(w)}
+        self.names = {norm(w) for w in self.names if norm(w)}
         self._by_len: dict[int, list[str]] = {}
         for w in self.words:
             self._by_len.setdefault(len(w), []).append(w)
@@ -166,13 +168,14 @@ def build() -> Lexicon:
     ui = code_literals()
     chars |= {c for w in ui for c in w}
     game_data = Path(os.environ.get("HIRO_KAA_GAME_DATA") or ROOT / "resources" / "game_data")
-    return Lexicon(words=words | ui, charset=chars | KANA | ASCII, version=_version(game_data))
+    return Lexicon(words=words | ui, charset=chars | KANA | ASCII, version=_version(game_data), names=words)
 
 
 def save(lex: Lexicon, out_dir: Path) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "words.txt").write_text("\n".join(sorted(lex.words)) + "\n", encoding="utf-8")
     (out_dir / "charset.txt").write_text("".join(sorted(lex.charset)) + "\n", encoding="utf-8")
+    (out_dir / "names.txt").write_text("\n".join(sorted(lex.names)) + "\n", encoding="utf-8")
     (out_dir / "version.json").write_text(json.dumps({"master": lex.version, "words": len(lex.words), "chars": len(lex.charset)},
                                                      ensure_ascii=False, indent=1) + "\n", encoding="utf-8")  # fmt: skip
 
@@ -181,4 +184,6 @@ def load(out_dir: Path) -> Lexicon:
     words = (out_dir / "words.txt").read_text(encoding="utf-8").split("\n")
     chars = set((out_dir / "charset.txt").read_text(encoding="utf-8").rstrip("\n"))
     ver = json.loads((out_dir / "version.json").read_text(encoding="utf-8"))["master"]
-    return Lexicon(words={w for w in words if w}, charset=chars, version=ver)
+    nf = out_dir / "names.txt"
+    names = {w for w in nf.read_text(encoding="utf-8").split("\n") if w} if nf.is_file() else set()
+    return Lexicon(words={w for w in words if w}, charset=chars, version=ver, names=names)
