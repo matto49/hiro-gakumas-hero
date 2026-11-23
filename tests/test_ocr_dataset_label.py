@@ -42,7 +42,7 @@ def test_merge_boxes_chains_one_long_line_over_two_pieces():
         ("→次へ", "次へ", ("次へ", "agreed")),  # 两端的图标符号去掉再比
         (")27", "27", ("27", "agreed")),
         ("-NEW", "NEW", ("-NEW", "disputed")),  # 横线可能是负号（-3），不当图标去掉
-        ("+950", "✦950", ("+950", "disputed")),  # + 有意义，不去
+        ("+950", "✦950", ("+950", "agreed")),  # 数字前的星号按装饰「+」算
         ("不安です.........", "不安です......", ("不安です.........", "disputed")),  # 点数不同不算一致
         ("綿成", "綿成", ("綿成", "agreed")),  # 两方一致、词表里没有相近词
         ("綿成", "絹成", ("綿成", "disputed")),  # 两方都不是词表词
@@ -309,3 +309,75 @@ def test_redecide_retags_master_names(tmp_path):
     label.redecide(ds, lex=lex)
     fr = json.loads((ds / "core" / "dmm540-r-00001.json").read_text(encoding="utf-8"))
     assert next(b for b in fr["boxes"] if b["text"] == "編成")["tags"]["type"] == "name"
+
+
+# ---- 最终评审修复 ----
+
+
+def _real_readers_with(replies):
+    from hiro.brain.llm import MockLLM
+
+    rd = label.RealReaders.__new__(label.RealReaders)
+    rd.llm, rd.pad = MockLLM(replies=list(replies)), 0
+    return rd
+
+
+def test_read_llm_numbers_each_sheet_from_one(monkeypatch):
+    """C1：分成几张图时，每张图上画的编号和提示词、解析都从 1 开始。"""
+    monkeypatch.setattr(label, "SHEET_MAX_H", 100)  # 每段约 68 像素高：一张只放得下一段
+    drawn = []
+    real = cv2.putText
+    monkeypatch.setattr(label.cv2, "putText", lambda img, text, *a, **k: (drawn.append(text), real(img, text, *a, **k))[1])
+    rd = _real_readers_with([{"texts": {"1": "a"}}, {"texts": {"1": "b"}}, {"texts": {"1": "c"}}])
+    img = np.full((1280, 720, 3), 255, np.uint8)
+    got = rd.read_llm(img, [[10, 10, 100, 40], [10, 100, 100, 130], [10, 200, 100, 230]])
+    assert got == ["a", "b", "c"]
+    assert drawn == ["[1]", "[1]", "[1]"]
+    assert all("编号 1–1" in user for _, user in rd.llm.calls)
+
+
+def test_read_llm_missing_or_numeric_answers():
+    """I1：漏答的编号记 None（不是「没字」）；数字答案转成字符串。"""
+    rd = _real_readers_with([{"texts": {"1": 3, "3": "c"}}])
+    img = np.full((1280, 720, 3), 255, np.uint8)
+    assert rd.read_llm(img, [[10, 10, 100, 40], [10, 100, 100, 130], [10, 200, 100, 230]]) == ["3", None, "c"]
+
+
+@pytest.mark.parametrize(
+    "answers, want",
+    [
+        ({"vision": "綿成", "vision_frame": "編成", "llm": None}, "disputed"),  # LLM 漏答 ≠ 说没字
+        ({"vision": "", "vision_frame": "", "llm": None}, "disputed"),
+        ({"vision": "", "vision_frame": "せせ", "llm": "", "llm2": None}, "disputed"),
+        ({"vision": "", "vision_frame": "せせ", "llm": ""}, "ignored"),
+    ],
+)
+def test_decide_missing_llm_answer_is_not_no_text(answers, want):
+    assert label.decide(answers, LEX)[1] == want
+
+
+@pytest.mark.parametrize(
+    "answers, want",
+    [
+        ({"vision": "+300", "vision_frame": "+300", "llm": "✦300", "llm2": "✦300"}, ("+300", "agreed")),  # I2：装饰「+」
+        ({"vision": "+150", "vision_frame": "+150", "llm": "✦150", "llm2": "150"}, ("+150", "agreed")),
+        ({"vision": "+300", "vision_frame": "+300", "llm": "300", "llm2": "300"}, ("+300", "agreed")),
+    ],
+)
+def test_decide_keeps_plus_sign_vision_reads_consistently(answers, want):
+    assert label.decide(answers, LEX) == want
+
+
+def test_run_stops_queued_frames_on_keyboard_interrupt(tmp_path):
+    """I4：Ctrl-C 后排队的帧不再问 LLM。"""
+    ds, inbox = _dataset(tmp_path, n=4)
+
+    class Stop(FakeReaders):
+        def read_llm(self, img, boxes):
+            self.llm_calls += 1
+            raise KeyboardInterrupt
+
+    rd = Stop()
+    with pytest.raises(KeyboardInterrupt):
+        label.run(ds, inbox, readers=rd, lex=LEX, pad=0, workers=1)
+    assert rd.llm_calls <= 2

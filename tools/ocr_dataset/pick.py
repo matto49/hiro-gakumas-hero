@@ -58,12 +58,12 @@ def guess_platform(run_name: str, run_json: dict | None) -> str:
             return "adb"
         return "other"
     name = run_name.lower()
-    if "dmm" in name or re.search(r"(^|[-_])win", name):
-        return "dmm"
-    if "mumu" in name:
+    if "mumu" in name:  # 先认 mumu / mac：「mumu-windows-…」「hif-mac-win2」不是 DMM
         return "mumu"
     if "mac" in name:
         return "mac"
+    if "dmm" in name or re.search(r"(^|[-_])win", name):
+        return "dmm"
     return "other"
 
 
@@ -178,8 +178,9 @@ def collect(paths: Iterable[str | Path], platform: str | None = None, classify: 
         if (d / "frames").is_dir():
             run, run_json, frames = _trace_frames(d)
             seg = _segment_platform(run_json)
-            plat = platform or guess_platform(run, seg)
             meta = seg.get("platform") if isinstance(seg.get("platform"), dict) else {}
+            # run.json 记了设备就以它为准，--platform 只给没记的老 trace 用
+            plat = guess_platform(run, seg) if meta.get("device") else platform or guess_platform(run, seg)
             captured = _date(run_json.get("started"))
             last: list = []
             for seq, path, page in frames:

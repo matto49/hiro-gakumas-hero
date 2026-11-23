@@ -59,3 +59,12 @@ def test_resume_segment_keeps_first_run_and_records_platform(tmp_path, monkeypat
     tw = TraceWriter(root=tmp_path, name="r4")
     run = json.loads((tw.dir / "run.json").read_text(encoding="utf-8"))
     assert run["idol"] == "x" and run["platform"]["device"] == "mumu" and run["segments"][-1]["platform"]["device"] == "dmm"
+
+
+def test_platform_meta_resolves_auto_device_on_mac(monkeypatch):
+    import hiro.device as hdev
+    from hiro.devices.base import platform_meta
+
+    monkeypatch.delenv("HIRO_DEVICE", raising=False)
+    monkeypatch.setattr(hdev.sys, "platform", "darwin")
+    assert platform_meta()["device"] == "maatools"

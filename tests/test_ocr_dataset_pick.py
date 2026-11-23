@@ -136,3 +136,13 @@ def test_write_inbox_copies_native_png_when_present(tmp_path):
 def test_collect_skips_loading_pages(tmp_path):
     d = _trace(tmp_path, "hif-mac-p1", ["home", "LOADING", "loading"], [1, 2, 3])
     assert [c.seq for c in pick.collect([d])] == [1]
+
+
+def test_guess_platform_checks_mumu_and_mac_before_dmm():
+    assert pick.guess_platform("mumu-windows-20261120-101010", {}) == "mumu"
+    assert pick.guess_platform("hif-mac-win2", {}) == "mac"
+
+
+def test_platform_override_does_not_beat_recorded_device(tmp_path):
+    d = _trace(tmp_path, "z1-20261121-000000", ["home"], [1], run={"started": 1, "platform": {"device": "mumu", "native": [720, 1280]}})
+    assert [c.platform for c in pick.collect([d], platform="dmm")] == ["mumu"]

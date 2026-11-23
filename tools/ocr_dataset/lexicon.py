@@ -31,9 +31,13 @@ WORD_MAX = 24
 FOLD = str.maketrans({c: "★" for c in "☆✦✧✩✪✫✬✭✮✯✰⭐"})  # 游戏里的装饰星号，各读者写法不一，比较时当同一个
 
 
+PLUS_STAR = re.compile(r"★(?=[0-9])")  # 数字前的装饰「+」常被 LLM 写成星号（实测 81 个框），按「+」算
+
+
 def norm(text: str) -> str:
-    """NFKC、去掉半角 / 全角空格、装饰星号归一（比较 OCR 文字用）。"""
-    return unicodedata.normalize("NFKC", text or "").replace(" ", "").replace("　", "").translate(FOLD)
+    """NFKC、去掉半角 / 全角空格、装饰星号归一、数字前的星号当「+」（比较 OCR 文字用）。"""
+    t = unicodedata.normalize("NFKC", text or "").replace(" ", "").replace("　", "").translate(FOLD)
+    return PLUS_STAR.sub("+", t)
 
 
 def tolerance(n: int) -> int:

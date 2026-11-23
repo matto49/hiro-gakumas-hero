@@ -144,7 +144,13 @@ def platform_meta() -> dict:
     except Exception:  # noqa: BLE001  识别层不可用（离线工具）时不记
         ocr = None
     env = os.environ.get
-    return {"device": env("HIRO_DEVICE") or None, "screenshot": env("HIRO_SCREENSHOT") or None,
+    try:
+        from hiro.device import resolve_backend
+
+        device = resolve_backend()  # HIRO_DEVICE；没设时 Mac 上落到 maatools
+    except Exception:  # noqa: BLE001  非 Mac 又没设 HIRO_DEVICE
+        device = env("HIRO_DEVICE") or None
+    return {"device": device, "screenshot": env("HIRO_SCREENSHOT") or None,
             "dmm_driver": env("HIRO_DMM_DRIVER") or None, "ocr": ocr, "native": None}  # fmt: skip
 
 

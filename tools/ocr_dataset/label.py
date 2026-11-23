@@ -116,11 +116,14 @@ def decide(answers: dict, lex: Lexicon) -> tuple[str, str]:
     - Vision 与 LLM 一致 → agreed（规格：词表里没有这个词也不拦）；
     - 不一致时：其中一方正好是词表词、另一方吸附后也落到同一个词 → agreed；
     - 有 llm2 时：三家里任意两家一致 → agreed；
-    - LLM（和 llm2）说没字、Vision 两次读法又不一致 → ignored（图标被读成了乱码）；
+    - LLM（和 llm2）明确说没字、Vision 两次读法又不一致 → ignored（图标被读成了乱码）；LLM 漏答不算说没字；
+    - 两个 LLM 一致但都少了装饰「+」、Vision 两次都读到「+」 → 取 Vision 的；
     - 其余 disputed（文字先填最可能的：Vision 吸附到的词 > LLM 吸附到的词 > Vision > LLM）。"""
-    vs, l, l2 = _visions(answers), norm(answers.get("llm") or ""), norm(answers.get("llm2") or "")
+    raw_l, raw_l2 = answers.get("llm"), answers.get("llm2", "")  # llm2 没问过 = 没意见；值为 None = 漏答
+    vs, l, l2 = _visions(answers), norm(raw_l or ""), norm(raw_l2 or "")
+    said_empty = raw_l == "" and raw_l2 == ""  # LLM 明确说这段没字（漏答不算）
     if not vs and not l and not l2:
-        return "", "ignored"
+        return "", "ignored" if said_empty else "disputed"
     if l:
         for v in vs:
             if _same(v, l):
@@ -135,9 +138,13 @@ def decide(answers: dict, lex: Lexicon) -> tuple[str, str]:
             if _same(v, l2):
                 return _clean(l2, v), "agreed"
         if l and _same(l, l2):
-            return _clean(l, l2), "agreed"
+            t = _clean(l, l2)
+            crop, frame = norm(answers.get("vision") or ""), norm(answers.get("vision_frame") or "")
+            if crop and crop == frame and crop == "+" + t:  # 两个 LLM 都没写出装饰「+」，Vision 两次都读到了
+                return crop, "agreed"
+            return t, "agreed"
     crop, frame = norm(answers.get("vision") or ""), norm(answers.get("vision_frame") or "")
-    if not l and not l2 and not (crop and crop == frame):
+    if said_empty and not (crop and crop == frame):
         return "", "ignored"
     v0 = vs[0] if vs else ""
     return lex.snap(v0) or sl or v0 or l, "disputed"
@@ -168,7 +175,8 @@ def adjudicate(dataset: str | Path, reader, lex: Lexicon | None = None, workers:
         return reader.read_llm(img, [b["box"] for b in todo])
 
     changed = asked = 0
-    with ThreadPoolExecutor(max(1, workers)) as pool:
+    pool = ThreadPoolExecutor(max(1, workers))
+    try:
         for k, (job, fut) in enumerate([(j, pool.submit(one, j)) for j in jobs], 1):
             s, js, fr, todo = job
             try:
@@ -185,6 +193,10 @@ def adjudicate(dataset: str | Path, reader, lex: Lexicon | None = None, workers:
                 b["text"], b["status"], b["ignore"] = text, status, status == "ignored"
             js.write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
             log(f"[{k}/{len(jobs)}] {fr['id']}：{len(todo)} 个待定框，还剩 {sum(b['status'] == 'disputed' for b in todo)}")
+    except BaseException:
+        pool.shutdown(wait=False, cancel_futures=True)
+        raise
+    pool.shutdown()
     return {"frames": asked, "changed": changed, "disputed": len(rebuild_disputed(root))}
 
 
@@ -268,7 +280,7 @@ SHEET_MAX_H = 1500  # 超过就分几张图问（Claude 长边超过约 1568 会
 
 
 def crop_sheets(img, boxes, pad: int = PAD) -> list[tuple[list[int], np.ndarray]]:
-    """把各框裁图编号拼成竖排的图：[(这张图里的框序号, 图)]。"""
+    """把各框裁图拼成竖排的图：[(这张图里的框序号, 图)]；每张图里的编号从 [1] 开始。"""
     label_w = 80
     rows = []
     for i, box in enumerate(boxes):
@@ -280,7 +292,6 @@ def crop_sheets(img, boxes, pad: int = PAD) -> list[tuple[list[int], np.ndarray]
         c = cv2.resize(c, None, fx=f, fy=f, interpolation=cv2.INTER_CUBIC)
         row = np.full((c.shape[0] + 12, label_w + c.shape[1] + 8, 3), 255, np.uint8)
         row[6 : 6 + c.shape[0], label_w : label_w + c.shape[1]] = c
-        cv2.putText(row, f"[{i + 1}]", (4, min(row.shape[0] - 6, 34)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 200), 2)
         cv2.line(row, (0, row.shape[0] - 1), (row.shape[1], row.shape[0] - 1), (180, 180, 180), 1)
         rows.append((i, row))
     sheets, cur, cur_h = [], [], 0
@@ -297,8 +308,9 @@ def crop_sheets(img, boxes, pad: int = PAD) -> list[tuple[list[int], np.ndarray]
         w = max(r.shape[1] for _, r in sheet)
         canvas = np.full((sum(r.shape[0] for _, r in sheet), w, 3), 255, np.uint8)
         y = 0
-        for _, r in sheet:
+        for k, (_, r) in enumerate(sheet, 1):  # 每张图从 [1] 编号，和提示词、解析一致
             canvas[y : y + r.shape[0], : r.shape[1]] = r
+            cv2.putText(canvas, f"[{k}]", (4, y + min(r.shape[0] - 6, 34)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 200), 2)
             y += r.shape[0]
         out.append(([i for i, _ in sheet], canvas))
     return out
@@ -349,8 +361,9 @@ class RealReaders:
         big = cv2.resize(crop, None, fx=3, fy=3, interpolation=cv2.INTER_CUBIC)
         return "".join(t for t, _, b in sorted(_vision_raw(big, w, h, LANGS), key=lambda r: _reading_key(r[2])))
 
-    def read_llm(self, img, boxes) -> list[str]:
-        out = [""] * len(boxes)
+    def read_llm(self, img, boxes) -> list[str | None]:
+        """每框的抄写；LLM 漏答的编号记 None（和「说这段没字」的空串区分开）。"""
+        out: list[str | None] = [None] * len(boxes)
         for idx, sheet in crop_sheets(img, boxes, self.pad):
             ok, buf = cv2.imencode(".jpg", sheet, [cv2.IMWRITE_JPEG_QUALITY, 92])
             user = f"共 {len(idx)} 段，编号 1–{len(idx)}。"
@@ -360,7 +373,7 @@ class RealReaders:
                 raise LLMReadError(f"LLM 没给出 texts：{res.error or res.raw[:200]}")
             for k, i in enumerate(idx, 1):
                 v = texts.get(str(k))
-                out[i] = v if isinstance(v, str) else ""
+                out[i] = v if isinstance(v, str) else str(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
         return out
 
 
@@ -452,7 +465,8 @@ def run(dataset: str | Path, inbox_dir: str | Path, readers=None, lex: Lexicon |
 
     done_ids: set[str] = {f["id"] for f in meta["frames"] if (dest / f"{f['id']}.json").exists()}
     n_done = 0
-    with ThreadPoolExecutor(max(1, workers)) as pool:
+    pool = ThreadPoolExecutor(max(1, workers))
+    try:
         futures = [(f, pool.submit(one, f)) for f in todo]
         for k, (f, fut) in enumerate(futures, 1):
             try:
@@ -469,6 +483,10 @@ def run(dataset: str | Path, inbox_dir: str | Path, readers=None, lex: Lexicon |
             n_done += 1
             st = [b["status"] for b in fr["boxes"]]
             log(f"[{k}/{len(todo)}] {f['id']}：{len(st)} 框，agreed {st.count('agreed')}，disputed {st.count('disputed')}")
+    except BaseException:  # Ctrl-C 等：排队的帧不再跑（否则退出前还会把剩下几百次 LLM 调用跑完再扔掉）
+        pool.shutdown(wait=False, cancel_futures=True)
+        raise
+    pool.shutdown()
     meta["frames"] = [f for f in meta["frames"] if f["id"] not in done_ids]
     if meta["frames"]:
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
