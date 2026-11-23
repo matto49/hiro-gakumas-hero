@@ -79,9 +79,9 @@ def aggregate(sets: list[tuple[str, list[dict]]], reads: dict[str, dict[str, dic
 SCENARIO_SHORT = {"exam": "考试", "consult": "相談商店", "round_interval": "轮间商店", "action_select": "选行动"}
 BACKEND_NAME = {"vision": "Vision", "rapidocr": "PP-OCRv3", "simd": "SIMD", "ppocr5": "PP-OCRv5", "winocr": "Windows OCR"}
 CAT_TITLE = {
-    "覆盖缺口": "三个 OCR 都没读出来",
-    "三后端一致但≠真值": "三个 OCR 读成同一个值，但和画面不一样",
-    "三后端都没读对": "三个 OCR 各读各的，都不对",
+    "覆盖缺口": "所有 OCR 后端都没读出来",
+    "三后端一致但≠真值": "所有 OCR 后端读成同一个值，但和画面不一样",
+    "三后端都没读对": "所有 OCR 后端各读各的，都不对",
     "后端差异": "有的 OCR 对、有的不对",
 }
 CAT_HINT = {
@@ -355,7 +355,7 @@ def render(groups: list[dict], backends, out: str | Path, dataset: str | Path | 
         '<label><input type="checkbox" id="f-todo" onchange="filt()"> 只看没判定的</label></div></div></header>'
         '<main class="wrap"><p class="intro">'
         f"核心集和进阶集里，真实系统在 {e('、'.join(bname(b) for b in backends))} 下没有读对的地方，同一个信息项的问题合成一组（共 {len(groups)} 组、{total} 处）。"
-        "每处左边是画面上那一块的放大图，右边是画面上的正确值和三个 OCR 各读到什么。看完一组点一个判定；要补充就写备注。点图片在核对页看整帧。"
+        "每处左边是画面上那一块的放大图，右边是画面上的正确值和各 OCR 后端读到什么。看完一组点一个判定；要补充就写备注。点图片在核对页看整帧。"
         f'<span id="status"></span></p><div class="legend">{legend}</div>'
         f'<div class="sec-title">总览</div><table class="ov"><tr><th>信息项</th><th>问题</th><th>重要度</th><th>处数</th><th>判定</th></tr>{"".join(ov)}</table>'
         f'<div class="sec-title">逐组复核</div>{"".join(secs)}</main>'

@@ -47,7 +47,7 @@ def test_page_renders_groups_with_comment_hooks(tmp_path):
     assert 'data-target="failures"' in html and 'data-field="覆盖缺口|exam deck_left"' in html
     assert 'href="check.html#a"' in html and 'src="img/a.jpg"' in html
     # 人看得懂：中文标题、白话的问题类型、每处一句话
-    assert "考试 · 牌堆剩余张数" in html and "三个 OCR 都没读出来" in html and "画面上" in html
+    assert "考试 · 牌堆剩余张数" in html and "所有 OCR 后端都没读出来" in html and "画面上" in html
     import re
 
     visible = re.sub(r"<[^>]+>", " ", html.split("<script>")[0])  # 只看页面上显示的文字（标签属性里的内部名不算）
