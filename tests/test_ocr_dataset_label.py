@@ -409,3 +409,13 @@ def test_reask_rereads_llm_for_multi_sheet_frames(tmp_path, monkeypatch):
     assert got["frames"] == 1 and Again.calls == 1
     b = json.loads(p.read_text(encoding="utf-8"))["boxes"][2]
     assert b["answers"]["llm"] == "編成" and "llm2" not in b["answers"] and b["status"] == "agreed"
+
+
+def test_cli_reask_runs(tmp_path, monkeypatch):
+    from tools.ocr_dataset import __main__ as cli
+
+    ds, inbox = _dataset(tmp_path)
+    label.run(ds, inbox, readers=FakeReaders(), lex=LEX, pad=0)
+    monkeypatch.setattr(label, "RealReaders", lambda spec=None: FakeReaders())
+    monkeypatch.setattr(label, "_load_lexicon", lambda root: LEX)
+    assert cli.main(["reask", "--dataset", str(ds), "--workers", "1"]) == 0

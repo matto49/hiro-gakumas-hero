@@ -101,7 +101,7 @@ def score(frames: list[dict], preds: dict[str, dict], lex: Lexicon, backend: str
     total = _Acc()
     groups: dict[str, dict[str, _Acc]] = {k: {} for k in GROUP_KEYS}
     errors, disputed = [], []
-    n_disputed = n_counted = 0
+    n_disputed = n_counted = n_ignored = 0
     times = []
     for fr in frames:
         p = preds.get(fr["id"])
@@ -114,6 +114,7 @@ def score(frames: list[dict], preds: dict[str, dict], lex: Lexicon, backend: str
             groups[key].setdefault(val, _Acc()).extra += extra
         for b in fr["boxes"]:
             if b.get("ignore") or b.get("status") == "ignored":
+                n_ignored += 1
                 continue
             n_counted += 1
             if b.get("status") == "disputed":
@@ -147,6 +148,7 @@ def score(frames: list[dict], preds: dict[str, dict], lex: Lexicon, backend: str
         "frames": len(times),
         "groups": {"all": total.to_dict(), **{k: {v: a.to_dict() for v, a in sorted(groups[k].items())} for k in GROUP_KEYS}},
         "disputed_share": n_disputed / n_counted if n_counted else 0.0,
+        "ignored_share": n_ignored / (n_counted + n_ignored) if n_counted + n_ignored else 0.0,
         "disputed": disputed,
         "errors": errors[:N_ERRORS],
         "timing": {"p50": float(np.percentile(warm, 50)) if warm else None, "p90": float(np.percentile(warm, 90)) if warm else None},
@@ -199,7 +201,10 @@ def report_md(results: list[dict], compare: dict | None = None, title: str = "OC
     if results:
         r0 = results[0]
         gate = "" if all(formal(r) for r in results) else "（**非正式**：待定框占比超过 5%，先在 review 页清理）"
-        lines += [f"集合 `{r0['set']}`，{r0['frames']} 帧，计分框 {r0['groups']['all']['boxes']} 个，待定占比 {_pct(r0['disputed_share'])}{gate}", ""]
+        lines += [f"集合 `{r0['set']}`，{r0['frames']} 帧，计分框 {r0['groups']['all']['boxes']} 个，待定占比 {_pct(r0['disputed_share'])}，"
+                  f"忽略占比 {_pct(r0.get('ignored_share'))}（不计分）{gate}", "",
+                  "框对齐：一段识别只归一个标注框（中心落在里面的优先），分行比标注框粗的后端会被多扣（多出的字算错、旁边的框算漏读）；"
+                  "标注框来自 Vision 和 RapidOCR 的检测，这两家天然占便宜。比较分行方式不同的后端时留意。", ""]  # fmt: skip
         if compare:
             lines += [f"对比基线：{compare.get('title') or compare.get('created') or '上一份报告'}（括号里是百分点变化）", ""]
     lines += ["## 总表", "", "| 后端 | 字错率 | 整行全对 | 关键词命中 | 漏读 | 多读框 | P50 | P90 |", "|---|---|---|---|---|---|---|---|"]

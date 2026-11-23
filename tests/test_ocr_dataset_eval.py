@@ -103,3 +103,12 @@ def test_charset_mask_picks_best_allowed_character():
 def test_charset_mask_keeps_punctuation_and_fullwidth_variants():
     m = charset_rapid.allowed_mask(["blank", "Ａ", "％", "綿", "a", " "], {"A", "a"})
     assert m.tolist() == [1, 1, 1, 0, 1, 1]
+
+
+def test_report_shows_ignored_share_and_matching_caveat():
+    frames = [_frame(boxes=[_b(0, [0, 0, 50, 30], "編成"), _b(1, [0, 100, 50, 130], "", status="ignored"),
+                            _b(2, [0, 200, 50, 230], "x", status="disputed")])]  # fmt: skip
+    r = ev.score(frames, {"f1": {"texts": [("編成", (0, 0, 50, 30))], "seconds": 0.1}}, LEX, backend="vision")
+    assert r["ignored_share"] == pytest.approx(1 / 3)
+    md = ev.report_md([r])
+    assert "忽略占比 33.3%" in md and "一段识别只归一个标注框" in md

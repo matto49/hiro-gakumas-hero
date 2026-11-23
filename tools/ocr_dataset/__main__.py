@@ -89,8 +89,6 @@ def main(argv: list[str] | None = None) -> int:
             print(review.build(root))
         return 0
     if a.cmd == "label":
-        import os
-
         from tools.ocr_dataset import label
 
         root = dataset_root(a.dataset)
