@@ -249,6 +249,24 @@ def _unit_label(img: MatLike, k: int) -> str | None:
 VALUE_UNIT = re.compile(r"(\d+)(ターン|回|%)")
 
 
+TURNS_ABOVE = (-32, -4)  # 两行数字的格（上「5ターン」、下「20%」）：上一行相对槽中心的纵向范围
+TURNS_TEXT = re.compile(r"(\d+)ターン")
+
+
+def _turns_above(img: MatLike, k: int) -> int | None:
+    """百分比那一格上面一行的回合数（パラメータ上昇量増加 等「5ターン / 20%」）；没有这一行返回 None。
+    先用游戏字体比对，没把握再用整行 OCR 认「Nターン」。"""
+    cy = _slot_y(k)
+    y1, y2 = cy + TURNS_ABOVE[0], cy + TURNS_ABOVE[1]
+    value, suffix = read_leading_int(img, (SLOT_X + 12, y1, SLOT_X + 60, y2))
+    if value is not None and suffix in ("text", None):
+        return value
+    if suffix == "empty" and not _bright_behind(img, k):
+        return None
+    m = TURNS_TEXT.search("".join(t for t, _ in ocr(img[y1 - 4 : y2 + 4, SLOT_X + 14 : SLOT_X + 130])).replace(" ", ""))
+    return int(m.group(1)) if m else None
+
+
 BRIGHT_BG_MIN = 0.15  # 数值框里白色像素占比：深色背景 0.03–0.13；天空 / 浅色石地上 0.19–0.95
 
 
@@ -374,6 +392,8 @@ def _read_slot(img: MatLike, k: int, *, faint: bool = False) -> dict:
         entry = {"slot": k, "kind": "enchant", "card_id": card._id if card else None,
                  "name": card.name if card else None, "asset": asset, "score": round(score, 3)}  # fmt: skip
     entry["value"], entry["unit"] = _value(img, k, entry["kind"], entry.get("card_id"))
+    if entry["unit"] == "%" and (turns := _turns_above(img, k)) is not None:
+        entry["turns"] = turns  # 同一格两行：上回合、下百分比（识别测试集进阶集 33 格以前只有百分比）
     if faint:
         entry["faint"] = True
     return entry

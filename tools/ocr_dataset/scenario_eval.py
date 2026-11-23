@@ -37,10 +37,10 @@ def _shown_cost(base: int, statuses: list[dict]) -> int:
 
 
 def _status(s: dict) -> dict:
-    """系统的状态槽 → 场景项：enchant（卡牌 / 道具持续效果）= card_effect，名字不计；单位是「%」的数记在 pct。"""
+    """系统的状态槽 → 场景项：enchant（卡牌 / 道具持续效果）= card_effect，名字不计；单位是「%」的数记在 pct，同一格上面一行的回合（turns）记在 value。"""
     pct = s.get("unit") == "%"
     return {"kind": "card_effect" if s.get("kind") == "enchant" else "status", "name": None if s.get("kind") == "enchant" else s.get("name"),
-            "value": None if pct else s.get("value"), "pct": s.get("value") if pct else None}  # fmt: skip
+            "value": s.get("turns") if pct else s.get("value"), "pct": s.get("value") if pct else None}  # fmt: skip
 
 
 def _exam(f: dict) -> dict:

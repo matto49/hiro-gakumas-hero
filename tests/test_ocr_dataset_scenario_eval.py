@@ -174,3 +174,8 @@ def test_hand_cost_is_compared_after_engine_conversion():
     assert [h["cost"] for h in got["hand"]] == [1, 1, 2]  # 4→2→1、3→2→1；buff 消耗不受体力状态影响
     up = se.adapt("exam", {**raw, "statuses": [{"slot": 0, "name": "消費体力増加", "value": 1}]})
     assert [h["cost"] for h in up["hand"]] == [8, 6, 2]
+
+
+def test_status_with_turns_and_percent():
+    raw = {**EXAM_RAW, "statuses": [{"slot": 0, "kind": "status", "name": "パラメータ上昇量増加", "value": 20, "unit": "%", "turns": 5}]}
+    assert se.adapt("exam", raw)["statuses"] == [{"kind": "status", "name": "パラメータ上昇量増加", "value": 5, "pct": 20}]
