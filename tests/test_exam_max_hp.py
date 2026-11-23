@@ -77,13 +77,18 @@ def test_single_frame_misread_does_not_raise():
 def test_seed_falls_back_to_profile_known_for_hif():
     """培育页没读出上限：H.I.F 用构筑表的已知值（广 33），来源 profile_known；初 / N.I.A 广没有已知值，留 None；读到画面以画面为准。"""
     mem = ExamMemory("r1")
-    assert seed_max_hp(mem, _session({"stamina": 30}), profile=CAMPUS_HIRO) == 33 and mem.max_hp_source == "profile_known"
+    assert (
+        seed_max_hp(mem, _session({"stamina": 30}), profile=CAMPUS_HIRO) == 33 and mem.max_hp_source == "profile_known"
+    )
     mem = ExamMemory("qualify-1")
     assert seed_max_hp(mem, None, profile=CAMPUS_HIRO) == 33  # 续跑开考前没经过培育页（局面为空）也按标签认出 H.I.F
     mem = ExamMemory("hajime-mid1")
     assert seed_max_hp(mem, _session({"mode": "produce-002", "stamina": 20}), profile=CAMPUS_HIRO) is None
     mem = ExamMemory("r1")
-    assert seed_max_hp(mem, _session({"max_stamina": 39}), profile=CAMPUS_HIRO) == 39 and mem.max_hp_source == "produce_screen"
+    assert (
+        seed_max_hp(mem, _session({"max_stamina": 39}), profile=CAMPUS_HIRO) == 39
+        and mem.max_hp_source == "produce_screen"
+    )
     assert seed_max_hp(ExamMemory("r1"), _session({}), profile=None) is None  # 没有构筑表：不猜
 
 

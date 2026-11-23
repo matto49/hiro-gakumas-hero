@@ -42,7 +42,9 @@ CAMPUS_HIRO = IdolProfile(
     item_trigger_card="p_card-02-men-1_031",
     item_charges=5,
     item_needs_high_hp=True,
-    known_max_hp={"hif": 33},  # Windows 账号 1 的 H.I.F（PR #5 合并前写死的值；Mac 账号 2 初是 30，所以初 / N.I.A 不填）
+    known_max_hp={
+        "hif": 33
+    },  # Windows 账号 1 的 H.I.F（PR #5 合并前写死的值；Mac 账号 2 初是 30，所以初 / N.I.A 不填）
 )
 
 IDOLS = {p.idol_id: p for p in [CAMPUS_HIRO]}
@@ -122,7 +124,10 @@ class ExamMemory:
         if score is None:
             return None, None
         if self.last_score is not None and score < self.last_score:
-            return None, f"分数读数 {score} 比上一次的 {self.last_score} 还小（考试中分数不会下降），疑为识别掉位，按未识别处理"
+            return (
+                None,
+                f"分数读数 {score} 比上一次的 {self.last_score} 还小（考试中分数不会下降），疑为识别掉位，按未识别处理",
+            )
         self.last_score = score
         return score, None
 
@@ -255,19 +260,28 @@ class BattleState:
     max_hp_note: str | None = None  # 最大体力读数被考试中的体力推翻时的说明
     item_trigger_card: str | None = None  # 固有道具的触发牌 ID 前缀（打出时可能追加行动）
     item_needs_high_hp: bool = False
-    final_turn_permil: int | None = None  # 最后一回合的属性倍率（千分比）：存档 / 模拟器给出，或按 流1 从本场见过的倍率推
+    final_turn_permil: int | None = (
+        None  # 最后一回合的属性倍率（千分比）：存档 / 模拟器给出，或按 流1 从本场见过的倍率推
+    )
     now_turn_permil: int | None = None  # 本回合倍率（模拟器来源；画面来源用 multiplier_permil）
     genki_gain: float | None = None  # 最近每回合元气增量（ExamMemory.genki_gain_per_turn）
     badge_notes: list = field(default_factory=list)  # 判为读错、改用公式的徽章
     attr_permils: dict = field(default_factory=dict)  # 本场见过的三属性倍率（千分比）
     trend: tuple | None = None  # 偶像的属性流向（流1, 流2, 流3）：末三回合固定为 流3 → 流2 → 流1
-    piles: dict | None = None  # 公开牌堆：{deck: [卡名], grave: [卡名], draw: 每回合抽牌数}（存档 / 模拟器来源；截图来源为 None）
+    piles: dict | None = (
+        None  # 公开牌堆：{deck: [卡名], grave: [卡名], draw: 每回合抽牌数}（存档 / 模拟器来源；截图来源为 None）
+    )
 
     def gives_action(self, card: CardView) -> bool:
         """打出这张牌后行动数不减：自带使用数追加，或会触发固有道具（えいえいおー，HP≥50% 且有剩余次数）。"""
         if card.tags.extra_actions:
             return True
-        if self.item_trigger_card and card.card_id and card.card_id.startswith(self.item_trigger_card) and self.item_charges_left:
+        if (
+            self.item_trigger_card
+            and card.card_id
+            and card.card_id.startswith(self.item_trigger_card)
+            and self.item_charges_left
+        ):
             return not self.item_needs_high_hp or (self.half_hp is False)
         return False
 
@@ -281,7 +295,11 @@ class BattleState:
         return self.max_hp // 2 if self.max_hp else None
 
     def item_trigger_in_hand(self) -> list[CardView]:
-        return [c for c in self.hand if c.available and self.item_trigger_card and c.card_id and c.card_id.startswith(self.item_trigger_card)]
+        return [
+            c
+            for c in self.hand
+            if c.available and self.item_trigger_card and c.card_id and c.card_id.startswith(self.item_trigger_card)
+        ]
 
     def eureka_check(self) -> dict | None:
         """エウレカ（回合开始 HP ≤ 50% 时按元气得分并回血）已装时：下回合开始会不会触发、还有哪些扣血手段、道具次数够不够。
@@ -293,14 +311,20 @@ class BattleState:
         line = self.half_line()
         drains = [f"{c.name}（体力 -{c.hp_cost}）" for c in self.hand if c.available and c.hp_cost > 0]
         if self.item_charges_left and self.hp > line:
-            drains += [f"{c.name}（HP>{line} 时触发道具，体力 -{max(1, self.max_hp * 15 // 100)}，用掉 1 次道具）" for c in self.item_trigger_in_hand()]
+            drains += [
+                f"{c.name}（HP>{line} 时触发道具，体力 -{max(1, self.max_hp * 15 // 100)}，用掉 1 次道具）"
+                for c in self.item_trigger_in_hand()
+            ]
         out = {"触发条件": f"回合开始 HP ≤ {line}", "现在 HP": self.hp, "不再扣血的话下回合开始 HP": self.hp,
                "下回合会触发": self.hp <= line, "能扣血的手段": drains or None,
                "道具剩余次数": self.item_charges_left}  # fmt: skip
         if self.remaining_turns is not None and self.remaining_turns > 1 and self.item_charges_left is not None:
-            out["道具预算"] = (f"剩余 {self.remaining_turns} 回合、道具 {self.item_charges_left} 次：道具次数的用途是把 HP 压到半血线以下让エウレカ触发；"
-                            "这次用了能让下回合进半血区就用，压不下去时才省着（最后 4 回合尽量还剩 2 次）"
-                            if self.remaining_turns > 4 else "已进最后 4 回合：道具次数用来把 HP 压到半血线以下")
+            out["道具预算"] = (
+                f"剩余 {self.remaining_turns} 回合、道具 {self.item_charges_left} 次：道具次数的用途是把 HP 压到半血线以下让エウレカ触发；"
+                "这次用了能让下回合进半血区就用，压不下去时才省着（最后 4 回合尽量还剩 2 次）"
+                if self.remaining_turns > 4
+                else "已进最后 4 回合：道具次数用来把 HP 压到半血线以下"
+            )
         return out
 
     def troubles_in_hand(self) -> int:
@@ -387,14 +411,18 @@ class BattleState:
                 total += (g + gain * k) * pct / 100 * (self.turn_permil(rem - k) or avg) / 1000
             return total
 
-        options = {w: value(w) for w in range(0, max(1, rem - 1))}
+        options = {w: value(w) for w in range(max(1, rem - 1))}
         best = max(options, key=lambda w: options[w])
         out = {"现在装的预计总得分": math.ceil(options[0]),
                "按元気增速": f"每回合约 +{gain:g}" if gain else "未知（按不增长算，会低估晚装的收益）"}  # fmt: skip
         if best > 0 and options[best] > options[0] * 1.15:
-            out["更好的装备时机"] = f"再等 {best} 回合（剩 {rem - best} 回合时装），预计 {math.ceil(options[best]):,}（现在装 {math.ceil(options[0]):,}）"
+            out["更好的装备时机"] = (
+                f"再等 {best} 回合（剩 {rem - best} 回合时装），预计 {math.ceil(options[best]):,}（现在装 {math.ceil(options[0]):,}）"
+            )
             if self.piles is not None:
-                out["等到那时再抽到的概率"] = round(redraw_chance(self.piles, card.name, [(c.name, c.tags.once) for c in self.hand], best), 2)
+                out["等到那时再抽到的概率"] = round(
+                    redraw_chance(self.piles, card.name, [(c.name, c.tags.once) for c in self.hand], best), 2
+                )
         return out
 
     def _delayed_timing(self, card: CardView, delay: int) -> dict:
@@ -402,7 +430,10 @@ class BattleState:
         早于最晚回合时，留着要在那之前再抽到它。第 5 局本战 R1（9 回合）剩 6 回合时按「剩 5 回合再打」留着，之后没抽到，整场没结算。"""
         rem = self.remaining_turns
         last = delay + 1
-        out = {"现在打的结算时机": f"剩 {rem - delay} 回合开始时", "最晚打出": f"剩 {last} 回合（结算在最后一回合开始）"}
+        out = {
+            "现在打的结算时机": f"剩 {rem - delay} 回合开始时",
+            "最晚打出": f"剩 {last} 回合（结算在最后一回合开始）",
+        }
         # 结算落在哪个属性回合（第八局 R2：剩 7 回合打 せのび，结算落在 Vi 20.24×，而最后一回合是 Vo 35.19×）
         now_p, last_p = self.turn_permil(rem - delay), self.turn_permil(1)
         out["现在打的结算回合"] = self._turn_label(rem - delay) if rem - delay >= 1 else "考试结束前结算不到"
@@ -412,7 +443,9 @@ class BattleState:
             best = max(reach, key=lambda s: self.turn_permil(s))
             out["倍率最高的结算回合"] = f"{self._turn_label(best)}：要在剩 {best + delay} 回合时打"
             if now_p and last_p and now_p < self.turn_permil(best):
-                out["倍率比"] = f"晚打结算在 {self._turn_label(best)}，倍率是现在结算回合的 {self.turn_permil(best) / now_p:.2f} 倍（元気也更多）"
+                out["倍率比"] = (
+                    f"晚打结算在 {self._turn_label(best)}，倍率是现在结算回合的 {self.turn_permil(best) / now_p:.2f} 倍（元気也更多）"
+                )
         wait = rem - last
         if wait <= 0:
             out["留着"] = "这已经是最晚一回合，不打就结算不到"
@@ -424,7 +457,9 @@ class BattleState:
         else:
             out["留到最晚前再抽到的概率"] = "未知（读不到牌堆）"
         if wait <= 2:
-            out["说明"] = f"只剩 {wait} 回合的抽牌机会；抽不回来就整场不结算，而现在打只比最晚早 {wait} 回合结算，再抽到的机会不大时现在就打"
+            out["说明"] = (
+                f"只剩 {wait} 回合的抽牌机会；抽不回来就整场不结算，而现在打只比最晚早 {wait} 回合结算，再抽到的机会不大时现在就打"
+            )
         else:
             out["说明"] = f"现在打要比最晚早 {wait} 回合结算，按的元气少得多；剩余回合还多，牌组会循环回来，一般留着"
         return out
@@ -499,7 +534,9 @@ class BattleState:
         if gain is not None and self.genki:
             growth = (self.genki + gain * future) / self.genki
             out["genki_growth_est"] = round(growth, 2)
-            out["genki_growth_note"] = f"最近每回合元气约 +{gain:.0f}：照这个速度，最后一回合元气约 {self.genki + gain * future:.0f}（现在 {self.genki}）"
+            out["genki_growth_note"] = (
+                f"最近每回合元气约 +{gain:.0f}：照这个速度，最后一回合元气约 {self.genki + gain * future:.0f}（现在 {self.genki}）"
+            )
         mult = self.multiplier_permil / 1000 if self.multiplier_permil else None
         pct = sum(_genki_pct(e.note) * (future if e.kind == "permanent" else min(e.turns_left or 0, future))
                   for e in self.installed if e.kind != "delayed")  # fmt: skip
@@ -539,8 +576,13 @@ class BattleState:
             "finisher_check": self.finisher_check(),
             "cash_out": self.cash_out_check(),
             "eureka_check": self.eureka_check(),
-            "copy_pending": (f"复制效果待生效：下一张主动卡效果再发动一次，应接 {self.repeat_target}" if self.repeat_target
-                             else "复制效果待生效：下一张主动卡效果再发动一次，接价值最高的那张") if self.copy_pending else None,
+            "copy_pending": (
+                f"复制效果待生效：下一张主动卡效果再发动一次，应接 {self.repeat_target}"
+                if self.repeat_target
+                else "复制效果待生效：下一张主动卡效果再发动一次，接价值最高的那张"
+            )
+            if self.copy_pending
+            else None,
             "score_note": self.score_note,
             "max_hp_note": self.max_hp_note,
             "installed_effects": [asdict(e) for e in self.installed] or None,
@@ -572,7 +614,8 @@ class BattleState:
             out["effect_names_unavailable"] = (
                 "考试效果名整场都读不到（使用者没有自建效果图标 icons/status/，见 docs/assets.md 的 capture_icons）："
                 "やる気 / 好印象 的层数一直未知。不要靠它们判断兑现时机或叠层是否够，"
-                "优先选不依赖效果层数也稳妥的动作（按卡面效果和剩余回合判断）")
+                "优先选不依赖效果层数也稳妥的动作（按卡面效果和剩余回合判断）"
+            )
         return out
 
     @classmethod
@@ -655,7 +698,9 @@ class BattleState:
             if c.badge_score is None or not f:
                 continue
             if c.badge_score < f / 2 or c.badge_score > f * 4:
-                self.badge_notes.append(f"{c.name} 徽章读数 {c.badge_score:,} 与公式估算 {f:,} 对不上（位数读错），按公式")
+                self.badge_notes.append(
+                    f"{c.name} 徽章读数 {c.badge_score:,} 与公式估算 {f:,} 对不上（位数读错），按公式"
+                )
                 c.badge_score = None
         return self
 
@@ -724,6 +769,8 @@ def status_icons_missing() -> bool:
         return not available("status")
     except Exception:  # noqa: BLE001
         return False
+
+
 _PROMPT_NAME = {"remaining_turns": "remaining_turns_including_this"}
 EXAM_FIELDS = ("remaining_turns", "hp", "genki", "motivation", "impression", "score", "buffs", "attr", "multiplier_permil",
                "npc_scores", "my_rank_index", "deck_count", "pitem_charges", "statuses")  # fmt: skip
@@ -770,4 +817,8 @@ def profile_from_master(idol_card_id: str) -> IdolProfile | None:
         return None
     if not row:
         return None
-    return IdolProfile(idol_id=idol_card_id, name=f"{row.get('name') or idol_card_id}（{row.get('characterId') or '?'}）", playbook=None)
+    return IdolProfile(
+        idol_id=idol_card_id,
+        name=f"{row.get('name') or idol_card_id}（{row.get('characterId') or '?'}）",
+        playbook=None,
+    )
