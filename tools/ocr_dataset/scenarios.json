@@ -11,7 +11,13 @@
     "key": "turns_left",
     "type": "int",
     "importance": "高",
-    "desc": "左上圆环里的剩余回合数"
+    "desc": "左上「残りターン」圆环里的大数字（不含下面的「+N」）"
+   },
+   {
+    "key": "extra_turns",
+    "type": "int",
+    "importance": "高",
+    "desc": "圆环下面「+N」额外回合徽章里的 N；没有这个徽章写 0"
    },
    {
     "key": "exam_attr",

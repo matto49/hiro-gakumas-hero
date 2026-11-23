@@ -129,6 +129,11 @@ def _field_flags(sid: str) -> dict[str, set[str]]:
 
 def _canon(sid: str, d: dict) -> dict:
     """打分前两边都过一遍的等价规则：考试手牌消耗为 0 和「没有消耗」对决策是一回事（系统把 0 消耗记成没有消耗）。"""
+    if sid == "exam" and "extra_turns" in d:  # 剩余回合 = 圆环大数字 + 下面的「+N」额外回合（系统读的就是合计）
+        extra = d.get("extra_turns") or 0
+        d = {k: v for k, v in d.items() if k != "extra_turns"}
+        if d.get("turns_left") is not None:
+            d["turns_left"] = d["turns_left"] + extra
     if sid == "exam" and isinstance(d.get("hand"), list):
         d = {**d, "hand": [({**h, "cost": None, "cost_type": "none"} if isinstance(h, dict) and h.get("cost") == 0 else h) for h in d["hand"]]}
     return d

@@ -51,9 +51,11 @@ def _describe(it: dict, indent: str = "") -> str:
     return line
 
 
-def prompt(sid: str) -> tuple[str, str]:
+def prompt(sid: str, keys: list[str] | None = None) -> tuple[str, str]:
+    """keys：只问这几项（补问新加的项时用）。"""
     d = load()[sid]
-    user = (f"场景：{d['name']}\n信息项：\n" + "\n".join(_describe(it) for it in d["items"])
+    items = [it for it in d["items"] if keys is None or it["key"] in keys]
+    user = (f"场景：{d['name']}\n信息项：\n" + "\n".join(_describe(it) for it in items)
             + f"\n按钮：列出画面上看得到的按钮文字，尤其注意这些：{' / '.join(d.get('buttons', [])) or '无'}")  # fmt: skip
     return SYSTEM, user
 

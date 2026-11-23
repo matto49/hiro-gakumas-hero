@@ -122,3 +122,9 @@ def test_truncated_name_and_hidden_cost_are_not_errors():
 def test_prefix_rule_needs_two_chars_and_only_for_names():
     res = {r["path"]: r["result"] for r in se.score_frame("exam", {"hand": [{"name": "ゆ"}]}, {"hand": [{"name": "ゆるふわ"}]})}
     assert res["hand[0].name"] == "错"
+
+
+def test_turns_left_counts_extra_turns():
+    truth = {"turns_left": 3, "extra_turns": 1}
+    assert {r["path"]: r["result"] for r in se.score_frame("exam", truth, {"turns_left": 4})} == {"turns_left": "对"}
+    assert {r["path"]: r["result"] for r in se.score_frame("exam", {"turns_left": 3, "extra_turns": 0}, {"turns_left": 3})} == {"turns_left": "对"}

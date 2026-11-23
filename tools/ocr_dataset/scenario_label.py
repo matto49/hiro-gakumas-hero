@@ -14,23 +14,60 @@ class LabelError(RuntimeError):
     pass
 
 
-def ask(llm, img, sid: str) -> dict:
-    """一个 LLM 读一帧 → {"items": 归一后的信息项, "buttons": [按钮文字]}。"""
-    system, user = scenario.prompt(sid)
+def ask(llm, img, sid: str, keys: list[str] | None = None) -> dict:
+    """一个 LLM 读一帧 → {"items": 归一后的信息项, "buttons": [按钮文字]}。keys：只问、只留这几项。"""
+    system, user = scenario.prompt(sid, keys)
     ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 92])
     res = llm.ask_json_image(system, user, buf.tobytes())
     data = res.data if not res.error else None
     if not isinstance(data, dict) or not isinstance(data.get("items"), dict):
         raise LabelError(f"{getattr(llm, 'name', '?')} 没给出 items：{res.error or (res.raw or '')[:200]}")
     buttons = [scenario._text(b) for b in data.get("buttons") or [] if isinstance(b, (str, int))]
-    return {"items": scenario.normalize(sid, data["items"]), "buttons": [b for b in buttons if b]}
+    items = scenario.normalize(sid, data["items"])
+    if keys is not None:
+        items = {k: v for k, v in items.items() if k in keys}
+    return {"items": items, "buttons": [b for b in buttons if b]}
 
 
-def label_frame(img, sid: str, readers: dict) -> dict:
-    """readers：{名字: LLM 适配器}，取前两个比对。→ {truth, item_status, answers, button_labels}。"""
+def label_frame(img, sid: str, readers: dict, keys: list[str] | None = None) -> dict:
+    """readers：{名字: LLM 适配器}，取前两个比对。→ {truth, item_status, answers, button_labels}。keys：只问这几项。"""
     names = list(readers)
-    answers = {n: ask(readers[n], img, sid) for n in names}
+    answers = {n: ask(readers[n], img, sid, keys) for n in names}
     a, b = answers[names[0]], answers[names[1]]
     truth, status = scenario.merge(a["items"], b["items"])
     labels = [x for x in a["buttons"] if x in b["buttons"]]
     return {"truth": truth, "item_status": status, "answers": answers, "button_labels": labels}
+
+
+def backfill(dataset, set_: str, sid: str, keys: list[str], readers: dict, log=print) -> dict[str, int]:
+    """场景定义新加了信息项时，对已有的帧只补问这几项：真值和各方答案里加上这几项，不一致的记 disputed；其余项（包括人定过的）不动。"""
+    import json
+    from pathlib import Path
+
+    from tools.ocr_dataset import truth as truth_mod
+
+    root = Path(dataset) / set_
+    frames = disputed = 0
+    for js in sorted(root.glob("*.json")):
+        fr = json.loads(js.read_text(encoding="utf-8"))
+        if fr.get("schema") != 3 or fr.get("scenario") != sid:
+            continue
+        try:
+            r = label_frame(cv2.imread(str(root / fr["image"])), sid, readers, keys)
+        except LabelError as e:
+            log(f"{fr['id']} 补问失败：{e}")
+            continue
+        st = fr.setdefault("item_status", {})
+        for p in list(st):
+            if p.split("[")[0].split(".")[0] in keys and st[p] == "disputed":
+                del st[p]
+        fr["truth"].update(r["truth"])
+        for p, s in r["item_status"].items():
+            st[p] = s
+            disputed += 1
+        for n, a in r["answers"].items():
+            fr.setdefault("answers", {}).setdefault(n, {"items": {}}).setdefault("items", {}).update(a["items"])
+        js.write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
+        frames += 1
+        log(f"{fr['id']}：补问 {keys} → {r['truth']}")
+    return {"frames": frames, "disputed": disputed}
