@@ -36,6 +36,13 @@ def _shown_cost(base: int, statuses: list[dict]) -> int:
     return max(0, v - fix) if fix >= 1 else v
 
 
+def _status(s: dict) -> dict:
+    """系统的状态槽 → 场景项：enchant（卡牌 / 道具持续效果）= card_effect，名字不计；单位是「%」的数记在 pct。"""
+    pct = s.get("unit") == "%"
+    return {"kind": "card_effect" if s.get("kind") == "enchant" else "status", "name": None if s.get("kind") == "enchant" else s.get("name"),
+            "value": None if pct else s.get("value"), "pct": s.get("value") if pct else None}  # fmt: skip
+
+
 def _exam(f: dict) -> dict:
     scores = list(f.get("npc_scores") or [])
     if f.get("my_score") is not None and f.get("my_rank_index"):  # 选拔和本战的顶部排名条都包含自己的分数
@@ -57,7 +64,7 @@ def _exam(f: dict) -> dict:
         "turns_left": f.get("remaining_turns"), "exam_attr": f.get("attr"), "multiplier_pct": f.get("multiplier_pct"),
         "top_scores": scores, "breakthrough_rank": f.get("rank_line"), "breakthrough_total": f.get("participants"),
         "hp": f.get("hp"), "genki": f.get("genki"), "hand": hand, "selected_preview": preview,
-        "status_values": [s.get("value") for s in sorted(f.get("statuses") or [], key=lambda s: s.get("slot", 0))],
+        "statuses": [_status(s) for s in sorted(f.get("statuses") or [], key=lambda s: s.get("slot", 0))],
         "deck_left": f.get("deck_count"),
         "drinks_count": sum(1 for s in f.get("drink_slots") or [] if s.get("state") == "drink") if f.get("drink_slots") is not None else None,
     }  # fmt: skip

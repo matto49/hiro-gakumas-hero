@@ -17,6 +17,18 @@ class LabelError(RuntimeError):
 def ask(llm, img, sid: str, keys: list[str] | None = None) -> dict:
     """一个 LLM 读一帧 → {"items": 归一后的信息项, "buttons": [按钮文字]}。keys：只问、只留这几项。"""
     system, user = scenario.prompt(sid, keys)
+    ref = [it for it in scenario.load()[sid]["items"] if it.get("reference") == "status_sheet" and (keys is None or it["key"] in keys)]
+    if ref:  # 状态图标上没有字：拼上放大的状态栏和图标对照表
+        from tools.ocr_dataset import status_sheet
+
+        if keys is not None and set(keys) <= {it["key"] for it in ref}:
+            img = status_sheet.compose(img, ref[0]["region"])  # 只问状态栏：只给拼图
+        else:
+            sheet_img = status_sheet.compose(img, ref[0]["region"])
+            h = sheet_img.shape[0]
+            full = cv2.resize(img, (round(img.shape[1] * h / img.shape[0]), h))
+            img = cv2.hconcat([full, sheet_img])
+        user = status_sheet.NOTE + "\n" + user
     ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 92])
     res = llm.ask_json_image(system, user, buf.tobytes())
     data = res.data if not res.error else None

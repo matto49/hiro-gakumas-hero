@@ -221,17 +221,48 @@
     ]
    },
    {
-    "key": "status_values",
+    "key": "statuses",
     "type": "list",
-    "item": "int",
     "importance": "高",
-    "desc": "左侧状态栏每个图标旁的数字，从上到下（「1回」写 1）",
-    "label": "左侧状态栏的数字",
+    "reference": "status_sheet",
+    "desc": "左侧状态栏从上到下每个菱形一项（状态的数字含义——层数、回合、百分比、次数——由状态本身决定，不用标）",
+    "label": "状态栏",
     "region": [
      0,
-     230,
-     280,
-     800
+     225,
+     300,
+     860
+    ],
+    "fields": [
+     {
+      "key": "kind",
+      "type": "enum",
+      "values": [
+       "status",
+       "card_effect"
+      ],
+      "label": "类型",
+      "desc": "蓝色（低下状态是红色）菱形底 + 白色图案 = status；菱形里是彩色画（卡面、饮料等）= card_effect（卡牌或道具留下的持续效果）"
+     },
+     {
+      "key": "name",
+      "type": "text",
+      "label": "状态名",
+      "derivable": true,
+      "desc": "status：照对照表写图标对应的名字（一格写了几个名字的写第一个；红底的爱心写「消費体力増加」）；card_effect：写 null"
+     },
+     {
+      "key": "value",
+      "type": "int",
+      "label": "数字（层数 / 回合 / 次数）",
+      "desc": "主数字：层数 / 回合 / 次数（「37」写 37、「4ターン」写 4、「1回」写 1）；只有百分比、或没有数字写 null"
+     },
+     {
+      "key": "pct",
+      "type": "int",
+      "label": "百分比",
+      "desc": "同一格里显示的百分比（「50%」写 50）；没有写 null"
+     }
     ]
    },
    {

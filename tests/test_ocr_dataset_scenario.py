@@ -19,7 +19,7 @@ def test_definitions_load_and_map_pages():
 
 def test_prompt_lists_every_item_and_forbids_guessing():
     system, user = scenario.prompt("exam")
-    for key in ("turns_left", "multiplier_pct", "hand", "cost_type", "status_values"):
+    for key in ("turns_left", "multiplier_pct", "hand", "cost_type", "statuses"):
         assert key in user
     assert "null" in system and "JSON" in system
 
@@ -27,12 +27,13 @@ def test_prompt_lists_every_item_and_forbids_guessing():
 def test_normalize_coerces_types():
     raw = {"turns_left": "9", "exam_attr": "Vocal", "multiplier_pct": "2,805%", "top_scores": ["403,729", 303833],
            "hp": 27, "genki": "0", "hand": [{"name": " 気まぐれハート ", "plus": "true", "cost_type": "GREEN_HEART", "cost": "1"}],
-           "selected_preview": None, "status_values": ["6", "1回"], "unknown_key": 1}  # fmt: skip
+           "selected_preview": None, "statuses": [{"kind": "Status", "name": "好印象", "value": "6"}, {"kind": "card_effect", "name": None, "value": "1回", "pct": "50%"}], "unknown_key": 1}  # fmt: skip
     got = scenario.normalize("exam", raw)
     assert got["turns_left"] == 9 and got["exam_attr"] == "vocal" and got["multiplier_pct"] == 2805
     assert got["top_scores"] == [403729, 303833] and got["genki"] == 0
     assert got["hand"] == [{"name": "気まぐれハート", "plus": True, "cost_type": "green_heart", "cost": 1}]
-    assert got["selected_preview"] is None and got["status_values"] == [6, 1]
+    assert got["selected_preview"] is None
+    assert got["statuses"] == [{"kind": "status", "name": "好印象", "value": 6, "pct": None}, {"kind": "card_effect", "name": None, "value": 1, "pct": 50}]
     assert "unknown_key" not in got and "deck_left" not in got  # 没给的项不补
 
 

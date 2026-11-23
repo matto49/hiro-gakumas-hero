@@ -84,3 +84,23 @@ def test_backfill_replaces_list_items_and_reports_dropped_human_answers(tmp_path
     fr = json.loads((ds / "core" / "a.json").read_text(encoding="utf-8"))
     assert [h["name"] for h in fr["truth"]["hand"]] == ["x", "えいえいおー"] and fr["truth"]["playing_name"] == "成長痛"
     assert fr["item_status"] == {"hp": "resolved"} and fr["reviewed"] == {"hp": "2026-11-23"}
+
+
+class _ImageSpy(MockLLM):
+    def ask_json_image(self, system, user, image_jpeg):
+        import cv2
+
+        self.image = cv2.imdecode(np.frombuffer(image_jpeg, np.uint8), cv2.IMREAD_COLOR)
+        return super().ask_json_image(system, user, image_jpeg)
+
+
+def test_status_items_come_with_icon_reference_sheet():
+    """状态图标上没有字：问状态栏时把放大的状态栏和素材包图标对照表拼在一张图里给模型，提示词里说明拼法。"""
+    llm = _ImageSpy(replies=[{"items": {"statuses": [{"kind": "status", "name": "好印象", "value": 5}]}, "buttons": []}])
+    got = sl.ask(llm, np.zeros((1280, 720, 3), np.uint8), "exam", keys=["statuses"])
+    assert got["items"]["statuses"] == [{"kind": "status", "name": "好印象", "value": 5, "pct": None}]
+    assert llm.image.shape[1] > 720  # 拼了对照表
+    assert "对照表" in llm.calls[0][1]
+    plain = _ImageSpy(replies=[{"items": {"hp": 3}, "buttons": []}])
+    sl.ask(plain, np.zeros((1280, 720, 3), np.uint8), "exam", keys=["hp"])
+    assert plain.image.shape[:2] == (1280, 720) and "对照表" not in plain.calls[0][1]

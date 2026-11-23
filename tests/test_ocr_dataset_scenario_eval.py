@@ -10,7 +10,7 @@ EXAM_RAW = {
     "remaining_turns": 9, "attr": "vocal", "multiplier_pct": 2805, "finals": True, "my_rank_index": 3, "my_score": 0, "npc_scores": [400729, 303833],
     "rank_line": None, "participants": None, "genki": 0, "hp": 27, "deck_count": None,
     "drink_slots": [{"slot": 0, "state": "drink"}, {"slot": 1, "state": "empty"}],
-    "statuses": [{"slot": 1, "value": 6}, {"slot": 0, "value": 5}],
+    "statuses": [{"slot": 1, "kind": "enchant", "card_id": "c1", "value": 6}, {"slot": 0, "kind": "status", "name": "好印象", "value": 5}, {"slot": 2, "kind": "status", "name": "パラメータ上昇量増加", "value": 10, "unit": "%"}],
     "hand": [{"slot": 0, "name": "気まぐれハート+", "plus": 1, "genki_cost": 1, "hp_cost": None, "extra_cost": None, "badge_score": None},
              {"slot": 1, "name": "ありがとうの言葉+", "plus": 1, "genki_cost": None, "hp_cost": 3, "extra_cost": None, "badge_score": 337},
              {"slot": 2, "name": "きらきら紙吹雪+", "plus": 1, "genki_cost": None, "hp_cost": None, "extra_cost": 2, "badge_score": None}],
@@ -24,7 +24,9 @@ def test_adapt_exam():
     assert got["hand"] == [{"name": "気まぐれハート", "plus": True, "cost_type": "green_heart", "cost": 1},
                            {"name": "ありがとうの言葉", "plus": True, "cost_type": "red_heart", "cost": 3},
                            {"name": "きらきら紙吹雪", "plus": True, "cost_type": "buff", "cost": 2}]  # fmt: skip
-    assert got["selected_preview"] == 337 and got["status_values"] == [5, 6] and got["drinks_count"] == 1
+    assert got["selected_preview"] == 337 and got["drinks_count"] == 1
+    assert got["statuses"] == [{"kind": "status", "name": "好印象", "value": 5, "pct": None}, {"kind": "card_effect", "name": None, "value": 6, "pct": None},
+                              {"kind": "status", "name": "パラメータ上昇量増加", "value": None, "pct": 10}]
     assert got["deck_left"] is None and "breakthrough_rank" in got
 
 
