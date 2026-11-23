@@ -21,6 +21,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("dir", nargs="?")
     p = sub.add_parser("validate", help="校验数据仓库")
     p.add_argument("dir", nargs="?")
+    p = sub.add_parser("lexicon", help="生成游戏词表 / 字表（缺省写到数据仓库的 lexicon/）")
+    p.add_argument("dir", nargs="?")
     a = ap.parse_args(argv)
     if a.cmd == "init":
         root = schema.init(dataset_root(a.dir))
@@ -28,6 +30,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.cmd == "validate":
         return schema.main([str(dataset_root(a.dir))])
+    if a.cmd == "lexicon":
+        from tools.ocr_dataset import lexicon
+
+        out = Path(a.dir) if a.dir else dataset_root() / "lexicon"
+        lex = lexicon.build()
+        lexicon.save(lex, out)
+        print(f"词表 {len(lex.words)} 个、字表 {len(lex.charset)} 字（主数据 {lex.version[:12]}）→ {out}")
+        return 0
     return 2
 
 
