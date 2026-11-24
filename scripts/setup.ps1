@@ -44,7 +44,8 @@ if (-not (Test-Path $Py)) {
 }
 
 Step "3/7 安装本仓库与 KAA（.[dev,play]）"
-uv pip install --python $Py -e ".[dev,play]"
+# --override：不装 KAA 图形界面的 PySide6（约 1.2 GB，hiro 用不到），见 scripts\uv-overrides.txt
+uv pip install --python $Py --override (Join-Path $Root "scripts\uv-overrides.txt") -e ".[dev,play]"
 if ($LASTEXITCODE) { throw "安装失败" }
 
 Step "4/7 生成 KAA 的 kaa/tasks/R.py（KAA 的生成文件，子模块里没有）"
@@ -113,7 +114,7 @@ if (Get-Command cargo -ErrorAction SilentlyContinue) {
 
 # 考试出牌：gakumas-bench 的开源算法（缺省 UINet，默认开；HIRO_BENCH_ADVISOR=0 关）。装不上不影响开局：考试出牌退回社区规则
 Write-Host "  考试出牌算法（gakumas-bench + UINet 模型 + 主数据导出）…"
-uv pip install --python $Py -q -e ".[bench]"
+uv pip install --python $Py -q --override (Join-Path $Root "scripts\uv-overrides.txt") -e ".[bench]"
 if ($LASTEXITCODE) {
     Write-Host "  ⚠ gakumas-bench / UINet 没装上：考试出牌会退回社区规则"
 } else {

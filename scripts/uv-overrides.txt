@@ -1,0 +1,8 @@
+# uv 依赖覆盖：scripts/setup.sh / setup.ps1 装依赖时用 --override 传给 uv（KAA 的 pyproject 是硬依赖，只能这样排除）。
+#
+# PySide6：KAA（vendor/kaa）自己图形界面的依赖，约 1.2 GB（里面带一个 Chromium 网页引擎）。hiro 不用 KAA 的界面：
+#   hiro 的代码不导入它；KAA 只在 kaa/application/ui/（界面）和 kaa/util/app_lifecycle.py 的函数里（KAA 界面退出时）才导入。
+#   2026-11-24 Mac 实测：去掉后导入冒烟（runtime / loop / cli / kaa.tasks / 游戏数据下载器）和全量 pytest 与装着时完全相同，
+#   .venv 的 site-packages 从 1.8 GB 降到 591 MB。
+# 平台条件永远不成立 = 不装。
+pyside6 ; sys_platform == "never"

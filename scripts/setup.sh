@@ -39,7 +39,8 @@ fi
 PY="$ROOT/$(venv_py)"
 
 step "3/7 安装本仓库与 KAA（.[dev,play]）"
-uv pip install --python "$PY" -e ".[dev,play]"
+# --override：不装 KAA 图形界面的 PySide6（约 1.2 GB，hiro 用不到），见 scripts/uv-overrides.txt
+uv pip install --python "$PY" --override "$ROOT/scripts/uv-overrides.txt" -e ".[dev,play]"
 
 step "4/7 生成 KAA 的 kaa/tasks/R.py（KAA 的生成文件，子模块里没有）"
 if [ "$REGEN" = 1 ] || [ ! -f vendor/kaa/kaa/tasks/R.py ]; then
@@ -100,7 +101,7 @@ fi
 
 # 考试出牌：gakumas-bench 的开源算法（缺省 UINet，默认开；HIRO_BENCH_ADVISOR=0 关）。装不上不影响开局：考试出牌退回社区规则
 echo "  考试出牌算法（gakumas-bench + UINet 模型 + 主数据导出）…"
-if uv pip install --python "$PY" -q -e ".[bench]"; then
+if uv pip install --python "$PY" -q --override "$ROOT/scripts/uv-overrides.txt" -e ".[bench]"; then
   "$PY" -m hiro.bench_bridge setup || echo "  ⚠ UINet 模型 / 主数据没准备好（原因见上面几行）：考试出牌会退回社区规则；修好后重跑本脚本"
 else
   echo "  ⚠ gakumas-bench / UINet 没装上：考试出牌会退回社区规则"
