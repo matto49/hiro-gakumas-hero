@@ -1,8 +1,8 @@
 """tools.ocr_dataset.failures_page：识别不通过的项按原因聚合成核对页。"""
 
-import pytest
-
 from tools.ocr_dataset import failures_page as fp
+
+import pytest
 
 pytestmark = pytest.mark.synthetic
 

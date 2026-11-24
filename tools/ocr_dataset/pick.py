@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import re
 import shutil
@@ -13,10 +14,10 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from tools.ocr_dataset import schema
+
 import cv2
 import numpy as np
-
-from tools.ocr_dataset import schema
 
 N_CELL = 3  # 每个「平台 × 页面」格最多几张
 N_CELL_DMM540 = 5  # DMM 540 的格放宽
@@ -147,7 +148,9 @@ def _image_frames(d: Path) -> list[tuple[str, int, Path]]:
     return out
 
 
-def collect(paths: Iterable[str | Path], platform: str | None = None, classify: Callable | None = None) -> list[Candidate]:
+def collect(
+    paths: Iterable[str | Path], platform: str | None = None, classify: Callable | None = None
+) -> list[Candidate]:
     """读一批 trace 目录（有 frames/）或图片目录；同一运行里和上一张留下的帧差小于 SCREEN_DIFF 的去掉，跨运行按内容哈希去重。"""
     classify = classify or _default_classify
     diff = _screen_diff()
@@ -282,15 +285,11 @@ def known_hashes(dataset: str | Path) -> set[str]:
     root, out = Path(dataset), set()
     for s in schema.SETS:
         for j in (root / s).glob("*.json") if (root / s).is_dir() else []:
-            try:
+            with contextlib.suppress(ValueError):
                 out.add(json.loads(j.read_text(encoding="utf-8")).get("sha256"))
-            except ValueError:
-                pass
     for m in (root / "inbox").rglob("meta.json") if (root / "inbox").is_dir() else []:
-        try:
+        with contextlib.suppress(ValueError):
             out |= {f.get("sha256") for f in json.loads(m.read_text(encoding="utf-8")).get("frames", [])}
-        except ValueError:
-            pass
     out.discard(None)
     return out
 
@@ -299,7 +298,9 @@ def _note(notes: dict[str, str], c: Candidate) -> str | None:
     return notes.get(f"{c.run}:{c.seq}") or notes.get(str(c.seq))
 
 
-def write_inbox(sel: list[Candidate], dataset: str | Path, contributor: str, notes: dict[str, str], date: str | None = None) -> Path:
+def write_inbox(
+    sel: list[Candidate], dataset: str | Path, contributor: str, notes: dict[str, str], date: str | None = None
+) -> Path:
     """图片原样拷到 inbox/<贡献者>/<日期>/<frame_id>.<扩展名>（有原生 PNG 一起拷），写 meta.json；同一天再挑一次会追加。
     notes 的键是 `<运行名>:<seq>` 或 `<seq>`。"""
     out = Path(dataset) / "inbox" / contributor / (date or time.strftime("%Y-%m-%d"))
@@ -322,8 +323,13 @@ def write_inbox(sel: list[Candidate], dataset: str | Path, contributor: str, not
             "image": image,
             "sha256": schema.sha256(out / image),
             "source": {"run": c.run, "seq": c.seq, "contributor": contributor, "captured": c.captured},
-            "platform": {"kind": c.platform, "native": native, "stored": [w, h],
-                         "device": c.run_meta.get("screenshot") or c.run_meta.get("device"), "ocr": c.run_meta.get("ocr")},  # fmt: skip
+            "platform": {
+                "kind": c.platform,
+                "native": native,
+                "stored": [w, h],
+                "device": c.run_meta.get("screenshot") or c.run_meta.get("device"),
+                "ocr": c.run_meta.get("ocr"),
+            },
             "page": c.page,
             "note": _note(notes, c),
         }
@@ -348,5 +354,8 @@ def summary(sel: list[Candidate]) -> str:
     for (p, _), v in cells.items():
         by_plat[p] = by_plat.get(p, 0) + v
     lines = [f"共 {len(sel)} 帧、{len(cells)} 格：" + "，".join(f"{p} {v}" for p, v in sorted(by_plat.items()))]
-    lines += [f"  {p:8} {pg or '(未判页)':28} {v}" for (p, pg), v in sorted(cells.items(), key=lambda kv: (kv[0][0], str(kv[0][1])))]
+    lines += [
+        f"  {p:8} {pg or '(未判页)':28} {v}"
+        for (p, pg), v in sorted(cells.items(), key=lambda kv: (kv[0][0], str(kv[0][1])))
+    ]
     return "\n".join(lines)

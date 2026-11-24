@@ -1,11 +1,11 @@
 """tools.ocr_dataset.eval / charset_rapid：评测指标与字表屏蔽（规格 docs/ryugi/specs/2026-11-23-ocr-dataset-design.md §6.5）。"""
 
-import numpy as np
-import pytest
-
 from tools.ocr_dataset import charset_rapid
 from tools.ocr_dataset import eval as ev
 from tools.ocr_dataset.lexicon import Lexicon
+
+import numpy as np
+import pytest
 
 pytestmark = pytest.mark.synthetic
 
@@ -13,7 +13,15 @@ LEX = Lexicon(words={"編成", "スキルカード", "えいえいおー+"}, cha
 
 
 def _b(i, box, text, status="agreed", typ="button"):
-    return {"id": i, "box": box, "text": text, "status": status, "answers": {}, "tags": {"field": None, "type": typ}, "ignore": status == "ignored"}
+    return {
+        "id": i,
+        "box": box,
+        "text": text,
+        "status": status,
+        "answers": {},
+        "tags": {"field": None, "type": typ},
+        "ignore": status == "ignored",
+    }
 
 
 def _frame(fid="f1", kind="dmm540", page="HOME", boxes=None):
@@ -21,8 +29,17 @@ def _frame(fid="f1", kind="dmm540", page="HOME", boxes=None):
 
 
 def test_match_pairs_by_iou_or_center_and_joins_pieces():
-    truth = [_b(0, [100, 100, 300, 140], "スキルカード獲得"), _b(1, [100, 500, 200, 540], "編成"), _b(2, [400, 900, 500, 940], "x")]
-    pred = [("スキルカード", (100, 102, 220, 140)), ("獲得", (230, 100, 300, 140)), ("綿成", (102, 498, 205, 541)), ("ゴミ", (600, 10, 700, 40))]
+    truth = [
+        _b(0, [100, 100, 300, 140], "スキルカード獲得"),
+        _b(1, [100, 500, 200, 540], "編成"),
+        _b(2, [400, 900, 500, 940], "x"),
+    ]
+    pred = [
+        ("スキルカード", (100, 102, 220, 140)),
+        ("獲得", (230, 100, 300, 140)),
+        ("綿成", (102, 498, 205, 541)),
+        ("ゴミ", (600, 10, 700, 40)),
+    ]
     got, extra = ev.match(pred, truth)
     assert got == {0: "スキルカード獲得", 1: "綿成", 2: None}
     assert extra == 1
@@ -31,7 +48,9 @@ def test_match_pairs_by_iou_or_center_and_joins_pieces():
 def test_score_cer_exact_keywords_and_missed():
     frames = [_frame(boxes=[_b(0, [100, 500, 200, 540], "編成"), _b(1, [100, 100, 400, 140], "スキルカード強化", typ="body"),
                             _b(2, [400, 900, 500, 940], "ロゴ")])]  # fmt: skip
-    preds = {"f1": {"texts": [("綿成", (100, 500, 200, 540)), ("スキルカード強化", (100, 100, 400, 140))], "seconds": 0.5}}
+    preds = {
+        "f1": {"texts": [("綿成", (100, 500, 200, 540)), ("スキルカード強化", (100, 100, 400, 140))], "seconds": 0.5}
+    }
     r = ev.score(frames, preds, LEX)
     a = r["groups"]["all"]
     assert a["boxes"] == 3 and a["chars"] == 2 + 8 + 2
@@ -48,7 +67,12 @@ def test_score_cer_exact_keywords_and_missed():
 def test_disputed_and_ignored_do_not_score_but_share_is_reported():
     frames = [_frame(boxes=[_b(0, [0, 0, 50, 30], "編成"), _b(1, [0, 100, 50, 130], "?", status="disputed"),
                             _b(2, [0, 200, 50, 230], "", status="ignored"), _b(3, [0, 300, 50, 330], "体力", status="resolved")])]  # fmt: skip
-    preds = {"f1": {"texts": [("編成", (0, 0, 50, 30)), ("ナニカ", (0, 100, 50, 130)), ("飾り", (0, 200, 50, 230))], "seconds": 0.1}}
+    preds = {
+        "f1": {
+            "texts": [("編成", (0, 0, 50, 30)), ("ナニカ", (0, 100, 50, 130)), ("飾り", (0, 200, 50, 230))],
+            "seconds": 0.1,
+        }
+    }
     r = ev.score(frames, preds, LEX)
     assert r["groups"]["all"]["boxes"] == 2 and r["groups"]["all"]["edits"] == 2
     assert r["groups"]["all"]["extra"] == 0  # 读到待定 / 忽略框上的字不算多读
@@ -58,7 +82,10 @@ def test_disputed_and_ignored_do_not_score_but_share_is_reported():
 
 def test_timing_skips_first_frame_and_errors_are_ranked():
     frames = [_frame(fid=f"f{i}", boxes=[_b(0, [0, 0, 50, 30], "編成")]) for i in range(4)]
-    preds = {f"f{i}": {"texts": [("綿成" if i == 2 else "編成", (0, 0, 50, 30))], "seconds": s} for i, s in enumerate([9.0, 1.0, 2.0, 3.0])}
+    preds = {
+        f"f{i}": {"texts": [("綿成" if i == 2 else "編成", (0, 0, 50, 30))], "seconds": s}
+        for i, s in enumerate([9.0, 1.0, 2.0, 3.0])
+    }
     r = ev.score(frames, preds, LEX)
     assert r["timing"]["p50"] == pytest.approx(2.0) and r["timing"]["p90"] == pytest.approx(2.8)
     assert r["errors"][0]["frame"] == "f2" and r["errors"][0]["pred"] == "綿成" and len(r["errors"]) == 1

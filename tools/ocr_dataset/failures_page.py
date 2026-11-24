@@ -13,7 +13,8 @@ import html
 import json
 from pathlib import Path
 
-from tools.ocr_dataset import scenario, scenario_eval as se
+from tools.ocr_dataset import scenario
+from tools.ocr_dataset import scenario_eval as se
 
 CATS = ("覆盖缺口", "三后端一致但≠真值", "三后端都没读对", "后端差异")
 CHECK_PAGE = {"core": "check.html", "hard": "check-hard.html"}
@@ -58,7 +59,10 @@ def aggregate(sets: list[tuple[str, list[dict]]], reads: dict[str, dict[str, dic
                 if all(v != "对" for v in res.values()):
                     if all(v == "没读" for v in res.values()):
                         cat = "覆盖缺口"
-                    elif all(v == "错" for v in res.values()) and len({json.dumps(g, ensure_ascii=False) for g in got.values()}) == 1:
+                    elif (
+                        all(v == "错" for v in res.values())
+                        and len({json.dumps(g, ensure_ascii=False) for g in got.values()}) == 1
+                    ):
                         cat = "三后端一致但≠真值"
                     else:
                         cat = "三后端都没读对"
@@ -66,18 +70,36 @@ def aggregate(sets: list[tuple[str, list[dict]]], reads: dict[str, dict[str, dic
                     cat = "后端差异"
                 sid = fr["scenario"]
                 key = (cat, f"{sid} {se._norm_item(p)}")
-                g = groups.setdefault(key, {"category": cat, "item": key[1], "importance": se._importance(sid, p), "instances": [], "failing": {}})
+                g = groups.setdefault(
+                    key,
+                    {
+                        "category": cat,
+                        "item": key[1],
+                        "importance": se._importance(sid, p),
+                        "instances": [],
+                        "failing": {},
+                    },
+                )
                 g["instances"].append({"set": set_name, "frame": fr["id"], "image": fr.get("image"), "scenario": sid, "region": _region(fr, p),
                                        "path": p, "want": want, "got": got, "results": res})  # fmt: skip
                 for b, v in res.items():
                     if v != "对":
                         g["failing"][b] = g["failing"].get(b, 0) + 1
     imp = {"高": 0, "中": 1, "低": 2}
-    return sorted(groups.values(), key=lambda g: (CATS.index(g["category"]), imp.get(g["importance"], 3), -len(g["instances"]), g["item"]))
+    return sorted(
+        groups.values(),
+        key=lambda g: (CATS.index(g["category"]), imp.get(g["importance"], 3), -len(g["instances"]), g["item"]),
+    )
 
 
 SCENARIO_SHORT = {"exam": "考试", "consult": "相談商店", "round_interval": "轮间商店", "action_select": "选行动"}
-BACKEND_NAME = {"vision": "Vision", "rapidocr": "PP-OCRv3", "simd": "SIMD", "ppocr5": "PP-OCRv5", "winocr": "Windows OCR"}
+BACKEND_NAME = {
+    "vision": "Vision",
+    "rapidocr": "PP-OCRv3",
+    "simd": "SIMD",
+    "ppocr5": "PP-OCRv5",
+    "winocr": "Windows OCR",
+}
 CAT_TITLE = {
     "覆盖缺口": "所有 OCR 后端都没读出来",
     "三后端一致但≠真值": "所有 OCR 后端读成同一个值，但和画面不一样",
@@ -318,7 +340,9 @@ def render(groups: list[dict], backends, out: str | Path, dataset: str | Path | 
                 r = x["results"][b]
                 cls = {"对": "ok", "错": "bad", "没读": "miss"}[r]
                 val = "没读" if r == "没读" else plain(x["got"][b])
-                reads.append(f'<div class="read {cls}"><span class="b">{e(bname(b))}</span><span class="v">{e(val)}</span></div>')
+                reads.append(
+                    f'<div class="read {cls}"><span class="b">{e(bname(b))}</span><span class="v">{e(val)}</span></div>'
+                )
             page = CHECK_PAGE.get(x["set"], "check.html")
             where = _where(x["path"])
             cases.append(
@@ -326,14 +350,19 @@ def render(groups: list[dict], backends, out: str | Path, dataset: str | Path | 
                 f'<div><div class="truth">画面上{e(" " + where if where else "")}<b>{e(plain(x["want"]))}</b></div><div class="reads">{"".join(reads)}</div>'
                 f'<div class="src">{"核心集" if x["set"] == "core" else "进阶集"} · {e(x["frame"])} · <a href="{page}#{e(x["frame"])}" target="_blank">看整帧 ›</a></div></div></div>'
             )
-        toggle = f'<button class="toggle" data-label="再看 {n - 4} 处" onclick="more(this)">再看 {n - 4} 处</button>' if n > 4 else ""
+        toggle = (
+            f'<button class="toggle" data-label="再看 {n - 4} 处" onclick="more(this)">再看 {n - 4} 处</button>'
+            if n > 4
+            else ""
+        )
         imp = g["importance"]
         secs.append(
             f'<section class="group" id="{e(key)}" data-key="{e(key)}" data-title="{e(title)}" data-sc="{e(sid)}" data-cat="{e(g["category"])}">'
             f'<div class="g-head"><h2>{e(title)}</h2><div class="meta"><span class="num">{n}</span>处</div>'
             f'<div class="what">{e(CAT_TITLE[g["category"]])} · <span class="imp{" high" if imp == "高" else ""}">重要度 {e(imp)}</span></div>'
             f'<div class="who" title="各 OCR 不通过的处数">{who}</div></div>'
-            f'<div class="verdict">' + "".join(f'<button data-verdict="{k}" onclick="verdict(this)">{lab}</button>' for k, lab in VERDICTS)
+            f'<div class="verdict">'
+            + "".join(f'<button data-verdict="{k}" onclick="verdict(this)">{lab}</button>' for k, lab in VERDICTS)
             + f'<button class="note-btn" data-target="failures" data-field="{e(key)}" onclick="note(this)">写备注</button></div>'
             f'<div class="notes"></div><div class="cases">{"".join(cases)}</div>{toggle}</section>'
         )
@@ -345,7 +374,7 @@ def render(groups: list[dict], backends, out: str | Path, dataset: str | Path | 
     )
     sc_opts = "".join(f'<option value="{k}">{v}</option>' for k, v in SCENARIO_SHORT.items())
     cat_opts = "".join(f'<option value="{c}">{e(CAT_TITLE[c])}</option>' for c in CATS)
-    vlabel = json.dumps({k: lab for k, lab in VERDICTS}, ensure_ascii=False)
+    vlabel = json.dumps(dict(VERDICTS), ensure_ascii=False)
     total = sum(len(g["instances"]) for g in groups)
     out.write_text(
         '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">'
@@ -365,4 +394,4 @@ def render(groups: list[dict], backends, out: str | Path, dataset: str | Path | 
     return out
 
 
-__all__ = ["aggregate", "render", "plain", "CATS"]
+__all__ = ["CATS", "aggregate", "plain", "render"]

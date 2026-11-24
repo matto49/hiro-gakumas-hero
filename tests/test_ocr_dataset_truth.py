@@ -1,15 +1,32 @@
 """tools.ocr_dataset.truth：字段真值展开、识别方法表、高代价标记、逐字段比对（规格 2026-11-23-recognition-dataset-fields-design.md §2–§3）。"""
 
-import pytest
-
 from tools.ocr_dataset import truth
+
+import pytest
 
 pytestmark = pytest.mark.synthetic
 
 
 def test_flatten_paths():
-    got = truth.flatten({"stamina": 22, "params": {"vo": 1, "da": 2}, "drinks": ["a", "b"], "hand": [{"card_id": "x", "plus": 1}], "empty": []})
-    assert got == {"stamina": 22, "params.vo": 1, "params.da": 2, "drinks[0]": "a", "drinks[1]": "b", "hand[0].card_id": "x", "hand[0].plus": 1, "empty": []}
+    got = truth.flatten(
+        {
+            "stamina": 22,
+            "params": {"vo": 1, "da": 2},
+            "drinks": ["a", "b"],
+            "hand": [{"card_id": "x", "plus": 1}],
+            "empty": [],
+        }
+    )
+    assert got == {
+        "stamina": 22,
+        "params.vo": 1,
+        "params.da": 2,
+        "drinks[0]": "a",
+        "drinks[1]": "b",
+        "hand[0].card_id": "x",
+        "hand[0].plus": 1,
+        "empty": [],
+    }
 
 
 @pytest.mark.parametrize(
@@ -55,7 +72,12 @@ def test_is_critical(page, path, want):
 
 def test_compare_lists_missing_and_extra():
     rows = truth.compare({"a": 1, "b": [1, 2], "c": {"x": 1}}, {"a": 1, "b": [1], "c": {"x": 2}, "extra": 9})
-    assert [(r.path, r.want, r.got, r.ok) for r in rows] == [("a", 1, 1, True), ("b[0]", 1, 1, True), ("b[1]", 2, None, False), ("c.x", 1, 2, False)]
+    assert [(r.path, r.want, r.got, r.ok) for r in rows] == [
+        ("a", 1, 1, True),
+        ("b[0]", 1, 1, True),
+        ("b[1]", 2, None, False),
+        ("c.x", 1, 2, False),
+    ]
 
 
 def test_compare_got_none_marks_all_wrong():

@@ -5,9 +5,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
 from tools.ocr_dataset import schema
+
+import pytest
 
 pytestmark = pytest.mark.synthetic  # 图片是测试里自己写的字节，不读 tests/fixtures
 
@@ -23,9 +23,17 @@ def _frame(img_name="dmm-run1-00001.jpg", sha="0" * 64, **kw):
         "source": {"run": "run1", "seq": 1, "contributor": "matto", "captured": "2026-11-10"},
         "platform": {"kind": "dmm", "native": None, "stored": [720, 1280], "device": None, "note": None},
         "page": "ACTION_SELECT",
-        "boxes": [{"id": 0, "box": [10, 20, 110, 60], "text": "編成", "status": "agreed",
-                   "answers": {"vision": "編成", "llm": "編成", "lexicon": "編成"},
-                   "tags": {"field": None, "type": "button"}, "ignore": False}],
+        "boxes": [
+            {
+                "id": 0,
+                "box": [10, 20, 110, 60],
+                "text": "編成",
+                "status": "agreed",
+                "answers": {"vision": "編成", "llm": "編成", "lexicon": "編成"},
+                "tags": {"field": None, "type": "button"},
+                "ignore": False,
+            }
+        ],
     }
     d.update(kw)
     return d
@@ -59,14 +67,25 @@ def _dataset(tmp_path):
     schema.init(root)
     img = root / "core" / "dmm-run1-00001.jpg"
     img.write_bytes(b"fake image")
-    (root / "core" / "dmm-run1-00001.json").write_text(json.dumps(_frame(sha=schema.sha256(img)), ensure_ascii=False), encoding="utf-8")
+    (root / "core" / "dmm-run1-00001.json").write_text(
+        json.dumps(_frame(sha=schema.sha256(img)), ensure_ascii=False), encoding="utf-8"
+    )
     return root
 
 
 def test_init_then_validate_is_clean(tmp_path):
     root = _dataset(tmp_path)
-    for p in ("README.md", "CONTRIBUTING.md", "schema/frame.schema.json", "tools/validate.py", ".github/workflows/validate.yml",
-              "core", "hard", "inbox", "disputed.json"):
+    for p in (
+        "README.md",
+        "CONTRIBUTING.md",
+        "schema/frame.schema.json",
+        "tools/validate.py",
+        ".github/workflows/validate.yml",
+        "core",
+        "hard",
+        "inbox",
+        "disputed.json",
+    ):
         assert (root / p).exists(), p
     assert schema.validate_dir(root) == []
 
@@ -90,10 +109,14 @@ def test_validate_dir_catches_sha_orphans_and_duplicates(tmp_path):
 def test_skeleton_validator_runs_standalone(tmp_path):
     """数据仓库 CI 只有 Python 标准库：骨架里的 tools/validate.py 不 import hiro / 主仓库也能跑。"""
     root = _dataset(tmp_path)
-    r = subprocess.run([sys.executable, "-I", str(root / "tools" / "validate.py"), str(root)], capture_output=True, text=True)
+    r = subprocess.run(
+        [sys.executable, "-I", str(root / "tools" / "validate.py"), str(root)], capture_output=True, text=True
+    )
     assert r.returncode == 0, r.stdout + r.stderr
     (root / "core" / "orphan.png").write_bytes(b"x")
-    r = subprocess.run([sys.executable, "-I", str(root / "tools" / "validate.py"), str(root)], capture_output=True, text=True)
+    r = subprocess.run(
+        [sys.executable, "-I", str(root / "tools" / "validate.py"), str(root)], capture_output=True, text=True
+    )
     assert r.returncode == 1 and "orphan.png" in r.stdout
 
 

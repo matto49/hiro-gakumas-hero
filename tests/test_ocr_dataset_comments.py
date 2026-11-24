@@ -5,19 +5,28 @@ import threading
 import urllib.request
 from http.server import ThreadingHTTPServer
 
-import pytest
-
 from tools.ocr_dataset import comments_server as cs
+
+import pytest
 
 pytestmark = pytest.mark.synthetic
 
 
 def test_clean_keeps_known_fields_and_limits():
-    c = cs.clean({"target": "dmm-x-00001", "box": 3, "kind": "标注错误", "text": "x" * 9000, "quote": "編成", "evil": 1})
+    c = cs.clean(
+        {"target": "dmm-x-00001", "box": 3, "kind": "标注错误", "text": "x" * 9000, "quote": "編成", "evil": 1}
+    )
     assert c == {"target": "dmm-x-00001", "box": 3, "kind": "标注错误", "text": "x" * cs.TEXT_MAX, "quote": "編成"}
 
 
-@pytest.mark.parametrize("body", [{"target": "page", "kind": "格式"}, {"kind": "格式", "text": "a"}, {"target": "page", "kind": "乱写", "text": "a"}])
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"target": "page", "kind": "格式"},
+        {"kind": "格式", "text": "a"},
+        {"target": "page", "kind": "乱写", "text": "a"},
+    ],
+)
 def test_clean_rejects_incomplete(body):
     with pytest.raises(ValueError):
         cs.clean(body)
@@ -38,7 +47,9 @@ def server(tmp_path, monkeypatch):
 
 def _req(url, body=None):
     data = json.dumps(body).encode() if body is not None else None
-    r = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST" if data else "GET")
+    r = urllib.request.Request(
+        url, data=data, headers={"Content-Type": "application/json"}, method="POST" if data else "GET"
+    )
     with urllib.request.urlopen(r) as resp:
         return json.loads(resp.read())
 
@@ -51,7 +62,10 @@ def test_post_get_delete_roundtrip(server, tmp_path):
     assert [c["text"] for c in got] == ["JSON 结构太深", "P 是图标"]
     _req(server + "/comments", {"id": a["id"], "deleted": True})
     assert [c["id"] for c in _req(server + "/comments")] == [b["id"]]
-    _req(server + "/comments", {"id": b["id"], "target": "dmm-x-00001", "box": 4, "kind": "标注错误", "text": "P 是金币图标，应忽略"})
+    _req(
+        server + "/comments",
+        {"id": b["id"], "target": "dmm-x-00001", "box": 4, "kind": "标注错误", "text": "P 是金币图标，应忽略"},
+    )
     assert [c["text"] for c in _req(server + "/comments")] == ["P 是金币图标，应忽略"]
     assert len((tmp_path / "c.jsonl").read_text(encoding="utf-8").splitlines()) == 4  # 追加写，留历史
 
@@ -63,12 +77,16 @@ def test_bad_post_is_400(server):
 
 
 def test_clean_keeps_field_path():
-    c = cs.clean({"target": "dmm-x-00001", "field": "hand[2].card_id", "kind": "标注错误", "text": "应该是 えいえいおー+"})
+    c = cs.clean(
+        {"target": "dmm-x-00001", "field": "hand[2].card_id", "kind": "标注错误", "text": "应该是 えいえいおー+"}
+    )
     assert c["field"] == "hand[2].card_id"
     assert len(cs.clean({"target": "p", "field": "x" * 500, "kind": "其他", "text": "a"})["field"]) == 200
 
 
-@pytest.mark.parametrize("kind", ["漏了", "不需要", "重要度不对", "示例写错", "描述不对", "不该读", "类型/方法", "标注错误", "其他"])
+@pytest.mark.parametrize(
+    "kind", ["漏了", "不需要", "重要度不对", "示例写错", "描述不对", "不该读", "类型/方法", "标注错误", "其他"]
+)
 def test_kinds_used_by_review_pages_are_accepted(kind):
     """样例页 / 字段核对页 / 场景清单页的意见类型都要收（11-23 场景清单页提交全被 400）。"""
     assert cs.clean({"target": "scenarios", "field": "exam/info/0", "kind": kind, "text": "a"})["kind"] == kind

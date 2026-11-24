@@ -82,7 +82,13 @@ def _bool(v):
     if isinstance(v, bool) or v is None:
         return v
     s = str(v).strip().lower()
-    return True if s in ("true", "yes", "1", "是", "有") else False if s in ("false", "no", "0", "否", "无", "没有") else None
+    return (
+        True
+        if s in ("true", "yes", "1", "是", "有")
+        else False
+        if s in ("false", "no", "0", "否", "无", "没有")
+        else None
+    )
 
 
 def _value(spec: dict, v):
@@ -104,7 +110,10 @@ def _value(spec: dict, v):
             return None
         items = v if isinstance(v, list) else [v]
         if "fields" in spec:
-            return [{f["key"]: _value(f, x.get(f["key"])) for f in spec["fields"]} if isinstance(x, dict) else {} for x in items]
+            return [
+                {f["key"]: _value(f, x.get(f["key"])) for f in spec["fields"]} if isinstance(x, dict) else {}
+                for x in items
+            ]
         return [_value({"type": spec.get("item", "text")}, x) for x in items]
     return v
 

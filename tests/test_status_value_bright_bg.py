@@ -21,7 +21,9 @@ def _slot(frame, k):
     return next(e for e in status.read_status_column(load(cv2.imread(str(p)))) if e["slot"] == k)
 
 
-@pytest.mark.parametrize("frame, k, value", [("00624", 0, 98), ("00624", 1, 6), ("00033", 0, 88), ("00211", 0, 42), ("00049", 1, 1)])
+@pytest.mark.parametrize(
+    "frame, k, value", [("00624", 0, 98), ("00624", 1, 6), ("00033", 0, 88), ("00211", 0, 42), ("00049", 1, 1)]
+)
 def test_value_on_bright_background(frame, k, value):
     assert _slot(frame, k)["value"] == value
 

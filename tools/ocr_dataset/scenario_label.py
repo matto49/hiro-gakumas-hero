@@ -5,9 +5,9 @@
 
 from __future__ import annotations
 
-import cv2
-
 from tools.ocr_dataset import scenario
+
+import cv2
 
 
 class LabelError(RuntimeError):
@@ -17,7 +17,11 @@ class LabelError(RuntimeError):
 def ask(llm, img, sid: str, keys: list[str] | None = None) -> dict:
     """一个 LLM 读一帧 → {"items": 归一后的信息项, "buttons": [按钮文字]}。keys：只问、只留这几项。"""
     system, user = scenario.prompt(sid, keys)
-    ref = [it for it in scenario.load()[sid]["items"] if it.get("reference") == "status_sheet" and (keys is None or it["key"] in keys)]
+    ref = [
+        it
+        for it in scenario.load()[sid]["items"]
+        if it.get("reference") == "status_sheet" and (keys is None or it["key"] in keys)
+    ]
     if ref:  # 状态图标上没有字：拼上放大的状态栏和图标对照表
         from tools.ocr_dataset import status_sheet
 
@@ -29,7 +33,7 @@ def ask(llm, img, sid: str, keys: list[str] | None = None) -> dict:
             full = cv2.resize(img, (round(img.shape[1] * h / img.shape[0]), h))
             img = cv2.hconcat([full, sheet_img])
         user = status_sheet.NOTE + "\n" + user
-    ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 92])
+    _ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 92])
     res = llm.ask_json_image(system, user, buf.tobytes())
     data = res.data if not res.error else None
     if not isinstance(data, dict) or not isinstance(data.get("items"), dict):
@@ -55,8 +59,6 @@ def backfill(dataset, set_: str, sid: str, keys: list[str], readers: dict, log=p
     """场景定义新加了信息项时，对已有的帧只补问这几项：真值和各方答案里加上这几项，不一致的记 disputed；其余项（包括人定过的）不动。"""
     import json
     from pathlib import Path
-
-    from tools.ocr_dataset import truth as truth_mod
 
     root = Path(dataset) / set_
     frames = disputed = 0

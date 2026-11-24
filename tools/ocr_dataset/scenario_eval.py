@@ -58,7 +58,14 @@ def _exam(f: dict) -> dict:
             ct, c = "buff", h["extra_cost"]
         else:
             ct, c = "none", None
-        hand.append({"name": _strip_plus(h.get("name")), "plus": bool(h.get("plus") or h.get("upgrade")), "cost_type": ct, "cost": c})
+        hand.append(
+            {
+                "name": _strip_plus(h.get("name")),
+                "plus": bool(h.get("plus") or h.get("upgrade")),
+                "cost_type": ct,
+                "cost": c,
+            }
+        )
     preview = next((h["badge_score"] for h in f.get("hand") or [] if h.get("badge_score") is not None), None)
     return {
         "turns_left": f.get("remaining_turns"), "exam_attr": f.get("attr"), "multiplier_pct": f.get("multiplier_pct"),
@@ -71,7 +78,11 @@ def _exam(f: dict) -> dict:
 
 
 def _hud(f: dict) -> dict:
-    return {"hp": f.get("stamina"), "hp_max": f.get("max_stamina"), "p_points": f.get("produce_point", f.get("p_points"))}
+    return {
+        "hp": f.get("stamina"),
+        "hp_max": f.get("max_stamina"),
+        "p_points": f.get("produce_point", f.get("p_points")),
+    }
 
 
 def _consult(f: dict) -> dict:
@@ -84,7 +95,11 @@ def _consult(f: dict) -> dict:
 
 def _interval(f: dict) -> dict:
     iv = f.get("interval") or {}
-    items = [("card", x) for x in iv.get("cards") or []] + [("card", x) for x in iv.get("changes") or []] + [("drink", x) for x in iv.get("drinks") or []]
+    items = (
+        [("card", x) for x in iv.get("cards") or []]
+        + [("card", x) for x in iv.get("changes") or []]
+        + [("drink", x) for x in iv.get("drinks") or []]
+    )
     return {**_hud(f),
             "shelf": [{"kind": k, "price": x.get("price"), "purchased": x.get("purchased")} for k, x in sorted(items, key=lambda kx: kx[1].get("index", 0))],
             "upgrade_price": (iv.get("upgrade") or {}).get("price"), "upgrade_left": (iv.get("upgrade") or {}).get("left"),
@@ -96,7 +111,11 @@ def _action(f: dict) -> dict:
     growth = tri(f.get("growth_pct"))
     acts = []
     for o in f.get("options") or []:
-        ch = o.get("hp_gain") if o.get("hp_gain") is not None else (-o["hp_cost"] if o.get("hp_cost") is not None else None)
+        ch = (
+            o.get("hp_gain")
+            if o.get("hp_gain") is not None
+            else (-o["hp_cost"] if o.get("hp_cost") is not None else None)
+        )
         acts.append({"label": o.get("label"), "hp_change": ch})
     return {"exam_name": f.get("exam"), "days_left": f.get("days_left"), **_hud(f),
             "params": tri(f.get("params")), "param_caps": tri(f.get("param_caps")),
@@ -164,7 +183,13 @@ def _canon(sid: str, d: dict) -> dict:
         if d.get("turns_left") is not None:
             d["turns_left"] = d["turns_left"] + extra
     if sid == "exam" and isinstance(d.get("hand"), list):
-        d = {**d, "hand": [({**h, "cost": None, "cost_type": "none"} if isinstance(h, dict) and h.get("cost") == 0 else h) for h in d["hand"]]}
+        d = {
+            **d,
+            "hand": [
+                ({**h, "cost": None, "cost_type": "none"} if isinstance(h, dict) and h.get("cost") == 0 else h)
+                for h in d["hand"]
+            ],
+        }
     return d
 
 
@@ -191,7 +216,9 @@ def score_frame(sid: str, truth: dict, got: dict, item_status: dict | None = Non
             res = "没读"
         elif g == w:
             res = "对"
-        elif leaf in flags["prefix_ok"] and isinstance(w, str) and isinstance(g, str) and len(w) >= 2 and g.startswith(w):
+        elif (
+            leaf in flags["prefix_ok"] and isinstance(w, str) and isinstance(g, str) and len(w) >= 2 and g.startswith(w)
+        ):
             res = "对"  # 卡名在画面上被截断（手牌多时只显示前几个字），系统给的全名以画面上的部分开头就算对
         else:
             res = "错"
@@ -266,8 +293,18 @@ def evaluate(frames: list[dict], reads: dict[str, dict], backend: str = "?", sec
                          ("platform", (fr.get("platform") or {}).get("kind") or "?")):  # fmt: skip
                 groups[g].setdefault(k, _Acc()).add(x["result"])
             if x["result"] != "对":
-                errors.append({"frame": fr["id"], "scenario": sid, "system_page": r.get("page"), "importance": _importance(sid, x["path"]), **x})
-    errors.sort(key=lambda e: ({"高": 0, "中": 1, "低": 2}.get(e["importance"], 3), e["scenario"], e["path"], e["frame"]))
+                errors.append(
+                    {
+                        "frame": fr["id"],
+                        "scenario": sid,
+                        "system_page": r.get("page"),
+                        "importance": _importance(sid, x["path"]),
+                        **x,
+                    }
+                )
+    errors.sort(
+        key=lambda e: ({"高": 0, "中": 1, "低": 2}.get(e["importance"], 3), e["scenario"], e["path"], e["frame"])
+    )
     import numpy as np
 
     times = [seconds[f["id"]] for f in frames if seconds and f["id"] in seconds]
@@ -280,7 +317,9 @@ def evaluate(frames: list[dict], reads: dict[str, dict], backend: str = "?", sec
 def _rate(d: dict | None) -> str:
     if not d or not d.get("n"):
         return "—"
-    return f"{d.get('对', 0) / d['n'] * 100:.1f}%（对 {d.get('对', 0)} / 错 {d.get('错', 0)} / 没读 {d.get('没读', 0)}）"
+    return (
+        f"{d.get('对', 0) / d['n'] * 100:.1f}%（对 {d.get('对', 0)} / 错 {d.get('错', 0)} / 没读 {d.get('没读', 0)}）"
+    )
 
 
 def _sec(v) -> str:
@@ -298,7 +337,9 @@ def report_md(results: list[dict], title: str = "场景校验") -> str:
         keys = keys if keys is not None else sorted({k for r in results for k in r["groups"][group]})
         if keys:
             lines.extend(["", f"## {title}", "", f"| {label} " + head, "|---" + sep])
-            lines.extend(f"| {k} | " + " | ".join(_rate(r["groups"][group].get(k)) for r in results) + " |" for k in keys)
+            lines.extend(
+                f"| {k} | " + " | ".join(_rate(r["groups"][group].get(k)) for r in results) + " |" for k in keys
+            )
 
     lines.extend(["## 总表", "", "| 后端 | 全部 | 判页 | 高重要度 | P50 | P90 |", "|---|---|---|---|---|---|"])
     for r in results:
@@ -313,21 +354,31 @@ def report_md(results: list[dict], title: str = "场景校验") -> str:
     table("有读错的信息项", "item", "信息项", keys=bad)
     for r in results:
         if r["errors"]:
-            lines.extend(["", f"## 错例：{r['backend']}（{len(r['errors'])} 个，高重要度在前）", "", "| 帧 | 场景 | 系统判页 | 项 | 结果 | 真值 | 系统读到 |", "|---|---|---|---|---|---|---|"])
+            lines.extend(
+                [
+                    "",
+                    f"## 错例：{r['backend']}（{len(r['errors'])} 个，高重要度在前）",
+                    "",
+                    "| 帧 | 场景 | 系统判页 | 项 | 结果 | 真值 | 系统读到 |",
+                    "|---|---|---|---|---|---|---|",
+                ]
+            )
             for e in r["errors"][:120]:
-                lines.append(f"| {e['frame']} | {e['scenario']} | {e['system_page']} | {e['path']} | {e['result']} | {e['want']} | {e['got']} |")
+                lines.append(
+                    f"| {e['frame']} | {e['scenario']} | {e['system_page']} | {e['path']} | {e['result']} | {e['want']} | {e['got']} |"
+                )
     return "\n".join(lines) + "\n"
 
 
 def read_system(img_path, backend: str) -> dict:
     """真实系统原样读一帧：切 OCR 后端 → 判页（快速判页 + 完整判页链）→ 按判出的页 extract → 整帧文字（找按钮用）。"""
-    import cv2
-
     from hiro.context import ensure_offline_context
     from hiro.vision import hif, ocr
     from hiro.vision.classify import classify
     from hiro.vision.extract import extract
     from hiro.vision.offline import load
+
+    import cv2
 
     ensure_offline_context()
     if backend not in ocr.ENGINES or backend == "auto":

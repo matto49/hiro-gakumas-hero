@@ -11,9 +11,9 @@ import json
 import time
 from pathlib import Path
 
-import numpy as np
-
 from tools.ocr_dataset import schema, truth
+
+import numpy as np
 
 SKIP = ("disputed", "ignored")
 N_ERRORS = 200
@@ -49,7 +49,9 @@ def _rows(fr: dict, got: dict | None):
             yield p, "page", False, want, g, g == want
 
 
-def score(frames: list[dict], reads: dict[str, dict], backend: str = "?", seconds: dict[str, float] | None = None) -> dict:
+def score(
+    frames: list[dict], reads: dict[str, dict], backend: str = "?", seconds: dict[str, float] | None = None
+) -> dict:
     total = _Acc()
     groups: dict[str, dict[str, _Acc]] = {"method": {}, "page": {}, "field": {}, "critical": {}, "platform": {}}
     errors, disputed = [], 0
@@ -66,17 +68,33 @@ def score(frames: list[dict], reads: dict[str, dict], backend: str = "?", second
                 groups["critical"].setdefault(key, _Acc()).add(ok)
             total.add(ok)
             if not ok:
-                errors.append({"frame": fr["id"], "page": page, "path": path, "method": method, "critical": crit, "want": want, "got": got})
+                errors.append(
+                    {
+                        "frame": fr["id"],
+                        "page": page,
+                        "path": path,
+                        "method": method,
+                        "critical": crit,
+                        "want": want,
+                        "got": got,
+                    }
+                )
     errors.sort(key=lambda e: (not e["critical"], e["page"], e["path"], e["frame"]))
     times = [seconds[f["id"]] for f in frames if seconds and f["id"] in seconds]
     warm = times[1:] if len(times) > 1 else times
     return {
         "backend": backend,
         "frames": sum(1 for f in frames if f["id"] in reads),
-        "groups": {"all": total.to_dict(), **{g: {k: a.to_dict() for k, a in sorted(v.items())} for g, v in groups.items()}},
+        "groups": {
+            "all": total.to_dict(),
+            **{g: {k: a.to_dict() for k, a in sorted(v.items())} for g, v in groups.items()},
+        },
         "disputed": disputed,
         "errors": errors[:N_ERRORS],
-        "timing": {"p50": float(np.percentile(warm, 50)) if warm else None, "p90": float(np.percentile(warm, 90)) if warm else None},
+        "timing": {
+            "p50": float(np.percentile(warm, 50)) if warm else None,
+            "p90": float(np.percentile(warm, 90)) if warm else None,
+        },
     }
 
 
@@ -117,7 +135,15 @@ def report_md(results: list[dict], title: str = "字段评测") -> str:
             lines.append(("| " + " | ".join(k.split(" ", 1)) if split_key else f"| {k}") + f" | {cells} |")
 
     table("高代价字段（考试手牌 / 分数、商店价格）", "critical", "字段", split_key=True)
-    lines.extend(["", "## 总表", "", "| 后端 | 全部 | ocr | icon | pixel | 判页 | P50 | P90 |", "|---|---|---|---|---|---|---|---|"])
+    lines.extend(
+        [
+            "",
+            "## 总表",
+            "",
+            "| 后端 | 全部 | ocr | icon | pixel | 判页 | P50 | P90 |",
+            "|---|---|---|---|---|---|---|---|",
+        ]
+    )
     for r in results:
         m = r["groups"]["method"]
         t = r["timing"]
@@ -130,9 +156,19 @@ def report_md(results: list[dict], title: str = "字段评测") -> str:
                   "方法表是按代码整理的初版（tools/ocr_dataset/truth.py），待核对。"])  # fmt: skip
     for r in results:
         if r["errors"]:
-            lines.extend(["", f"## 错例：{r['backend']}（{len(r['errors'])} 个，高代价在前）", "", "| 帧 | 页面 | 字段 | 方法 | 真值 | 读到 |", "|---|---|---|---|---|---|"])
+            lines.extend(
+                [
+                    "",
+                    f"## 错例：{r['backend']}（{len(r['errors'])} 个，高代价在前）",
+                    "",
+                    "| 帧 | 页面 | 字段 | 方法 | 真值 | 读到 |",
+                    "|---|---|---|---|---|---|",
+                ]
+            )
             for e in r["errors"][:80]:
-                lines.append(f"| {e['frame']} | {e['page']} | {'**' + e['path'] + '**' if e['critical'] else e['path']} | {e['method']} | {_short(e['want'])} | {_short(e['got'])} |")
+                lines.append(
+                    f"| {e['frame']} | {e['page']} | {'**' + e['path'] + '**' if e['critical'] else e['path']} | {e['method']} | {_short(e['want'])} | {_short(e['got'])} |"
+                )
     return "\n".join(lines) + "\n"
 
 
@@ -152,7 +188,6 @@ def load_frames(dataset: Path, set_: str = "core") -> list[dict]:
 def read_all(dataset: Path, frames: list[dict], backend: str, set_: str = "core", log=print) -> tuple[dict, dict]:
     """切到 backend，逐帧跑实机分页读取。每帧前清考试页的区域缓存（否则会复用上一帧 / 上一个后端的 OCR 结果）。"""
     from hiro.vision import hif, ocr
-
     from tools.audit.dmm_samples import read
 
     if backend not in ocr.ENGINES or backend == "auto":

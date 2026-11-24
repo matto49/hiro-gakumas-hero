@@ -1,13 +1,14 @@
 """tools.ocr_dataset.label：出框、三方答案、定正确文字、标签（规格 docs/ryugi/specs/2026-11-23-ocr-dataset-design.md §6.2 / §6.3）。"""
 
 import json
+from typing import ClassVar
+
+from tools.ocr_dataset import fields, label, schema
+from tools.ocr_dataset.lexicon import Lexicon
 
 import cv2
 import numpy as np
 import pytest
-
-from tools.ocr_dataset import fields, label, schema
-from tools.ocr_dataset.lexicon import Lexicon
 
 pytestmark = pytest.mark.synthetic
 
@@ -38,7 +39,11 @@ def test_merge_boxes_chains_one_long_line_over_two_pieces():
         ("編 成", "編成", ("編成", "agreed")),  # 归一后一致
         ("えいえいおー十", "えいえいおー+", ("えいえいおー+", "agreed")),  # 一方正好是词表词、另一方吸附后同词
         ("綿成", "編成", ("編成", "disputed")),  # 两字词不容错：綿成吸附不到
-        ("えいえいおー十", "えいえいおー十", ("えいえいおー十", "agreed")),  # 两方一致就算（规格：词表没有这个词也不拦）
+        (
+            "えいえいおー十",
+            "えいえいおー十",
+            ("えいえいおー十", "agreed"),
+        ),  # 两方一致就算（规格：词表没有这个词也不拦）
         ("→次へ", "次へ", ("次へ", "agreed")),  # 两端的图标符号去掉再比
         (")27", "27", ("27", "agreed")),
         ("-NEW", "NEW", ("-NEW", "disputed")),  # 横线可能是负号（-3），不当图标去掉
@@ -62,11 +67,17 @@ def test_lexicon_answer_is_recorded():
 
 def test_type_of_uses_field_table_then_fallbacks(monkeypatch):
     monkeypatch.setattr(fields, "FIELDS", {"CONSULT": [("consult.shelf.name", (40, 470, 700, 1070), "name")]})
-    assert label.type_of("えいえいおー+", [100, 600, 300, 640], "CONSULT") == {"field": "consult.shelf.name", "type": "name"}
+    assert label.type_of("えいえいおー+", [100, 600, 300, 640], "CONSULT") == {
+        "field": "consult.shelf.name",
+        "type": "name",
+    }
     assert label.type_of("1,234", [100, 100, 160, 130], "CONSULT") == {"field": None, "type": "number"}
     assert label.type_of("+12", [100, 100, 160, 130], "HOME") == {"field": None, "type": "number"}
     assert label.type_of("確認", [100, 205, 200, 235], "DIALOG", bands=[(200, 240)]) == {"field": None, "type": "title"}
-    assert label.type_of("受け取る", [100, 900, 200, 940], "DIALOG", bands=[(200, 240)]) == {"field": None, "type": "other"}
+    assert label.type_of("受け取る", [100, 900, 200, 940], "DIALOG", bands=[(200, 240)]) == {
+        "field": None,
+        "type": "other",
+    }
 
 
 def test_field_table_is_well_formed():
@@ -109,7 +120,12 @@ def test_label_frame_builds_valid_frame_json():
     assert fr["page"] == "unknown"  # 没判页的帧
     by_text = {b["answers"]["vision"]: b for b in fr["boxes"]}
     b = by_text["編成"]
-    assert b["text"] == "編成" and b["status"] == "agreed" and b["answers"]["rapidocr"] == "綿成" and b["answers"]["lexicon"] == "編成"
+    assert (
+        b["text"] == "編成"
+        and b["status"] == "agreed"
+        and b["answers"]["rapidocr"] == "綿成"
+        and b["answers"]["lexicon"] == "編成"
+    )
     assert by_text["4,680"]["status"] == "agreed" and by_text["4,680"]["tags"]["type"] == "number"
     logo = by_text[""]
     assert logo["status"] == "ignored" and logo["ignore"] is True
@@ -131,7 +147,9 @@ def _dataset(tmp_path, n=1):
         frames.append(m)
     cv2.imwrite(str(inbox / "dmm540-r-00001.native.png"), np.zeros((960, 540, 3), np.uint8))
     frames[0]["native_image"] = "dmm540-r-00001.native.png"
-    (inbox / "meta.json").write_text(json.dumps({"schema": 1, "contributor": "matto", "created": "2026-11-23", "frames": frames}))
+    (inbox / "meta.json").write_text(
+        json.dumps({"schema": 1, "contributor": "matto", "created": "2026-11-23", "frames": frames})
+    )
     return ds, inbox
 
 
@@ -246,9 +264,18 @@ def test_redecide_keeps_human_decisions(tmp_path):
     "answers, want",
     [
         ({"vision": "ろ", "vision_frame": "ろ", "llm": "3", "llm2": "3"}, ("3", "agreed")),  # 两个 LLM 一致
-        ({"vision": "Lst", "vision_frame": "Lst", "llm": "1st", "llm2": "Lst"}, ("Lst", "agreed")),  # Vision + 第二个 LLM
-        ({"vision": "→早送り", "vision_frame": "", "llm": "早送", "llm2": "早送り"}, ("早送り", "agreed")),  # 去图标符号后一致
-        ({"vision": "綿成", "vision_frame": "", "llm": "編成", "llm2": "絹成"}, ("編成", "disputed")),  # 三家各不相同（文字先填词表词）
+        (
+            {"vision": "Lst", "vision_frame": "Lst", "llm": "1st", "llm2": "Lst"},
+            ("Lst", "agreed"),
+        ),  # Vision + 第二个 LLM
+        (
+            {"vision": "→早送り", "vision_frame": "", "llm": "早送", "llm2": "早送り"},
+            ("早送り", "agreed"),
+        ),  # 去图标符号后一致
+        (
+            {"vision": "綿成", "vision_frame": "", "llm": "編成", "llm2": "絹成"},
+            ("編成", "disputed"),
+        ),  # 三家各不相同（文字先填词表词）
         ({"vision": "", "vision_frame": "", "llm": "P", "llm2": ""}, ("P", "disputed")),
     ],
 )
@@ -280,7 +307,7 @@ def test_adjudicate_asks_second_llm_only_for_disputed_boxes(tmp_path):
 
     class Second:
         name = "codex"
-        asked = []
+        asked: ClassVar[list] = []
 
         def read_llm(self, img, boxes):
             self.asked.append(list(boxes))
@@ -290,7 +317,11 @@ def test_adjudicate_asks_second_llm_only_for_disputed_boxes(tmp_path):
     got = label.adjudicate(ds, sec, lex=LEX)
     assert sec.asked == [[[300, 1138, 410, 1178]]]  # 只问待定框
     assert got == {"frames": 1, "changed": 1, "disputed": 0}
-    b = next(b for b in json.loads((ds / "core" / "dmm540-r-00001.json").read_text(encoding="utf-8"))["boxes"] if b["answers"]["llm"] == "絹成")
+    b = next(
+        b
+        for b in json.loads((ds / "core" / "dmm540-r-00001.json").read_text(encoding="utf-8"))["boxes"]
+        if b["answers"]["llm"] == "絹成"
+    )
     assert (b["status"], b["text"], b["answers"]["llm2"]) == ("agreed", "編成", "編成")
     assert label.adjudicate(ds, sec, lex=LEX)["frames"] == 0  # 问过的不再问
 
@@ -327,7 +358,9 @@ def test_read_llm_numbers_each_sheet_from_one(monkeypatch):
     monkeypatch.setattr(label, "SHEET_MAX_H", 100)  # 每段约 68 像素高：一张只放得下一段
     drawn = []
     real = cv2.putText
-    monkeypatch.setattr(label.cv2, "putText", lambda img, text, *a, **k: (drawn.append(text), real(img, text, *a, **k))[1])
+    monkeypatch.setattr(
+        label.cv2, "putText", lambda img, text, *a, **k: (drawn.append(text), real(img, text, *a, **k))[1]
+    )
     rd = _real_readers_with([{"texts": {"1": "a"}}, {"texts": {"1": "b"}}, {"texts": {"1": "c"}}])
     img = np.full((1280, 720, 3), 255, np.uint8)
     got = rd.read_llm(img, [[10, 10, 100, 40], [10, 100, 100, 130], [10, 200, 100, 230]])
@@ -359,7 +392,10 @@ def test_decide_missing_llm_answer_is_not_no_text(answers, want):
 @pytest.mark.parametrize(
     "answers, want",
     [
-        ({"vision": "+300", "vision_frame": "+300", "llm": "✦300", "llm2": "✦300"}, ("+300", "agreed")),  # I2：装饰「+」
+        (
+            {"vision": "+300", "vision_frame": "+300", "llm": "✦300", "llm2": "✦300"},
+            ("+300", "agreed"),
+        ),  # I2：装饰「+」
         ({"vision": "+150", "vision_frame": "+150", "llm": "✦150", "llm2": "150"}, ("+150", "agreed")),
         ({"vision": "+300", "vision_frame": "+300", "llm": "300", "llm2": "300"}, ("+300", "agreed")),
     ],

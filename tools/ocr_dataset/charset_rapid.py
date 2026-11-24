@@ -47,9 +47,9 @@ _engine: dict = {}
 def _engine_for(charset: set[str]):
     key = id(charset)
     if key not in _engine:
-        from rapidocr_onnxruntime import RapidOCR
-
         from hiro.vision.ocr import _rapid_model
+
+        from rapidocr_onnxruntime import RapidOCR
 
         eng = RapidOCR(rec_model_path=str(_rapid_model("ja")), use_det=True, use_cls=False, use_rec=True)
         eng.text_rec.postprocess_op = MaskedDecode(eng.text_rec.postprocess_op, charset)

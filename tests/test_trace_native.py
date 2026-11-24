@@ -3,11 +3,11 @@ run.json 记设备 / 截图方式 / OCR 后端 / 客户区原生尺寸；HIRO_TR
 
 import json
 
-import numpy as np
-import pytest
-
 from hiro.contracts.trace import TraceWriter
 from hiro.devices.base import LogicalScreen
+
+import numpy as np
+import pytest
 
 pytestmark = pytest.mark.synthetic  # 图是测试里画的，不读 tests/fixtures
 
@@ -23,7 +23,12 @@ def test_run_json_records_platform(tmp_path, monkeypatch):
     monkeypatch.setenv("HIRO_SCREENSHOT", "windows_background")
     tw = TraceWriter(root=tmp_path, name="r1")
     plat = json.loads((tw.dir / "run.json").read_text(encoding="utf-8"))["platform"]
-    assert plat["device"] == "dmm" and plat["screenshot"] == "windows_background" and "ocr" in plat and plat["native"] is None
+    assert (
+        plat["device"] == "dmm"
+        and plat["screenshot"] == "windows_background"
+        and "ocr" in plat
+        and plat["native"] is None
+    )
 
 
 def test_first_frame_fills_native_size(tmp_path, monkeypatch):
@@ -58,7 +63,11 @@ def test_resume_segment_keeps_first_run_and_records_platform(tmp_path, monkeypat
     monkeypatch.setenv("HIRO_DEVICE", "dmm")
     tw = TraceWriter(root=tmp_path, name="r4")
     run = json.loads((tw.dir / "run.json").read_text(encoding="utf-8"))
-    assert run["idol"] == "x" and run["platform"]["device"] == "mumu" and run["segments"][-1]["platform"]["device"] == "dmm"
+    assert (
+        run["idol"] == "x"
+        and run["platform"]["device"] == "mumu"
+        and run["segments"][-1]["platform"]["device"] == "dmm"
+    )
 
 
 def test_platform_meta_resolves_auto_device_on_mac(monkeypatch):

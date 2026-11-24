@@ -11,13 +11,28 @@ from dataclasses import dataclass
 
 # 第一条匹配的为准。icon：卡面插图 / 图标模板匹配；pixel：颜色 / 像素规则（按钮种类、可点、选中、角标）；ocr：文字识别。
 METHOD_RULES: list[tuple[str, re.Pattern]] = [
-    ("icon", re.compile(r"(card_id|drink_id|pitem_id|asset|asset_id|(^|\.)idol)$|^(drinks|bag|quick_bag)\[\]$|^status\.|^statuses\[\]\.value$")),
-    ("pixel", re.compile(r"(^|\.)(kind|available|selected|purchased|sale|dimmed|customized|recommended|upgrade|plus|state|complete|full|"
-                         r"confirm_enabled|danger|trouble|partial|cancelable|at_top|scrollable|view|color|hand_layout|art_consensus|maxed|"
-                         r"passed|final|outcome|star_ok|star_shown|quick_star_shown|finals|slot|index|row|col|rows_visible|agree|free)$")),  # fmt: skip
-    ("ocr", re.compile(r"(stamina|p_points|produce_point|params|param_caps|growth_pct|(^|\.)star$|days_left|price|_left$|(^|\.)left$|"
-                       r"multiplier_pct|score|gain|rank|participants|rank_line|(^|\.)hp$|(^|\.)genki$|_cost$|cost_p|cost_hp|remaining_turns|"
-                       r"pitem_charges|finals_round|exam_no|(^|\.)exam$|deck_size|drink_capacity|(^|\.)value$|turn)")),  # fmt: skip
+    (
+        "icon",
+        re.compile(
+            r"(card_id|drink_id|pitem_id|asset|asset_id|(^|\.)idol)$|^(drinks|bag|quick_bag)\[\]$|^status\.|^statuses\[\]\.value$"
+        ),
+    ),
+    (
+        "pixel",
+        re.compile(
+            r"(^|\.)(kind|available|selected|purchased|sale|dimmed|customized|recommended|upgrade|plus|state|complete|full|"
+            r"confirm_enabled|danger|trouble|partial|cancelable|at_top|scrollable|view|color|hand_layout|art_consensus|maxed|"
+            r"passed|final|outcome|star_ok|star_shown|quick_star_shown|finals|slot|index|row|col|rows_visible|agree|free)$"
+        ),
+    ),
+    (
+        "ocr",
+        re.compile(
+            r"(stamina|p_points|produce_point|params|param_caps|growth_pct|(^|\.)star$|days_left|price|_left$|(^|\.)left$|"
+            r"multiplier_pct|score|gain|rank|participants|rank_line|(^|\.)hp$|(^|\.)genki$|_cost$|cost_p|cost_hp|remaining_turns|"
+            r"pitem_charges|finals_round|exam_no|(^|\.)exam$|deck_size|drink_capacity|(^|\.)value$|turn)"
+        ),
+    ),
 ]
 
 # 读错代价最大的字段（用户 11-23 定：考试手牌和分数、商店价格）
@@ -71,4 +86,7 @@ def compare(want, got) -> list[Row]:
     """真值里的每个字段和读到的比（严格相等）；读到的多出来的字段不管。"""
     flat_got = flatten(got) if got is not None else {}
     # 读数取稳定项时会丢掉值为 None 的键，所以真值是 None 时「没有这个键」也算对
-    return [Row(p, w, flat_got.get(p), (p in flat_got and flat_got[p] == w) or (w is None and flat_got.get(p) is None)) for p, w in flatten(want).items()]
+    return [
+        Row(p, w, flat_got.get(p), (p in flat_got and flat_got[p] == w) or (w is None and flat_got.get(p) is None))
+        for p, w in flatten(want).items()
+    ]

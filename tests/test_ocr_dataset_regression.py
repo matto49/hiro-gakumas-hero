@@ -2,11 +2,11 @@
 
 import json
 
+from tools.ocr_dataset import regression, schema
+
 import cv2
 import numpy as np
 import pytest
-
-from tools.ocr_dataset import regression, schema
 
 pytestmark = pytest.mark.synthetic
 
@@ -34,10 +34,18 @@ def _setup(tmp_path):
 
 
 def test_convert_sample_to_field_frame(tmp_path):
-    ds, fx, lst = _setup(tmp_path)
-    fr = regression.convert(SAMPLES[0], fx / SAMPLES[0]["file"], "dmm-maindmm1m-20261110-205150-00051", "dmm-maindmm1m-20261110-205150-00051.jpg")
+    _ds, fx, _lst = _setup(tmp_path)
+    fr = regression.convert(
+        SAMPLES[0],
+        fx / SAMPLES[0]["file"],
+        "dmm-maindmm1m-20261110-205150-00051",
+        "dmm-maindmm1m-20261110-205150-00051.jpg",
+    )
     assert fr["schema"] == 2 and fr["page"] == "ACTION_SELECT"
-    assert fr["truth"] == {"fields": {"stamina": 22, "params": {"vo": 1473}}, "checks": {"quick": "ACTION_SELECT", "scene": "ACTION_SELECT", "tap": [360, 1157]}}
+    assert fr["truth"] == {
+        "fields": {"stamina": 22, "params": {"vo": 1473}},
+        "checks": {"quick": "ACTION_SELECT", "scene": "ACTION_SELECT", "tap": [360, 1157]},
+    }
     assert fr["field_status"] == {} and fr["truth_source"] == "dmm_regression" and fr["note"] == "体力读成 2"
     assert fr["source"] == {"run": "maindmm1m-20261110-205150", "seq": 51, "contributor": "matto"}
     assert fr["platform"] == {"kind": "dmm", "native": None, "stored": [720, 1280]}

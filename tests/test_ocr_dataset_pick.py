@@ -2,11 +2,11 @@
 
 import json
 
+from tools.ocr_dataset import pick, schema
+
 import cv2
 import numpy as np
 import pytest
-
-from tools.ocr_dataset import pick, schema
 
 pytestmark = pytest.mark.synthetic
 
@@ -70,7 +70,10 @@ def test_collect_image_dir_uses_classifier(tmp_path):
     cv2.imwrite(str(d / "start-confirm-dmm1.png"), _img(6))
     cands = pick.collect([d], classify=lambda img: "action_select")
     got = sorted((c.run, c.seq, c.page, c.platform) for c in cands)
-    assert got == [("maindmm1m-20261110-205150", 51, "action_select", "dmm"), ("start-confirm-dmm1", 0, "action_select", "dmm")]
+    assert got == [
+        ("maindmm1m-20261110-205150", 51, "action_select", "dmm"),
+        ("start-confirm-dmm1", 0, "action_select", "dmm"),
+    ]
 
 
 def test_platform_override(tmp_path):
@@ -79,7 +82,10 @@ def test_platform_override(tmp_path):
 
 
 def _cands(platform, page, n, run="r"):
-    return [pick.Candidate(path=None, run=f"{run}{i % 2}", seq=i, platform=platform, page=page, sha=f"{platform}{page}{i}") for i in range(n)]
+    return [
+        pick.Candidate(path=None, run=f"{run}{i % 2}", seq=i, platform=platform, page=page, sha=f"{platform}{page}{i}")
+        for i in range(n)
+    ]
 
 
 def test_select_caps_each_cell_and_widens_dmm540():
@@ -111,15 +117,28 @@ def test_write_inbox_copies_images_and_meta(tmp_path):
     d = _trace(tmp_path, "maindmm1-20261110-192152", ["home", "shop"], [1, 2],
                run={"started": 1794653270.0, "platform": {"device": "dmm", "screenshot": "windows_background", "ocr": "rapidocr", "native": [540, 960]}})  # fmt: skip
     sel = pick.collect([d])
-    out = pick.write_inbox(sel, tmp_path / "ds", "matto", {"maindmm1-20261110-192152:2": "編 认成 綿"}, date="2026-11-23")
+    out = pick.write_inbox(
+        sel, tmp_path / "ds", "matto", {"maindmm1-20261110-192152:2": "編 认成 綿"}, date="2026-11-23"
+    )
     assert out == tmp_path / "ds" / "inbox" / "matto" / "2026-11-23"
     meta = json.loads((out / "meta.json").read_text(encoding="utf-8"))
     assert meta["contributor"] == "matto" and len(meta["frames"]) == 2
     f0, f1 = meta["frames"]
     assert f0["id"] == "dmm540-maindmm1-20261110-192152-00001" and (out / f0["image"]).is_file()
     assert f0["sha256"] == schema.sha256(out / f0["image"])
-    assert f0["source"] == {"run": "maindmm1-20261110-192152", "seq": 1, "contributor": "matto", "captured": "2026-11-14"}
-    assert f0["platform"] == {"kind": "dmm540", "native": [540, 960], "stored": [720, 1280], "device": "windows_background", "ocr": "rapidocr"}
+    assert f0["source"] == {
+        "run": "maindmm1-20261110-192152",
+        "seq": 1,
+        "contributor": "matto",
+        "captured": "2026-11-14",
+    }
+    assert f0["platform"] == {
+        "kind": "dmm540",
+        "native": [540, 960],
+        "stored": [720, 1280],
+        "device": "windows_background",
+        "ocr": "rapidocr",
+    }
     assert f0["page"] == "home" and f0["note"] is None
     assert f1["note"] == "編 认成 綿"
 
@@ -144,5 +163,11 @@ def test_guess_platform_checks_mumu_and_mac_before_dmm():
 
 
 def test_platform_override_does_not_beat_recorded_device(tmp_path):
-    d = _trace(tmp_path, "z1-20261121-000000", ["home"], [1], run={"started": 1, "platform": {"device": "mumu", "native": [720, 1280]}})
+    d = _trace(
+        tmp_path,
+        "z1-20261121-000000",
+        ["home"],
+        [1],
+        run={"started": 1, "platform": {"device": "mumu", "native": [720, 1280]}},
+    )
     assert [c.platform for c in pick.collect([d], platform="dmm")] == ["mumu"]

@@ -2,11 +2,11 @@
 
 import json
 
+from tools.ocr_dataset import fields_page, schema
+
 import cv2
 import numpy as np
 import pytest
-
-from tools.ocr_dataset import fields_page, schema
 
 pytestmark = pytest.mark.synthetic
 
@@ -26,8 +26,12 @@ def _ds(tmp_path):
 
 def test_page_lists_truth_fields_reads_and_comment_hooks(tmp_path):
     ds, reads = _ds(tmp_path)
-    out = fields_page.build(ds, reads, names=lambda path, value, row: "えいえいおー" if path.endswith("card_id") and value == "c1" else None,
-                            out=tmp_path / "p.html")
+    out = fields_page.build(
+        ds,
+        reads,
+        names=lambda path, value, row: "えいえいおー" if path.endswith("card_id") and value == "c1" else None,
+        out=tmp_path / "p.html",
+    )
     html = out.read_text(encoding="utf-8")
     assert html.count('class="frame"') == 1
     for path in ("my_score", "hand[0].card_id", "hand[0].upgrade", "check:quick"):

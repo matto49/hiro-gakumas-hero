@@ -12,9 +12,9 @@ import json
 from collections.abc import Callable
 from pathlib import Path
 
-import cv2
-
 from tools.ocr_dataset import schema, truth
+
+import cv2
 
 KINDS_JS = '["标注错误", "不该读", "类型/方法", "识别结果", "格式", "页面展示", "其他"]'
 
@@ -70,7 +70,7 @@ def _jpg(path: Path, width: int = 540) -> bytes:
     if img is None:
         return b""
     img = cv2.resize(img, (width, int(img.shape[0] * width / img.shape[1])), interpolation=cv2.INTER_AREA)
-    ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 82])
+    _ok, buf = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 82])
     return buf.tobytes()
 
 
@@ -110,9 +110,13 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
             bad_any = False
             for b in backends:
                 g = got[b].get(path)
-                ok = (path in got[b] and g == want) or (want is None and g is None)  # 同 truth.compare：真值 None、读数没这个键算对
+                ok = (path in got[b] and g == want) or (
+                    want is None and g is None
+                )  # 同 truth.compare：真值 None、读数没这个键算对
                 bad_any |= not ok
-                cells.append(f'<td class="{"ok" if ok else "bad"}">{"（没读到）" if path not in got[b] else _show(g)}</td>')
+                cells.append(
+                    f'<td class="{"ok" if ok else "bad"}">{"（没读到）" if path not in got[b] else _show(g)}</td>'
+                )
             status = st.get(path, "")
             crit_tag = ' <span class="crit">高代价</span>' if crit else ""
             rows.append(
@@ -122,7 +126,7 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
                 f'<td class="cmcell"><button class="cmb" data-target="{e(fid)}" data-field="{e(path)}" data-quote="{e(_show(want))}" onclick="openForm(this)">评</button>'
                 f'<div data-cm data-target="{e(fid)}" data-field="{e(path)}"></div></td></tr>'
             )
-        meta = f'页面 <b>{e(page)}</b> · 平台 {e((fr.get("platform") or {}).get("kind") or "?")} · {len(rows)} 个字段 · 真值来源 {e(fr.get("truth_source") or "?")}'
+        meta = f"页面 <b>{e(page)}</b> · 平台 {e((fr.get('platform') or {}).get('kind') or '?')} · {len(rows)} 个字段 · 真值来源 {e(fr.get('truth_source') or '?')}"
         extra = ""
         if fr.get("note"):
             extra += f'<p class="note">说明：{e(fr["note"])}</p>'
@@ -135,7 +139,7 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
             f'<div class="row"><img class="shot" src="{img_src(fr)}" onclick="this.classList.toggle(\'big\')">'
             f'<div class="tbl"><table><tr><th>字段</th><th>真值（要读出的内容）</th><th>方法</th>'
             + "".join(f"<th>{e(b)} 读到</th>" for b in backends)
-            + f'<th>意见</th></tr>{"".join(rows)}</table></div></div></section>'
+            + f"<th>意见</th></tr>{''.join(rows)}</table></div></div></section>"
         )
     pages = sorted({f.get("page") or "?" for f in frames})
     out.write_text(
@@ -162,7 +166,9 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
         + "".join(f"<option>{e(p)}</option>" for p in pages)
         + '</select><div data-cm data-target="page" data-field=""></div></div>'
         + "".join(secs)
-        + "<script>" + JS.replace("__KINDS__", KINDS_JS) + "</script>",
+        + "<script>"
+        + JS.replace("__KINDS__", KINDS_JS)
+        + "</script>",
         encoding="utf-8",
     )
     return out

@@ -53,7 +53,9 @@ def validate_frame(d) -> list[str]:
         return ["标注不是 JSON 对象"]
     errs: list[str] = []
     if d.get("schema") not in (SCHEMA_VERSION, SCHEMA_FIELDS, SCHEMA_SCENARIO):
-        errs.append(f"schema 应为 {SCHEMA_SCENARIO}（场景真值）、{SCHEMA_FIELDS}（字段真值）或 {SCHEMA_VERSION}（旧的框级标注）")
+        errs.append(
+            f"schema 应为 {SCHEMA_SCENARIO}（场景真值）、{SCHEMA_FIELDS}（字段真值）或 {SCHEMA_VERSION}（旧的框级标注）"
+        )
     for k in ("id", "image", "sha256", "page"):
         if not isinstance(d.get(k), str) or not d.get(k):
             errs.append(f"缺 {k}（非空字符串）")
@@ -85,7 +87,13 @@ def validate_frame(d) -> list[str]:
             errs.append(f"{where}.id 应为不重复的整数")
         seen.add(b.get("id"))
         box = b.get("box")
-        if not (isinstance(box, list) and len(box) == 4 and all(_is_int(x) and x >= 0 for x in box) and box[0] < box[2] and box[1] < box[3]):
+        if not (
+            isinstance(box, list)
+            and len(box) == 4
+            and all(_is_int(x) and x >= 0 for x in box)
+            and box[0] < box[2]
+            and box[1] < box[3]
+        ):
             errs.append(f"{where}.box 应为 [x1, y1, x2, y2]（非负整数，x1<x2、y1<y2）")
         if b.get("status") not in STATUSES:
             errs.append(f"{where}.status 应为 {STATUSES} 之一")
@@ -105,7 +113,9 @@ def _validate_truth(d: dict) -> list[str]:
     """schema 2：truth 里至少有 fields / quick_fields / checks 之一；field_status 的值是 STATUSES 之一。"""
     errs = []
     t = d.get("truth")
-    if not isinstance(t, dict) or not any(isinstance(t.get(k), dict) and t.get(k) for k in ("fields", "quick_fields", "checks")):
+    if not isinstance(t, dict) or not any(
+        isinstance(t.get(k), dict) and t.get(k) for k in ("fields", "quick_fields", "checks")
+    ):
         errs.append("truth 要有 fields / quick_fields / checks 至少一项（非空对象）")
     st = d.get("field_status", {})
     if not isinstance(st, dict) or any(v not in STATUSES for v in st.values()):
@@ -133,7 +143,11 @@ def _validate_scenario(d: dict) -> list[str]:
         errs.append(f"item_status 应为 {{信息项路径: {STATUSES} 之一}}")
     for i, b in enumerate(d.get("buttons") or []):
         box = b.get("box") if isinstance(b, dict) else "x"
-        if not isinstance(b, dict) or not isinstance(b.get("label"), str) or not (box is None or (isinstance(box, list) and len(box) == 4 and all(_is_int(v) for v in box))):
+        if (
+            not isinstance(b, dict)
+            or not isinstance(b.get("label"), str)
+            or not (box is None or (isinstance(box, list) and len(box) == 4 and all(_is_int(v) for v in box)))
+        ):
             errs.append(f"buttons[{i}] 应为 {{label: 文字, box: [x1, y1, x2, y2] 或 null}}")
     return errs
 

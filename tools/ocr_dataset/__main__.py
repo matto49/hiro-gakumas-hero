@@ -12,7 +12,9 @@ from tools.ocr_dataset import schema
 
 
 def dataset_root(arg: str | None = None) -> Path:
-    return Path(arg or os.environ.get("HIRO_OCR_DATASET") or Path(__file__).resolve().parents[2].parent / "hiro-ocr-dataset")
+    return Path(
+        arg or os.environ.get("HIRO_OCR_DATASET") or Path(__file__).resolve().parents[2].parent / "hiro-ocr-dataset"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -34,7 +36,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--n-dmm540", type=int, default=None, help="DMM 540 每格最多几张（缺省 5）")
     p.add_argument("--all", action="store_true", help="不分层抽样，去重后全收（做进阶集用）")
     p.add_argument("--dry-run", action="store_true", help="只打印挑中的分布，不写 inbox")
-    p.add_argument("--fill-types", action="store_true", help="对剩下的帧做文字检测，按文字类型补足每类 30 个框（Mac，慢）")
+    p.add_argument(
+        "--fill-types", action="store_true", help="对剩下的帧做文字检测，按文字类型补足每类 30 个框（Mac，慢）"
+    )
     p = sub.add_parser("label", help="AI 标注 inbox 里的帧，移进 core/（Mac：要 Apple Vision）")
     p.add_argument("inbox", nargs="+", help="inbox/<贡献者>/<日期> 目录")
     p.add_argument("--dataset")
@@ -52,7 +56,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--llm", default=None, help="缺省 HIRO_LLM，再缺省 claude:opus")
     p.add_argument("--all", action="store_true", help="所有帧都重问")
     p.add_argument("--workers", type=int, default=2)
-    p = sub.add_parser("import-regression", help="把 tests/dmm_regression.json 的回归帧转成字段真值帧写进数据仓库（旧框级帧挪到 legacy-v1/）")
+    p = sub.add_parser(
+        "import-regression",
+        help="把 tests/dmm_regression.json 的回归帧转成字段真值帧写进数据仓库（旧框级帧挪到 legacy-v1/）",
+    )
     p.add_argument("--dataset")
     p = sub.add_parser("eval-fields", help="字段评测：每个后端跑实机分页读取，和字段真值逐字段比")
     p.add_argument("--dataset")
@@ -69,7 +76,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--dataset")
     p.add_argument("--apply", metavar="ANSWERS_JSON", help="review 页或抽查页导出的 JSON")
     p = sub.add_parser("eval", help="评测 OCR 后端，报告写到 reports/")
-    p.add_argument("--backend", default="rapidocr", help="逗号分隔：vision / rapidocr / winocr / ppocr5 / simd（装了 PR #9 时）/ rapidocr+charset")
+    p.add_argument(
+        "--backend",
+        default="rapidocr",
+        help="逗号分隔：vision / rapidocr / winocr / ppocr5 / simd（装了 PR #9 时）/ rapidocr+charset",
+    )
     p.add_argument("--set", default="core", choices=schema.SETS)
     p.add_argument("--tags", default="", help="platform=dmm540,page=CONSULT")
     p.add_argument("--compare", help="上一份报告的 JSON")
@@ -80,7 +91,14 @@ def main(argv: list[str] | None = None) -> int:
         from tools.ocr_dataset import eval as ev
 
         tags = dict(kv.split("=", 1) for kv in a.tags.split(",") if "=" in kv)
-        md, js = ev.main(dataset_root(a.dataset), [b.strip() for b in a.backend.split(",") if b.strip()], a.set, tags, a.compare, a.name)
+        md, js = ev.main(
+            dataset_root(a.dataset),
+            [b.strip() for b in a.backend.split(",") if b.strip()],
+            a.set,
+            tags,
+            a.compare,
+            a.name,
+        )
         print(md.read_text(encoding="utf-8").split("## 按")[0])
         print(f"→ {md}\n→ {js}")
         return 0
@@ -91,7 +109,9 @@ def main(argv: list[str] | None = None) -> int:
         if a.apply:
             st = review.apply(root, a.apply)
             left = json.loads((root / "disputed.json").read_text(encoding="utf-8"))
-            print(f"写回：resolved {st['resolved']}，ignored {st['ignored']}，打回待定 {st['disputed']}，没找到 {st['missing']}；剩余待定 {len(left)}")
+            print(
+                f"写回：resolved {st['resolved']}，ignored {st['ignored']}，打回待定 {st['disputed']}，没找到 {st['missing']}；剩余待定 {len(left)}"
+            )
         else:
             print(review.build(root))
         return 0
@@ -124,7 +144,9 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "eval-fields":
         from tools.ocr_dataset import fields_eval
 
-        md, js = fields_eval.main(dataset_root(a.dataset), [b.strip() for b in a.backend.split(",") if b.strip()], a.set, a.name)
+        md, js = fields_eval.main(
+            dataset_root(a.dataset), [b.strip() for b in a.backend.split(",") if b.strip()], a.set, a.name
+        )
         print(md.read_text(encoding="utf-8").split("## 按页面")[0])
         print(f"→ {md}\n→ {js}")
         return 0
@@ -168,7 +190,9 @@ def main(argv: list[str] | None = None) -> int:
                 from tools.ocr_dataset import label
 
                 counter = label.type_counter(label.RealReaders())
-            sel = pick.select(cands, n=a.n or pick.N_CELL, n_dmm540=a.n_dmm540 or pick.N_CELL_DMM540, known=known, counter=counter)
+            sel = pick.select(
+                cands, n=a.n or pick.N_CELL, n_dmm540=a.n_dmm540 or pick.N_CELL_DMM540, known=known, counter=counter
+            )
         print(f"读到 {len(cands)} 帧（去重后），挑中 {len(sel)}")
         print(pick.summary(sel))
         if not a.dry_run and sel:

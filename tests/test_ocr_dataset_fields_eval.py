@@ -1,8 +1,8 @@
 """tools.ocr_dataset.fields_eval：字段评测打分与报告（规格 2026-11-23-recognition-dataset-fields-design.md §6）。"""
 
-import pytest
-
 from tools.ocr_dataset import fields_eval as fe
+
+import pytest
 
 pytestmark = pytest.mark.synthetic
 
@@ -38,7 +38,7 @@ def test_score_counts_by_method_page_and_critical():
     assert (a["n"], a["ok"]) == (12, 9)
     assert r["groups"]["method"]["ocr"] == {"n": 6, "ok": 4, "acc": pytest.approx(4 / 6)}
     assert r["groups"]["method"]["icon"]["ok"] == 1 and r["groups"]["method"]["page"]["n"] == 2
-    crit = {k: v for k, v in r["groups"]["critical"].items()}
+    crit = dict(r["groups"]["critical"].items())
     assert crit["HIF_EXAM hand[].card_id"] == {"n": 2, "ok": 1, "acc": 0.5}
     assert crit["CONSULT shelf[].price"]["ok"] == 0
     assert r["timing"]["p50"] == pytest.approx(1.5)  # 第一帧（含加载）不算

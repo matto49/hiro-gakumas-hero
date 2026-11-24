@@ -2,11 +2,13 @@
 
 import json
 
+from tools.ocr_dataset import comments_server as cs
+from tools.ocr_dataset import scenario_page as sp
+from tools.ocr_dataset import schema
+
 import cv2
 import numpy as np
 import pytest
-
-from tools.ocr_dataset import comments_server as cs, scenario_page as sp, schema
 
 pytestmark = pytest.mark.synthetic
 
@@ -29,7 +31,9 @@ def test_page_shows_truth_answers_and_system_results(tmp_path):
     html = sp.build(ds, reads, out=tmp_path / "site" / "index.html").read_text(encoding="utf-8")
     assert html.count('class="frame"') == 1
     assert 'data-field="hp"' in html and 'data-field="genki"' in html and 'data-field="button:SKIP"' in html
-    assert html.count('class="r-错"') == 1 and html.count('class="r-没读"') >= 2  # rapidocr：hp 读错、genki 没读、SKIP 没找到
+    assert (
+        html.count('class="r-错"') == 1 and html.count('class="r-没读"') >= 2
+    )  # rapidocr：hp 读错、genki 没读、SKIP 没找到
     assert "定答案" in html and 'data-pick="3"' in html  # 待定项可以一键取 Codex 的读法
 
 

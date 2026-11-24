@@ -18,11 +18,11 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-import cv2
-import numpy as np
-
 from tools.ocr_dataset import fields, schema
 from tools.ocr_dataset.lexicon import Lexicon, norm
+
+import cv2
+import numpy as np
 
 OVERLAP = 0.5  # 两个检测框交集 / 较小框面积 ≥ 这个 = 同一段字
 PAD = 4  # 裁图四周多留几像素
@@ -48,10 +48,14 @@ def _reading_key(box) -> tuple:
     return ((box[1] + box[3]) // 2 // 12, (box[0] + box[2]) // 2)
 
 
-def merge_boxes(vision: list[tuple[str, tuple]], rapid: list[tuple[str, tuple]], overlap: float = OVERLAP) -> list[dict]:
+def merge_boxes(
+    vision: list[tuple[str, tuple]], rapid: list[tuple[str, tuple]], overlap: float = OVERLAP
+) -> list[dict]:
     """两路检测结果（文字, (x1, y1, x2, y2)）合并：重叠的连成一组（可以连锁：一条长行盖住两个短框），取并集框。
     返回 [{box, vision, rapidocr}]（各方这一组里的文字按阅读顺序拼接），自上而下排序。"""
-    items = [("vision", t, tuple(int(v) for v in b)) for t, b in vision] + [("rapidocr", t, tuple(int(v) for v in b)) for t, b in rapid]
+    items = [("vision", t, tuple(int(v) for v in b)) for t, b in vision] + [
+        ("rapidocr", t, tuple(int(v) for v in b)) for t, b in rapid
+    ]
     items = [it for it in items if _area(it[2]) > 0]
     parent = list(range(len(items)))
 
@@ -70,10 +74,17 @@ def merge_boxes(vision: list[tuple[str, tuple]], rapid: list[tuple[str, tuple]],
         groups.setdefault(find(i), []).append(it)
     out = []
     for members in groups.values():
-        box = [min(m[2][0] for m in members), min(m[2][1] for m in members), max(m[2][2] for m in members), max(m[2][3] for m in members)]
+        box = [
+            min(m[2][0] for m in members),
+            min(m[2][1] for m in members),
+            max(m[2][2] for m in members),
+            max(m[2][3] for m in members),
+        ]
         g = {"box": box}
         for src in ("vision", "rapidocr"):
-            g[src] = "".join(t for _, t, b in sorted((m for m in members if m[0] == src), key=lambda m: _reading_key(m[2])))
+            g[src] = "".join(
+                t for _, t, b in sorted((m for m in members if m[0] == src), key=lambda m: _reading_key(m[2]))
+            )
         out.append(g)
     return sorted(out, key=lambda g: _reading_key(g["box"]))
 
@@ -99,7 +110,7 @@ def _visions(answers: dict) -> list[str]:
 
 
 def _same(a: str, b: str) -> bool:
-    return a == b or bool(_edge(a)) and _edge(a) == _edge(b)
+    return a == b or (bool(_edge(a)) and _edge(a) == _edge(b))
 
 
 def _clean(a: str, b: str) -> str:
@@ -120,25 +131,25 @@ def decide(answers: dict, lex: Lexicon) -> tuple[str, str]:
     - 两个 LLM 一致但都少了装饰「+」、Vision 两次都读到「+」 → 取 Vision 的；
     - 其余 disputed（文字先填最可能的：Vision 吸附到的词 > LLM 吸附到的词 > Vision > LLM）。"""
     raw_l, raw_l2 = answers.get("llm"), answers.get("llm2", "")  # llm2 没问过 = 没意见；值为 None = 漏答
-    vs, l, l2 = _visions(answers), norm(raw_l or ""), norm(raw_l2 or "")
+    vs, la, lb = _visions(answers), norm(raw_l or ""), norm(raw_l2 or "")
     said_empty = raw_l == "" and raw_l2 == ""  # LLM 明确说这段没字（漏答不算）
-    if not vs and not l and not l2:
+    if not vs and not la and not lb:
         return "", "ignored" if said_empty else "disputed"
-    if l:
+    if la:
         for v in vs:
-            if _same(v, l):
-                return _clean(l, v) if v != l else l, "agreed"
-    sl = lex.snap(l)
+            if _same(v, la):
+                return _clean(la, v) if v != la else la, "agreed"
+    sl = lex.snap(la)
     for v in vs:
         sv = lex.snap(v)
-        if l and sv is not None and sv == sl and sv in (v, l):
+        if la and sv is not None and sv == sl and sv in (v, la):
             return sv, "agreed"
-    if l2:
+    if lb:
         for v in vs:
-            if _same(v, l2):
-                return _clean(l2, v), "agreed"
-        if l and _same(l, l2):
-            t = _clean(l, l2)
+            if _same(v, lb):
+                return _clean(lb, v), "agreed"
+        if la and _same(la, lb):
+            t = _clean(la, lb)
             crop, frame = norm(answers.get("vision") or ""), norm(answers.get("vision_frame") or "")
             if crop and crop == frame and crop == "+" + t:  # 两个 LLM 都没写出装饰「+」，Vision 两次都读到了
                 return crop, "agreed"
@@ -147,7 +158,7 @@ def decide(answers: dict, lex: Lexicon) -> tuple[str, str]:
     if said_empty and not (crop and crop == frame):
         return "", "ignored"
     v0 = vs[0] if vs else ""
-    return lex.snap(v0) or sl or v0 or l, "disputed"
+    return lex.snap(v0) or sl or v0 or la, "disputed"
 
 
 def lexicon_answer(answers: dict, lex: Lexicon) -> str:
@@ -157,7 +168,9 @@ def lexicon_answer(answers: dict, lex: Lexicon) -> str:
     return ""
 
 
-def adjudicate(dataset: str | Path, reader, lex: Lexicon | None = None, workers: int = 1, log: Callable[[str], None] = print) -> dict[str, int]:
+def adjudicate(
+    dataset: str | Path, reader, lex: Lexicon | None = None, workers: int = 1, log: Callable[[str], None] = print
+) -> dict[str, int]:
     """第二个 LLM 读一遍还待定的框（每帧一次，只拼待定框），答案存进 answers.llm2，再按 decide 重判。问过的框不再问。"""
     root = Path(dataset)
     lex = lex or _load_lexicon(root)
@@ -165,12 +178,16 @@ def adjudicate(dataset: str | Path, reader, lex: Lexicon | None = None, workers:
     for s in schema.SETS:
         for js in sorted((root / s).glob("*.json")) if (root / s).is_dir() else []:
             fr = json.loads(js.read_text(encoding="utf-8"))
-            todo = [b for b in fr.get("boxes", []) if b.get("status") == "disputed" and "llm2" not in (b.get("answers") or {}) and not b.get("reviewed")]
+            todo = [
+                b
+                for b in fr.get("boxes", [])
+                if b.get("status") == "disputed" and "llm2" not in (b.get("answers") or {}) and not b.get("reviewed")
+            ]
             if todo:
                 jobs.append((s, js, fr, todo))
 
     def one(job):
-        s, js, fr, todo = job
+        s, _js, fr, todo = job
         img = cv2.imread(str(root / s / fr["image"]))
         return reader.read_llm(img, [b["box"] for b in todo])
 
@@ -192,7 +209,9 @@ def adjudicate(dataset: str | Path, reader, lex: Lexicon | None = None, workers:
                     changed += 1
                 b["text"], b["status"], b["ignore"] = text, status, status == "ignored"
             js.write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
-            log(f"[{k}/{len(jobs)}] {fr['id']}：{len(todo)} 个待定框，还剩 {sum(b['status'] == 'disputed' for b in todo)}")
+            log(
+                f"[{k}/{len(jobs)}] {fr['id']}：{len(todo)} 个待定框，还剩 {sum(b['status'] == 'disputed' for b in todo)}"
+            )
     except BaseException:
         pool.shutdown(wait=False, cancel_futures=True)
         raise
@@ -354,7 +373,9 @@ def crop_sheets(img, boxes, pad: int = PAD) -> list[tuple[list[int], np.ndarray]
         y = 0
         for k, (_, r) in enumerate(sheet, 1):  # 每张图从 [1] 编号，和提示词、解析一致
             canvas[y : y + r.shape[0], : r.shape[1]] = r
-            cv2.putText(canvas, f"[{k}]", (4, y + min(r.shape[0] - 6, 34)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 200), 2)
+            cv2.putText(
+                canvas, f"[{k}]", (4, y + min(r.shape[0] - 6, 34)), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 200), 2
+            )
             y += r.shape[0]
         out.append(([i for i, _ in sheet], canvas))
     return out
@@ -370,7 +391,11 @@ class RealReaders:
     def __init__(self, llm_spec: str | None = None, timeout: float = 180, pad: int = PAD):
         from hiro.brain import llm
 
-        self.llm = llm.from_spec(llm_spec, timeout=timeout) if (llm_spec or "").split(":")[0] in ("", "claude", "claude-cli", "codex", "codex-cli") else llm.from_spec(llm_spec)
+        self.llm = (
+            llm.from_spec(llm_spec, timeout=timeout)
+            if (llm_spec or "").split(":")[0] in ("", "claude", "claude-cli", "codex", "codex-cli")
+            else llm.from_spec(llm_spec)
+        )
         self.pad = pad
 
     @property
@@ -409,7 +434,7 @@ class RealReaders:
         """每框的抄写；LLM 漏答的编号记 None（和「说这段没字」的空串区分开）。"""
         out: list[str | None] = [None] * len(boxes)
         for idx, sheet in crop_sheets(img, boxes, self.pad):
-            ok, buf = cv2.imencode(".jpg", sheet, [cv2.IMWRITE_JPEG_QUALITY, 92])
+            _ok, buf = cv2.imencode(".jpg", sheet, [cv2.IMWRITE_JPEG_QUALITY, 92])
             user = f"共 {len(idx)} 段，编号 1–{len(idx)}。"
             res = self.llm.ask_json_image(LLM_SYSTEM, user, buf.tobytes())
             texts = (res.data or {}).get("texts") if not res.error else None
@@ -417,7 +442,13 @@ class RealReaders:
                 raise LLMReadError(f"LLM 没给出 texts：{res.error or res.raw[:200]}")
             for k, i in enumerate(idx, 1):
                 v = texts.get(str(k))
-                out[i] = v if isinstance(v, str) else str(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+                out[i] = (
+                    v
+                    if isinstance(v, str)
+                    else str(v)
+                    if isinstance(v, (int, float)) and not isinstance(v, bool)
+                    else None
+                )
         return out
 
 
@@ -438,7 +469,12 @@ def label_frame(img, meta: dict, readers, lex: Lexicon, pad: int = PAD, bands=No
         bands = header_bands(img)
     boxes = []
     for i, g in enumerate(groups):
-        answers = {"vision": readers.read_vision(_crop(img, g["box"], pad)), "vision_frame": g["vision"], "llm": llm[i], "rapidocr": g["rapidocr"]}
+        answers = {
+            "vision": readers.read_vision(_crop(img, g["box"], pad)),
+            "vision_frame": g["vision"],
+            "llm": llm[i],
+            "rapidocr": g["rapidocr"],
+        }
         answers["lexicon"] = lexicon_answer(answers, lex)
         text, status = decide(answers, lex)
         boxes.append({"id": i, "box": g["box"], "text": text, "status": status, "answers": answers,
@@ -482,7 +518,16 @@ def rebuild_disputed(dataset: str | Path) -> list[dict]:
             fr = json.loads(js.read_text(encoding="utf-8"))
             for b in fr.get("boxes", []):
                 if b.get("status") == "disputed":
-                    out.append({"frame": fr["id"], "set": s, "box": b["id"], "bbox": b["box"], "text": b.get("text"), "answers": b.get("answers")})
+                    out.append(
+                        {
+                            "frame": fr["id"],
+                            "set": s,
+                            "box": b["id"],
+                            "bbox": b["box"],
+                            "text": b.get("text"),
+                            "answers": b.get("answers"),
+                        }
+                    )
     (root / "disputed.json").write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     return out
 
@@ -526,7 +571,9 @@ def run(dataset: str | Path, inbox_dir: str | Path, readers=None, lex: Lexicon |
             done_ids.add(f["id"])
             n_done += 1
             st = [b["status"] for b in fr["boxes"]]
-            log(f"[{k}/{len(todo)}] {f['id']}：{len(st)} 框，agreed {st.count('agreed')}，disputed {st.count('disputed')}")
+            log(
+                f"[{k}/{len(todo)}] {f['id']}：{len(st)} 框，agreed {st.count('agreed')}，disputed {st.count('disputed')}"
+            )
     except BaseException:  # Ctrl-C 等：排队的帧不再跑（否则退出前还会把剩下几百次 LLM 调用跑完再扔掉）
         pool.shutdown(wait=False, cancel_futures=True)
         raise
@@ -548,7 +595,7 @@ def run(dataset: str | Path, inbox_dir: str | Path, readers=None, lex: Lexicon |
 
 
 def _png_b64(img) -> str:
-    ok, buf = cv2.imencode(".png", img)
+    _ok, buf = cv2.imencode(".png", img)
     return base64.b64encode(buf.tobytes()).decode()
 
 

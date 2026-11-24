@@ -10,7 +10,8 @@ import html
 import json
 from pathlib import Path
 
-from tools.ocr_dataset import fields_page, scenario, scenario_eval as se, schema
+from tools.ocr_dataset import fields_page, scenario, schema
+from tools.ocr_dataset import scenario_eval as se
 
 KINDS = '["定答案", "标注错误", "漏了", "不需要", "识别结果", "其他"]'
 
@@ -78,10 +79,12 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
         pages = " · ".join(f"{b} 判成 {e(str(sysrows[b][1]))}" for b in backends)
         secs.append(
             f'<section class="frame" id="{e(fid)}" data-sc="{e(sid)}"><h2>{e(fid)}</h2><p class="meta">场景 <b>{e(scenario.load()[sid]["name"])}</b> · 平台 '
-            f'{e((fr.get("platform") or {}).get("kind") or "?")} · 系统判页：{pages}</p>'
+            f"{e((fr.get('platform') or {}).get('kind') or '?')} · 系统判页：{pages}</p>"
             f'<div class="row"><img class="shot" src="img/{e(fid)}.jpg" loading="lazy" onclick="this.classList.toggle(\'big\')"><div class="tbl"><table>'
-            f'<tr><th>信息项</th><th>真值</th>' + "".join(f"<th>{e(n)} 读</th>" for n in names)
-            + "".join(f"<th>系统 · {e(b)}</th>" for b in backends) + f'<th>定答案 / 意见</th></tr>{"".join(trs)}</table></div></div></section>'
+            f"<tr><th>信息项</th><th>真值</th>"
+            + "".join(f"<th>{e(n)} 读</th>" for n in names)
+            + "".join(f"<th>系统 · {e(b)}</th>" for b in backends)
+            + f"<th>定答案 / 意见</th></tr>{''.join(trs)}</table></div></div></section>"
         )
     opts = "".join(f"<option value='{sid}'>{e(d['name'])}</option>" for sid, d in scenario.load().items())
     out.write_text(
@@ -106,7 +109,8 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
         ' · 场景 <select onchange="filt(this.value)"><option value="">全部</option>' + opts + "</select>"
         '<div data-cm data-target="scenario-page" data-field=""></div></div>'
         + "".join(secs)
-        + "<script>" + fields_page.JS.replace("__KINDS__", KINDS).replace('s.dataset.page === p', 's.dataset.sc === p')
+        + "<script>"
+        + fields_page.JS.replace("__KINDS__", KINDS).replace("s.dataset.page === p", "s.dataset.sc === p")
         + r"""
 async function pick(btn) {
   btn.disabled = true;

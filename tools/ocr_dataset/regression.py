@@ -11,9 +11,9 @@ import re
 import shutil
 from pathlib import Path
 
-import cv2
-
 from tools.ocr_dataset import schema
+
+import cv2
 
 ROOT = Path(__file__).resolve().parents[2]
 LIST = ROOT / "tests" / "dmm_regression.json"

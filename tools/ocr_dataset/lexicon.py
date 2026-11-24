@@ -23,12 +23,14 @@ INCLUDE = re.compile(r"^(Produce|IdolCard|SupportCard|Exam|Memory|Tower|Characte
 EXCLUDE = re.compile(r"Story|Voice|Message|Motion|Commu|Bgm|Timeline|Asset|Movie|Tutorial|Push")
 NAME_COL = re.compile(r"name|title", re.I)
 JA = re.compile(r"[぀-ヿ一-鿿]")
-KANA = {chr(c) for c in range(0x3041, 0x3097)} | {chr(c) for c in range(0x30A1, 0x30FB)} | {"ー", "ゝ", "ゞ", "ヽ", "ヾ"}
+KANA = (
+    {chr(c) for c in range(0x3041, 0x3097)} | {chr(c) for c in range(0x30A1, 0x30FB)} | {"ー", "ゝ", "ゞ", "ヽ", "ヾ"}
+)
 ASCII = {chr(c) for c in range(0x21, 0x7F)}
 WORD_MAX = 24
 
 
-FOLD = str.maketrans({c: "★" for c in "☆✦✧✩✪✫✬✭✮✯✰⭐"})  # 游戏里的装饰星号，各读者写法不一，比较时当同一个
+FOLD = str.maketrans(dict.fromkeys("☆✦✧✩✪✫✬✭✮✯✰⭐", "★"))  # 游戏里的装饰星号，各读者写法不一，比较时当同一个
 
 
 PLUS_STAR = re.compile(r"★(?=[0-9])")  # 数字前的装饰「+」常被 LLM 写成星号（实测 81 个框），按「+」算
@@ -145,7 +147,11 @@ def code_literals(src: Path = ROOT / "src" / "hiro") -> set[str]:
             tree = ast.parse(p.read_text(encoding="utf-8"))
         except (SyntaxError, UnicodeDecodeError):
             continue
-        docs = {id(n.value) for n in ast.walk(tree) if isinstance(n, ast.Expr) and isinstance(getattr(n, "value", None), ast.Constant)}
+        docs = {
+            id(n.value)
+            for n in ast.walk(tree)
+            if isinstance(n, ast.Expr) and isinstance(getattr(n, "value", None), ast.Constant)
+        }
         for n in ast.walk(tree):
             if isinstance(n, ast.Constant) and isinstance(n.value, str) and id(n) not in docs:
                 s = norm(n.value)

@@ -1,8 +1,8 @@
 """tools.ocr_dataset.scenario_eval：真实系统读数 → 场景信息项（适配器），逐项打分：读对 / 读错 / 没读（规格 v3 §5）。"""
 
-import pytest
-
 from tools.ocr_dataset import scenario_eval as se
+
+import pytest
 
 pytestmark = pytest.mark.synthetic
 
@@ -25,8 +25,11 @@ def test_adapt_exam():
                            {"name": "ありがとうの言葉", "plus": True, "cost_type": "red_heart", "cost": 3},
                            {"name": "きらきら紙吹雪", "plus": True, "cost_type": "buff", "cost": 2}]  # fmt: skip
     assert got["selected_preview"] == 337 and got["drinks_count"] == 1
-    assert got["statuses"] == [{"kind": "status", "name": "好印象", "value": 5, "pct": None}, {"kind": "card_effect", "name": None, "value": 6, "pct": None},
-                              {"kind": "status", "name": "パラメータ上昇量増加", "value": None, "pct": 10}]
+    assert got["statuses"] == [
+        {"kind": "status", "name": "好印象", "value": 5, "pct": None},
+        {"kind": "card_effect", "name": None, "value": 6, "pct": None},
+        {"kind": "status", "name": "パラメータ上昇量増加", "value": None, "pct": 10},
+    ]
     assert got["deck_left"] is None and "breakthrough_rank" in got
 
 
@@ -36,12 +39,19 @@ def test_adapt_consult_and_interval():
            "services": {"upgrade": {"price": 150, "used": False}, "delete": {"price": 125, "used": True}}}  # fmt: skip
     got = se.adapt("consult", raw)
     assert got["hp"] == 9 and got["p_points"] == 280 and got["delete_used"] is True
-    assert got["shelf"] == [{"kind": "drink", "price": 53, "purchased": True}, {"kind": "card", "price": 77, "purchased": False}]  # 系统不读 SALE 原价：不给这一项 → 没读
+    assert got["shelf"] == [
+        {"kind": "drink", "price": 53, "purchased": True},
+        {"kind": "card", "price": 77, "purchased": False},
+    ]  # 系统不读 SALE 原价：不给这一项 → 没读
     iv = {"stamina": 17, "max_stamina": 33, "produce_point": 428, "interval": {
         "cards": [{"index": 0, "price": 50, "purchased": False}], "changes": [{"index": 2, "price": 30, "purchased": False}],
         "drinks": [{"index": 1, "price": 100, "purchased": True}], "upgrade": {"price": 100, "left": 1}, "customize": {"left": 2}, "refresh": {"price": 10}}}  # fmt: skip
     got = se.adapt("round_interval", iv)
-    assert [s["kind"] for s in got["shelf"]] == ["card", "drink", "card"] and got["upgrade_left"] == 1 and got["refresh_price"] == 10
+    assert (
+        [s["kind"] for s in got["shelf"]] == ["card", "drink", "card"]
+        and got["upgrade_left"] == 1
+        and got["refresh_price"] == 10
+    )
 
 
 def test_adapt_action_select_keys_actions_by_label():
@@ -56,7 +66,13 @@ def test_adapt_action_select_keys_actions_by_label():
 def test_score_right_wrong_unread_and_skips():
     truth = {"hp": 27, "genki": 0, "deck_left": None, "selected_preview": None, "top_scores": [403729, 303833],
              "hand": [{"name": "イメトレ", "plus": False}], "multiplier_pct": 2805}  # fmt: skip
-    got = {"hp": 27, "genki": 1, "selected_preview": 120, "top_scores": [400729, 303833], "hand": [{"name": "イメトレ", "plus": False}]}
+    got = {
+        "hp": 27,
+        "genki": 1,
+        "selected_preview": 120,
+        "top_scores": [400729, 303833],
+        "hand": [{"name": "イメトレ", "plus": False}],
+    }
     rows = se.score_frame("exam", truth, got, item_status={"multiplier_pct": "disputed"})
     res = {r["path"]: r["result"] for r in rows}
     assert res == {"hp": "对", "genki": "错", "selected_preview": "错", "top_scores[0]": "错", "top_scores[1]": "对",
@@ -73,11 +89,22 @@ def test_score_actions_aligned_by_label():
     truth = {"actions": [{"label": "おでかけ", "hp_change": None}, {"label": "休む", "hp_change": 11}]}
     got = {"actions": [{"label": "休む", "hp_change": 11}, {"label": "おでかけ", "hp_change": None}]}
     rows = se.score_frame("action_select", truth, got)
-    assert {r["path"]: r["result"] for r in rows} == {"actions[おでかけ].label": "对", "actions[休む].label": "对", "actions[休む].hp_change": "对"}
+    assert {r["path"]: r["result"] for r in rows} == {
+        "actions[おでかけ].label": "对",
+        "actions[休む].label": "对",
+        "actions[休む].hp_change": "对",
+    }
 
 
 def _fr(fid, sid, truth, buttons=(), status=None):
-    return {"id": fid, "scenario": sid, "platform": {"kind": "dmm"}, "truth": truth, "item_status": status or {}, "buttons": list(buttons)}
+    return {
+        "id": fid,
+        "scenario": sid,
+        "platform": {"kind": "dmm"},
+        "truth": truth,
+        "item_status": status or {},
+        "buttons": list(buttons),
+    }
 
 
 def test_evaluate_aggregates_items_buttons_and_page():
@@ -87,20 +114,30 @@ def test_evaluate_aggregates_items_buttons_and_page():
              "b": {"page": "ACTION_SELECT", "fields": {"stamina": 9}, "texts": []}}  # fmt: skip
     r = se.evaluate(frames, reads, backend="vision")
     a = r["groups"]["all"]
-    assert (a["对"], a["错"], a["没读"]) == (3, 1, 1)  # a: hp 对、genki 错、SKIP 对；b: 判成别的页 → 按别的页读不出 → 没读 / 对（hp 碰巧在顶栏）
+    assert (a["对"], a["错"], a["没读"]) == (
+        3,
+        1,
+        1,
+    )  # a: hp 对、genki 错、SKIP 对；b: 判成别的页 → 按别的页读不出 → 没读 / 对（hp 碰巧在顶栏）
     assert r["groups"]["page"]["对"] == 1 and r["groups"]["page"]["错"] == 1
     assert {e["path"] for e in r["errors"]} == {"genki", "p_points"}
 
 
 def test_button_found_outside_box_is_wrong():
-    frames = [_fr("a", "exam", {}, buttons=[{"label": "SKIP", "box": [500, 700, 600, 800]}, {"label": "決定", "box": None}])]
-    r = se.evaluate(frames, {"a": {"page": "HIF_EXAM", "fields": {}, "texts": [("SKIP", (10, 10, 50, 30))]}}, backend="x")
+    frames = [
+        _fr("a", "exam", {}, buttons=[{"label": "SKIP", "box": [500, 700, 600, 800]}, {"label": "決定", "box": None}])
+    ]
+    r = se.evaluate(
+        frames, {"a": {"page": "HIF_EXAM", "fields": {}, "texts": [("SKIP", (10, 10, 50, 30))]}}, backend="x"
+    )
     assert r["groups"]["all"]["错"] == 1 and r["groups"]["all"]["n"] == 1  # 決定 没有位置真值：不计
 
 
 def test_report_md_has_unread_section():
     frames = [_fr("b", "consult", {"shelf": [{"price": 53, "purchased": True}]})]
-    r = se.evaluate(frames, {"b": {"page": "CONSULT", "fields": {"shelf": [{"price": 53}]}, "texts": []}}, backend="vision")
+    r = se.evaluate(
+        frames, {"b": {"page": "CONSULT", "fields": {"shelf": [{"price": 53}]}, "texts": []}}, backend="vision"
+    )
     md = se.report_md([r])
     assert "没读" in md and "shelf[].purchased" in md
 
@@ -109,7 +146,9 @@ def test_zero_cost_equals_no_cost():
     truth = {"hand": [{"name": "リズミカル", "plus": False, "cost_type": "green_heart", "cost": 0}]}
     got = {"hand": [{"name": "リズミカル", "plus": False, "cost_type": "none", "cost": None}]}
     assert {r["path"]: r["result"] for r in se.score_frame("exam", truth, got)} == {
-        "hand[0].name": "对", "hand[0].plus": "对"}  # 消耗按「没有」算，可由主数据补的项不计
+        "hand[0].name": "对",
+        "hand[0].plus": "对",
+    }  # 消耗按「没有」算，可由主数据补的项不计
 
 
 def test_truncated_name_and_hidden_cost_are_not_errors():
@@ -118,22 +157,36 @@ def test_truncated_name_and_hidden_cost_are_not_errors():
     got = {"hand": [{"name": "ゆるふわおしゃべり", "plus": False, "cost_type": "green_heart", "cost": 4},
                     {"name": "頭上に注意!", "plus": False, "cost_type": "red_heart", "cost": 3}]}  # fmt: skip
     res = {r["path"]: r["result"] for r in se.score_frame("exam", truth, got)}
-    assert res == {"hand[0].name": "对", "hand[0].plus": "对", "hand[1].name": "对", "hand[1].plus": "对", "hand[1].cost_type": "对", "hand[1].cost": "对"}
+    assert res == {
+        "hand[0].name": "对",
+        "hand[0].plus": "对",
+        "hand[1].name": "对",
+        "hand[1].plus": "对",
+        "hand[1].cost_type": "对",
+        "hand[1].cost": "对",
+    }
 
 
 def test_prefix_rule_needs_two_chars_and_only_for_names():
-    res = {r["path"]: r["result"] for r in se.score_frame("exam", {"hand": [{"name": "ゆ"}]}, {"hand": [{"name": "ゆるふわ"}]})}
+    res = {
+        r["path"]: r["result"]
+        for r in se.score_frame("exam", {"hand": [{"name": "ゆ"}]}, {"hand": [{"name": "ゆるふわ"}]})
+    }
     assert res["hand[0].name"] == "错"
 
 
 def test_turns_left_counts_extra_turns():
     truth = {"turns_left": 3, "extra_turns": 1}
     assert {r["path"]: r["result"] for r in se.score_frame("exam", truth, {"turns_left": 4})} == {"turns_left": "对"}
-    assert {r["path"]: r["result"] for r in se.score_frame("exam", {"turns_left": 3, "extra_turns": 0}, {"turns_left": 3})} == {"turns_left": "对"}
+    assert {
+        r["path"]: r["result"] for r in se.score_frame("exam", {"turns_left": 3, "extra_turns": 0}, {"turns_left": 3})
+    } == {"turns_left": "对"}
 
 
 def test_selection_exam_inserts_own_score_too():
-    got = se.adapt("exam", {**EXAM_RAW, "finals": False, "my_score": 143069, "my_rank_index": 1, "npc_scores": [134524, 39654]})
+    got = se.adapt(
+        "exam", {**EXAM_RAW, "finals": False, "my_score": 143069, "my_rank_index": 1, "npc_scores": [134524, 39654]}
+    )
     assert got["top_scores"] == [143069, 134524, 39654]
 
 
@@ -147,14 +200,26 @@ def test_unscored_items_are_kept_but_not_scored():
     """用户 11-23：NEW 标记、SALE 原价不识别也没事——真值留着，不计分。"""
     truth = {"shelf": [{"kind": "card", "price": 53, "sale_from": 77, "purchased": False}]}
     got = {"shelf": [{"kind": "card", "price": 53, "purchased": False}]}
-    assert {r["path"] for r in se.score_frame("consult", truth, got)} == {"shelf[0].kind", "shelf[0].price", "shelf[0].purchased"}
+    assert {r["path"] for r in se.score_frame("consult", truth, got)} == {
+        "shelf[0].kind",
+        "shelf[0].price",
+        "shelf[0].purchased",
+    }
     truth = {"shelf": [{"kind": "card", "price": 50, "new": True, "purchased": False}]}
-    assert "shelf[0].new" not in {r["path"] for r in se.score_frame("round_interval", truth, {"shelf": [{"kind": "card", "price": 50}]})}
+    assert "shelf[0].new" not in {
+        r["path"] for r in se.score_frame("round_interval", truth, {"shelf": [{"kind": "card", "price": 50}]})
+    }
 
 
 def test_excluded_frames_are_not_scored():
-    frames = [{**_fr("a", "consult", {"p_points": 280}), "excluded": "弹窗盖住背景，背景不用读"}, _fr("b", "consult", {"p_points": 280})]
-    reads = {"a": {"page": "DELETE_RESULT", "fields": {}, "texts": []}, "b": {"page": "CONSULT", "fields": {"produce_point": 280}, "texts": []}}
+    frames = [
+        {**_fr("a", "consult", {"p_points": 280}), "excluded": "弹窗盖住背景，背景不用读"},
+        _fr("b", "consult", {"p_points": 280}),
+    ]
+    reads = {
+        "a": {"page": "DELETE_RESULT", "fields": {}, "texts": []},
+        "b": {"page": "CONSULT", "fields": {"produce_point": 280}, "texts": []},
+    }
     r = se.evaluate(frames, reads, backend="vision")
     assert r["frames"] == 1 and r["groups"]["all"]["n"] == 1 and r["groups"]["page"]["n"] == 1
 
@@ -177,5 +242,12 @@ def test_hand_cost_is_compared_after_engine_conversion():
 
 
 def test_status_with_turns_and_percent():
-    raw = {**EXAM_RAW, "statuses": [{"slot": 0, "kind": "status", "name": "パラメータ上昇量増加", "value": 20, "unit": "%", "turns": 5}]}
-    assert se.adapt("exam", raw)["statuses"] == [{"kind": "status", "name": "パラメータ上昇量増加", "value": 5, "pct": 20}]
+    raw = {
+        **EXAM_RAW,
+        "statuses": [
+            {"slot": 0, "kind": "status", "name": "パラメータ上昇量増加", "value": 20, "unit": "%", "turns": 5}
+        ],
+    }
+    assert se.adapt("exam", raw)["statuses"] == [
+        {"kind": "status", "name": "パラメータ上昇量増加", "value": 5, "pct": 20}
+    ]

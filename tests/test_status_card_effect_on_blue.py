@@ -30,7 +30,9 @@ def test_bluish_card_effect_is_read_as_card(frame, k, card):
     assert e["kind"] == "enchant" and e["name"] == card
 
 
-@pytest.mark.parametrize("frame, k", [("00416", 5), ("00591", 3), ("00591", 4)])  # 饮料效果、半透明的「パラメータ上昇量増加」
+@pytest.mark.parametrize(
+    "frame, k", [("00416", 5), ("00591", 3), ("00591", 4)]
+)  # 饮料效果、半透明的「パラメータ上昇量増加」
 def test_drink_and_faded_status_do_not_pose_as_card(frame, k):
     e = _slot(frame, k)
     assert e.get("card_id") is None

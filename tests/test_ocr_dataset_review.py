@@ -2,11 +2,11 @@
 
 import json
 
+from tools.ocr_dataset import label, review, schema
+
 import cv2
 import numpy as np
 import pytest
-
-from tools.ocr_dataset import label, review, schema
 
 pytestmark = pytest.mark.synthetic
 
@@ -70,12 +70,21 @@ def test_apply_spot_check_result_can_send_agreed_back_to_disputed(tmp_path):
 
 def test_apply_reports_missing_entries(tmp_path):
     ds = _dataset(tmp_path)
-    got = review.apply(ds, [{"frame": "nope", "set": "core", "box": 1, "text": "x"}, {"frame": "dmm540-r-00001", "set": "core", "box": 9, "text": "x"}])
+    got = review.apply(
+        ds,
+        [
+            {"frame": "nope", "set": "core", "box": 1, "text": "x"},
+            {"frame": "dmm540-r-00001", "set": "core", "box": 9, "text": "x"},
+        ],
+    )
     assert got["missing"] == 2
 
 
 def test_apply_reads_answers_file(tmp_path):
     ds = _dataset(tmp_path)
     f = tmp_path / "review-answers.json"
-    f.write_text(json.dumps([{"frame": "dmm540-r-00001", "set": "core", "box": 1, "text": "編成"}], ensure_ascii=False), encoding="utf-8")
+    f.write_text(
+        json.dumps([{"frame": "dmm540-r-00001", "set": "core", "box": 1, "text": "編成"}], ensure_ascii=False),
+        encoding="utf-8",
+    )
     assert review.apply(ds, f)["resolved"] == 1

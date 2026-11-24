@@ -1,8 +1,8 @@
 """tools.ocr_dataset.scenario：场景定义、标注提示词、答案归一、两方比对（规格 2026-11-23-recognition-dataset-scenarios-design.md §2–§4）。"""
 
-import pytest
-
 from tools.ocr_dataset import scenario
+
+import pytest
 
 pytestmark = pytest.mark.synthetic
 
@@ -33,7 +33,10 @@ def test_normalize_coerces_types():
     assert got["top_scores"] == [403729, 303833] and got["genki"] == 0
     assert got["hand"] == [{"name": "気まぐれハート", "plus": True, "cost_type": "green_heart", "cost": 1}]
     assert got["selected_preview"] is None
-    assert got["statuses"] == [{"kind": "status", "name": "好印象", "value": 6, "pct": None}, {"kind": "card_effect", "name": None, "value": 1, "pct": 50}]
+    assert got["statuses"] == [
+        {"kind": "status", "name": "好印象", "value": 6, "pct": None},
+        {"kind": "card_effect", "name": None, "value": 1, "pct": 50},
+    ]
     assert "unknown_key" not in got and "deck_left" not in got  # 没给的项不补
 
 
@@ -44,7 +47,12 @@ def test_normalize_bad_enum_becomes_raw_text_marker():
 
 def test_merge_two_answers():
     a = {"turns_left": 9, "hp": 27, "hand": [{"name": "イメトレ", "plus": False}], "top_scores": [1, 2]}
-    b = {"turns_left": 9, "hp": 21, "hand": [{"name": "イメトレ", "plus": False}, {"name": "x", "plus": True}], "top_scores": [1, 2]}
+    b = {
+        "turns_left": 9,
+        "hp": 21,
+        "hand": [{"name": "イメトレ", "plus": False}, {"name": "x", "plus": True}],
+        "top_scores": [1, 2],
+    }
     truth, status = scenario.merge(a, b)
     assert truth["turns_left"] == 9 and truth["hand"][0]["name"] == "イメトレ"
     assert status == {"hp": "disputed", "hand[1].name": "disputed", "hand[1].plus": "disputed"}

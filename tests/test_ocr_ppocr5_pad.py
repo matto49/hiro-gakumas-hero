@@ -3,10 +3,10 @@
 
 from types import SimpleNamespace
 
+from hiro.vision import ocr
+
 import numpy as np
 import pytest
-
-from hiro.vision import ocr
 
 pytestmark = pytest.mark.synthetic
 
@@ -29,6 +29,6 @@ def test_small_image_is_padded_and_boxes_map_back(monkeypatch):
     img = np.zeros((30, 90, 3), np.uint8)
     got = ocr._pp_raw(img, 3.0, ("ja-JP",))
     assert min(seen["shape"][:2]) >= ocr.RAPID_PAD  # 补白了
-    (text, conf, (x1, y1, x2, y2)), = got
+    ((text, _conf, (x1, y1, x2, y2)),) = got
     assert text == "22/33"
     assert (x1, y1, x2, y2) == (10, 3, 20, 7)  # 去掉补白偏移、除以放大倍数：落回原图正中

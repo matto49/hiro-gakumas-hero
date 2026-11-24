@@ -127,14 +127,19 @@ def apply_answers(dataset: str | Path, comments: list[dict]) -> dict[str, int]:
 
     root = Path(dataset)
     latest: dict[tuple[str, str], dict] = {}
-    for c in sorted((c for c in comments if c.get("kind") == "定答案" and c.get("field") and not c.get("deleted")), key=lambda c: c.get("created", 0)):
+    for c in sorted(
+        (c for c in comments if c.get("kind") == "定答案" and c.get("field") and not c.get("deleted")),
+        key=lambda c: c.get("created", 0),
+    ):
         latest[(c["target"], c["field"])] = c
     applied = missing = 0
     by_frame: dict[str, list[dict]] = {}
     for (fid, _), c in latest.items():
         by_frame.setdefault(fid, []).append(c)
     for fid, cs in by_frame.items():
-        js = next((d / f"{fid}.json" for d in sorted(root.iterdir()) if d.is_dir() and (d / f"{fid}.json").is_file()), None)
+        js = next(
+            (d / f"{fid}.json" for d in sorted(root.iterdir()) if d.is_dir() and (d / f"{fid}.json").is_file()), None
+        )
         if js is None:  # 帧在哪个集合（core / hard ……）都行
             missing += len(cs)
             continue

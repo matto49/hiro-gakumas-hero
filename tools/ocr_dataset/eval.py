@@ -12,9 +12,9 @@ import json
 import time
 from pathlib import Path
 
-import numpy as np
-
 from tools.ocr_dataset.lexicon import Lexicon, levenshtein, norm
+
+import numpy as np
 
 IOU_MIN = 0.5
 FORMAL_DISPUTED_MAX = 0.05  # 待定框占比超过这个不出正式报告
@@ -55,12 +55,16 @@ def match(pred: list[tuple[str, tuple]], truth: list[dict]) -> tuple[dict[int, s
             extra += 1
         else:
             got[best].append((text, box))
-    return {k: ("".join(t for t, _ in sorted(v, key=lambda p: _key(p[1]))) if v else None) for k, v in got.items()}, extra
+    return {
+        k: ("".join(t for t, _ in sorted(v, key=lambda p: _key(p[1]))) if v else None) for k, v in got.items()
+    }, extra
 
 
 class _Acc:
     def __init__(self):
-        self.boxes = self.chars = self.edits = self.exact = self.missed = self.keywords = self.keyword_hits = self.extra = 0
+        self.boxes = self.chars = self.edits = self.exact = self.missed = self.keywords = self.keyword_hits = (
+            self.extra
+        ) = 0
 
     def to_dict(self) -> dict:
         return {
@@ -92,7 +96,11 @@ class _Keywords:
 
 
 def _groups_of(fr: dict, box: dict) -> list[tuple[str, str]]:
-    return [("platform", (fr.get("platform") or {}).get("kind") or "?"), ("page", fr.get("page") or "?"), ("type", box["tags"]["type"])]
+    return [
+        ("platform", (fr.get("platform") or {}).get("kind") or "?"),
+        ("page", fr.get("page") or "?"),
+        ("type", box["tags"]["type"]),
+    ]
 
 
 def score(frames: list[dict], preds: dict[str, dict], lex: Lexicon, backend: str = "?", set_: str = "core") -> dict:
@@ -119,7 +127,9 @@ def score(frames: list[dict], preds: dict[str, dict], lex: Lexicon, backend: str
             n_counted += 1
             if b.get("status") == "disputed":
                 n_disputed += 1
-                disputed.append({"frame": fr["id"], "box": b["id"], "pred": got.get(b["id"]), "answers": b.get("answers") or {}})
+                disputed.append(
+                    {"frame": fr["id"], "box": b["id"], "pred": got.get(b["id"]), "answers": b.get("answers") or {}}
+                )
                 continue
             if b.get("status") not in SCORED:
                 continue
@@ -146,12 +156,18 @@ def score(frames: list[dict], preds: dict[str, dict], lex: Lexicon, backend: str
         "backend": backend,
         "set": set_,
         "frames": len(times),
-        "groups": {"all": total.to_dict(), **{k: {v: a.to_dict() for v, a in sorted(groups[k].items())} for k in GROUP_KEYS}},
+        "groups": {
+            "all": total.to_dict(),
+            **{k: {v: a.to_dict() for v, a in sorted(groups[k].items())} for k in GROUP_KEYS},
+        },
         "disputed_share": n_disputed / n_counted if n_counted else 0.0,
         "ignored_share": n_ignored / (n_counted + n_ignored) if n_counted + n_ignored else 0.0,
         "disputed": disputed,
         "errors": errors[:N_ERRORS],
-        "timing": {"p50": float(np.percentile(warm, 50)) if warm else None, "p90": float(np.percentile(warm, 90)) if warm else None},
+        "timing": {
+            "p50": float(np.percentile(warm, 50)) if warm else None,
+            "p90": float(np.percentile(warm, 90)) if warm else None,
+        },
     }
 
 
@@ -206,8 +222,16 @@ def report_md(results: list[dict], compare: dict | None = None, title: str = "OC
                   "框对齐：一段识别只归一个标注框（中心落在里面的优先），分行比标注框粗的后端会被多扣（多出的字算错、旁边的框算漏读）；"
                   "标注框来自 Vision 和 RapidOCR 的检测，这两家天然占便宜。比较分行方式不同的后端时留意。", ""]  # fmt: skip
         if compare:
-            lines += [f"对比基线：{compare.get('title') or compare.get('created') or '上一份报告'}（括号里是百分点变化）", ""]
-    lines += ["## 总表", "", "| 后端 | 字错率 | 整行全对 | 关键词命中 | 漏读 | 多读框 | P50 | P90 |", "|---|---|---|---|---|---|---|---|"]
+            lines += [
+                f"对比基线：{compare.get('title') or compare.get('created') or '上一份报告'}（括号里是百分点变化）",
+                "",
+            ]
+    lines += [
+        "## 总表",
+        "",
+        "| 后端 | 字错率 | 整行全对 | 关键词命中 | 漏读 | 多读框 | P50 | P90 |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
     for r in results:
         a, b = r["groups"]["all"], (_base_for(compare, r["backend"]) or {}).get("groups", {}).get("all", {})
         lines.append(f"| {r['backend']} | {_pct(a['cer'])}{_delta(a['cer'], b.get('cer'))} | {_pct(a['line_exact'])}{_delta(a['line_exact'], b.get('line_exact'))}"
@@ -233,7 +257,9 @@ def report_md(results: list[dict], compare: dict | None = None, title: str = "OC
             lines += ["", f"## 错例：{r['backend']}（字错率最高的 {min(20, len(r['errors']))} 个，完整 {len(r['errors'])} 个见 JSON）", "",
                       "| 帧 | 框 | 类型 | 正确 | 读成 |", "|---|---|---|---|---|"]  # fmt: skip
             for e in r["errors"][:20]:
-                lines.append(f"| {e['frame']} | {e['box']} | {e['type']} | {e['truth']} | {e['pred'] if e['pred'] is not None else '（漏读）'} |")
+                lines.append(
+                    f"| {e['frame']} | {e['box']} | {e['type']} | {e['truth']} | {e['pred'] if e['pred'] is not None else '（漏读）'} |"
+                )
     dis = {(d["frame"], d["box"]): d for r in results for d in r["disputed"]}
     if dis:
         lines += ["", f"## 待定框里各后端的读法（{len(dis)} 个，列前 30 个）", "",
@@ -261,7 +287,9 @@ def predictor(backend: str, lex: Lexicon):
     from hiro.vision import ocr
 
     if backend not in ocr.ENGINES or backend == "auto":
-        raise ValueError(f"后端 {backend!r} 不认识；可选：{', '.join(e for e in ocr.ENGINES if e != 'auto')}, rapidocr+charset")
+        raise ValueError(
+            f"后端 {backend!r} 不认识；可选：{', '.join(e for e in ocr.ENGINES if e != 'auto')}, rapidocr+charset"
+        )
 
     def run(img):
         ocr._engine = backend  # engine() 首次调用后固定；评测里逐个后端切
@@ -313,4 +341,3 @@ def main(dataset: Path, backends: list[str], set_: str = "core", tags: dict | No
     Path(f"{out}.json").write_text(json.dumps({"title": title, "created": stamp, "set": set_, "tags": tags or {}, "lexicon": lex.version,
                                                "results": results}, ensure_ascii=False, indent=1), encoding="utf-8")  # fmt: skip
     return Path(f"{out}.md"), Path(f"{out}.json")
-

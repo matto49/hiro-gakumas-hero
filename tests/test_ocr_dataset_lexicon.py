@@ -1,9 +1,9 @@
 """OCR 测试集的游戏词表与字表（tools.ocr_dataset.lexicon，规格 §6.2 第 2 条、§6.5、§9.3）。"""
 
-import pytest
-
 from tools.ocr_dataset import lexicon
 from tools.ocr_dataset.lexicon import Lexicon
+
+import pytest
 
 
 def test_norm_unifies_width_and_spaces():
@@ -37,7 +37,7 @@ def test_build_from_master_data():
     assert "編" in lex.charset and "綿" not in lex.charset  # 「綿」只在剧情标题里
     assert {"ぁ", "ゔ", "ア", "ヶ", "0", "9", "A", "z", "%", "+"} <= lex.charset
     assert "届いて！" in lex.words or "届いて!" in lex.words  # 卡名
-    assert any("リトライ" == w for w in lex.words)  # 识别代码里的界面文字
+    assert any(w == "リトライ" for w in lex.words)  # 识别代码里的界面文字
     assert lex.version and len(lex.version) >= 8
 
 
@@ -48,7 +48,12 @@ def test_cli_lexicon_writes_and_loads(tmp_path):
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
-    r = subprocess.run([sys.executable, "-m", "tools.ocr_dataset", "lexicon", str(tmp_path / "lex")], capture_output=True, text=True, cwd=root)
+    r = subprocess.run(
+        [sys.executable, "-m", "tools.ocr_dataset", "lexicon", str(tmp_path / "lex")],
+        capture_output=True,
+        text=True,
+        cwd=root,
+    )
     assert r.returncode == 0, r.stderr
     lex = lexicon.load(tmp_path / "lex")
     assert "編" in lex.charset and lex.snap("リトライ") == "リトライ" and lex.version

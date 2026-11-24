@@ -12,9 +12,9 @@ import json
 import time
 from pathlib import Path
 
-import cv2
-
 from tools.ocr_dataset import label, schema
+
+import cv2
 
 CONTEXT_PAD = (90, 60)  # 上下文图在框外多取的 (x, y)
 CONTEXT_SCALE = 2  # 上下文图放大倍数（原尺寸只有约 200 像素宽，看不清）
@@ -48,7 +48,13 @@ def _context(img, box):
     c = img[y1:y2, x1:x2].copy()
     c = cv2.resize(c, None, fx=CONTEXT_SCALE, fy=CONTEXT_SCALE, interpolation=cv2.INTER_CUBIC)
     s = CONTEXT_SCALE
-    cv2.rectangle(c, (int((box[0] - x1) * s), int((box[1] - y1) * s)), (int((box[2] - x1) * s), int((box[3] - y1) * s)), (0, 0, 255), 2)
+    cv2.rectangle(
+        c,
+        (int((box[0] - x1) * s), int((box[1] - y1) * s)),
+        (int((box[2] - x1) * s), int((box[3] - y1) * s)),
+        (0, 0, 255),
+        2,
+    )
     return c
 
 
@@ -77,7 +83,9 @@ def _item(s: str, fr: dict, b: dict, img) -> str:
 def build(dataset: str | Path) -> Path:
     """disputed.json 里的每个框一项；返回页面路径。"""
     root = Path(dataset)
-    disputed = json.loads((root / "disputed.json").read_text(encoding="utf-8")) if (root / "disputed.json").is_file() else []
+    disputed = (
+        json.loads((root / "disputed.json").read_text(encoding="utf-8")) if (root / "disputed.json").is_file() else []
+    )
     frames: dict[tuple, dict] = {}
     imgs: dict[tuple, object] = {}
     items = []
