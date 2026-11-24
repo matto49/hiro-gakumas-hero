@@ -65,3 +65,24 @@ func TestPreviewWelcome(t *testing.T) {
 	tt := ui.NewTester(a.View, 1280, 800)
 	snap(t, tt, "welcome")
 }
+
+// 侧栏和新对话页（没有偶像卡面时）都用应用标志，不再是写「初」字的渐变方块。
+func TestLogoInSidebarAndWelcome(t *testing.T) {
+	a, _ := newTestApp(newMem(), &fakeCall{}, nil, viewReg())
+	a.NewThread()
+	tt := ui.NewTester(a.View, 1280, 800)
+	n := 0
+	for _, x := range tt.AccessAll() {
+		if x.Role == ui.RoleImage && x.Name == "初星助手" {
+			n++
+		}
+	}
+	if n != 2 {
+		t.Errorf("标志图出现 %d 次，要 2 次（侧栏 + 新对话页）", n)
+	}
+	for _, x := range tt.Texts() {
+		if x == "初" {
+			t.Error("新对话页不该再有写「初」字的方块")
+		}
+	}
+}

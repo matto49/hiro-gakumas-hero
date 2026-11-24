@@ -10,7 +10,7 @@ import (
 func (a *App) sidebar(c *ui.Context) {
 	ui.Column(c).Width(SidebarWidth).Shrink(0).FillHeight().Background(kit.Side).BorderColor(kit.Line).BorderWidth(0, kit.Hair, 0, 0).Padding(14, 12).Gap(2).Children(func() {
 		ui.Row(c).AlignItems(ui.Center).Gap(8).Padding(4, 6, 12, 6).Children(func() {
-			ui.Box(c).Size(22, 22).Radius(7).Gradient(ui.Hex("#FF9A4D"), kit.Brand, 135)
+			kit.Logo(c, 24)
 			ui.Text(c, "初星助手").FontSize(14.5).FontWeight(650).TextColor(kit.Ink)
 		})
 		if kit.RowButton(c, "new-thread", "新对话", false).Padding(8, 10).Radius(10).Background(kit.CardBg).Border(kit.Hair, kit.Line).TextColor(kit.Ink).Children(func() {

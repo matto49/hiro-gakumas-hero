@@ -58,7 +58,7 @@ func (a *App) welcome(c *ui.Context) {
 	})
 }
 
-// hero 是标题上方那块：偶像卡面（圆角、橙色细边），没有卡面时是初星助手的标志；下面一条 Vo / Da / Vi 三色。
+// hero 是标题上方那块：偶像卡面（圆角、橙色细边），没有卡面时是初星助手的标志（探头的广）；下面一条 Vo / Da / Vi 三色。
 func hero(c *ui.Context, art string) {
 	ui.Column(c).Gap(10).AlignItems(ui.Center).Children(func() {
 		ui.Box(c).Padding(3).Radius(26).Background(kit.CardBg).Border(1.5, kit.Brand).Shadow(0, 8, 24, 0, ui.RGBA(238, 106, 31, 0.18)).Children(func() {
@@ -66,9 +66,7 @@ func hero(c *ui.Context, art string) {
 				ui.Image(c, b).Size(84, 84).Fit(ui.Cover).Radius(22)
 				return
 			}
-			ui.Column(c).Size(84, 84).Radius(22).Gradient(ui.Hex("#FF9A4D"), kit.Brand, 135).Center().Children(func() {
-				ui.Text(c, "初").FontSize(40).FontWeight(800).TextColor(kit.OnPrim)
-			})
+			kit.Logo(c, 84)
 		})
 		ui.Row(c).Gap(4).Children(func() {
 			for _, col := range []ui.Color{kit.Vo, kit.Da, kit.Vi} {

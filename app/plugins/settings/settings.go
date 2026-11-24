@@ -258,7 +258,7 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 	ui.Row(c).Fill().Background(kit.Bg).AlignItems(ui.Stretch).Children(func() {
 		ui.Column(c).Width(232).Shrink(0).Background(kit.Side).Padding(22, 18).Gap(6).BorderColor(kit.Line).BorderWidth(0, kit.Hair, 0, 0).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 0, 16, 0).Children(func() {
-				ui.Box(c).Size(22, 22).Radius(7).Gradient(ui.Hex("#FF9A4D"), kit.Brand, 135)
+				kit.Logo(c, 24)
 				ui.Text(c, "初星助手").FontSize(15).FontWeight(650).TextColor(kit.Ink)
 			})
 			ui.Text(c, "第一次使用 · 六步").FontSize(kit.FNote).TextColor(kit.Ink3).Padding(0, 0, 6, 0)
