@@ -93,5 +93,5 @@ jobs:
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
           gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" --title "初星助手 ${TAG#desktop-v}（桌面程序）" --notes "见 docs/code-signing-policy.md 和 README 的「桌面程序」一节。"
+            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" --latest --title "初星助手 ${TAG#desktop-v}（桌面程序）" --notes "见 docs/code-signing-policy.md 和 README 的「桌面程序」一节。"
           gh release upload "$TAG" -R "$GITHUB_REPOSITORY" --clobber *
