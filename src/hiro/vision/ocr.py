@@ -13,11 +13,13 @@
 - simd：可选的本机 SIMD PaddleOCR PP-OCRv6 medium，同时供 Hiro 与 KAA 使用（安装见 docs/assets.md）。
 
 HIRO_OCR=auto（缺省：macOS 且能导入 Vision → vision，否则 rapidocr）/ vision / rapidocr / winocr / ppocr5 / simd。
-rapidocr 的推理设备：HIRO_OCR_DEVICE=auto（缺省 CUDA → DirectML → CPU）/ cuda / dml / cpu；CPU 线程数 HIRO_OCR_THREADS（见 ocr_device_order）。
+rapidocr 的推理设备：HIRO_OCR_DEVICE=auto（缺省 CUDA → DirectML → CPU）/ cuda / dml / cpu；CPU 线程数 HIRO_OCR_THREADS（见 ocr_device_order）；
+DirectML 用哪块显卡 HIRO_OCR_DML_DEVICE（缺省按 rapidocr 用 0 号，见 dml_device_id）。
 """
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import re
@@ -137,6 +139,24 @@ def ocr_device_order(want: str | None = None, available: list[str] | None = None
     return order if "cpu" in order else [*order, "cpu"]
 
 
+def dml_device_id() -> int | None:
+    """HIRO_OCR_DML_DEVICE：DirectML 用第几块显卡（DXGI 适配器序号）。不设时 None，按 rapidocr 原样用 0 号。
+    有核显 / 虚拟显卡的机器上 0 号常常不是独显：Windows 台式机（11-24）0 号比 CPU 还慢，RTX 5060 是 1 号。"""
+    v = (os.environ.get("HIRO_OCR_DML_DEVICE") or "").strip()
+    if not v:
+        return None
+    if not v.isdigit():
+        raise ValueError(f"HIRO_OCR_DML_DEVICE 要是显卡序号（0、1、2……），不是 {v!r}")
+    return int(v)
+
+
+def set_dml_device(eps: list, device_id: int | None) -> list:
+    """onnxruntime 的 providers 列表里给 DirectML 那一项加上 device_id（其他不动，不改原列表）。"""
+    if device_id is None:
+        return eps
+    return [(n, {**o, "device_id": device_id}) if n == _EP["dml"] else (n, o) for n, o in eps]
+
+
 def _ocr_threads() -> int:
     """HIRO_OCR_THREADS：CPU 推理用几个线程（缺省 -1 = onnxruntime 自己定，通常占满所有核）。CPU 模式下调小能降占用和风扇声，单帧会慢一些。"""
     try:
@@ -154,6 +174,22 @@ def _session_device(engine) -> str:
     return next((d for d, ep in _EP.items() if ep == first), "cpu")
 
 
+@contextlib.contextmanager
+def _dml_device_patch(device_id: int | None):
+    """rapidocr_onnxruntime 建 session 时 DirectML 固定用 0 号显卡、没有参数可改：建引擎期间临时包一层 _get_ep_list。"""
+    if device_id is None:
+        yield
+        return
+    from rapidocr_onnxruntime.utils.infer_engine import OrtInferSession
+
+    orig = OrtInferSession._get_ep_list
+    OrtInferSession._get_ep_list = lambda self: set_dml_device(orig(self), device_id)  # pyright: ignore[reportAttributeAccessIssue]
+    try:
+        yield
+    finally:
+        OrtInferSession._get_ep_list = orig
+
+
 def _rapid_engine(languages):
     from rapidocr_onnxruntime import RapidOCR
 
@@ -167,8 +203,9 @@ def _rapid_engine(languages):
                 for part in ("det", "rec")
                 for k, d in (("use_cuda", "cuda"), ("use_dml", "dml"))
             }
-            engine = RapidOCR(rec_model_path=str(_rapid_model(tag)), use_det=True, use_cls=False, use_rec=True,
-                              det_intra_op_num_threads=threads, rec_intra_op_num_threads=threads, **flags)  # fmt: skip
+            with _dml_device_patch(dml_device_id() if dev == "dml" else None):
+                engine = RapidOCR(rec_model_path=str(_rapid_model(tag)), use_det=True, use_cls=False, use_rec=True,
+                                  det_intra_op_num_threads=threads, rec_intra_op_num_threads=threads, **flags)  # fmt: skip
             got = _session_device(engine)
             if got == dev:
                 break
