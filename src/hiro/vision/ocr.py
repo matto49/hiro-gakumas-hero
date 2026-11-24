@@ -198,7 +198,7 @@ def _dml_device_patch(device_id: int | None):
     if device_id is None:
         yield
         return
-    from rapidocr_onnxruntime.utils.infer_engine import OrtInferSession
+    from rapidocr_onnxruntime.utils.infer_engine import OrtInferSession  # pyright: ignore[reportMissingImports]
 
     orig = OrtInferSession._get_ep_list
     OrtInferSession._get_ep_list = lambda self: set_dml_device(orig(self), device_id)  # pyright: ignore[reportAttributeAccessIssue]
