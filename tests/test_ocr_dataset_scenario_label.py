@@ -9,6 +9,17 @@ import pytest
 pytestmark = pytest.mark.synthetic
 
 
+@pytest.fixture(autouse=True)
+def _sheet_without_pillow(monkeypatch):
+    """对照表要用 Pillow 写日文名字；CI 只装 .[dev] 没有 Pillow：换成同尺寸的白图，拼图和提示词的逻辑照样测。"""
+    try:
+        import PIL  # noqa: F401
+    except ImportError:
+        from tools.ocr_dataset import status_sheet
+
+        monkeypatch.setattr(status_sheet, "sheet", lambda icon_dir: np.full((1220, 1600, 3), 255, np.uint8))
+
+
 def test_ask_parses_items_and_buttons():
     llm = MockLLM(replies=[{"items": {"turns_left": "9", "hp": 27, "hand": [{"name": "イメトレ", "plus": False, "cost_type": "genki", "cost": 4}]},
                             "buttons": ["SKIP", " スキップ "]}])  # fmt: skip

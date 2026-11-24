@@ -359,7 +359,7 @@ def _read_slot(img: MatLike, k: int, *, faint: bool = False) -> dict:
         cscore, asset = (0.0, None) if _accepted(meta, top) else match_enchant_card(img, k)
         if cscore >= ENCHANT_ON_BLUE_MIN:
             # 卡面偏蓝 / 偏淡的卡牌效果（ワクワクが止まらない、エウレカ！……）蓝色像素也够多：图标配不上、卡面配得很像就是卡牌效果
-            card = _card_from_asset(asset)
+            card = _card_from_asset(asset) if asset else None
             entry = {"slot": k, "kind": "enchant", "card_id": card._id if card else None,
                      "name": card.name if card else None, "asset": asset, "score": round(cscore, 3)}  # fmt: skip
         elif not _accepted(meta, top):

@@ -113,6 +113,7 @@ def test_formal_gate():
 
 
 def test_charset_mask_picks_best_allowed_character():
+    pytest.importorskip("rapidocr_onnxruntime")  # KAA 带的 RapidOCR；CI 只装 .[dev]
     from rapidocr_onnxruntime.ch_ppocr_rec.utils import CTCLabelDecode
 
     dec = charset_rapid.MaskedDecode(CTCLabelDecode(character=["編", "綿", "成"]), {"編", "成"})
