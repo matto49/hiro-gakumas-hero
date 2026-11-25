@@ -28,7 +28,7 @@ jobs:
             desktop-v*) exit 0 ;;
           esac
           want=$(gh release list -R "$GITHUB_REPOSITORY" --limit 100 --json tagName,isPrerelease,isDraft,createdAt \
-            --jq '[.[] | select((.tagName | startswith("desktop-v")) and (.tagName | contains("-") | not) and (.isPrerelease | not) and (.isDraft | not))] | sort_by(.createdAt) | last | .tagName // empty')
+            --jq '[.[] | select((.tagName | startswith("desktop-v")) and (.tagName | ltrimstr("desktop-v") | contains("-") | not) and (.isPrerelease | not) and (.isDraft | not))] | sort_by(.createdAt) | last | .tagName // empty')
           if [ -z "$want" ]; then
             echo "::warning::还没有正式的桌面包 Release，Latest 先不动"
             exit 0
