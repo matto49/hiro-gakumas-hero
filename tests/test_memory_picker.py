@@ -330,9 +330,20 @@ def test_mark_suspects_rules():
     es = [{"slot": 0, "thumb": "a", "card": {"card_id": "c1"}}, {"slot": 1, "thumb": "b", "card": {"card_id": "c1"}},
           {"slot": 2, "thumb": "b", "card": {"card_id": "c1"}}, {"slot": 3, "thumb": "c", "card": None},
           {"slot": 4, "thumb": "d", "card": {"card_id": "c4"}, "refreshed": False}]  # fmt: skip
-    assert mp.mark_suspects(es) == 3
-    # 同内容同缩略图：真的有两份一样的回忆（不是没刷新），不标
-    assert [e.get("suspect") for e in es] == [None, "same_as_prev", None, "card_unread", "detail_not_refreshed"]
+    assert mp.mark_suspects(es) == 2
+    # 同内容同缩略图：真的有两份一样的回忆（不是没刷新），不标；
+    # 详情栏像素没怎么变、但读到的内容和上一格不同：读对了（11-26 两次扫描都是同样 14 格误报），不标
+    assert [e.get("suspect") for e in es] == [None, "same_as_prev", None, "card_unread", None]
+
+
+def test_detail_not_refreshed_only_when_content_also_repeats():
+    """11-26 本机复核：相邻两格详情栏长得像，像素变化没过阈值（refreshed=False），但读到的内容不同 → 不是没刷新。
+    内容和上一格一样、缩略图也一样（真有两份一样的回忆、这次点了没变）才标 detail_not_refreshed。"""
+    es = [{"slot": 0, "thumb": "a", "card": {"card_id": "c1"}, "abilities": ["x"]},
+          {"slot": 1, "thumb": "b", "card": {"card_id": "c2"}, "abilities": ["y"], "refreshed": False},
+          {"slot": 2, "thumb": "b", "card": {"card_id": "c2"}, "abilities": ["y"], "refreshed": False}]  # fmt: skip
+    assert mp.mark_suspects(es) == 1
+    assert [e.get("suspect") for e in es] == [None, None, "detail_not_refreshed"]
 
 
 @pytest.mark.fixtures

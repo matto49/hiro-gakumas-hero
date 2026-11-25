@@ -529,7 +529,7 @@ def mark_suspects(entries: list[dict]) -> int:
     """标可疑记录（suspect 写原因；formation_plan 不选可疑的）：
     - card_unread：卡名读不出；
     - same_as_prev：和按格子顺序的上一格内容一模一样、但格子缩略图不同（点了格子详情栏没刷新，读到的是上一格；2026-11-15 账号 2）；
-    - detail_not_refreshed：点了两次详情栏都没变（且不是同一张缩略图）。
+    - detail_not_refreshed：点了两次详情栏像素都没变，读到的内容也和上一格一样（缩略图不同的已经算 same_as_prev）。
     返回可疑条数。"""
     n = 0
     prev = None
@@ -544,7 +544,9 @@ def mark_suspects(entries: list[dict]) -> int:
             and e.get("thumb") != prev.get("thumb")
         ):
             why = "same_as_prev"
-        if why is None and e.get("refreshed") is False and (prev is None or e.get("thumb") != prev.get("thumb")):
+        # 像素没怎么变不等于没刷新：相邻两格详情栏长得像时变化过不了阈值（11-26 两次扫描都是同样 14 格误报，读到的内容和上一格不同、
+        # 是对的）。只有读到的内容也和上一格一样时才算没刷新；第一格没有上一格可比，照旧按像素判断
+        if why is None and e.get("refreshed") is False and (prev is None or content_key(e) == content_key(prev)):
             why = "detail_not_refreshed"
         if why is not None:
             e["suspect"] = why
