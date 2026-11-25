@@ -11,6 +11,7 @@
 
 import json
 import re
+import unicodedata
 from functools import lru_cache
 
 from hiro import master
@@ -236,9 +237,15 @@ def _masked_region(img: MatLike, k: int) -> tuple[MatLike, int, int]:
     return region, x0, y0
 
 
+def _fold(text: str) -> str:
+    """去空格 + NFKC（全角「％」「３」→ 半角）：macOS 27.2.1 的 Apple Vision 把状态栏的「%」读成全角「％」，
+    VALUE_UNIT / UNITS 只认半角，单位丢了也就不去读两行数字格上面那行的回合（A16，识别测试集进阶集 00154）。"""
+    return unicodedata.normalize("NFKC", text).replace(" ", "")
+
+
 def _label_text(img: MatLike, k: int) -> str:
     cy = _slot_y(k)
-    return "".join(t for t, _ in ocr(img[cy - 2 : cy + 34, SLOT_X + 14 : SLOT_X + 130])).replace(" ", "")
+    return _fold("".join(t for t, _ in ocr(img[cy - 2 : cy + 34, SLOT_X + 14 : SLOT_X + 130])))
 
 
 def _unit_label(img: MatLike, k: int) -> str | None:
@@ -250,7 +257,18 @@ VALUE_UNIT = re.compile(r"(\d+)(ターン|回|%)")
 
 
 TURNS_ABOVE = (-32, -4)  # 两行数字的格（上「5ターン」、下「20%」）：上一行相对槽中心的纵向范围
-TURNS_TEXT = re.compile(r"(\d+)ターン")
+# 「ターン」前面的数字：Vision 会把形近的字读进来（macOS 27.2.1：「3ターン」→「ろターン」，A16）
+TURN_LOOKALIKE = str.maketrans({"ろ": "3", "O": "0", "o": "0", "l": "1", "I": "1", "|": "1", "S": "5"})
+TURNS_TEXT = re.compile(r"([0-9ろOolI|S]{1,2})ターン")
+
+
+def _turns_from_text(text: str) -> int | None:
+    """整行 OCR 文字里的「Nターン」→ N；数字位置上的形近字按 TURN_LOOKALIKE 换回数字。没有返回 None。"""
+    m = TURNS_TEXT.search(_fold(text))
+    if not m:
+        return None
+    digits = m.group(1).translate(TURN_LOOKALIKE)
+    return int(digits) if digits.isdigit() else None
 
 
 def _turns_above(img: MatLike, k: int) -> int | None:
@@ -263,8 +281,7 @@ def _turns_above(img: MatLike, k: int) -> int | None:
         return value
     if suffix == "empty" and not _bright_behind(img, k, above=True):  # 看的是上一行的框亮不亮，不是下面数值框的
         return None
-    m = TURNS_TEXT.search("".join(t for t, _ in ocr(img[y1 - 4 : y2 + 4, SLOT_X + 14 : SLOT_X + 130])).replace(" ", ""))
-    return int(m.group(1)) if m else None
+    return _turns_from_text("".join(t for t, _ in ocr(img[y1 - 4 : y2 + 4, SLOT_X + 14 : SLOT_X + 130])))
 
 
 BRIGHT_BG_MIN = 0.15  # 数值框里白色像素占比：深色背景 0.03–0.13；天空 / 浅色石地上 0.19–0.95
