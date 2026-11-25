@@ -77,6 +77,7 @@ def _match_white(img: MatLike, name: str, box) -> tuple[float, tuple[int, int]]:
 
 
 BREAKTHROUGH_MIN = 0.6  # 顶部「突破ライン」条（选拔赛）；偶像之路考试帧最高 0.38
+FINALS_STRIP_TURNS_MIN = 0.38  # 顶部有本战名次条时「残りターン」的放宽线（A16）
 BREAKTHROUGH_STRONG = (
     0.75  # 「突破ライン」条匹配到这个分数，「残りターン」可放宽到 FINALS_TURNS_MIN（考试帧 0.80–0.82）
 )
@@ -89,9 +90,15 @@ def is_hif_exam(img: MatLike, threshold: float = 0.6) -> bool:
         # 本战 R2 开局画面压暗，「残りターン」只有 0.57：顶部有本战名次条时放宽到 0.45。
         # 选拔③露天舞台的亮天空压在「残りターン」后面，DMM 小窗口（541x961 放大）上只有 0.50（11-14 own2，180 秒认不出停机）：
         # 顶部「突破ライン」条匹配得很稳（0.82）时同样放宽到 0.45（非考试画面「残りターン」最高 0.21）
+        if score < FINALS_STRIP_TURNS_MIN:
+            return False
+        if is_finals_strip(img):
+            # 本战名次条在：舞台亮光压在「残りターン」后面只有 0.40–0.43（识别测试集进阶集 dmmw1-00149、mainz3-00822，核心集 p15-main-01048
+            # 整帧判成 unknown / 通用 EXAM，剩余回合没读或读成一位）。非考试画面最高 0.21，放到 0.38 仍有余量
+            return True
         if score < FINALS_TURNS_MIN:
             return False
-        return is_finals_strip(img) or _match_white(img, "hif_exam_breakthrough", TOP_STRIP)[0] >= BREAKTHROUGH_STRONG
+        return _match_white(img, "hif_exam_breakthrough", TOP_STRIP)[0] >= BREAKTHROUGH_STRONG
     # 加分特效会压暗文字（实测低至 0.64）；非考试画面过不了上面的「残りターン」，这里只做确认
     score, _ = _match_white(img, "hif_exam_breakthrough", TOP_STRIP)
     return score >= 0.6 or is_finals_strip(img)  # 本战没有突破线，顶部是 1st / 2nd / 3rd 名次条（识别-05）
