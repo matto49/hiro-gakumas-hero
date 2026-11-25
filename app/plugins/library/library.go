@@ -139,9 +139,13 @@ func choiceCard(c *ui.Context, h plugin.Host, card plugin.Card) {
 			for _, it := range toItems(card["options"]) {
 				id := str(it, "id")
 				name, title, chara, rarity, plan, art := idolLabel(h, it)
+				unknown := name == id // 卡名还没查到：不给看编号、不让选（CodeRabbit #79）
+				if unknown {
+					name, chara, title = "卡名还在查", "卡名还在查…", ""
+				}
 				sel := picked == id
 				b := ui.ButtonBase(c).Key("pick-"+id).Label("选"+name).Width(132).Padding(10).Radius(kit.R12).
-					Background(kit.CardBg).Border(kit.Hair, kit.Line).Disabled(done || busy)
+					Background(kit.CardBg).Border(kit.Hair, kit.Line).Disabled(done || busy || unknown)
 				switch {
 				case sel:
 					b = b.Background(kit.BrandT).Border(1.5, kit.Brand)
@@ -166,7 +170,7 @@ func choiceCard(c *ui.Context, h plugin.Host, card plugin.Card) {
 							}
 						})
 					})
-				}).Clicked() && !done && !busy {
+				}).Clicked() && !done && !busy && !unknown {
 					card["status"], card["picked"] = "picked", id
 					h.Ask("用" + name) // 只写卡名，不给玩家看编号；agent 按卡名查编号
 				}

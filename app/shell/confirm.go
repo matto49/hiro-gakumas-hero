@@ -76,6 +76,9 @@ func (a *App) resolve(m *Message, card plugin.Card, action string) {
 				if r.Error != nil {
 					card["message"] = r.Error.Message
 				}
+				if action == "confirm" {
+					a.batchFirstFailed(t, card) // 合并卡第 1 项就没开起来：退掉其余、告诉用户（CodeRabbit #79）
+				}
 			case action == "cancel":
 				card["status"] = "cancelled"
 				a.afterBatchResolved(card, action, "")

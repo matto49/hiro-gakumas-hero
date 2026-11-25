@@ -31,6 +31,7 @@ type state struct {
 	recent    []plugin.Job
 	recentAt  time.Time
 	recentGet bool
+	recentErr string // 上次刷新失败的原因（列表保留上次成功的）
 }
 
 // New 建游戏运行现状插件。
@@ -424,9 +425,14 @@ func (s *state) background(c *ui.Context, h plugin.Host, current string) {
 				Current *plugin.Job  `json:"current"`
 				Recent  []plugin.Job `json:"recent"`
 			}
-			_ = h.Call(context.Background(), []string{"run", "status"}).Decode(&st)
+			err := h.Call(context.Background(), []string{"run", "status"}).Decode(&st)
 			return func() {
 				s.recentGet = false
+				if err != nil { // 刷新失败：保留旧列表，写明原因（CodeRabbit #79）
+					s.recentErr = err.Error()
+					return
+				}
+				s.recentErr = ""
 				s.recent = st.Recent
 				if st.Current != nil {
 					s.recent = append([]plugin.Job{*st.Current}, st.Recent...)
@@ -443,7 +449,7 @@ func (s *state) background(c *ui.Context, h plugin.Host, current string) {
 		seen[j.ID] = true
 		jobs = append(jobs, j)
 	}
-	if len(jobs) == 0 {
+	if len(jobs) == 0 && s.recentErr == "" {
 		return
 	}
 	if len(jobs) > 8 {
@@ -451,6 +457,9 @@ func (s *state) background(c *ui.Context, h plugin.Host, current string) {
 	}
 	kit.Section(c, "后台任务")
 	kit.Note(c, "在对话外面（命令行、别的程序）开的任务，不往对话里发消息。")
+	if s.recentErr != "" {
+		ui.Text(c, "刷新失败："+s.recentErr+"。下面是上次读到的，过几秒会自动再试。").FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
+	}
 	for _, j := range jobs {
 		name := j.Summary
 		if name == "" {

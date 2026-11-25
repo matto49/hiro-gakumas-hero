@@ -127,6 +127,20 @@ func (a *App) afterBatchResolved(card plugin.Card, action, jobID string) {
 	}
 }
 
+// batchFirstFailed：合并卡第 1 项就没开起来，退掉其余待确认，在对话里列出没做的几项。
+func (a *App) batchFirstFailed(t *Thread, card plugin.Card) {
+	items := batchOf(card)
+	if len(items) < 2 {
+		return
+	}
+	a.afterBatchResolved(card, "cancel", "")
+	rest := make([]any, 0, len(items)-1)
+	for _, it := range items[1:] {
+		rest = append(rest, it)
+	}
+	a.addTo(t, "agent", fmt.Sprintf("第 1 项没能开始，后面 %d 项没做：%s", len(rest), queueNames(rest)), nil)
+}
+
 // removeBatchItem 去掉合并确认卡里的一项（退掉它的待确认）。
 func (a *App) removeBatchItem(t *Thread, card plugin.Card, i int) {
 	items := batchOf(card)

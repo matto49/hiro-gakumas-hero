@@ -126,3 +126,22 @@ func TestChoiceCardWaitsWhileBusy(t *testing.T) {
 		t.Errorf("忙的时候不该选：asked=%v card=%v", h.Asked, card)
 	}
 }
+
+// CodeRabbit #79：卡名还没查到（只有编号）时不让选，不给玩家看编号
+func TestChoiceCardWaitsForNames(t *testing.T) {
+	h, p := host(), New()
+	card := plugin.Card{"type": "choice", "kind": "idols", "status": "waiting", "options": []any{map[string]any{"id": "i_card-zzz"}}}
+	tt := ui.NewTester(func(c *ui.Context) { p.Cards["choice"](c, h, card) }, 760, 400)
+	tt.Frame()
+	for _, s := range tt.Texts() {
+		if strings.Contains(s, "i_card") {
+			t.Errorf("露出了编号：%q", tt.Texts())
+		}
+	}
+	for _, l := range []string{"选i_card-zzz", "选卡名还在查"} {
+		_ = tt.Click(l)
+	}
+	if len(h.Asked) != 0 || card["status"] != "waiting" {
+		t.Errorf("卡名没查到不该能选：asked=%v", h.Asked)
+	}
+}

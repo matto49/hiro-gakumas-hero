@@ -190,3 +190,23 @@ func TestRemoveIgnoredWhileResolving(t *testing.T) {
 		t.Error("确认进行中不该能去掉项")
 	}
 }
+
+// CodeRabbit #79：「全部开始」第 1 项就没开起来：退掉其余待确认，告诉用户哪几项没做
+func TestBatchFirstItemFails(t *testing.T) {
+	a, run, call, tt := batchApp(t)
+	call.resp["confirm p1"] = hiroapi.Result{OK: false, Error: &hiroapi.CliError{Code: "service_down", Message: "游戏没连上"}}
+	_ = tt.Click("全部开始")
+	run.Drain()
+	if !call.called("cancel p2") {
+		t.Errorf("要退掉第 2 项的待确认：%v", call.calls)
+	}
+	found := false
+	for _, m := range a.Current().Messages {
+		if strings.Contains(m.Text, "后面 1 项没做") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("没告诉用户后面几项没做")
+	}
+}

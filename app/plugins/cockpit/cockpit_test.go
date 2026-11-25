@@ -4,9 +4,11 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
+	"github.com/matto49/hiro-gakumas-hero/app/hiroapi"
 	"github.com/matto49/hiro-gakumas-hero/app/plugin"
 	"github.com/matto49/hiro-gakumas-hero/app/plugins/plugintest"
 )
@@ -211,5 +213,24 @@ func TestPanelDetailShowsFailReason(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("没打开支援卡选择列表") {
 		t.Errorf("面板详情没有出错原因：%q", tt.Texts())
+	}
+}
+
+// CodeRabbit #79：刷新后台任务失败时保留旧列表，写明原因
+func TestBackgroundKeepsListWhenRefreshFails(t *testing.T) {
+	h := plugintest.New(map[string]string{
+		"run status": `{"current":null,"recent":[{"id":"j9","kind":"scan-memories","state":"done","summary":"命令行开的扫描","started_at":1763900000}]}`,
+	})
+	p := New()
+	tt := ui.NewTester(func(c *ui.Context) { p.Panel(c, h, "") }, 420, 900)
+	tt.Frame()
+	tt.Frame()
+	h.Resp["run status"] = hiroapi.Result{OK: false, Error: &hiroapi.CliError{Code: "service_down", Message: "服务没开"}}
+	h.At = h.At.Add(time.Minute)
+	tt.Frame()
+	tt.Frame()
+	all := strings.Join(tt.Texts(), "\n")
+	if !strings.Contains(all, "命令行开的扫描") || !strings.Contains(all, "刷新失败") {
+		t.Errorf("刷新失败后：%q", tt.Texts())
 	}
 }
