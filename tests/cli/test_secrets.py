@@ -159,3 +159,29 @@ def test_file_backend_keeps_values_in_0600_file_apart_from_name_list(run_cli, st
     assert sec.backend().get("game-password") == VALUE
     run_cli("secret", "delete", "game-password")
     assert json.loads(store.read_text(encoding="utf-8")) == {}
+
+
+def test_corrupt_store_says_how_to_recover_and_keeps_file(run_cli, stdin, monkeypatch, hiro_home):
+    """CodeRabbit #89：文件坏了时提示先改名备份再重填；不悄悄覆盖（里面可能还有能救回来的值）。"""
+    monkeypatch.setenv("HIRO_SECRET_BACKEND", "file")
+    hiro_home.mkdir(parents=True, exist_ok=True)
+    (hiro_home / "game-secrets.json").write_text('{"game-account": "abc', encoding="utf-8")
+    stdin(VALUE)
+    _code, env = run_cli("secret", "set", "game-password")
+    assert env["ok"] is False and env["error"]["code"] == "secret_store"
+    assert "game-secrets.json" in env["error"]["hint"] and "备份" in env["error"]["hint"]
+    assert (hiro_home / "game-secrets.json").read_text(encoding="utf-8") == '{"game-account": "abc'
+
+
+def test_concurrent_writes_keep_every_value(monkeypatch, hiro_home):
+    """CodeRabbit #89：几个进程同时存，读改写要串行，谁的值都不丢。"""
+    import subprocess
+    import sys
+
+    monkeypatch.setenv("HIRO_SECRET_BACKEND", "file")
+    hiro_home.mkdir(parents=True, exist_ok=True)
+    code = "import sys; from hiro.cli import secrets as s; [s.backend().set(f'k{sys.argv[1]}-{i}', 'v') for i in range(60)]"
+    procs = [subprocess.Popen([sys.executable, "-c", code, str(n)]) for n in range(8)]
+    assert all(p.wait(timeout=60) == 0 for p in procs)
+    data = json.loads((hiro_home / "game-secrets.json").read_text(encoding="utf-8"))
+    assert len(data) == 480

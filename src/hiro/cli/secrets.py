@@ -11,12 +11,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
 
 from hiro.cli.home import ensure_home
 from hiro.cli.registry import Arg, CliError, Risk, command
@@ -28,41 +30,76 @@ _NAME = re.compile(r"^[A-Za-z0-9_.@-]{1,64}$")
 
 # ============================================================================ 后端
 class FileBackend:
-    """数据目录里的 game-secrets.json（0600）。写入先写临时文件再改名，中途失败不坏旧文件。"""
+    """数据目录里的 game-secrets.json（0600）。读改写在跨进程锁里做（设置页和命令行可能同时存）；
+    写入先写独立的临时文件再改名，中途失败不坏旧文件。"""
 
     def _path(self):
         return ensure_home() / "game-secrets.json"
 
-    def _load(self) -> dict[str, str]:
+    @contextlib.contextmanager
+    def _locked(self):
+        lock = self._path().with_name("game-secrets.lock")
+        fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o600)
         try:
-            data = json.loads(self._path().read_text(encoding="utf-8"))
+            if sys.platform == "win32":
+                import msvcrt
+
+                os.lseek(fd, 0, os.SEEK_SET)
+                while True:
+                    try:
+                        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)  # 拿不到会自己重试 10 秒再报错
+                        break
+                    except OSError:
+                        continue
+            else:
+                import fcntl
+
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            os.close(fd)  # 关闭即释放锁
+
+    def _load(self) -> dict[str, str]:
+        path = self._path()
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
         except FileNotFoundError:
             return {}
         except (OSError, ValueError):
-            raise CliError("secret_store", "账号密码文件读不出来", "在设置 → 账号密码里重新填写") from None
+            raise CliError(
+                "secret_store",
+                "保存账号密码的文件读不出来",
+                f"先把 {path} 改名备份（里面可能还有能找回的内容），再到设置 → 账号密码里重新填写",
+            ) from None
         return data if isinstance(data, dict) else {}
 
     def _save(self, data: dict[str, str]) -> None:
         path = self._path()
-        tmp = path.with_name(path.name + ".tmp")
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
-        os.chmod(tmp, 0o600)  # umask 宽的时候 open 的权限不一定生效
-        os.replace(tmp, path)
+        fd, tmp = tempfile.mkstemp(prefix=".game-secrets.", suffix=".tmp", dir=path.parent)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp)
+            raise
 
     def set(self, name: str, value: str) -> None:
-        data = self._load()
-        data[name] = value
-        self._save(data)
+        with self._locked():
+            data = self._load()
+            data[name] = value
+            self._save(data)
 
     def get(self, name: str) -> str | None:
         return self._load().get(name)
 
     def delete(self, name: str) -> None:
-        data = self._load()
-        if data.pop(name, None) is not None:
-            self._save(data)
+        with self._locked():
+            data = self._load()
+            if data.pop(name, None) is not None:
+                self._save(data)
 
 
 class MemoryBackend:
