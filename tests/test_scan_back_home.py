@@ -110,3 +110,65 @@ def test_memory_scan_goes_home_even_when_scan_fails(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError):
         ms.main()
     assert calls == ["home"]
+
+
+def test_memory_scan_keeps_scene_when_formation_may_have_changed(monkeypatch, tmp_path):
+    """#108 review：选择页在扫描中关了（多半点成了「決定」）时 scan 要求停手让人核对编成，收尾不能再点回首页。"""
+    import hiro.memory_scan as ms
+    from hiro.produce import formation_menu
+
+    calls = []
+    dev = SimpleNamespace(screenshot=lambda: None, tap=lambda x, y: None, swipe=lambda *a, **k: None)
+    monkeypatch.setattr(ms, "open_tool_device", lambda: dev)
+    monkeypatch.setattr(ms, "Picker", lambda *a, **k: SimpleNamespace(ocr=lambda img: []))
+    monkeypatch.setattr(formation_menu, "open_picker", lambda *a, **k: None)
+    monkeypatch.setattr(formation_menu, "tool_device", lambda d: d)
+    monkeypatch.setattr(
+        ms,
+        "scan",
+        lambda picker, out, max_pages: {"entries": [], "complete": False, "formation_may_have_changed": True},
+    )
+    monkeypatch.setattr(nav, "back_home", lambda d, timeout=nav.HOME_TIMEOUT: calls.append("home") or True)
+    monkeypatch.setattr(
+        sys, "argv", ["memory_scan", "scan", "--from-home", "--no-calib", "--out", str(tmp_path / "o.json")]
+    )
+    ms.main()
+    assert calls == []
+
+
+def test_back_home_swallows_device_error(monkeypatch):
+    from hiro.devices.base import DeviceError
+
+    def boom(rt, timeout=nav.HOME_TIMEOUT):
+        raise DeviceError("截图失败")
+
+    monkeypatch.setattr(nav, "goto_home", boom)
+    raw = SimpleNamespace(name="fake", screenshot=lambda: None, tap=lambda x, y: None)
+    assert nav.back_home(raw) is False
+
+
+def test_support_scan_goes_home_when_picker_fails(monkeypatch, tmp_path):
+    """#108 review：打不开支援卡「選択」列表（open_picker 抛错）时也要回首页。"""
+    import importlib.util
+
+    import hiro.tool_device
+    from hiro.produce import formation_menu
+
+    spec = importlib.util.spec_from_file_location(
+        "support_inventory_tool", Path(__file__).resolve().parents[1] / "tools" / "support_inventory.py"
+    )
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    calls = []
+    monkeypatch.setattr(hiro.tool_device, "open_tool_device", lambda: SimpleNamespace())
+    monkeypatch.setattr(formation_menu, "tool_device", lambda d: d)
+
+    def fail(*a, **k):
+        raise RuntimeError("点支援卡格没打开选择列表")
+
+    monkeypatch.setattr(formation_menu, "open_picker", fail)
+    monkeypatch.setattr(nav, "back_home", lambda d, timeout=nav.HOME_TIMEOUT: calls.append("home") or True)
+    monkeypatch.setattr(sys, "argv", ["support_inventory", "--list", "--from-home", "--out", str(tmp_path / "o.json")])
+    with pytest.raises(RuntimeError):
+        mod.main()
+    assert calls == ["home"]

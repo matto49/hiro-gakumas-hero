@@ -173,12 +173,16 @@ func (a *App) retryCard(c *ui.Context, m *Message, card plugin.Card) {
 		ui.Text(c, "已重新发起「"+summary+"」").FontSize(kit.FNote).TextColor(kit.Ink3)
 		return
 	}
-	if kit.Secondary(c, "再试一次").Key("retry-" + m.ID).Label("再试一次").Clicked() {
-		card["used"] = true
-		if a.cur != nil {
-			a.save(a.cur)
-		}
-		a.RunArgs("再试一次「"+summary+"」", args)
+	busy, _ := card["sending"].(bool)
+	if kit.Secondary(c, "再试一次").Key("retry-"+m.ID).Label("再试一次").Disabled(busy).Clicked() && !busy {
+		card["sending"] = true
+		// #108 review：发起成功了才算用掉；没发起成（CLI 报错）就留着这个按钮，玩家还能再点
+		a.runArgs("再试一次「"+summary+"」", args, func(ok bool) {
+			delete(card, "sending")
+			if ok {
+				card["used"] = true
+			}
+		})
 	}
 }
 

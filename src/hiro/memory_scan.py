@@ -37,6 +37,7 @@ def main():
     # 慢滑、终点停住再抬起：列表不带惯性滚动，扫描靠行重叠核对不漏行（以前只在 MaaTools 上停，现在各设备一样）
     picker = Picker(d.screenshot, d.tap,
                     lambda x1, y1, x2, y2: d.swipe(x1, y1, x2, y2, duration=SWIPE_DURATION, hold=SWIPE_HOLD), calib_dir=calib)  # fmt: skip
+    keep_scene = False  # 编成可能被改了：保留现场给人核对，收尾不再点
     try:
         if args.from_home:
             from hiro.produce import formation_menu
@@ -51,9 +52,13 @@ def main():
             print(out)
         else:
             inv = scan(picker, Path(args.out), max_pages=args.max_pages)
+            keep_scene = bool(inv.get("formation_may_have_changed"))
             print(f"{len(inv['entries'])} 份回忆 → {args.out}（complete={inv.get('complete')}）")
     finally:
-        if args.from_home:  # 从首页进来的就回首页（G1-F1：读完停在メモリー編成页，下一个任务开头不在首页）
+        # #108 review：选择页在扫描中关了（多半点成了「決定」）时 scan 已经停手要人核对编成，这里不能再点回首页离开现场
+        if (
+            args.from_home and not keep_scene
+        ):  # 从首页进来的就回首页（G1-F1：读完停在メモリー編成页，下一个任务开头不在首页）
             from hiro.runtime import nav
 
             nav.back_home(d)

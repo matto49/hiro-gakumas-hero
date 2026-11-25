@@ -273,7 +273,10 @@ func (a *App) addTo(t *Thread, role, text string, cards []plugin.Card) *Message 
 }
 
 // RunArgs 直接跑一条工具层命令（快捷按钮、没配模型时），结果做成卡片；label 记成用户说的话。
-func (a *App) RunArgs(label string, args []string) {
+func (a *App) RunArgs(label string, args []string) { a.runArgs(label, args, nil) }
+
+// runArgs 同 RunArgs；done（可以是 nil）在结果回到界面线程后调，带上这次命令成没成。
+func (a *App) runArgs(label string, args []string, done func(ok bool)) {
 	t := a.ensureThread()
 	a.add("user", label, nil)
 	a.save(t)
@@ -282,6 +285,9 @@ func (a *App) RunArgs(label string, args []string) {
 		r := call(a.ctx, args)
 		return func() {
 			a.addTo(t, "agent", "", CardsFor(r))
+			if done != nil {
+				done(r.OK)
+			}
 			a.save(t)
 		}
 	})

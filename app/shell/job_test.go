@@ -396,3 +396,39 @@ func TestFailedScanOffersRetry(t *testing.T) {
 		t.Error("点过以后应记成已重新发起")
 	}
 }
+
+// #108 review：「再试一次」自己发起失败（CLI 报错）时按钮要留着，玩家还能再点。
+func TestRetryKeptWhenResubmitFails(t *testing.T) {
+	call := liveCall("running")
+	a, run := newTestApp(newMem(), call, nil, viewReg())
+	a.NewThread()
+	ownJob(a, "j7")
+	a.PollJobs()
+	run.Drain()
+	call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"scan-idols","state":"failed","summary":"扫描偶像卡","started_at":1,"params":{},"reason":"游戏不在首页"}]}`)
+	call.resp["run events"] = ok(`{"state":"failed","events":[]}`)
+	for i := 0; i < 3; i++ {
+		a.PollJobs()
+		run.Drain()
+	}
+	call.resp["run start scan-idols"] = hiroapi.Result{OK: false, Error: &hiroapi.CliError{Code: "busy", Message: "有别的任务在跑"}}
+	tt := ui.NewTester(a.View, 1280, 800)
+	tt.Frame()
+	if err := tt.Click("再试一次"); err != nil {
+		t.Fatal(err)
+	}
+	run.Drain()
+	tt.Frame()
+	if _, ok := tt.AccessByRole(ui.RoleButton, "再试一次"); !ok {
+		t.Errorf("重试没发起成，按钮应留着：%q", tt.Texts())
+	}
+	delete(call.resp, "run start scan-idols")
+	if err := tt.Click("再试一次"); err != nil {
+		t.Fatal(err)
+	}
+	run.Drain()
+	tt.Frame()
+	if !tt.HasText("已重新发起「扫描偶像卡」") {
+		t.Errorf("发起成功后应变成一行字：%q", tt.Texts())
+	}
+}

@@ -70,13 +70,14 @@ def back_home(device, timeout: float = HOME_TIMEOUT) -> bool:
     回到首页返回 True；回不去记一条 WARNING、返回 False，不抛异常（让调用方自己说清楚停在哪）。
     G1-F1（11-26 Mac 小白验收）：扫回忆读完停在「メモリー編成」页，下一个扫偶像卡开头盲点首页底栏，12 秒就失败。"""
     from hiro.daily import Popup, make_runtime
+    from hiro.devices.base import DeviceError
     from hiro.runtime.loop import ResumeBlocked
 
     raw = getattr(device, "_device", device)  # hiro.tool_device.ToolDevice（GuardedDevice）里的原始设备
     rt = make_runtime(raw, popup=Popup())
     try:
         goto_home(rt, timeout)
-    except ResumeBlocked as e:
+    except (ResumeBlocked, DeviceError) as e:  # 收尾时设备断了也不能盖掉调用方原来的错误（#108 review）
         logger.warning("回首页没成功：%s", e)
         return False
     return True
