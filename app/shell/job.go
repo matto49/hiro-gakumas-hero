@@ -170,20 +170,46 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 		}
 	}
 	var text string
+	kind := ""
+	if v.Job != nil {
+		kind = v.Job.Kind
+	}
 	switch v.State {
 	case "takeover":
 		text = "「" + name + "」停下来等你接手了：在游戏里处理完，到游戏运行现状点「继续自动打」。"
 	case "paused":
 		text = "「" + name + "」已暂停。"
 	case "done":
-		text = "「" + name + "」打完了，成绩和复盘在游戏运行现状里。"
+		if produceKind(kind) {
+			text = "「" + name + "」打完了，成绩和复盘在游戏运行现状里。"
+		} else {
+			text = "「" + name + "」做完了。"
+		}
+	case "failed":
+		// 11-25 review：原因直接写出来（原来只说「在最后几步里」，可对局卡只画步骤，原因在日志里）
+		if why := v.FailReason(); why != "" {
+			text = "「" + name + "」出错停下了：" + why + "。"
+		} else {
+			text = "「" + name + "」出错停下了，日志里没写原因；可以到游戏运行现状看最后的画面。"
+		}
+	case "stopped":
+		text = "「" + name + "」已停止。"
 	default:
-		text = "「" + name + "」" + labels.State(v.State) + "了，原因在对局卡下面的最后几步里。"
+		text = "「" + name + "」" + labels.State(v.State) + "了。"
 	}
 	t := a.threadOfJob(id)
 	m := a.addTo(t, "agent", text, nil)
 	_ = m
 	a.save(t)
+}
+
+// produceKind 是培育类任务（打完有成绩和复盘）。
+func produceKind(kind string) bool {
+	switch kind {
+	case "hajime", "nia", "tower", "hif":
+		return true
+	}
+	return false
 }
 
 // jobEnded 在任务从活着变成结束时调各插件的 OnJobEnd（每局一次）。

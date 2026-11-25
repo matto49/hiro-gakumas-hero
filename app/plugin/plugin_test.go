@@ -82,3 +82,25 @@ func TestGatherEmptyWhenNothing(t *testing.T) {
 		t.Errorf("没有上下文时返回空串，得到 %q", out)
 	}
 }
+
+func TestFailReason(t *testing.T) {
+	v := &JobView{State: "failed", Job: &Job{}, Events: []JobEvent{
+		{Type: "log", Text: "[2026-11-23 12:42:18,555] [ERROR] [hiro.runtime.loop] 判页抛了异常"},
+		{Type: "log", Text: "停下：点了 s_card-3-0027 但列表里没显示为选中（截图在 reports/live/calib/x）"},
+		{Type: "failed", Text: "任务出错退出（代码 1），看上面的日志"},
+	}}
+	if r := v.FailReason(); r != "点了 s_card-3-0027 但列表里没显示为选中" {
+		t.Errorf("从日志找原因：%q", r)
+	}
+	v.Events = append(v.Events, JobEvent{Type: "failed", Reason: "事件里的原因"})
+	if r := v.FailReason(); r != "事件里的原因" {
+		t.Errorf("failed 事件带的原因：%q", r)
+	}
+	v.Job.Reason = "任务上的原因"
+	if r := v.FailReason(); r != "任务上的原因" {
+		t.Errorf("任务上的原因：%q", r)
+	}
+	if r := (&JobView{State: "done"}).FailReason(); r != "" {
+		t.Errorf("没出错不该有原因：%q", r)
+	}
+}

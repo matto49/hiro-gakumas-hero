@@ -106,3 +106,16 @@ func TestPanelIsVertical(t *testing.T) {
 		t.Errorf("暂停按钮应在画面下面：%+v", pause.Bounds)
 	}
 }
+
+// 11-25 review：出错的对局卡底部写原因（原因原来只在日志事件里，对局卡只画 step）
+func TestRunCardShowsFailReason(t *testing.T) {
+	h, p := liveHost(), New()
+	v := h.Job("j7")
+	v.State, v.Job.State, v.Job.Reason = "failed", "failed", "没打开支援卡选择列表"
+	view := p.Cards["run"]
+	tt := ui.NewTester(func(c *ui.Context) { view(c, h, plugin.Card{"type": "run", "jobId": "j7"}) }, 760, 600)
+	tt.Frame()
+	if !tt.HasText("没打开支援卡选择列表") {
+		t.Errorf("对局卡没有出错原因：%q", tt.Texts())
+	}
+}

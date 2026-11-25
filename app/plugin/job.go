@@ -1,5 +1,10 @@
 package plugin
 
+import (
+	"regexp"
+	"strings"
+)
+
 // Job 是 `hiro run status` 里的一个任务。
 type Job struct {
 	ID        string         `json:"id"`
@@ -10,6 +15,7 @@ type Job struct {
 	StartedAt float64        `json:"started_at"`
 	EndedAt   *float64       `json:"ended_at"`
 	ExitCode  *int           `json:"exit_code"`
+	Reason    string         `json:"reason,omitempty"` // 出错原因（failed 时 CLI 从日志里挑的一句）
 	Pausable  *bool          `json:"pausable,omitempty"`
 }
 
@@ -25,6 +31,7 @@ type JobEvent struct {
 	Source string   `json:"source,omitempty"`
 	Frame  string   `json:"frame,omitempty"`
 	Notes  []string `json:"notes,omitempty"`
+	Reason string   `json:"reason,omitempty"` // failed 事件带的出错原因
 	// Exams 是 report 事件里每场考试的分数。
 	Exams []ExamScore `json:"exams,omitempty"`
 }
@@ -97,4 +104,45 @@ func (v *JobView) Report() []ExamScore {
 		}
 	}
 	return nil
+}
+
+var (
+	logHead    = regexp.MustCompile(`^\[\d{4}-\d\d-\d\d [\d:,.]+\]\s*\[([A-Z]+)\]\s*\[[^\]]*\]\s*`)
+	shotSuffix = regexp.MustCompile(`（截图在 [^）]*）\s*$`)
+)
+
+// FailReason 是出错停下的原因（不是 failed 时为空）：任务上记的 → failed 事件带的 → 日志里最后一条「停下：」/ ERROR
+// （旧任务的 failed 事件没带原因，和 CLI 的 failure_reason 同一套规则）。
+func (v *JobView) FailReason() string {
+	if v == nil || v.State != "failed" {
+		return ""
+	}
+	if v.Job != nil && v.Job.Reason != "" {
+		return v.Job.Reason
+	}
+	stop, errLine := "", ""
+	for _, e := range v.Events {
+		switch {
+		case e.Type == "failed" && e.Reason != "":
+			return e.Reason
+		case e.Type != "log":
+		case strings.HasPrefix(strings.TrimSpace(e.Text), "停下："):
+			stop = strings.TrimPrefix(strings.TrimSpace(e.Text), "停下：")
+		default:
+			if m := logHead.FindStringSubmatchIndex(e.Text); m != nil {
+				if lv := e.Text[m[2]:m[3]]; lv == "ERROR" || lv == "CRITICAL" {
+					errLine = e.Text[m[1]:]
+				}
+			}
+		}
+	}
+	why := stop
+	if why == "" {
+		why = errLine
+	}
+	why = strings.TrimSpace(shotSuffix.ReplaceAllString(why, ""))
+	if r := []rune(why); len(r) > 160 {
+		why = string(r[:159]) + "…"
+	}
+	return why
 }

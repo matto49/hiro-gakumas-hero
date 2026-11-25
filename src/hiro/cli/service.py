@@ -118,7 +118,8 @@ class Manager:
                 job.start()
             except OSError as e:
                 job.state = "failed"
-                job.emit("failed", f"任务没能启动：{e}")
+                job.reason = f"任务没能启动：{e}"
+                job.emit("failed", job.reason, reason=job.reason)
                 self.current = None
                 return _err("start_failed", f"任务没能启动：{e}", "运行 hiro doctor 检查环境")
         return {"ok": True, "data": {"job": job.describe()}}

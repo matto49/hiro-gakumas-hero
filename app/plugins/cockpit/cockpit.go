@@ -125,6 +125,19 @@ func (s *state) runCard(c *ui.Context, h plugin.Host, id string) {
 				stepRow(c, e, i == len(steps)-1 && v.Live())
 			}
 		})
+		failLine(c, v)
+	})
+}
+
+// failLine 是出错停下的对局卡底部那行红字原因（11-25 review：原因原来只在日志里，对局卡看不到）。
+func failLine(c *ui.Context, v *plugin.JobView) {
+	why := v.FailReason()
+	if why == "" {
+		return
+	}
+	ui.Row(c).Gap(8).Padding(10, 14).Background(kit.BadT).AlignItems(ui.Start).Children(func() {
+		ui.Text(c, "出错原因").FontSize(kit.FNote).FontWeight(600).TextColor(kit.Bad).Shrink(0)
+		ui.Text(c, why).FontSize(kit.FNote).TextColor(kit.Ink).Wrap().Shrink(1)
 	})
 }
 

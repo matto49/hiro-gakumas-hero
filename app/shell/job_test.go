@@ -243,3 +243,42 @@ func TestOnJobEndCalledOnceWhenJobFinishes(t *testing.T) {
 		t.Fatal("用量卡要发到有这局对局卡的对话里")
 	}
 }
+
+// 11-25 review：出错原因要写进通知；非培育任务完成不说「成绩和复盘」，用户停下的不说「原因在最后几步里」
+func TestJobNoticeTexts(t *testing.T) {
+	cases := []struct {
+		kind, state, status, events, want, not string
+	}{
+		{"hajime", "failed", `"reason":"没打开支援卡选择列表"`, `[]`, "出错停下了：没打开支援卡选择列表", "最后几步"},
+		{"hajime", "failed", ``, `[{"seq":1,"t":1,"type":"log","text":"[2026-11-24 01:31:04,918] [ERROR] [hiro.runtime.play] new 开局要编成号"},{"seq":2,"t":2,"type":"failed","text":"任务出错退出（代码 1），看上面的日志"}]`, "出错停下了：new 开局要编成号", "最后几步"},
+		{"hajime", "stopped", ``, `[]`, "已停止", "原因"},
+		{"scan-memories", "done", ``, `[]`, "做完了", "成绩和复盘"},
+		{"hajime", "done", ``, `[]`, "成绩和复盘", ""},
+	}
+	for _, c := range cases {
+		call := liveCall("running")
+		a, run := newTestApp(newMem(), call, nil, nil)
+		a.NewThread()
+		a.PollJobs()
+		run.Drain()
+		extra := ""
+		if c.status != "" {
+			extra = "," + c.status
+		}
+		call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"` + c.kind + `","state":"` + c.state + `","summary":"某任务","started_at":1` + extra + `}]}`)
+		call.resp["run events"] = ok(`{"state":"` + c.state + `","events":` + c.events + `}`)
+		for i := 0; i < 3; i++ {
+			a.PollJobs()
+			run.Drain()
+		}
+		got := ""
+		for _, m := range a.Current().Messages {
+			if strings.Contains(m.Text, "某任务") {
+				got = m.Text
+			}
+		}
+		if !strings.Contains(got, c.want) || (c.not != "" && strings.Contains(got, c.not)) {
+			t.Errorf("%s/%s：%q", c.kind, c.state, got)
+		}
+	}
+}

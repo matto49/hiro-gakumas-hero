@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -28,6 +29,27 @@ LLM_VARS = ("HIRO_LLM", "OPENAI_BASE_URL", "OPENAI_API_KEY", "HIRO_CODEX_BIN")
 STOP_GRACE = 10.0
 TRACE_POLL = 0.5
 FRAME_EVERY = 1.5  # 实时画面事件最多这么久一条（帧存得很密，不全进事件流）
+REASON_MAX = 160
+
+_LOG_PREFIX = re.compile(r"^\[\d{4}-\d\d-\d\d [\d:,.]+\]\s*\[([A-Z]+)\]\s*\[[^\]]*\]\s*")
+_SHOT_SUFFIX = re.compile(r"（截图在 [^）]*）\s*$")
+
+
+def failure_reason(lines: list[str]) -> str | None:
+    """任务出错时给人看的一句原因：最后一条「停下：…」，没有就最后一条 ERROR 日志（去掉时间 / 级别 / 模块前缀和本机截图路径）。
+    11-25 review：failed 事件只写「看上面的日志」，对话和对局卡里看不到原因。"""
+    stop = err = None
+    for line in lines:
+        t = line.strip()
+        if t.startswith("停下："):
+            stop = t[len("停下：") :]
+        elif (m := _LOG_PREFIX.match(t)) and m.group(1) in ("ERROR", "CRITICAL"):
+            err = t[m.end() :]
+    why = stop or err
+    if not why:
+        return None
+    why = _SHOT_SUFFIX.sub("", why).strip()
+    return why if len(why) <= REASON_MAX else why[: REASON_MAX - 1] + "…"
 
 
 def step_event(rec: dict, trace: Path) -> dict:
@@ -413,6 +435,7 @@ class Job:
         self.trace = self.work / "traces" / self.id  # hif / tower / selftest 用 --trace <任务编号>
         self.state = "running"
         self.started_at, self.ended_at, self.exit_code = time.time(), None, None
+        self.reason: str | None = None  # 出错原因（failed 时）
         self._lock = threading.Lock()
         self._seq = 0
         self._events = self.dir / "events.jsonl"
@@ -448,6 +471,7 @@ class Job:
             "started_at": self.started_at,
             "ended_at": self.ended_at,
             "exit_code": self.exit_code,
+            "reason": self.reason,
             "pause_flag": str(self.flag),
             "dir": str(self.dir),
             "pid": self.proc.pid if self.proc else None,
@@ -587,10 +611,13 @@ class Job:
 
     def _pump(self) -> None:
         assert self.proc and self.proc.stdout
+        tail: list[str] = []  # 出错原因从这里找（「停下：」/ ERROR 都在日志里）
         for line in self.proc.stdout:
             line = line.rstrip("\n")
             if line:
                 self.emit("log", line)
+                if line.startswith("停下：") or "[ERROR]" in line or "[CRITICAL]" in line:
+                    tail = [*tail[-19:], line]
         code = self.proc.wait()
         self._read_steps()  # 最后几步
         self.flag.unlink(missing_ok=True)
@@ -608,7 +635,9 @@ class Job:
             self.emit("done", "完成")
             self.state = "done"
         else:
-            self.emit("failed", f"任务出错退出（代码 {code}），看上面的日志", exit_code=code)
+            self.reason = failure_reason(tail)
+            text = f"出错停下：{self.reason}" if self.reason else f"任务出错退出（代码 {code}），看上面的日志"
+            self.emit("failed", text, exit_code=code, reason=self.reason)
             self.state = "failed"
         self._save()
 
