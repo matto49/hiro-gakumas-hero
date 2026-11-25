@@ -30,6 +30,8 @@ type appDeps struct {
 	Run       shell.Runner
 	// Ready 盖掉 Bootstrap 的「环境装好没」（测试用）；nil 时用 Bootstrap.Status。
 	Ready func(ctx context.Context) bool
+	// StationProbe replaces the installed station bridge in offline tests.
+	StationProbe func(verb string) stationStatus
 	// Web 是侧边面板的网页视图（nil：测试里不接）。
 	Web *webPanels
 }
@@ -41,6 +43,14 @@ func buildApp(d appDeps) *shell.App {
 	cache := &settingsCache{a: d.Assistant}
 	var app *shell.App
 	sd := settingsDeps(d, cache)
+	probe := d.StationProbe
+	if probe == nil {
+		probe = runStation
+	}
+	station := &stationIntegration{manager: mgr, settings: cache, probe: probe}
+	mgr.Permit = station.permit
+	sd.StationPanel = station.panel
+	sd.StationTick = station.tick
 	sd.PluginsPanel = mgr.Panel
 	sd.OnWizardDone = func() { // R11：第一次用，自己扫一遍从没扫过的库存
 		if app != nil {
