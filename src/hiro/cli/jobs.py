@@ -44,6 +44,10 @@ def failure_reason(lines: list[str]) -> str | None:
         t = line.strip()
         if t.startswith("停下："):
             stop = t[len("停下：") :]
+        elif t.endswith("停下") and not _LOG_PREFIX.match(t) and len(t) > 2:
+            stop = t[: -len("停下")].rstrip(
+                "，, "
+            )  # 工具把「停下」写在句尾（G1-F2：扫偶像卡「没进到偶像详情页（…），停下」）
         elif (m := _LOG_PREFIX.match(t)) and m.group(1) in ("ERROR", "CRITICAL"):
             err = t[m.end() :]
     why = stop or err

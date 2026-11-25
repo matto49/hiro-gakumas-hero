@@ -107,6 +107,9 @@ func (a *App) card(c *ui.Context, m *Message, card plugin.Card) {
 	case "error":
 		errorCard(c, card)
 		return
+	case "retry":
+		a.retryCard(c, m, card)
+		return
 	}
 	if _, v := a.reg.CardView(typ); v != nil {
 		v(c, a, card)
@@ -150,6 +153,33 @@ func (a *App) confirmLine(c *ui.Context, card plugin.Card) {
 		ui.Icon(c, kit.IcShield).FontSize(13).TextColor(col)
 		ui.Text(c, text).FontSize(kit.FNote).TextColor(col).Wrap()
 	})
+}
+
+// retryCard 是任务出错后的「再试一次」：按原参数重新发起（照样走权限档 / 确认卡）；点过一次就变成一行字。
+func (a *App) retryCard(c *ui.Context, m *Message, card plugin.Card) {
+	summary, _ := card["summary"].(string)
+	var args []string
+	switch x := card["args"].(type) {
+	case []string:
+		args = x
+	case []any: // 存盘读回来是 []any
+		for _, v := range x {
+			if s, ok := v.(string); ok {
+				args = append(args, s)
+			}
+		}
+	}
+	if used, _ := card["used"].(bool); used || len(args) == 0 {
+		ui.Text(c, "已重新发起「"+summary+"」").FontSize(kit.FNote).TextColor(kit.Ink3)
+		return
+	}
+	if kit.Secondary(c, "再试一次").Key("retry-" + m.ID).Label("再试一次").Clicked() {
+		card["used"] = true
+		if a.cur != nil {
+			a.save(a.cur)
+		}
+		a.RunArgs("再试一次「"+summary+"」", args)
+	}
 }
 
 func errorCard(c *ui.Context, card plugin.Card) {

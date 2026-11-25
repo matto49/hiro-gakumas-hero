@@ -339,3 +339,60 @@ func TestChatJobNoticeGoesToItsThread(t *testing.T) {
 		t.Errorf("通知没回到开局的对话：%q", last.Text)
 	}
 }
+
+// G1-F2（11-26）：扫描这类任务出错后给「再试一次」，按原参数重新发起；培育类不给（免得误开新一局）。
+func TestFailedScanOffersRetry(t *testing.T) {
+	fail := func(kind, params string) (*App, *SyncRunner, *fakeCall) {
+		call := liveCall("running")
+		a, run := newTestApp(newMem(), call, nil, viewReg())
+		a.NewThread()
+		ownJob(a, "j7")
+		a.PollJobs()
+		run.Drain()
+		call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"` + kind + `","state":"failed","summary":"某任务","started_at":1,"params":` + params + `,"reason":"游戏不在首页"}]}`)
+		call.resp["run events"] = ok(`{"state":"failed","events":[]}`)
+		for i := 0; i < 3; i++ {
+			a.PollJobs()
+			run.Drain()
+		}
+		return a, run, call
+	}
+	retryOf := func(a *App) plugin.Card {
+		for _, m := range a.Current().Messages {
+			for _, c := range m.Cards {
+				if c["type"] == "retry" {
+					return c
+				}
+			}
+		}
+		return nil
+	}
+	if c := retryOf(func() *App { a, _, _ := fail("hajime", `{"idol":"i_card-x"}`); return a }()); c != nil {
+		t.Errorf("培育类不该给重试：%v", c)
+	}
+	a, run, call := fail("check-settings", `{"fix":true,"scenario":null,"dry_run":false}`)
+	c := retryOf(a)
+	if c == nil {
+		t.Fatal("扫描类出错应给「再试一次」")
+	}
+	tt := ui.NewTester(a.View, 1280, 800)
+	tt.Frame()
+	n := len(call.calls)
+	if err := tt.Click("再试一次"); err != nil {
+		t.Fatal(err)
+	}
+	run.Drain()
+	got := ""
+	for _, x := range call.calls[n:] {
+		if len(x) > 1 && x[0] == "run" && x[1] == "start" {
+			got = strings.Join(x, " ")
+		}
+	}
+	if got != "run start check-settings --fix" {
+		t.Errorf("重试命令 %q", got)
+	}
+	tt.Frame()
+	if c["used"] != true {
+		t.Error("点过以后应记成已重新发起")
+	}
+}

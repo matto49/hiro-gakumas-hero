@@ -37,20 +37,26 @@ def main():
     # 慢滑、终点停住再抬起：列表不带惯性滚动，扫描靠行重叠核对不漏行（以前只在 MaaTools 上停，现在各设备一样）
     picker = Picker(d.screenshot, d.tap,
                     lambda x1, y1, x2, y2: d.swipe(x1, y1, x2, y2, duration=SWIPE_DURATION, hold=SWIPE_HOLD), calib_dir=calib)  # fmt: skip
-    if args.from_home:
-        from hiro.produce import formation_menu
-        from hiro.produce.memory_picker import picker_open
+    try:
+        if args.from_home:
+            from hiro.produce import formation_menu
+            from hiro.produce.memory_picker import picker_open
 
-        formation_menu.open_picker(
-            formation_menu.tool_device(d), "memory", ready=lambda img: picker_open(picker.ocr(img))
-        )
-    if args.command == "explore":
-        out = Path(f"reports/live/memory-explore/{stamp}")
-        explore(picker, out)
-        print(out)
-    else:
-        inv = scan(picker, Path(args.out), max_pages=args.max_pages)
-        print(f"{len(inv['entries'])} 份回忆 → {args.out}（complete={inv.get('complete')}）")
+            formation_menu.open_picker(
+                formation_menu.tool_device(d), "memory", ready=lambda img: picker_open(picker.ocr(img))
+            )
+        if args.command == "explore":
+            out = Path(f"reports/live/memory-explore/{stamp}")
+            explore(picker, out)
+            print(out)
+        else:
+            inv = scan(picker, Path(args.out), max_pages=args.max_pages)
+            print(f"{len(inv['entries'])} 份回忆 → {args.out}（complete={inv.get('complete')}）")
+    finally:
+        if args.from_home:  # 从首页进来的就回首页（G1-F1：读完停在メモリー編成页，下一个任务开头不在首页）
+            from hiro.runtime import nav
+
+            nav.back_home(d)
 
 
 if __name__ == "__main__":

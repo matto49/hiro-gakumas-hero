@@ -152,15 +152,22 @@ def main() -> int:
             _sleep(0.8)
         return False
 
+    from hiro.runtime import nav
+
+    if not nav.back_home(
+        d
+    ):  # 底栏「アイドル」按坐标点，先确保在首页（G1-F1：上一个扫描停在メモリー編成页，盲点后 12 秒失败）
+        print("停下：游戏不在首页，也没能自己退回首页；回到首页后再扫一次", flush=True)
+        return 3
     d.tap(*NAV_IDOL)
     _sleep(2.0)
     d.tap(*NAV_P_IDOL)
     if not has(["一覧"]):
-        print("没进到偶像详情页（找不到「一覧」），停下", flush=True)
+        print("停下：没进到偶像详情页（找不到「一覧」）", flush=True)
         return 3
     d.tap(*LIST_BUTTON)
     if not has(["決定"]):
-        print("没打开偶像一览（找不到「決定」），停下", flush=True)
+        print("停下：没打开偶像一览（找不到「決定」）", flush=True)
         return 3
     inv = attach_ids(scan(d.screenshot, d.tap, lambda x1, y1, x2, y2: d.swipe(x1, y1, x2, y2, duration=0.6), ocr))
     d.tap(*HOME)

@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/matto49/hiro-gakumas-hero/app/hiroapi"
@@ -36,6 +37,35 @@ func ParseRunStart(command string) (RunArgs, bool) {
 		}
 	}
 	return r, true
+}
+
+// StartArgv 是重新发起这个任务的「run start」命令行：Job.Params 里空的、false 的不带，其余按 --名字 值（G1-F2「再试一次」）。
+func StartArgv(kind string, params map[string]any) []string {
+	argv := []string{"run", "start", kind}
+	keys := make([]string, 0, len(params))
+	for k := range params {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		flag := "--" + strings.ReplaceAll(k, "_", "-")
+		switch x := params[k].(type) {
+		case nil:
+		case bool:
+			if x {
+				argv = append(argv, flag)
+			}
+		case float64:
+			argv = append(argv, flag, fmt.Sprintf("%g", x))
+		case string:
+			if x != "" {
+				argv = append(argv, flag, x)
+			}
+		default:
+			argv = append(argv, flag, fmt.Sprint(x))
+		}
+	}
+	return argv
 }
 
 // RunArgsOf 是待确认对应的 run start：优先用 CLI 带回来的 args（command 只是命令名「run start」），

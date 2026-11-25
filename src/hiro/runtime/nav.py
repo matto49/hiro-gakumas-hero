@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import logging
+
 from hiro.vision.ui_templates import tpl
+
+logger = logging.getLogger(__name__)
 
 HOME_TIMEOUT = 60.0
 HOME_BUTTONS = ("Common.ButtonHome", "Common.ButtonToolbarHome", "Common.ButtonIconClose")
@@ -59,3 +63,20 @@ def goto_home(rt, timeout: float = HOME_TIMEOUT):
         return None
 
     return rt.drive(step, timeout, "回首页")
+
+
+def back_home(device, timeout: float = HOME_TIMEOUT) -> bool:
+    """工具脚本（库存扫描等）用：给设备（hiro.devices 原始设备，或 hiro.tool_device 包过的），走 goto_home 回首页。
+    回到首页返回 True；回不去记一条 WARNING、返回 False，不抛异常（让调用方自己说清楚停在哪）。
+    G1-F1（11-26 Mac 小白验收）：扫回忆读完停在「メモリー編成」页，下一个扫偶像卡开头盲点首页底栏，12 秒就失败。"""
+    from hiro.daily import Popup, make_runtime
+    from hiro.runtime.loop import ResumeBlocked
+
+    raw = getattr(device, "_device", device)  # hiro.tool_device.ToolDevice（GuardedDevice）里的原始设备
+    rt = make_runtime(raw, popup=Popup())
+    try:
+        goto_home(rt, timeout)
+    except ResumeBlocked as e:
+        logger.warning("回首页没成功：%s", e)
+        return False
+    return True

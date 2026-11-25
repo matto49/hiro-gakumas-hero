@@ -9,6 +9,7 @@ import (
 	"github.com/matto49/hiro-gakumas-hero/app/kit"
 	"github.com/matto49/hiro-gakumas-hero/app/labels"
 	"github.com/matto49/hiro-gakumas-hero/app/plugin"
+	"github.com/matto49/hiro-gakumas-hero/app/plugins/common"
 )
 
 // 任务轮询（§6.3）：每秒 run status + 活着的 / 被看的任务 run events --since；窗口隐藏时 5 秒；任务结束就不再读事件。
@@ -175,6 +176,7 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 		}
 	}
 	var text string
+	var cards []plugin.Card
 	kind := ""
 	if v.Job != nil {
 		kind = v.Job.Kind
@@ -197,6 +199,10 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 		} else {
 			text = "「" + name + "」出错停下了，日志里没写原因；可以到游戏运行现状看最后的画面。"
 		}
+		// G1-F2（11-26）：扫描这类任务出错后只有一句话，没有下一步；给「再试一次」（照样走权限 / 确认）。培育类不给，免得误开新一局
+		if v.Job != nil && kind != "" && !produceKind(kind) {
+			cards = []plugin.Card{{"type": "retry", "summary": name, "args": common.StartArgv(kind, v.Job.Params)}}
+		}
 	case "stopped":
 		text = "「" + name + "」已停止。"
 	default:
@@ -206,7 +212,7 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 	if t == nil {
 		return // 命令行等外部发起的：不进对话（11-25 review），在游戏运行现状的「后台任务」里看
 	}
-	a.addTo(t, "agent", text, nil)
+	a.addTo(t, "agent", text, cards)
 	a.save(t)
 }
 
