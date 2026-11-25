@@ -10,6 +10,8 @@ def test_summarize_notes_use_labels_and_card_names(monkeypatch):
                       "formation.memory：攻略推荐、库存里有但方案没选的：p_card-9-xxx（按估值没选，人看一下）",
                       "支援卡按攻略推荐加分"]}  # fmt: skip
     notes = cmd_plan.summarize(plan)["notes"]
-    assert notes[0] == "支援卡：攻略推荐、库存里有但方案没选的：「一起走吧！」、「放学后的约定」（按估值没选，人看一下）"
+    assert (
+        notes[0] == "支援卡：攻略推荐、库存里有但方案没选的：「一起走吧！」、「放学后的约定」（按估值没选，人看一下）"
+    )
     assert notes[1].startswith("回忆：") and "formation." not in notes[1]
     assert notes[2] == "支援卡按攻略推荐加分"
