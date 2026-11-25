@@ -132,3 +132,30 @@ def test_windows_clipboard_checks_every_step(monkeypatch):
     opened = [a for n, a in log if n == "OpenClipboard"]
     assert opened and opened[0][0] == 0x1234  # 有所有者窗口，不是 None
     assert k.GlobalLock.argtypes and k.GlobalLock.restype is not None  # 64 位句柄不被截断
+
+
+# ---------------------------------------------------------------- 不用系统钥匙串（用户 11-23：「这个也不要」，和模型 Key 一样存文件）
+
+
+def test_default_backend_is_file_on_every_platform(monkeypatch):
+    monkeypatch.delenv("HIRO_SECRET_BACKEND", raising=False)
+    for plat in ("darwin", "win32", "linux"):
+        monkeypatch.setattr(sec.sys, "platform", plat)
+        assert isinstance(sec.backend(), sec.FileBackend)
+
+
+def test_file_backend_keeps_values_in_0600_file_apart_from_name_list(run_cli, stdin, monkeypatch, hiro_home):
+    import os
+    import stat
+
+    monkeypatch.setenv("HIRO_SECRET_BACKEND", "file")
+    stdin(VALUE)
+    run_cli("secret", "set", "game-password")
+    store = hiro_home / "game-secrets.json"
+    assert json.loads(store.read_text(encoding="utf-8")) == {"game-password": VALUE}
+    if os.name != "nt":
+        assert stat.S_IMODE(store.stat().st_mode) == 0o600
+    assert VALUE not in (hiro_home / "secrets.json").read_text(encoding="utf-8")  # 名字清单里只有名字
+    assert sec.backend().get("game-password") == VALUE
+    run_cli("secret", "delete", "game-password")
+    assert json.loads(store.read_text(encoding="utf-8")) == {}
