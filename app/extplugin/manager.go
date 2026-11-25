@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -27,6 +28,9 @@ const PluginTrustNote = "外部插件是一个普通程序，以你本人的权�
 type Manager struct {
 	Home string
 	Reg  *plugin.Registry
+	// Permit supplies a host-owned registration gate and optional process environment.
+	// It is called under the manager lock and must not call back into Manager.
+	Permit func(id string) (env []string, allowed bool)
 
 	mu        sync.Mutex
 	installed map[string]*Manifest
@@ -53,6 +57,9 @@ func (m *Manager) Load() {
 	if b, err := os.ReadFile(m.approvalsPath()); err == nil {
 		_ = json.Unmarshal(b, &m.approvals)
 	}
+	if m.approvals == nil {
+		m.approvals = map[string]Approval{}
+	}
 	eligible := map[string]bool{}
 	entries, _ := os.ReadDir(m.dir())
 	for _, en := range entries {
@@ -65,10 +72,7 @@ func (m *Manager) Load() {
 			continue
 		}
 		m.installed[man.ID] = man
-		if ap, ok := m.approvals[man.ID]; ok && ap.Covers(man) {
-			eligible[man.ID] = true
-			m.enableLocked(man, ap)
-		}
+		eligible[man.ID] = m.reconcileLocked(man.ID)
 	}
 	for id, e := range m.exts {
 		if !eligible[id] {
@@ -79,15 +83,53 @@ func (m *Manager) Load() {
 	}
 }
 
+// Refresh applies the same gate as Load and Approve without rereading manifests.
+func (m *Manager) Refresh(id string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.reconcileLocked(id)
+}
+
+// State reports installation, consent for the current manifest, and registration.
+func (m *Manager) State(id string) (installed, approved, enabled bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	man := m.installed[id]
+	ap, ok := m.approvals[id]
+	return man != nil, man != nil && ok && ap.Covers(man), m.exts[id] != nil
+}
+
+func (m *Manager) reconcileLocked(id string) bool {
+	man := m.installed[id]
+	ap, approved := m.approvals[id]
+	if man != nil && approved && ap.Covers(man) {
+		var env []string
+		allowed := true
+		if m.Permit != nil {
+			env, allowed = m.Permit(id)
+		}
+		if allowed {
+			m.enableLocked(man, ap, env)
+			return true
+		}
+	}
+	if e := m.exts[id]; e != nil {
+		e.Close()
+		delete(m.exts, id)
+		m.Reg.Remove(id)
+	}
+	return false
+}
+
 // enableLocked 启用一个插件；已经在跑、清单和同意都没变的就留着（不打断它手上的请求）。
-func (m *Manager) enableLocked(man *Manifest, ap Approval) {
+func (m *Manager) enableLocked(man *Manifest, ap Approval, env []string) {
 	if old := m.exts[man.ID]; old != nil {
-		if sameManifest(old.m, man) && sameApproval(old.ap, ap) {
+		if sameManifest(old.m, man) && sameApproval(old.ap, ap) && slices.Equal(old.env, env) {
 			return
 		}
 		old.Close()
 	}
-	e := New(man, ap, m.Home)
+	e := newExt(man, ap, m.Home, env)
 	m.exts[man.ID] = e
 	m.Reg.Add(e.Plugin())
 }
@@ -250,11 +292,17 @@ func (m *Manager) Approve(id string) error {
 		return fmt.Errorf("没装 %s", id)
 	}
 	ap := Approval{Version: man.Version, Acts: append([]string{}, man.Acts...), Tools: len(man.Contributes.Tools) > 0, Context: man.Contributes.Context}
+	old, had := m.approvals[id]
 	m.approvals[id] = ap
 	if err := m.saveApprovals(); err != nil {
+		if had {
+			m.approvals[id] = old
+		} else {
+			delete(m.approvals, id)
+		}
 		return err
 	}
-	m.enableLocked(man, ap)
+	m.reconcileLocked(id)
 	return nil
 }
 
@@ -363,6 +411,12 @@ func (m *Manager) Panel(c *ui.Context, h plugin.Host) {
 		man := m.installed[id]
 		ap, approved := m.approvals[id]
 		on := m.exts[id] != nil
+		approveLabel := "同意并启用"
+		if m.Permit != nil {
+			if _, allowed := m.Permit(id); !allowed {
+				approveLabel = "同意"
+			}
+		}
 		m.mu.Unlock()
 		kit.Card(c).Key("ext-" + id).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
@@ -374,6 +428,8 @@ func (m *Manager) Panel(c *ui.Context, h plugin.Host) {
 					kit.Tag(c, "已启用", kit.Good, ui.RGBA(46, 158, 91, 0.12))
 				case approved && !ap.Covers(man):
 					kit.Tag(c, "要的权限变了", kit.WarnInk, kit.WarnT)
+				case approved:
+					kit.Tag(c, "已同意 · 未启用", kit.Ink3, kit.Surface2)
 				default:
 					kit.Tag(c, "没同意", kit.Ink3, kit.Surface2)
 				}
@@ -390,7 +446,7 @@ func (m *Manager) Panel(c *ui.Context, h plugin.Host) {
 				kit.KV(c, "上下文", "每轮给 agent 一段情况说明")
 			}
 			ui.Row(c).Gap(8).Children(func() {
-				if !on && kit.Primary(c, "同意并启用").Key("approve-"+id).Clicked() {
+				if (!approved || !ap.Covers(man)) && kit.Primary(c, approveLabel).Key("approve-"+id).Clicked() {
 					if err := m.Approve(id); err != nil {
 						m.note = err.Error()
 					}

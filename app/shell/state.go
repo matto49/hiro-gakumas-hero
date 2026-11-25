@@ -70,7 +70,8 @@ type App struct {
 	// confirmAll 是输入框里切到「允许所有行为」时的二次确认框开着。
 	confirmAll bool
 	// permErr 是上次换操作权限没存上的原因。
-	permErr string
+	permErr      string
+	panelSession uint64
 
 	jobs     map[string]*plugin.JobView
 	live     string // 活着的任务编号
@@ -331,8 +332,14 @@ var _ plugin.Host = (*App)(nil)
 
 // OpenPanel 在侧边面板打开某插件的某页。
 func (a *App) OpenPanel(pluginID, route string) {
+	if !a.ui.panelOpen || a.ui.panelPlugin != pluginID || a.ui.panelRoute != route {
+		a.panelSession++
+	}
 	a.ui.panelOpen, a.ui.panelPlugin, a.ui.panelRoute = true, pluginID, route
 }
+
+// PanelSession identifies the current opening of the right-hand panel.
+func (a *App) PanelSession() uint64 { return a.panelSession }
 
 // snapHost 是给后台线程用的宿主：任务数据是界面线程上拍下的快照；会改界面状态的动作都排回界面线程。
 type snapHost struct {
