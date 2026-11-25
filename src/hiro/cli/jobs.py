@@ -461,6 +461,23 @@ def jobs_dir(home: Path) -> Path:
     return d
 
 
+def _signal_tree(proc: subprocess.Popen, *, kill: bool) -> None:
+    """结束 proc 和它的子孙进程。POSIX：任务进程用 start_new_session 起，自成一组，向整组发信号；
+    Windows：taskkill /T 结束进程树（/F 强制）。"""
+    if sys.platform == "win32":
+        r = subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", *(["/F"] if kill else [])],
+                           capture_output=True, check=False)  # fmt: skip
+        if r.returncode != 0:
+            proc.kill() if kill else proc.terminate()
+        return
+    import signal
+
+    try:
+        os.killpg(proc.pid, signal.SIGKILL if kill else signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        proc.kill() if kill else proc.terminate()
+
+
 class Job:
     def __init__(
         self,
@@ -598,6 +615,8 @@ class Job:
             sys.platform == "win32"
         ):  # 服务没有控制台；不加 CREATE_NO_WINDOW 会给每个任务弹一个黑窗口，用户一关这局就没了
             kw["creationflags"] = 0x00000200 | 0x08000000  # CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
+        else:
+            kw["start_new_session"] = True  # 自成一个进程组：停止时连下一层子进程一起结束（终审 I1）
         self.emit("start", self.kind.summary(self.params), kind=self.kind.name)
         try:
             self.strategy_warnings()
@@ -713,8 +732,9 @@ class Job:
             return
         self.state = "stopping"
         self.flag.unlink(missing_ok=True)
-        self.proc.terminate()
+        # 结束整个进程组 / 进程树：一键全收集、开局前补扫多套了一层进程，只结束直接子进程时下一层还会接着点游戏（终审 I1）
+        _signal_tree(self.proc, kill=False)
         try:
             self.proc.wait(STOP_GRACE)
         except subprocess.TimeoutExpired:
-            self.proc.kill()
+            _signal_tree(self.proc, kill=True)

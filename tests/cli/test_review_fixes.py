@@ -170,3 +170,37 @@ def test_truncated_responses_do_not_escape_the_client(hiro_home, monkeypatch):
     monkeypatch.setattr(client, "_post", boom)
     assert client._alive({"port": 1, "token": "x"}) is False
     client.shutdown()  # 不抛
+
+
+def test_stop_kills_grandchildren(hiro_home, tmp_path):
+    """终审 I1：一键全收集、开局前补扫都多套一层进程；停止只结束直接子进程时，下一层还会接着点游戏。停止要结束整个进程组。"""
+    import os
+    import time
+
+    from hiro.cli.jobs import Job, Kind
+
+    pidf = tmp_path / "grandchild.pid"
+    code = (
+        "import subprocess, sys, time\n"
+        f"p = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
+        f"open({str(pidf)!r}, 'w').write(str(p.pid))\n"
+        "time.sleep(60)\n"
+    )
+    kind = Kind("nest", "测试", lambda p, d: [sys.executable, "-c", code], lambda p: "嵌套", pausable=False)
+    job = Job(hiro_home, kind, {})
+    job.start()
+    for _ in range(100):
+        if pidf.is_file() and pidf.read_text():
+            break
+        time.sleep(0.1)
+    gpid = int(pidf.read_text())
+    job.stop()
+    for _ in range(50):
+        try:
+            os.kill(gpid, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.1)
+    else:
+        os.kill(gpid, 9)
+        raise AssertionError("停止任务后孙进程还活着")
