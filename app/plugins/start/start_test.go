@@ -13,10 +13,13 @@ import (
 
 func host() *plugintest.Host {
 	return plugintest.New(map[string]string{
-		"catalog lookup": `{"items":{"i_card-skin-ttmr-3-0012":{"kind":"idols","name":"【Luna say maybe】月村手毬","rarity":"SSR","asset":"idol-i_card-ttmr-3-0012","attr":"Vo"}}}`,
+		"catalog lookup": `{"items":{"i_card-skin-ttmr-3-0012":{"kind":"idols","name":"【Luna say maybe】月村手毬","rarity":"SSR","asset":"idol-i_card-ttmr-3-0012","attr":"Vo"},` +
+			`"s_card-2-0001":{"kind":"supports","name":"支援卡甲","rarity":"SR","text":"课程结束时 Vo 上升 +10"},` +
+			`"s_card-3-0000":{"kind":"supports","name":"租借乙","rarity":"SSR","text":"体力回复 +5"},` +
+			`"p_card-01-act-2_001":{"kind":"memories","name":"成长痛","rarity":"SR","asset":"card-p_card-01-act-2_001","text":"好调 +2 回合"}}}`,
 		"catalog sprite": `{"path":"/tmp/none.webp"}`,
 		"plan show": `{"idol":{"name":"月村手毬"},"support":{"set":2,"own":[{"id":"s_card-2-0001","name":"A","level":60},{"id":"s_card-3-0012","name":"B","level":55},{"id":"s_card-3-0013","name":"C","level":50},{"id":"s_card-3-0014","name":"D","level":50},{"id":"s_card-3-0015","name":"E","level":45}],"rental":{"id":"s_card-3-0000","name":"租来的","estimated":true}},` +
-			`"memory":{"set":1,"chosen":[{"name":"成長痛","timing":"mid","upgrade":0},{"name":"仕切り直し","timing":"mid","upgrade":1},{"name":"輝くキミへ","timing":"mid","upgrade":1},{"name":"アイドル宣言","timing":"mid","upgrade":0}]},"notes":[]}`,
+			`"memory":{"set":1,"chosen":[{"card_id":"p_card-01-act-2_001","name":"成長痛","timing":"mid","upgrade":0},{"name":"仕切り直し","timing":"mid","upgrade":1},{"name":"輝くキミへ","timing":"mid","upgrade":1},{"name":"アイドル宣言","timing":"mid","upgrade":0}]},"notes":[]}`,
 		"info idols": `{"items":[{"id":"i_card-skin-ttmr-3-0012","name":"【Luna say maybe】月村手毬","rarity":"SSR"},{"id":"i_card-skin-hski-3-0001","name":"篠澤広","rarity":"SSR"}]}`,
 		"run status": `{"current":null,"recent":[
 			{"id":"j1","kind":"hajime","state":"done","summary":"初","started_at":1763900000,"params":{"idol":"i_card-skin-ttmr-3-0012"}},
@@ -47,7 +50,7 @@ func TestExplainHajime(t *testing.T) {
 	if len(e.Groups) != 2 || e.Groups[0].Title != "支援卡" || len(e.Groups[0].Items) != 6 || e.Groups[1].Title != "回忆" || len(e.Groups[1].Items) != 4 {
 		t.Fatalf("编成分组 %+v", e.Groups)
 	}
-	if it := e.Groups[0].Items[5]; !strings.Contains(it.Name, "租来的") || it.Tag != "租借" {
+	if it := e.Groups[0].Items[5]; !strings.Contains(it.Name, "租借乙") || it.Tag != "租借" {
 		t.Errorf("租借格 %+v", it)
 	}
 	if it := e.Groups[1].Items[1]; it.Name != "仕切り直し+" || it.Tag != "中间" {
@@ -175,3 +178,22 @@ func TestStartersWithoutHistoryOpenPanel(t *testing.T) {
 }
 
 func okResult(s string) hiroapi.Result { return hiroapi.Result{OK: true, Data: []byte(s)} }
+
+// 11-25 review：「租借在卡的最后打一个 tag，前面还是要图标；回忆也要图标，hover 展示详细信息」
+func TestExplainItemsHaveIconsAndTips(t *testing.T) {
+	h := host()
+	p := New()
+	pend := hiroapi.Pending{Command: "hiro run start hajime --idol i_card-skin-ttmr-3-0012", Summary: "初"}
+	p.Explain(h, pend)
+	e, _ := p.Explain(h, pend)
+	sup, mem := e.Groups[0].Items, e.Groups[1].Items
+	if sup[0].Name != "支援卡甲" || !strings.Contains(sup[0].Tip, "课程结束时 Vo 上升 +10") || !strings.Contains(sup[0].Tip, "Lv60") {
+		t.Errorf("支援卡要用中文名、悬停带效果和等级：%+v", sup[0])
+	}
+	if r := sup[5]; r.Thumb == "" || r.Tag != "租借" || !strings.Contains(r.Tip, "租借") {
+		t.Errorf("租借格要有图标、tag 和说明：%+v", r)
+	}
+	if m := mem[0]; m.Thumb == "" || m.Name != "成长痛" || !strings.Contains(m.Tip, "好调 +2 回合") {
+		t.Errorf("回忆要有图标、中文名和效果说明：%+v", m)
+	}
+}

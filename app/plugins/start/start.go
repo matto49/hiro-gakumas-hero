@@ -93,6 +93,7 @@ type planBrief struct {
 	Memory struct {
 		Set    *int `json:"set"`
 		Chosen []struct {
+			CardID  string `json:"card_id"`
 			Name    string `json:"name"`
 			Timing  string `json:"timing"`
 			Upgrade int    `json:"upgrade"`
@@ -115,10 +116,14 @@ func (pl *planBrief) groups(h plugin.Host, cat *common.Catalog) []plugin.Explain
 	}
 	sup := plugin.ExplainGroup{Title: "支援卡"}
 	for _, o := range pl.Support.Own {
-		it := plugin.ExplainItem{Thumb: cat.Sprite(h, "support-"+o.ID), Name: name(o.ID, o.Name)}
+		nm := name(o.ID, o.Name)
+		it := plugin.ExplainItem{Thumb: cat.Sprite(h, "support-"+o.ID), Name: nm}
+		lv := ""
 		if o.Level != nil {
-			it.Note = fmt.Sprintf("Lv%d", *o.Level)
+			lv = fmt.Sprintf("Lv%d", *o.Level)
+			it.Note = lv
 		}
+		it.Tip = common.Tip(cat.Get(h, o.ID), nm, lv)
 		sup.Items = append(sup.Items, it)
 	}
 	if r := pl.Support.Rental; r != nil {
@@ -129,14 +134,23 @@ func (pl *planBrief) groups(h plugin.Host, cat *common.Catalog) []plugin.Explain
 		if r.ID == "" && r.Name == "" {
 			it.Name = "开局时按实际列表挑"
 		}
+		note := "租借：开局时从好友的支援卡里借这一张"
 		if r.Estimated {
 			it.Note = "估算"
+			note += "（按常见等级估算）"
 		}
+		it.Tip = common.Tip(cat.Get(h, r.ID), it.Name, note)
 		sup.Items = append(sup.Items, it)
 	}
 	mem := plugin.ExplainGroup{Title: "回忆"}
 	for _, m := range pl.Memory.Chosen {
-		mem.Items = append(mem.Items, plugin.ExplainItem{Tag: labels.Timing(m.Timing), Name: m.Name + strings.Repeat("+", m.Upgrade)})
+		nm := name(m.CardID, m.Name) + strings.Repeat("+", m.Upgrade)
+		it := plugin.ExplainItem{Tag: labels.Timing(m.Timing), Name: nm}
+		if e := cat.Get(h, m.CardID); e != nil && e.Asset != "" {
+			it.Thumb = cat.Sprite(h, e.Asset)
+		}
+		it.Tip = common.Tip(cat.Get(h, m.CardID), nm, "用在："+labels.Timing(m.Timing))
+		mem.Items = append(mem.Items, it)
 	}
 	var out []plugin.ExplainGroup
 	for _, g := range []plugin.ExplainGroup{sup, mem} {
