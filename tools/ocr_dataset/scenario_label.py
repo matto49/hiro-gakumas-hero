@@ -63,6 +63,7 @@ def backfill(dataset, set_: str, sid: str, keys: list[str], readers: dict, log=p
     root = Path(dataset) / set_
     frames = disputed = 0
     dropped: list[str] = []
+    unanswered: list[str] = []
     for js in sorted(root.glob("*.json")):
         fr = json.loads(js.read_text(encoding="utf-8"))
         if fr.get("schema") != 3 or fr.get("scenario") != sid:
@@ -72,18 +73,28 @@ def backfill(dataset, set_: str, sid: str, keys: list[str], readers: dict, log=p
         except LabelError as e:
             log(f"{fr['id']} 补问失败：{e}")
             continue
+        # 只处理有人答了的项（答案里有这个键，哪怕是显式 null）；两个 LLM 都漏答的项原样保留（真值、状态、复核记录、各方答案）
+        answered = [k for k in keys if any(k in a["items"] for a in r["answers"].values())]
+        if len(answered) < len(keys):
+            unanswered.append(fr["id"])
+            log(f"{fr['id']} 补问漏答 {[k for k in keys if k not in answered]}：保留原值")
+        if not answered:
+            continue
         st = fr.setdefault("item_status", {})
         rv = fr.get("reviewed") or {}
-        mine = lambda p: p.split("[")[0].split(".")[0] in keys  # noqa: E731
+        mine = lambda p, answered=answered: p.split("[")[0].split(".")[0] in answered  # noqa: E731
         if any(mine(p) for p in rv):
             dropped.append(fr["id"])  # 这几项整列重读，旧的人工答案位置可能对不上了：清掉并报告
         for p in [p for p in st if mine(p)]:
             del st[p]
         for p in [p for p in rv if mine(p)]:
             del rv[p]
-        for k in keys:
+        for k in answered:
             fr["truth"].pop(k, None)
         fr["truth"].update(r["truth"])
+        for k in answered:  # 比对结果里没有这个键（只有一方答了空列表）：用答了的那一方的
+            if k not in fr["truth"]:
+                fr["truth"][k] = next(a["items"][k] for a in r["answers"].values() if k in a["items"])
         for p, s in r["item_status"].items():
             st[p] = s
             disputed += 1
@@ -92,4 +103,4 @@ def backfill(dataset, set_: str, sid: str, keys: list[str], readers: dict, log=p
         js.write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
         frames += 1
         log(f"{fr['id']}：补问 {keys} → {r['truth']}")
-    return {"frames": frames, "disputed": disputed, "dropped_reviewed": dropped}
+    return {"frames": frames, "disputed": disputed, "dropped_reviewed": dropped, "unanswered": unanswered}

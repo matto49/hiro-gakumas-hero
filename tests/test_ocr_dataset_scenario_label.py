@@ -72,6 +72,7 @@ def test_backfill_items_updates_truth_only_for_those_keys(tmp_path):
         "frames": 1,
         "disputed": 1,
         "dropped_reviewed": [],
+        "unanswered": [],
     }
     got = json.loads((ds / "core" / "a.json").read_text(encoding="utf-8"))
     assert got["truth"] == {"turns_left": 3, "hp": 9, "extra_turns": 1}
@@ -103,7 +104,7 @@ def test_backfill_replaces_list_items_and_reports_dropped_human_answers(tmp_path
     }
     readers = {"claude": MockLLM(replies=[item]), "codex": MockLLM(replies=[item])}
     got = sl.backfill(ds, "core", "exam", ["hand", "playing_name", "playing_plus"], readers)
-    assert got == {"frames": 1, "disputed": 0, "dropped_reviewed": ["a"]}
+    assert got == {"frames": 1, "disputed": 0, "dropped_reviewed": ["a"], "unanswered": []}
     fr = json.loads((ds / "core" / "a.json").read_text(encoding="utf-8"))
     assert [h["name"] for h in fr["truth"]["hand"]] == ["x", "えいえいおー"] and fr["truth"]["playing_name"] == "成長痛"
     assert fr["item_status"] == {"hp": "resolved"} and fr["reviewed"] == {"hp": "2026-11-23"}
@@ -145,3 +146,52 @@ def test_real_status_sheet_renders_when_font_and_icons_are_available(monkeypatch
     except (RuntimeError, FileNotFoundError, OSError) as e:
         pytest.skip(f"缺字体或图标素材：{e}")
     assert out.ndim == 3 and out.shape[0] > 100
+
+
+def _backfill_frame(tmp_path):
+    import json
+
+    from tools.ocr_dataset import schema
+
+    import cv2
+
+    ds = schema.init(tmp_path / "ds")
+    cv2.imwrite(str(ds / "core" / "a.jpg"), np.zeros((20, 20, 3), np.uint8))
+    fr = {"schema": 3, "id": "a", "image": "a.jpg", "scenario": "exam", "truth": {"turns_left": 3, "hp": 9},
+          "item_status": {"hp": "resolved"}, "reviewed": {"hp": "2026-11-23"},
+          "answers": {"claude": {"items": {"hp": 9}}, "codex": {"items": {"hp": 9}}}}  # fmt: skip
+    p = ds / "core" / "a.json"
+    p.write_text(json.dumps(fr), encoding="utf-8")
+    return ds, p, fr
+
+
+def test_backfill_keeps_old_truth_when_both_llms_skip_the_item(tmp_path):
+    """补问 hp 时两个 LLM 都漏答（items={}）：以前先删掉旧真值和复核状态再写空结果，却记成功（PR #104）。
+    漏答要保留原值、原状态、原答案，不算补问成功。"""
+    import json
+
+    ds, p, fr = _backfill_frame(tmp_path)
+    readers = {
+        "claude": MockLLM(replies=[{"items": {}, "buttons": []}]),
+        "codex": MockLLM(replies=[{"items": {}, "buttons": []}]),
+    }
+    got = sl.backfill(ds, "core", "exam", ["hp"], readers)
+    assert got == {"frames": 0, "disputed": 0, "dropped_reviewed": [], "unanswered": ["a"]}
+    assert json.loads(p.read_text(encoding="utf-8")) == fr  # 一个字都没动
+
+
+def test_backfill_only_replaces_keys_that_were_answered(tmp_path):
+    """两个目标项只有一个有人答：答了的换成新结果，漏答的保留原值；显式 null 是「画面上没有」，要和漏答区分。"""
+    import json
+
+    ds, p, fr = _backfill_frame(tmp_path)
+    fr["truth"]["genki"] = 4
+    fr["item_status"]["genki"] = "resolved"
+    p.write_text(json.dumps(fr), encoding="utf-8")
+    item = {"items": {"hp": None}, "buttons": []}  # hp 显式 null；genki 没人答
+    readers = {"claude": MockLLM(replies=[item]), "codex": MockLLM(replies=[item])}
+    got = sl.backfill(ds, "core", "exam", ["hp", "genki"], readers)
+    assert got["frames"] == 1 and got["unanswered"] == ["a"]
+    now = json.loads(p.read_text(encoding="utf-8"))
+    assert now["truth"]["hp"] is None and now["truth"]["genki"] == 4
+    assert now["item_status"].get("genki") == "resolved" and "hp" not in now["item_status"]
