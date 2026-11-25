@@ -198,35 +198,11 @@ func (a *App) confirmCard(c *ui.Context, m *Message, card plugin.Card) {
 	})
 }
 
-// explainGroup 是确认卡卡身里的一组：小标题，下面每张卡一个小块（图标 · 名字 / 小字 · 行尾 tag），
-// 两三块排一行，不再一张一行把卡片拉得很长（11-25 review）；鼠标停在块上显示 Tip（效果文字等）。
+// explainGroup 是确认卡卡身里的一组：画法在 kit.Tiles（和对话里的编成方案卡共用）。
 func explainGroup(c *ui.Context, key string, g plugin.ExplainGroup) {
-	ui.Column(c).Key(key).Gap(6).Children(func() {
-		ui.Text(c, g.Title).FontSize(11.5).FontWeight(600).TextColor(kit.Ink3)
-		ui.Row(c).Wrap().Gap(6).Children(func() {
-			for i, it := range g.Items {
-				c.Key(fmt.Sprintf("%s-%d", key, i))
-				tile := ui.Row(c).Width(230).Grow(1).Shrink(1).Gap(8).AlignItems(ui.Center).Padding(5, 8, 5, 5).Radius(kit.R8).Background(kit.Surface2)
-				if it.Tip != "" {
-					tile = tile.Tooltip(it.Tip)
-				}
-				tile.Children(func() {
-					if it.Thumb != "" {
-						kit.Thumb(c, it.Thumb, 30, 30, 6)
-					} else {
-						ui.Box(c).Size(30, 30).Radius(6).Background(kit.Line).Shrink(0)
-					}
-					ui.Column(c).Gap(1).Grow(1).Shrink(1).Children(func() {
-						ui.Text(c, it.Name).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…")
-						if it.Note != "" {
-							ui.Text(c, it.Note).FontSize(11).TextColor(kit.Ink3).SingleLine()
-						}
-					})
-					if it.Tag != "" {
-						ui.Text(c, it.Tag).FontSize(11).TextColor(kit.Ink2).Padding(1, 6).Radius(5).Background(kit.CardBg).Border(kit.Hair, kit.Line).Shrink(0)
-					}
-				})
-			}
-		})
-	})
+	items := make([]kit.Tile, len(g.Items))
+	for i, it := range g.Items {
+		items[i] = kit.Tile{Thumb: it.Thumb, Tag: it.Tag, Name: it.Name, Note: it.Note, Tip: it.Tip}
+	}
+	kit.Tiles(c, key, g.Title, items)
 }

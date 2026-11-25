@@ -210,12 +210,40 @@ def _produce_argv(module: str, default_level: str):
     return build
 
 
+def _with_prepare(mode: str, build):
+    """开局前准备（cmd_run._prepare_in_job 填 prepare）：任务先由 hiro.runtime.prepare_start 挑空白编成位、写编成，再 exec 原来的命令。"""
+
+    def argv(p: dict, d: Path) -> list[str]:
+        inner = build(p, d)
+        if not p.get("prepare") or (p.get("command") or "new") != "new":
+            return inner
+        what = ["--what", p["prepare_what"]] if p.get("prepare_what") else []
+        return [
+            _PY,
+            "-m",
+            "hiro.runtime.prepare_start",
+            "--mode",
+            mode,
+            *what,
+            "--out",
+            str(d / "prepare.json"),
+            "--",
+            *inner,
+        ]
+
+    return argv
+
+
+def _prepare_suffix(p: dict) -> str:
+    return f"\n开局前：{p['prepare_note']}" if p.get("prepare") and p.get("prepare_note") else ""
+
+
 def _produce_summary(name: str, default_level: str):
     def summary(p: dict) -> str:
         level = (p.get("difficulty") or default_level).upper()
         if (p.get("command") or "new") == "resume":
             return f"接着打进行中的{name}培育"
-        return f"开一局{name} {level}" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "")
+        return f"开一局{name} {level}" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "") + _prepare_suffix(p)
 
     return summary
 
@@ -241,7 +269,7 @@ def _hif_summary(p: dict) -> str:
         return "接着打进行中的 H.I.F 培育"
     if (p.get("mode") or "qualify") == "main":
         return "开一局 H.I.F 本战（会用掉一份选拔回忆）"
-    return "开一局 H.I.F 选拔" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "")
+    return "开一局 H.I.F 选拔" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "") + _prepare_suffix(p)
 
 
 KINDS: dict[str, Kind] = {
@@ -251,7 +279,13 @@ KINDS: dict[str, Kind] = {
         lambda p, d: [_PY, "-c", _SELFTEST, str(p.get("seconds") or 1), d.name],
         lambda p: "跑一次自检（不碰游戏）",
     ),
-    "hif": Kind("hif", "H.I.F 培育：选拔 / 本战 / 续跑", _hif_argv, _hif_summary, env={"HIRO_RUNTIME": "own"}),
+    "hif": Kind(
+        "hif",
+        "H.I.F 培育：选拔 / 本战 / 续跑",
+        _with_prepare("hif", _hif_argv),
+        _hif_summary,
+        env={"HIRO_RUNTIME": "own"},
+    ),
     "tower": Kind(
         "tower",
         "偶像之路：按偶像路线往上爬",
@@ -275,14 +309,14 @@ KINDS: dict[str, Kind] = {
     "hajime": Kind(
         "hajime",
         "「初」培育（レギュラー / プロ / マスター）",
-        _produce_argv("hiro.runtime.hajime", "regular"),
+        _with_prepare("hajime", _produce_argv("hiro.runtime.hajime", "regular")),
         _produce_summary("「初」", "regular"),
         env={"HIRO_RUNTIME": "own"},
     ),
     "nia": Kind(
         "nia",
         "N.I.A 培育（プロ / マスター；认不出的页会停下交给你）",
-        _produce_argv("hiro.runtime.nia_sample", "pro"),
+        _with_prepare("nia", _produce_argv("hiro.runtime.nia_sample", "pro")),
         _produce_summary(" N.I.A", "pro"),
         env={"HIRO_RUNTIME": "own"},
     ),

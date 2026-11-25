@@ -233,7 +233,7 @@ def guide_check(mode: str, idol_card: str, sup: dict, mem: dict, support_invento
         miss = [r["id"] for r in rows if r["owned"] and not r["chosen"]][:5]
         if miss:
             out["notes"].append(
-                f"{decision}：攻略推荐、库存里有但方案没选的：{'、'.join(miss)}（按估值没选，人看一下）"
+                f"{ {'formation.support': '支援卡', 'formation.memory': '回忆'}[decision] }：攻略推荐、库存里有但方案没选的：{'、'.join(miss)}（按估值没选，人看一下）"
             )
     return out
 

@@ -13,6 +13,19 @@ from hiro.cli.store import open_store
 ATTRS = ("Vo", "Da", "Vi")
 
 
+_DECISION_LABEL = {"formation.support": "支援卡", "formation.memory": "回忆"}
+
+
+def _plain_note(note: str) -> str:
+    """方案备注给人看：内部决策键换成「支援卡 / 回忆」，卡号换成卡名（旧方案文件里存的备注也一样换）。"""
+    from hiro.cli import reason_text
+
+    for key, label in _DECISION_LABEL.items():
+        if note.startswith(key + "："):
+            note = label + note[len(key) :]
+    return reason_text.plain(note)
+
+
 def summarize(plan: dict) -> dict:
     """方案 → 界面编成卡和 agent 用的摘要。"""
     info, sup, mem = plan.get("idol") or {}, plan.get("support") or {}, plan.get("memory") or {}
@@ -70,7 +83,7 @@ def summarize(plan: dict) -> dict:
                 for c in mem.get("chosen") or []
             ],
         },
-        "notes": plan.get("notes") or [],
+        "notes": [_plain_note(n) for n in plan.get("notes") or []],
     }
 
 
