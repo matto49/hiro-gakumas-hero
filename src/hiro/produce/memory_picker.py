@@ -639,6 +639,8 @@ def scan(picker: Picker, out: Path, *, max_pages: int = 600, on_entry: Callable[
             start = k + 1
     except PickerClosed as ex:
         # 选择页在扫描中关了：多半点成了「決定」，编成号的这一格可能被换成刚选中的回忆。立即停，不再点任何东西（不点キャンセル）
+        # 先告诉调用方保留现场，再截图存证据：截图 / 存盘出错时收尾也不能点回首页（#110 review）
+        picker.formation_may_have_changed = True
         closed = True
         picker.snap(picker.shoot(), f"page{pages:03d}-picker-closed")
         last_cell = inv["entries"][-1]["cell"] if inv["entries"] else None
@@ -646,7 +648,6 @@ def scan(picker: Picker, out: Path, *, max_pages: int = 600, on_entry: Callable[
             f"读格子时回忆选择页关了（最后一条记录 {last_cell}）：{ex}。编成可能被改成了刚选中的那份回忆，请人工核对编成"
         )
         inv["formation_may_have_changed"] = True
-        picker.formation_may_have_changed = True  # 马上告诉调用方：后面存盘出错时收尾也要保留现场（#110 review）
         logger.error("回忆扫描：%s", inv["aborted"])
     inv["suspects"] = mark_suspects(inv["entries"])
     save()
