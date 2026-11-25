@@ -189,8 +189,10 @@ def _check_formation_plan(a: dict) -> None:
         from hiro.cli.registry import CliError as _E
 
         s_set, m_set = fp.inherited_sets(home, kind)  # 没指定的沿用这个模式上一份方案的位号
-        s_set = int(explicit["support"]) if given["support"] else s_set
-        m_set = int(explicit["memory"]) if given["memory"] else m_set
+        if sv := explicit["support"]:
+            s_set = int(sv)
+        if mv := explicit["memory"]:
+            m_set = int(mv)
         try:
             plan, _path = make_plan(home, idol, kind, difficulty=a.get("difficulty"), support_set=s_set,
                                     memory_set=m_set, source="auto")  # fmt: skip
