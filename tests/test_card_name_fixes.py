@@ -42,11 +42,13 @@ RAKKAN = {"楽観的": [("p_card-01-men-1_025", 0)], "楽観的+": [("p_card-01-
 
 def test_truncated_card_name_matches_unique_prefix(monkeypatch):
     _names(monkeypatch, RAKKAN)
-    assert lookup("楽観") == {"card_id": "p_card-01-men-1_025", "name": "楽観的", "upgrade": 0}
-    assert lookup("楽観+") == {"card_id": "p_card-01-men-1_025", "name": "楽観的", "upgrade": 1}
+    assert lookup("楽観", allow_prefix=True) == {"card_id": "p_card-01-men-1_025", "name": "楽観的", "upgrade": 0}
+    assert lookup("楽観+", allow_prefix=True) == {"card_id": "p_card-01-men-1_025", "name": "楽観的", "upgrade": 1}
+    # 终审 I8：缺省不开（考试 / 商店读卡名、split_card_names 拿前半截去查，前缀兜底会认错），只给回忆详情和入库用
+    assert lookup("楽観") is None
 
 
 @pytest.mark.parametrize("text", ["楽", "楽観"])
 def test_prefix_needs_two_chars_and_a_single_card(monkeypatch, text):
     _names(monkeypatch, {**RAKKAN, "楽観主義": [("p_card-other", 0)]})
-    assert lookup(text) is None
+    assert lookup(text, allow_prefix=True) is None

@@ -160,3 +160,16 @@ def test_progress_writer_saves_after_each_slice(tmp_path):
     second = json.loads(out.read_text(encoding="utf-8"))
     assert [s["key"] for s in first["slices"]] == ["sense:hif"] and len(second["slices"]) == 2
     assert second["context"] == {"empty": True} and second["partial"] is True
+
+
+def test_restore_failure_closes_popup_before_leaving(fakes, tmp_path, monkeypatch):
+    from hiro.produce import memory_filter
+
+    def bad_restore(pk, st):
+        pk.log.append("restore")
+        raise memory_filter.MemoryFilterError("找不到入手")
+
+    monkeypatch.setattr(memory_filter, "restore", bad_restore)
+    monkeypatch.setattr(memory_filter, "close_popup", lambda pk: (pk.log.append("close_popup"), True)[1])
+    out = memory_scan.scan_slices(fakes, ["sense:hif"], tmp_path, known_for=lambda k: None, plan_of=lambda c: None)
+    assert fakes.log[-3:] == ["restore", "close_popup", "cancel"] and out["restored"] is False

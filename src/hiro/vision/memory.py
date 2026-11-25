@@ -84,7 +84,7 @@ def read_card_page(img: MatLike, boxes) -> dict:
     )
     x1, y1, _x2, y2 = CARD_NAME_BOX
     name = "".join(t for t, b in texts if y1 <= _cy(b) <= y2 and b[0] >= x1)
-    card = card_from_name(name) if name else None
+    card = card_from_name(name, allow_prefix=True) if name else None  # 回忆详情卡名丢尾字（「楽観的」→「楽観」）
     plan = next((v for t, _ in texts if "のみ" in t for k, v in PLAN.items() if k in t), None)
     body = [t for t, b in texts if _cy(b) > y2 + 30 and "のみ" not in t]
     return {"timing": timing, "card": card, "card_name_text": name or None, "plan": plan, "customized": _customized(img) if card else None,

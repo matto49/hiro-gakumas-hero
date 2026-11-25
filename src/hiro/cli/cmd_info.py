@@ -78,7 +78,7 @@ def normalize_memories(inv: dict) -> list[dict]:
         ):  # 扫描时卡名没对上：入库时按现在的规则再对一次（11-24「200％スマイル＋」）
             from hiro.vision import deck
 
-            card = deck.card_from_name(e["card_text"]) or {}
+            card = deck.card_from_name(e["card_text"], allow_prefix=True) or {}
         out.append(
             {
                 "card_id": card.get("card_id"),

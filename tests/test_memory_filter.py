@@ -124,3 +124,21 @@ def test_missing_popup_raises_instead_of_clicking_blind(monkeypatch):
     with pytest.raises(mf.MemoryFilterError):
         mf.apply_slice(p, "sense:hif")
     assert len(p.clicks) <= mf.OPEN_TRIES
+
+
+def test_confirm_refuses_when_popup_already_closed():
+    """终审 I5：弹窗的「決定」和选择页的「決定」几乎同一位置；弹窗已经不在时点「決定」会把选中的回忆装进编成。先确认弹窗还开着。"""
+    p = FakePicker()
+    assert not p.popup
+    with pytest.raises(mf.MemoryFilterError):
+        mf._confirm(p)
+    assert p.clicks == []
+
+
+def test_close_popup_cancels_only_when_open():
+    """终审 I6：恢复失败时弹窗可能还开着，退出选择页前先关弹窗（点弹窗的キャンセル），不然那一下キャンセル关的是弹窗。"""
+    p = FakePicker()
+    p.popup = True
+    assert mf.close_popup(p) and not p.popup
+    n = len(p.clicks)
+    assert mf.close_popup(p) and len(p.clicks) == n  # 没开就不点

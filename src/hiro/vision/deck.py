@@ -445,14 +445,15 @@ def _unique_prefix(name: str) -> tuple[str, list[tuple[str, int]]] | None:
     return found[0]
 
 
-def card_from_name(text: str, candidates: set[str] | None = None) -> dict | None:
+def card_from_name(text: str, candidates: set[str] | None = None, *, allow_prefix: bool = False) -> dict | None:
     """卡名（OCR，带「+」）精确命中主数据 → {card_id, name, upgrade}；同名多张时按 candidates（如本页卡格认出的 id）取，取不定给 None。
     精确没命中时把全角半角、长音符号统一再查（RapidOCR 常把「ー」读成「一」：DMM dmm2 特別指導「えいえいお一+」，Windows 回归集 sg-dmm2-2c）。"""
     name = text.replace("＋", "+").replace(" ", "").strip()
     hits = _cards_by_full_name().get(name) or []
     if not hits and (alt := _cards_by_dash_name().get(_dash_key(name))) is not None:
         name, hits = alt
-    if not hits and (alt := _unique_prefix(name)) is not None:
+    # 丢尾字兜底只给回忆详情 / 入库用（allow_prefix）：别处（split_card_names 拿前半截查）会认错（终审 I8）
+    if not hits and allow_prefix and (alt := _unique_prefix(name)) is not None:
         name, hits = alt
     if candidates:
         hits = [h for h in hits if h[0] in candidates] or hits

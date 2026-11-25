@@ -107,10 +107,25 @@ def _section(p, header: str, labels: tuple[str, ...], stop: str | None):
 
 
 def _confirm(p) -> None:
+    # 弹窗的「決定」和选择页的「決定」几乎在同一位置：弹窗不在了就别点（会把选中的回忆装进编成，终审 I5）
+    if not _popup_open(_boxes(p)):
+        raise MemoryFilterError("要点「決定」时弹窗已经不在了，没点")
     _tap(p, "決定", y_min=1100, why="（确认）")
     p.sleep(1.0)
     if _popup_open(_boxes(p)):
         raise MemoryFilterError("点了決定，弹窗没关")
+
+
+def close_popup(p) -> bool:
+    """弹窗还开着就点它的「キャンセル」关掉（不改设置）；返回弹窗是不是已经不在了。"""
+    if not _popup_open(_boxes(p)):
+        return True
+    b = _find(_boxes(p), "キャンセル", y_min=1100)
+    if b is None:
+        return False
+    p.click(*_center(b))
+    p.sleep(1.0)
+    return not _popup_open(_boxes(p))
 
 
 def apply_slice(p, slice_key: str) -> None:

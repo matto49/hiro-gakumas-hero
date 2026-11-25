@@ -141,6 +141,10 @@ def scan_slices(
             restored = memory_filter.restore(picker, state)
         except Exception as e:  # noqa: BLE001  恢复失败要写明，但不丢已经扫到的
             logging.getLogger(__name__).warning("回忆列表的排序 / 筛选没能恢复：%s", e)
+        try:  # 恢复失败时弹窗可能还开着：先关弹窗，下面的キャンセル才是退出选择页（终审 I6）
+            memory_filter.close_popup(picker)
+        except Exception as e:  # noqa: BLE001
+            logging.getLogger(__name__).warning("关「ソート・フィルタ」弹窗失败：%s", e)
         picker.cancel()
     return {"slices": done, "pending": pending, "restored": restored, "scanned_at": time.strftime("%Y-%m-%d %H:%M:%S"),
             "complete": not pending and all(s["complete"] for s in done)}  # fmt: skip
