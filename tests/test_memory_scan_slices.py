@@ -173,3 +173,28 @@ def test_restore_failure_closes_popup_before_leaving(fakes, tmp_path, monkeypatc
     monkeypatch.setattr(memory_filter, "close_popup", lambda pk: (pk.log.append("close_popup"), True)[1])
     out = memory_scan.scan_slices(fakes, ["sense:hif"], tmp_path, known_for=lambda k: None, plan_of=lambda c: None)
     assert fakes.log[-3:] == ["restore", "close_popup", "cancel"] and out["restored"] is False
+
+
+def test_empty_slice_recorded_as_full_zero_and_scan_continues(fakes, tmp_path, monkeypatch):
+    from hiro.produce import memory_filter
+
+    def apply(pk, k):
+        pk.log.append(f"apply {k}")
+        if k == "common:hif":
+            raise memory_filter.EmptySlice("条件に当てはまるメモリーがありません")
+
+    monkeypatch.setattr(memory_filter, "apply_slice", apply)
+    out = memory_scan.scan_slices(
+        fakes, ["common:hif", "sense:hif"], tmp_path, known_for=lambda k: None, plan_of=lambda c: None
+    )
+    first, second = out["slices"]
+    assert first == {
+        "key": "common:hif",
+        "mode": "full",
+        "complete": True,
+        "entries": [],
+        "new": 0,
+        "stopped": None,
+        "empty": True,
+    }
+    assert second["key"] == "sense:hif" and out["pending"] == [] and out["complete"]

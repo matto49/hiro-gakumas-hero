@@ -4,7 +4,8 @@ from hiro.produce import memory_filter as mf
 
 import pytest
 
-# 弹窗「フィルタ」页里的内容（绝对 y，随滚动整体上移）：标题和复选框。タグ 组里也有 センス / ロジック / アノマリー，不能点错
+# 弹窗「フィルタ」页里的内容（绝对 y，随滚动整体上移）：标题和复选框。タグ 组里也有 センス / ロジック / アノマリー，不能点错。
+# 语义（11-26 实机）：复选框灰勾 = 没选，橙色 = 选中；一组里一个都没选 = 不按这组筛
 FILTER_ITEMS = [
     ("アイドル", 200), ("全解除", 202), ("プロデュース用スキルカード", 830), ("プラン", 890),
     ("共通", 953), ("センス", 953), ("ロジック", 1027), ("アノマリー", 1029), ("スキルカードタイプ", 1091),
@@ -21,7 +22,8 @@ class FakePicker:
     def __init__(self, sort="プロデュースクリアランク"):
         self.sort, self.popup, self.tab, self.offset = sort, False, "filter", 0
         self.pending_sort = sort
-        self.checked = {(t, y) for t, y in FILTER_ITEMS if t in CHECKABLE}
+        # 11-26 实机：重置后全是灰勾 = 都没选（不筛选）；点一下变橙 = 选中，只显示选中的
+        self.checked = set()
         self.clicks = []
 
     def shoot(self):
@@ -76,7 +78,7 @@ class FakePicker:
         elif self.tab == "sort" and hit in ("プロデュースクリアランク", "入手", "アイドル", "タグ"):
             self.pending_sort = hit
         elif hit == "フィルタをリセット":
-            self.checked = {(t, yy) for t, yy in FILTER_ITEMS if t in CHECKABLE}
+            self.checked = set()
         elif hit == "全解除":
             sec = [it for it in FILTER_ITEMS if it[1] - self.offset > y - 20]  # 这一行往下同一组
             grp = {"プロデュース": ("定期公演『初』", "NEXT IDOL AUDITION", "FESTIVAL")}
@@ -101,7 +103,7 @@ def test_apply_slice_sets_sort_plan_and_produce():
     assert p.sort == "入手" and not p.popup
     assert checked_in(p, 900, 1090) == ["センス"]
     assert checked_in(p, 2150, 2300) == ["FESTIVAL"]
-    assert checked_in(p, 3200, 3400) == ["アノマリー", "センス", "ロジック"]  # タグ 组没动
+    assert checked_in(p, 3200, 3400) == []  # タグ 组没动（没选 = 不筛选）
 
 
 def test_apply_common_nia():
@@ -116,7 +118,7 @@ def test_restore_puts_sort_back_and_resets_filter():
     mf.apply_slice(p, "logic:hajime")
     assert mf.restore(p, st)
     assert p.sort == "アイドル" and not p.popup
-    assert len(p.checked) == sum(t in CHECKABLE for t, _ in FILTER_ITEMS)
+    assert p.checked == set()  # 重置 = 都没选
 
 
 def test_missing_popup_raises_instead_of_clicking_blind(monkeypatch):
@@ -235,3 +237,25 @@ def test_restore_puts_direction_back():
     mf.apply_slice(p, "sense:hif")
     assert p.dir == "desc"
     assert mf.restore(p, st) and p.dir == "asc"
+
+
+def test_empty_slice_raises_empty_slice():
+    """11-26 实机：这一片没有回忆时点「決定」，游戏提示「条件に当てはまるメモリーがありません」、弹窗不关。"""
+    p = FakePicker()
+    orig_click, orig_visible = p.click, p._visible
+
+    def click(x, y):
+        hit = next((t for t, (x1, y1, x2, y2) in p._visible() if x1 <= x <= x2 and y1 <= y <= y2), None)
+        if hit == "決定" and p.popup:
+            p.toast = True
+            return
+        orig_click(x, y)
+
+    p.toast = False
+    p.click = click
+    p._visible = lambda: (
+        orig_visible() + ([("条件に当てはまるメモリーがありません", (200, 600, 520, 625))] if p.toast else [])
+    )
+    with pytest.raises(mf.EmptySlice):
+        mf.apply_slice(p, "common:hif")
+    assert p.popup  # 弹窗还开着，下一片接着设

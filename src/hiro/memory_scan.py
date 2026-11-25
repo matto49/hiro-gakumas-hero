@@ -127,7 +127,23 @@ def scan_slices(
         for key in keys:
             if deadline is not None and picker.clock() >= deadline:
                 break
-            memory_filter.apply_slice(picker, key)
+            try:
+                memory_filter.apply_slice(picker, key)
+            except memory_filter.EmptySlice:  # 这一片没有回忆（弹窗还开着，下一片接着设）：记成全读 0 份
+                rec = {
+                    "key": key,
+                    "mode": "full",
+                    "complete": True,
+                    "entries": [],
+                    "new": 0,
+                    "stopped": None,
+                    "empty": True,
+                }
+                done.append(rec)
+                if on_slice:
+                    on_slice(rec)
+                pending.remove(key)
+                continue
             known = known_for(key)
             inv = memory_picker.scan(
                 picker, out_dir / f"slice-{key.replace(':', '-')}.json", known=known, deadline=deadline, close=False

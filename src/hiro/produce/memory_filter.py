@@ -4,7 +4,8 @@
 - 选择页底部右侧的胶囊按钮显示当前排序名（「プロデュースク…」「入手」），点它打开弹窗；偶尔点了没反应，要看到「ソート・フィルタ」再往下走。
 - 「ソート」页：表示順 4 个单选 プロデュースクリアランク / 入手 / アイドル / タグ。
 - 「フィルタ」页要往下滑：「プラン」组（共通 / センス / ロジック / アノマリー）在「スキルカードタイプ」上面；
-  更下面「プロデュース」组（定期公演『初』/ NEXT IDOL AUDITION / Hatsuboshi IDOL FESTIVAL）带「全解除」；底部「フィルタをリセット」。
+  更下面「プロデュース」组（定期公演『初』/ NEXT IDOL AUDITION / Hatsuboshi IDOL FESTIVAL）；底部「フィルタをリセット」。
+  复选框灰勾 = 没选，点一下变橙 = 选中；一组里都没选 = 不按这组筛（11-26 实机）。
   「タグ」组里也有 センス / ロジック / アノマリー，只点「プラン」标题和「スキルカードタイプ」标题之间的。
 - 排序和筛选退出选择页后会保留，所以扫完必须恢复。
 恢复：排序改回扫描前的那种（按钮上有字）；筛选点「フィルタをリセット」回到默认（游戏读不出扫描前勾了哪些，玩家原来自己设的筛选会被重置）。
@@ -32,6 +33,10 @@ TOP_SWIPES = 6
 
 class MemoryFilterError(RuntimeError):
     pass
+
+
+class EmptySlice(MemoryFilterError):
+    """这一片没有回忆：点「決定」后游戏提示「条件に当てはまるメモリーがありません」，弹窗不关（11-26 实机）。"""
 
 
 def _boxes(p) -> list[tuple[str, tuple[int, int, int, int]]]:
@@ -123,7 +128,10 @@ def _confirm(p) -> None:
         raise MemoryFilterError("要点「決定」时弹窗已经不在了，没点")
     _tap(p, "決定", y_min=1100, why="（确认）")
     p.sleep(1.0)
-    if _popup_open(_boxes(p)):
+    boxes = _boxes(p)
+    if _popup_open(boxes):
+        if _find(boxes, "条件に当て") or _find(boxes, "メモリーがありません"):
+            raise EmptySlice("条件に当てはまるメモリーがありません")
         raise MemoryFilterError("点了決定，弹窗没关")
 
 
@@ -171,7 +179,8 @@ def ensure_newest_first(p) -> None:
 
 
 def apply_slice(p, slice_key: str) -> None:
-    """排序改成「入手」，筛选只留这一片的プラン和プロデュース。先点「フィルタをリセット」回到全勾，再取消别的。"""
+    """排序改成「入手」（新的在前），筛选只选这一片的プラン和プロデュース。先点「フィルタをリセット」：重置后全是灰勾 = 都没选、
+    不筛选（11-26 实机：灰勾不是「全勾」，点一下变橙才是选中）；再在两组里各点目标那一个。"""
     plan, produce = slice_key.split(":")
     _open(p)
     _tap(p, "ソート", exact=True, y_min=1000, why="（页签）")
@@ -179,16 +188,9 @@ def apply_slice(p, slice_key: str) -> None:
     _tap(p, "フィルタ", exact=True, y_min=1000, why="（页签）")
     _tap(p, "リセット", y_min=900, y_max=1000, why="（フィルタをリセット）")
     _, got = _section(p, "プラン", tuple(PLAN_LABELS.values()), "スキルカードタイプ")
-    for key, label in PLAN_LABELS.items():
-        if key != plan:
-            p.click(*_center(got[label]))
-            p.sleep(0.4)
-    h, got = _section(p, "プロデュース", tuple(PRODUCE_LABELS.values()), "保護済みメモリー")
-    clear = _find(_boxes(p), "全解除", y_min=h[1] - 25, y_max=h[3] + 25)
-    if clear is None:
-        raise MemoryFilterError("「プロデュース」组找不到「全解除」")
-    p.click(*_center(clear))
+    p.click(*_center(got[PLAN_LABELS[plan]]))
     p.sleep(0.4)
+    _, got = _section(p, "プロデュース", tuple(PRODUCE_LABELS.values()), "保護済みメモリー")
     p.click(*_center(got[PRODUCE_LABELS[produce]]))
     p.sleep(0.4)
     _confirm(p)
