@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/matto49/hiro-gakumas-hero/app/hiroapi"
+	"github.com/matto49/hiro-gakumas-hero/app/labels"
 	"github.com/matto49/hiro-gakumas-hero/app/plugin"
 	"github.com/matto49/hiro-gakumas-hero/app/plugins/plugintest"
 )
@@ -290,5 +291,15 @@ func TestScanJobUsesTaskWording(t *testing.T) {
 	card.Frame()
 	if card.HasText("还没有步骤") {
 		t.Errorf("做完的扫描不该写「还没有步骤」：%q", card.Texts())
+	}
+}
+
+// #109 review：没日志的暂停 / 等接手的任务不说「正在连游戏…」，按状态说。
+func TestScanProgressFollowsState(t *testing.T) {
+	for state, want := range map[string]string{"running": "正在连游戏…", "paused": labels.State("paused"), "takeover": labels.State("takeover")} {
+		v := &plugin.JobView{State: state, Job: &plugin.Job{Kind: "scan-idols", State: state}}
+		if got := progress(v); got != want || got == "" {
+			t.Errorf("%s：%q，要 %q", state, got, want)
+		}
 	}
 }

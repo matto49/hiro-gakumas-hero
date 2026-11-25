@@ -127,7 +127,7 @@ func progress(v *plugin.JobView) string {
 		}
 	}
 	switch {
-	case v == nil || v.Live():
+	case v == nil || v.State == "running": // 暂停 / 等接手 / 停止中不是在连游戏，交给下面按状态说（#109 review）
 		return "正在连游戏…"
 	case v.State == "done":
 		return "做完了"
