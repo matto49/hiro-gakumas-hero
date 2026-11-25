@@ -400,3 +400,37 @@ def test_result_counted_once_per_exam_even_after_retry_confirm(tmp_path):
     h["TOWER_RETRY_CONFIRM"](rt, None, NS(fields={"cost": None, "same": [492, 1037], "ok": [509, 1160]}))  # 换页
     now[0] = 30.0
     assert h["TOWER_RESULT"](rt, None, res) is DONE and p.run.tries[20] == 2
+
+
+def test_date_change_mid_tower_recovers_and_keeps_going(monkeypatch):
+    """D4（初星課題规程待办）：偶像之路也接住日切换（初 / N.I.A 在 #62 修过）：回首页后清掉这一层打到一半的状态，
+    从首页重新走进偶像之路接着打，不再整段 traceback 退出。"""
+    from types import SimpleNamespace
+
+    from hiro.loop.date_change import DateChanged
+    from hiro.runtime import play, tower_play
+
+    calls = []
+    monkeypatch.setattr(play, "recover_date_change", lambda rt, session: calls.append("recover"))
+    tp = SimpleNamespace(
+        finished=False, result_handled=True, _acted=("TOWER_RESULT", 1.0), _partial_since=3.0, exam_draws={"x": 1}
+    )
+    runs = iter([DateChanged("日付変更"), None])
+
+    def run(until):
+        calls.append("run")
+        e = next(runs)
+        if e:
+            raise e
+        tp.finished = True
+
+    rt = SimpleNamespace(run=run)
+    tower_play.play_segment(rt, object(), tp)
+    assert calls == ["run", "recover", "run"]
+    assert (
+        tp.finished
+        and tp.result_handled is False
+        and tp._acted is None
+        and tp._partial_since is None
+        and tp.exam_draws is None
+    )

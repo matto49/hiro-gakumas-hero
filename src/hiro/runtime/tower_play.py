@@ -626,6 +626,20 @@ class TowerPlay:
         return {k: track(k, v if k in ("TOWER_RESULT", "TOWER_RANKING") else reopen(v)) for k, v in hs.items()}
 
 
+def play_segment(rt, session, tp) -> None:
+    """打到设定的层数。日切换（日本时间 5 点「日付変更」，只有「タイトルへ」）：回首页后清掉这一层打到一半的状态，
+    从首页重新走进偶像之路接着打（同初 / N.I.A 的 play.segment_with_date_changes，一段最多 MAX_DATE_CHANGES 次）。"""
+    from hiro.runtime import play
+
+    def resume():
+        # 日切换打断的那一场作废：结果页、再挑戦确认框、刚点过的页面、抽牌记录都从头来
+        tp.result_handled, tp._acted, tp._partial_since, tp.exam_draws = False, None, None, None
+
+    play.segment_with_date_changes(
+        rt, session, new=None, resume=resume, play_until=lambda: rt.run(until=lambda: tp.finished)
+    )
+
+
 def run(args) -> int:
     """跑一段偶像之路。返回退出码：0 打完设定的层数，3 停机交给人。"""
     from hiro.contracts import TraceWriter
@@ -649,7 +663,7 @@ def run(args) -> int:
                  dialog_words=DIALOG_WORDS, idle_stop_s=IDLE_STOP_S, rescue=not args.no_llm)  # fmt: skip
     active.use(rt)
     try:
-        rt.run(until=lambda: tp.finished)
+        play_segment(rt, session, tp)
         return 0
     except ResumeBlocked as e:
         logger.error("%s", e)
