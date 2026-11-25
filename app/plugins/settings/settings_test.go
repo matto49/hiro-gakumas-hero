@@ -157,3 +157,125 @@ func TestPermissionPointsToComposer(t *testing.T) {
 		t.Errorf("设置页应只写档位和去哪换：%q", tt.Texts())
 	}
 }
+
+// G1 实测（11-26）：首次打开到开局 14 下，超过目标 12 下（N5）。
+// 进「连游戏」这一步就自己试连一次；模型这一步填好 Key 直接点「下一步」：先存、再测，测通了自己进下一步。
+func wizardAt(t *testing.T, f *fake, h *plugintest.Host, step int) (*S, *ui.Tester) {
+	t.Helper()
+	s := New(f.deps())
+	tt := ui.NewTester(func(c *ui.Context) { s.Gate(c, h) }, 1280, 900)
+	tt.Frame()
+	s.step = step
+	tt.Frame()
+	tt.Frame()
+	return s, tt
+}
+
+func TestWizardConnectStepProbesByItself(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`, "doctor --probe": `{"items":[{"id":"platform","ok":true,"detail":"学マス（PlayCover）：已连上"}]}`})
+	_, tt := wizardAt(t, f, h, 1)
+	if !h.Called("doctor --probe") || !tt.HasText("学マス（PlayCover） 已连上") {
+		t.Errorf("进连游戏这一步应自己试连：%v %q", h.Calls, tt.Texts())
+	}
+}
+
+func TestWizardModelNextSavesTestsAndAdvances(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`})
+	s, tt := wizardAt(t, f, h, 3)
+	s.key = "sk-test-not-real"
+	tt.Frame()
+	if err := plugintest.ClickButton(tt, "下一步"); err != nil {
+		t.Fatalf("填了 Key 下一步应能点：%v %q", err, tt.Texts())
+	}
+	tt.Frame()
+	tt.Frame()
+	if len(f.saved) != 1 || f.saved[0] != "sk-test-not-real" {
+		t.Errorf("下一步要先存 Key：%v", len(f.saved))
+	}
+	if s.step != 4 {
+		t.Errorf("测通了应自己进下一步，现在第 %d 步", s.step)
+	}
+}
+
+func TestWizardModelNextStaysWhenTestFails(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`})
+	d := f.deps()
+	d.Test = func(context.Context) (bool, string) { return false, "Key 不对（401）" }
+	s := New(d)
+	tt := ui.NewTester(func(c *ui.Context) { s.Gate(c, h) }, 1280, 900)
+	tt.Frame()
+	s.step, s.key = 3, "sk-bad"
+	tt.Frame()
+	_ = plugintest.ClickButton(tt, "下一步")
+	tt.Frame()
+	tt.Frame()
+	if s.step != 3 || !tt.HasText("Key 不对（401）") {
+		t.Errorf("测不通要留在这一步并说原因：第 %d 步 %q", s.step, tt.Texts())
+	}
+}
+
+// CodeRabbit #105：切到另一家已经存过 Key 的服务商，不填新 Key 也能直接「下一步」
+func TestWizardModelNextWithStoredKeyOfOtherProvider(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	f.s = Settings{Provider: "custom", HasKey: true, HasKeys: map[string]bool{"deepseek": true, "custom": true}}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`})
+	s, tt := wizardAt(t, f, h, 3)
+	s.provider = "deepseek"
+	tt.Frame()
+	if err := plugintest.ClickButton(tt, "下一步"); err != nil {
+		t.Fatalf("这家存过 Key，下一步应能点：%v", err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if s.step != 4 {
+		t.Errorf("应测通后进下一步，现在第 %d 步", s.step)
+	}
+}
+
+// CodeRabbit #105：测试期间改了表单，旧配置测通也不自动往下走
+func TestWizardModelNoAdvanceIfFormChangedDuringTest(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`})
+	d := f.deps()
+	var s *S
+	d.Test = func(context.Context) (bool, string) {
+		s.model = "another-model" // 测试还没回来，玩家就改了模型
+		return true, "模型回答：好"
+	}
+	s = New(d)
+	tt := ui.NewTester(func(c *ui.Context) { s.Gate(c, h) }, 1280, 900)
+	tt.Frame()
+	s.step, s.key = 3, "sk-test-not-real"
+	tt.Frame()
+	_ = plugintest.ClickButton(tt, "下一步")
+	tt.Frame()
+	tt.Frame()
+	if s.step != 3 {
+		t.Errorf("表单改过就不该自动前进，现在第 %d 步", s.step)
+	}
+}
+
+// CodeRabbit #105：测试期间又粘了新 Key，旧 Key 测通也不自动往下走
+func TestWizardModelNoAdvanceIfKeyTypedDuringTest(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`})
+	d := f.deps()
+	var s *S
+	d.Test = func(context.Context) (bool, string) {
+		s.key = "sk-another" // 测试还没回来，玩家又粘了一个 Key
+		return true, "模型回答：好"
+	}
+	s = New(d)
+	tt := ui.NewTester(func(c *ui.Context) { s.Gate(c, h) }, 1280, 900)
+	tt.Frame()
+	s.step, s.key = 3, "sk-test-not-real"
+	tt.Frame()
+	_ = plugintest.ClickButton(tt, "下一步")
+	tt.Frame()
+	if s.step != 3 {
+		t.Errorf("测试期间粘了新 Key 就不该自动前进，现在第 %d 步", s.step)
+	}
+}

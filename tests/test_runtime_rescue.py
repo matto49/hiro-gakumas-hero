@@ -112,3 +112,45 @@ def test_rescue_flag_builds_real_rescuer_unless_env_off(monkeypatch):
     monkeypatch.setattr(rescue, "LLM_UNKNOWN", False)  # HIRO_RESCUE_LLM=0
     rt2 = Runtime(Dev(), lambda img: PageHit("DIALOG", "template"), clock=clock, sleep=clock.sleep, rescue=True)
     assert rt2.rescuer is None
+
+
+def test_frozen_unknown_screen_goes_to_llm_even_if_advance_keeps_tapping():
+    """G0b 后半（11-26 03:44 偶像之路从 H.I.F 回忆编成页起跑）：认不出的画面上 advance 一直点空白（跳过场用），每点一下都算「有操作」，
+    兜底的空闲计时永远到不了 12s，只能等 180s 停机。画面冻住（点了也不变）够久就交给 LLM 看。"""
+    from hiro.runtime import UNKNOWN
+
+    r = FakeRescuer("tap_box")
+    clock = Clock()
+    rt = Runtime(Dev(), lambda img: UNKNOWN, handlers={}, advance=lambda rt, f, hit: True, clock=clock, sleep=clock.sleep,
+                 idle_stop_s=180, rescuer=r)  # fmt: skip
+
+    def shot():
+        f = Frame(np.full((1280, 720, 3), 50, np.uint8), clock.now)  # 点了也不变：冻住的画面
+        f.__dict__.update(texts=[], has_dialog=False, dialog=None)
+        return f
+
+    rt.screen.shot = shot
+    run(rt, clock, 30)
+    assert r.begun, "冻住的认不出画面要交给 LLM 兜底"
+    assert r.progress <= 1, "第一帧建立基准算一次进展；之后点空白、画面没变都不算"
+
+
+def test_changing_unknown_screen_with_advance_does_not_bother_llm():
+    """过场动画（画面一直在变）照旧由 advance 点过去，不找 LLM。"""
+    from hiro.runtime import UNKNOWN
+
+    r = FakeRescuer("tap_box")
+    clock = Clock()
+    rt = Runtime(Dev(), lambda img: UNKNOWN, handlers={}, advance=lambda rt, f, hit: True, clock=clock, sleep=clock.sleep,
+                 idle_stop_s=180, rescuer=r)  # fmt: skip
+    n = {"i": 0}
+
+    def shot():
+        n["i"] += 1
+        f = Frame(np.full((1280, 720, 3), n["i"] % 2 * 100, np.uint8), clock.now)
+        f.__dict__.update(texts=[], has_dialog=False, dialog=None)
+        return f
+
+    rt.screen.shot = shot
+    run(rt, clock, 30)
+    assert not r.begun
