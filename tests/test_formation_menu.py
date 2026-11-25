@@ -157,7 +157,7 @@ def test_menu_from_home_switch_mode_tab_and_set(game):
 def test_menu_stops_off_page(game):
     g, dev = game
     g.where = "somewhere"
-    with pytest.raises(FormationWriteError, match="不在主页"):
+    with pytest.raises(FormationWriteError, match="不在首页"):
         fm.Menu(dev).open()
 
 
