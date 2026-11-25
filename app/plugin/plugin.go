@@ -31,6 +31,8 @@ type Host interface {
 	Job(id string) *JobView
 	// LiveJob 是现在活着的任务编号（没有为 ""）。
 	LiveJob() string
+	// ChatJob 是这局是不是在某个对话里开的（对话里有它的对局卡）；命令行等外部发起的为 false，只进「后台任务」。
+	ChatJob(id string) bool
 	// ClosePanel 关掉侧边面板。
 	ClosePanel()
 	// Home 是 HIRO_HOME（读本机图片用）。

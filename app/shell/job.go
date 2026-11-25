@@ -197,9 +197,11 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 	default:
 		text = "「" + name + "」" + labels.State(v.State) + "了。"
 	}
-	t := a.threadOfJob(id)
-	m := a.addTo(t, "agent", text, nil)
-	_ = m
+	t := a.ownerThread(id)
+	if t == nil {
+		return // 命令行等外部发起的：不进对话（11-25 review），在游戏运行现状的「后台任务」里看
+	}
+	a.addTo(t, "agent", text, nil)
 	a.save(t)
 }
 
@@ -237,7 +239,10 @@ type jobHost struct {
 }
 
 func (h *jobHost) Post(text string, card plugin.Card) {
-	t := h.threadOfJob(h.id)
+	t := h.ownerThread(h.id)
+	if t == nil {
+		return
+	}
 	var cards []plugin.Card
 	if card != nil {
 		cards = []plugin.Card{card}
@@ -246,8 +251,8 @@ func (h *jobHost) Post(text string, card plugin.Card) {
 	h.save(t)
 }
 
-// threadOfJob 是有这局对局卡的对话（没有就用当前对话）。
-func (a *App) threadOfJob(id string) *Thread {
+// ownerThread 是有这局对局卡的对话（在对话里确认开的局）；命令行等外部发起的没有，返回 nil。
+func (a *App) ownerThread(id string) *Thread {
 	for _, t := range a.threads {
 		for _, m := range t.Messages {
 			for _, c := range m.Cards {
@@ -257,8 +262,11 @@ func (a *App) threadOfJob(id string) *Thread {
 			}
 		}
 	}
-	return a.ensureThread()
+	return nil
 }
+
+// ChatJob 是这局是不是在某个对话里开的。
+func (a *App) ChatJob(id string) bool { return a.ownerThread(id) != nil }
 
 // StartPolling 在后台一直轮询，直到 stop 关上。
 func (a *App) StartPolling(stop <-chan struct{}) {

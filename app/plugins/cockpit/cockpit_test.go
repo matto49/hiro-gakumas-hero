@@ -163,3 +163,28 @@ func TestStreamMergesExamAndDropsEmpty(t *testing.T) {
 		t.Errorf("展开后没有逐回合：%q", tt.Texts())
 	}
 }
+
+// 外部发起的任务只在这里的「后台任务」里看（11-25 review）
+func TestPanelListsBackgroundJobs(t *testing.T) {
+	h := plugintest.New(map[string]string{
+		"run status": `{"current":null,"recent":[{"id":"j5","kind":"hajime","state":"done","summary":"对话里开的局","started_at":1763800000},{"id":"j9","kind":"scan-memories","state":"failed","summary":"命令行开的扫描","started_at":1763900000,"reason":"掉线"}]}`,
+	})
+	h.Chat = map[string]bool{"j5": true}
+	p := New()
+	tt := ui.NewTester(func(c *ui.Context) { p.Panel(c, h, "") }, 420, 900)
+	tt.Frame()
+	tt.Frame()
+	all := strings.Join(tt.Texts(), "\n")
+	if !strings.Contains(all, "后台任务") || !strings.Contains(all, "命令行开的扫描") {
+		t.Errorf("没列外部任务：%q", tt.Texts())
+	}
+	if strings.Contains(all, "对话里开的局") {
+		t.Errorf("对话里开的局不算后台任务：%q", tt.Texts())
+	}
+	if err := tt.Click("命令行开的扫描"); err != nil {
+		t.Fatal(err)
+	}
+	if h.Panel != [2]string{"cockpit", "job:j9"} {
+		t.Errorf("点了没打开这局：%v", h.Panel)
+	}
+}

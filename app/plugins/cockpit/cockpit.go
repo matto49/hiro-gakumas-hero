@@ -27,6 +27,10 @@ type state struct {
 	reviewE map[string]string
 	// openExam 是对局卡里点开了逐回合的那几场考试
 	openExam map[string]bool
+	// 后台任务：最近的任务（run status），隔一会儿重查
+	recent    []plugin.Job
+	recentAt  time.Time
+	recentGet bool
 }
 
 // New 建游戏运行现状插件。
@@ -366,6 +370,7 @@ func (s *state) panel(c *ui.Context, h plugin.Host, route string) {
 	}
 	if id == "" {
 		kit.Note(c, "现在没有在跑的对局。在对话里说「帮我用某某打一把初」就能开一局。")
+		s.background(c, h, "")
 		return
 	}
 	v := h.Job(id)
@@ -400,6 +405,69 @@ func (s *state) panel(c *ui.Context, h plugin.Host, route string) {
 		kit.Section(c, "成绩")
 		scoreStrip(c, exams)
 		s.reviewButton(c, h, id)
+	}
+	s.background(c, h, id)
+}
+
+// background 是「后台任务」：命令行等外部发起的任务（不属于任何对话，11-25 review：它们不再往对话里发通知）。
+func (s *state) background(c *ui.Context, h plugin.Host, current string) {
+	if !s.recentGet && (s.recentAt.IsZero() || h.Now().Sub(s.recentAt) > 10*time.Second) {
+		s.recentGet, s.recentAt = true, h.Now()
+		h.Go(func() func() {
+			var st struct {
+				Current *plugin.Job  `json:"current"`
+				Recent  []plugin.Job `json:"recent"`
+			}
+			_ = h.Call(context.Background(), []string{"run", "status"}).Decode(&st)
+			return func() {
+				s.recentGet = false
+				s.recent = st.Recent
+				if st.Current != nil {
+					s.recent = append([]plugin.Job{*st.Current}, st.Recent...)
+				}
+			}
+		})
+	}
+	var jobs []plugin.Job
+	seen := map[string]bool{}
+	for _, j := range s.recent {
+		if j.ID == current || seen[j.ID] || h.ChatJob(j.ID) {
+			continue
+		}
+		seen[j.ID] = true
+		jobs = append(jobs, j)
+	}
+	if len(jobs) == 0 {
+		return
+	}
+	if len(jobs) > 8 {
+		jobs = jobs[:8]
+	}
+	kit.Section(c, "后台任务")
+	kit.Note(c, "在对话外面（命令行、别的程序）开的任务，不往对话里发消息。")
+	for _, j := range jobs {
+		name := j.Summary
+		if name == "" {
+			name = labels.Kind(j.Kind)
+		}
+		b := ui.ButtonBase(c).Key("bg-"+j.ID).Label(name).Justify(ui.Start).AlignItems(ui.Center).Gap(8).Padding(7, 8).Radius(kit.R8)
+		if b.Hovered() {
+			b = b.Background(kit.Surface2)
+		}
+		if b.Children(func() {
+			ui.Column(c).Gap(2).Shrink(1).Children(func() {
+				ui.Text(c, name).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…")
+				sub := labels.Clock(j.StartedAt)
+				if j.Reason != "" {
+					sub += " · " + j.Reason
+				}
+				ui.Text(c, sub).FontSize(11).TextColor(kit.Ink3).MaxLines(1).Ellipsis("…")
+			})
+			ui.Spacer(c)
+			kit.StatePill(c, j.State)
+		}).Clicked() {
+			h.OpenPanel("cockpit", "job:"+j.ID)
+		}
 	}
 }
 

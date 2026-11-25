@@ -113,10 +113,16 @@ func TestEndedJobWithoutEventsStopsPolling(t *testing.T) {
 }
 
 // M13：任务停下要用户管时（接手、出错、结束），在对话里冒一条消息，只冒一次。
+// ownJob 让这局属于当前对话（对话里有它的对局卡，像在对话里确认开的局）。
+func ownJob(a *App, id string) {
+	a.add("agent", "", []plugin.Card{{"type": "run", "jobId": id}})
+}
+
 func TestJobStateChangePostsOnce(t *testing.T) {
 	call := liveCall("running")
 	a, run := newTestApp(newMem(), call, nil, nil)
 	a.NewThread()
+	ownJob(a, "j7")
 	a.PollJobs()
 	run.Drain()
 	call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"hajime","state":"failed","summary":"初 · 月村手毬","started_at":1}]}`)
@@ -259,6 +265,7 @@ func TestJobNoticeTexts(t *testing.T) {
 		call := liveCall("running")
 		a, run := newTestApp(newMem(), call, nil, nil)
 		a.NewThread()
+		ownJob(a, "j7")
 		a.PollJobs()
 		run.Drain()
 		extra := ""
@@ -280,5 +287,55 @@ func TestJobNoticeTexts(t *testing.T) {
 		if !strings.Contains(got, c.want) || (c.not != "" && strings.Contains(got, c.not)) {
 			t.Errorf("%s/%s：%q", c.kind, c.state, got)
 		}
+	}
+}
+
+// 11-25 review：命令行等外部发起的任务不进对话（原来 26 条通知全塞进一个「新对话」），只在「后台任务」里看
+func TestExternalJobNotPostedToChat(t *testing.T) {
+	call := liveCall("running")
+	a, run := newTestApp(newMem(), call, nil, nil)
+	a.PollJobs()
+	run.Drain()
+	call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"hajime","state":"failed","summary":"初 · 月村手毬","started_at":1,"reason":"掉线"}]}`)
+	call.resp["run events"] = ok(`{"state":"failed","events":[]}`)
+	for i := 0; i < 3; i++ {
+		a.PollJobs()
+		run.Drain()
+	}
+	if len(a.threads) != 0 {
+		t.Fatalf("外部任务不该建对话：%d 个", len(a.threads))
+	}
+	if a.ChatJob("j7") {
+		t.Error("外部任务不该算对话里开的")
+	}
+}
+
+// 在对话里确认开的局：通知回到那个对话，哪怕用户已经切到别的对话（「agent 发起的对局直接统计进当前会话」）
+func TestChatJobNoticeGoesToItsThread(t *testing.T) {
+	a, run, call, tt := confirmApp(t, 4102444800)
+	first := a.Current()
+	if err := tt.Click("开始"); err != nil {
+		t.Fatal(err)
+	}
+	run.Drain()
+	if !a.ChatJob("j7") {
+		t.Fatal("确认卡开的局应算这个对话的")
+	}
+	call.resp["run status"] = ok(`{"current":{"id":"j7","kind":"hajime","state":"running","summary":"初","started_at":1},"recent":[]}`)
+	call.resp["run events"] = ok(`{"state":"running","events":[]}`)
+	a.PollJobs()
+	run.Drain()
+	a.NewThread()
+	other := a.Current()
+	call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"hajime","state":"done","summary":"初","started_at":1}]}`)
+	call.resp["run events"] = ok(`{"state":"done","events":[]}`)
+	a.PollJobs()
+	run.Drain()
+	if len(other.Messages) != 0 {
+		t.Errorf("通知跑到了别的对话：%+v", other.Messages)
+	}
+	last := first.Messages[len(first.Messages)-1]
+	if !strings.Contains(last.Text, "打完了") {
+		t.Errorf("通知没回到开局的对话：%q", last.Text)
 	}
 }

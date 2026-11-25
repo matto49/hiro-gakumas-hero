@@ -305,6 +305,7 @@ type snapHost struct {
 	a    *App
 	jobs map[string]*plugin.JobView
 	live string
+	chat map[string]bool
 }
 
 // snapshotHost 在界面线程上拍一份快照（算上下文时用，免得后台读到正在改的 map）。
@@ -313,7 +314,11 @@ func (a *App) snapshotHost() plugin.Host {
 	for id, v := range a.jobs {
 		jobs[id] = v.Copy()
 	}
-	return &snapHost{a: a, jobs: jobs, live: a.live}
+	chat := map[string]bool{}
+	for id := range a.jobs {
+		chat[id] = a.ChatJob(id)
+	}
+	return &snapHost{a: a, jobs: jobs, live: a.live, chat: chat}
 }
 
 func (s *snapHost) Call(ctx context.Context, args []string) hiroapi.Result {
@@ -335,6 +340,7 @@ func (s *snapHost) Job(id string) *plugin.JobView {
 	}
 	return &plugin.JobView{}
 }
-func (s *snapHost) LiveJob() string { return s.live }
+func (s *snapHost) LiveJob() string        { return s.live }
+func (s *snapHost) ChatJob(id string) bool { return s.chat[id] }
 func (s *snapHost) Home() string    { return s.a.d.Home }
 func (s *snapHost) Now() time.Time  { return s.a.d.Now() }
