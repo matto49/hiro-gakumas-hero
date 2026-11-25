@@ -66,6 +66,7 @@ type App struct {
 	busyJobs atomic.Bool // 有活任务或没读过的任务（每秒查；否则 5 秒）
 	notified map[string]bool
 	ended    map[string]bool // 已调过 OnJobEnd 的局
+	started  map[string]bool // 本会话里从确认卡开的局
 }
 
 // New 建主界面，读出已存的对话。
@@ -320,6 +321,7 @@ type snapHost struct {
 	jobs map[string]*plugin.JobView
 	live string
 	chat map[string]bool
+	busy bool
 }
 
 // snapshotHost 在界面线程上拍一份快照（算上下文时用，免得后台读到正在改的 map）。
@@ -332,7 +334,7 @@ func (a *App) snapshotHost() plugin.Host {
 	for id := range a.jobs {
 		chat[id] = a.ChatJob(id)
 	}
-	return &snapHost{a: a, jobs: jobs, live: a.live, chat: chat}
+	return &snapHost{a: a, jobs: jobs, live: a.live, chat: chat, busy: a.busy}
 }
 
 func (s *snapHost) Call(ctx context.Context, args []string) hiroapi.Result {
@@ -355,6 +357,7 @@ func (s *snapHost) Job(id string) *plugin.JobView {
 	return &plugin.JobView{}
 }
 func (s *snapHost) LiveJob() string        { return s.live }
+func (s *snapHost) Busy() bool             { return s.busy }
 func (s *snapHost) ChatJob(id string) bool { return s.chat[id] }
 func (s *snapHost) Home() string           { return s.a.d.Home }
 func (s *snapHost) Now() time.Time         { return s.a.d.Now() }

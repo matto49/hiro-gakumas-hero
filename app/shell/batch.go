@@ -133,6 +133,9 @@ func (a *App) removeBatchItem(t *Thread, card plugin.Card, i int) {
 	if i < 0 || i >= len(items) {
 		return
 	}
+	if first, _ := items[0]["id"].(string); a.ui.resolving[first] {
+		return // 「全部开始」还没回来：这时去掉会让排队错位
+	}
 	id, _ := items[i]["id"].(string)
 	items = append(items[:i:i], items[i+1:]...)
 	setBatch(card, items)
@@ -197,11 +200,18 @@ func (a *App) startQueued(t *Thread, m *Message, card plugin.Card, item map[stri
 	p, _ := hiroapi.PendingFromMap(item)
 	argv := hiroapi.ArgvOf(p.Command, p.Args)
 	call := a.d.Call
+	auto := ""
+	if lv, _ := card["auto"].(string); lv != "" {
+		auto = a.permission() // 按当前档位重查（CodeRabbit #79）
+	}
 	a.d.Run.Go(func() func() {
 		r := call(a.ctx, argv)
 		var started hiroapi.Result
 		var why string
+		var ask *hiroapi.Pending // 按权限自动开始的一串：重新发起后档位不允许了，留给用户确认
 		switch {
+		case r.Pending != nil && auto != "" && !Allows(auto, r.Pending.Access):
+			ask = r.Pending
 		case r.Pending != nil:
 			started = call(a.ctx, []string{"confirm", r.Pending.ID})
 			if !started.OK && started.Error != nil {
@@ -213,6 +223,17 @@ func (a *App) startQueued(t *Thread, m *Message, card plugin.Card, item map[stri
 			why = "没拿到待确认"
 		}
 		return func() {
+			if ask != nil {
+				queue, _ := card["queue"].([]any)
+				card["queue"] = []any{}
+				text := "「" + ask.Summary + "」现在要你确认（重新查过，操作权限不够自动做）"
+				if len(queue) > 0 {
+					text += fmt.Sprintf("；后面 %d 项先不做：%s", len(queue), queueNames(queue))
+				}
+				a.addTo(t, "agent", text, []plugin.Card{ConfirmCard(*ask)})
+				a.save(t)
+				return
+			}
 			if why != "" {
 				queue, _ := card["queue"].([]any)
 				card["queue"] = []any{}
@@ -240,6 +261,8 @@ func (a *App) startQueued(t *Thread, m *Message, card plugin.Card, item map[stri
 
 // batchItems 是合并确认卡里逐项的那几行：序号、标题、副标题、代价，右边「去掉」。
 func (a *App) batchItems(c *ui.Context, card plugin.Card, items []map[string]any) {
+	first, _ := items[0]["id"].(string)
+	busy := a.ui.resolving[first]
 	for i, it := range items {
 		p, _ := hiroapi.PendingFromMap(it)
 		e, ok := a.reg.Explain(a, p)
@@ -264,7 +287,7 @@ func (a *App) batchItems(c *ui.Context, card plugin.Card, items []map[string]any
 			})
 			ui.Spacer(c)
 			label := fmt.Sprintf("去掉第 %d 项", i+1)
-			if ui.Button(c, "去掉").Key("rm-"+p.ID).Label(label).FontSize(11.5).TextColor(kit.Ink3).Padding(3, 8).Radius(6).Clicked() {
+			if ui.Button(c, "去掉").Key("rm-"+p.ID).Label(label).Disabled(busy).FontSize(11.5).TextColor(kit.Ink3).Padding(3, 8).Radius(6).Clicked() && !busy {
 				a.removeBatchItem(a.cur, card, i)
 			}
 		})

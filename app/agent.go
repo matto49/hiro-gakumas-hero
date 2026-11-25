@@ -81,6 +81,7 @@ const SystemPrompt = `你是「初星助手」，帮玩家玩《学园偶像大�
 玩家说「用某个偶像打一把某个模式」（例：「帮我用月村手毬打一把初」「拿广打 N.I.A」）时，照这个顺序，不要绕路：
 1. 认偶像：info_idols 用偶像名查玩家持有的卡（名字可能有错别字或简称，比如「手球」是手毬、「广」是篠澤広；查不到就去掉一个字再查）。
    有几张时选 SSR；还有几张 SSR 就调用 choose_idol（idols 填这几张的偶像卡编号），界面会给玩家一张能点的选择卡；不要用文字列表让玩家打字，也不要开局。一张都没有就告诉玩家。
+   玩家点了会回「用【卡名】偶像名」：照卡名用 info_idols 查出编号再开局。
 2. 定模式：「初」= hajime（难度缺省 regular），N.I.A = nia（缺省 pro），H.I.F = hif（缺省选拔），偶像之路 = tower，日常 = daily。玩家说了难度就照用。
 3. 直接 run_start：kind 和 --idol（偶像卡编号）。编成号、主属性不给，开局时会按编成方案自己核对。
    这一步不要调 plan_formation、不要写编成（write-formation）：那会改掉玩家已经存好的编成方案和游戏里的编成；玩家明确说要出方案 / 改编成时才做。
@@ -322,7 +323,7 @@ func (a *Agent) Ask(ctx context.Context, history []Turn, text string) (Reply, er
 }
 
 // choose_idol：让玩家在几张偶像卡里点选（11-25 review：原来是文字列表，玩家只能打字回答）。不经 hiro 命令行，
-// 只在对话里出一张选择卡；玩家点了，界面以玩家身份回一句「用【卡名】（编号）」，模型下一轮再开局。
+// 只在对话里出一张选择卡；玩家点了，界面以玩家身份回一句「用【卡名】」（不给玩家看编号），模型下一轮按卡名查编号再开局。
 const chooseIdolTool = "choose_idol"
 
 var chooseIdolDef = toolDef{Type: "function", Function: toolDefFunc{Name: chooseIdolTool,

@@ -32,6 +32,11 @@ func (a *App) Job(id string) *plugin.JobView {
 // LiveJob 是现在活着的任务编号。
 func (a *App) LiveJob() string { return a.live }
 
+// wasLive 是这局在上次轮询时还活着；在本会话里开的局（onJobStarted 记过）第一次轮询前就结束了也算（CodeRabbit #79：开局即失败时不续做、不通知）。
+func (a *App) wasLive(id, before string) bool {
+	return plugin.LiveStates[before] || (before == "" && a.started[id])
+}
+
 func (a *App) jobLive() bool { return a.live != "" }
 
 type statusData struct {
@@ -151,7 +156,7 @@ func (a *App) PollJobs() {
 
 // notify 在任务从「活着」变成要用户管的状态（接手、出错、结束、中断）时，在对话里冒一条消息（每局每种状态一次）。
 func (a *App) notify(id, before string, v *plugin.JobView) {
-	if !plugin.LiveStates[before] || before == v.State || v.State == "running" || v.State == "stopping" {
+	if !a.wasLive(id, before) || before == v.State || v.State == "running" || v.State == "stopping" {
 		return
 	}
 	if a.notified == nil {
@@ -216,7 +221,7 @@ func produceKind(kind string) bool {
 
 // jobEnded 在任务从活着变成结束时调各插件的 OnJobEnd（每局一次）。
 func (a *App) jobEnded(id, before string, v *plugin.JobView) {
-	if a.reg == nil || !plugin.LiveStates[before] || v.State == "" || plugin.LiveStates[v.State] || a.ended[id] {
+	if a.reg == nil || !a.wasLive(id, before) || v.State == "" || plugin.LiveStates[v.State] || a.ended[id] {
 		return
 	}
 	if a.ended == nil {
@@ -292,6 +297,10 @@ func (a *App) onJobStarted(card map[string]any) {
 	if id == "" {
 		return
 	}
+	if a.started == nil {
+		a.started = map[string]bool{}
+	}
+	a.started[id] = true
 	a.Job(id)
 	if a.ui.autoOpened == nil {
 		a.ui.autoOpened = map[string]bool{}

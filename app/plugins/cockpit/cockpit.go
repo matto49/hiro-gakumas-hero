@@ -165,18 +165,23 @@ var examPages = map[string]bool{"HIF_EXAM": true}
 // streamRows（11-25 review）：没有动作、也没写理由的步（ALLOWANCE 等，一局 143 步里有 36 步）不进流；连着的考试步合成一行。
 func streamRows(steps []plugin.JobEvent) []streamRow {
 	var out []streamRow
+	inExam := false // 上一条是考试步（空步也会结束一场考试：两场之间只隔着 ALLOWANCE 时不能合成一场）
 	for _, e := range steps {
-		if e.Action == "" && strings.TrimSpace(e.Text) == "" {
+		if e.Action == "" && strings.TrimSpace(e.Text) == "" && !examPages[e.Page] {
+			inExam = false
 			continue
 		}
 		if examPages[e.Page] {
-			if n := len(out); n > 0 && len(out[n-1].exam) > 0 {
+			was := inExam
+			inExam = true
+			if n := len(out); n > 0 && len(out[n-1].exam) > 0 && was {
 				out[n-1].exam = append(out[n-1].exam, e)
 				continue
 			}
 			out = append(out, streamRow{exam: []plugin.JobEvent{e}})
 			continue
 		}
+		inExam = false
 		out = append(out, streamRow{step: e})
 	}
 	return out
@@ -396,6 +401,7 @@ func (s *state) panel(c *ui.Context, h plugin.Host, route string) {
 			kv("现在", labels.Page(st[len(st)-1].Page))
 		}
 	})
+	failLine(c, v)
 	s.controls(c, h, v, id, false)
 	if v.State == "takeover" {
 		kit.Note(c, "自动操作已停下。你在游戏里点完，按「继续自动打」，初星助手会从当前画面接着打。")

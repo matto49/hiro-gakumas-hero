@@ -33,6 +33,8 @@ type Host interface {
 	LiveJob() string
 	// ChatJob 是这局是不是在某个对话里开的（对话里有它的对局卡）；命令行等外部发起的为 false，只进「后台任务」。
 	ChatJob(id string) bool
+	// Busy 是助手正在回复（这时 Ask 以玩家身份说的话会被丢掉）。
+	Busy() bool
 	// ClosePanel 关掉侧边面板。
 	ClosePanel()
 	// Home 是 HIRO_HOME（读本机图片用）。

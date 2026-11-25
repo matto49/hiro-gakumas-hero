@@ -188,3 +188,28 @@ func TestPanelListsBackgroundJobs(t *testing.T) {
 		t.Errorf("点了没打开这局：%v", h.Panel)
 	}
 }
+
+// CodeRabbit #79：两场考试之间只有空步，也要分成两行
+func TestEmptyStepSeparatesExams(t *testing.T) {
+	ex := func(seq int) plugin.JobEvent {
+		e := step(seq, "HIF_EXAM", "bench", "ExamGnrpa（画面读数）：x；终局分预测中位 1")
+		e.Action = "PlayCard"
+		return e
+	}
+	rows := streamRows([]plugin.JobEvent{ex(1), ex(2), step(3, "ALLOWANCE", "", ""), ex(4)})
+	if len(rows) != 2 || len(rows[0].exam) != 2 || len(rows[1].exam) != 1 {
+		t.Errorf("rows %+v", rows)
+	}
+}
+
+// 后台任务点进来看详情：出错原因要在面板里（外部任务没有对局卡）
+func TestPanelDetailShowsFailReason(t *testing.T) {
+	h, p := liveHost(), New()
+	v := h.Job("j7")
+	v.State, v.Job.State, v.Job.Reason = "failed", "failed", "没打开支援卡选择列表"
+	tt := ui.NewTester(func(c *ui.Context) { p.Panel(c, h, "job:j7") }, 420, 1400)
+	tt.Frame()
+	if !tt.HasText("没打开支援卡选择列表") {
+		t.Errorf("面板详情没有出错原因：%q", tt.Texts())
+	}
+}

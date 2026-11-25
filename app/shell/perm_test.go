@@ -136,3 +136,66 @@ func TestNoAutoStartWhileChoosing(t *testing.T) {
 		t.Error("还在选偶像时不该自动开局")
 	}
 }
+
+// CodeRabbit #79：按权限自动开始的合并卡，后面的项重新发起时要按当前档位再查一次（扫完编成位后写编成可能从空白变成覆盖）
+func TestQueuedItemRecheckedWhenAutoStarted(t *testing.T) {
+	over := accessPending("p9", "write-formation", "overwrite")
+	call := &fakeCall{resp: map[string]hiroapi.Result{
+		"confirm p1":                ok(`{"job":{"id":"j1","kind":"scan-formations"}}`),
+		"run start write-formation": {OK: true, Pending: &over},
+		"run status":                ok(`{"current":{"id":"j1","kind":"scan-formations","state":"running","summary":"读编成位","started_at":1},"recent":[]}`),
+		"run events":                ok(`{"state":"running","events":[]}`),
+	}}
+	ask := func(context.Context, []Turn, string, string, func(string, string)) (Reply, error) {
+		return Reply{Text: "好", Cards: []plugin.Card{ConfirmCard(accessPending("p1", "scan-formations", "read")), ConfirmCard(accessPending("p2", "write-formation", "blank"))}}, nil
+	}
+	a, run := newTestApp(newMem(), call, ask, viewReg())
+	a.Send("读编成位再写")
+	run.Drain()
+	if !call.called("confirm p1") {
+		t.Fatal("两项都允许，应自动开始")
+	}
+	a.PollJobs()
+	run.Drain()
+	call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j1","kind":"scan-formations","state":"done","summary":"读编成位","started_at":1}]}`)
+	call.resp["run events"] = ok(`{"state":"done","events":[]}`)
+	a.PollJobs()
+	run.Drain()
+	if call.called("confirm p9") {
+		t.Fatal("变成覆盖后不该再自动确认")
+	}
+	waiting := false
+	for _, m := range a.Current().Messages {
+		for _, c := range m.Cards {
+			if a.waiting(c) {
+				waiting = true
+			}
+		}
+	}
+	if !waiting {
+		t.Error("应留一张等确认的卡")
+	}
+}
+
+// 首次扫描有一项发不起来：要告诉用户
+func TestFirstScanReportsErrors(t *testing.T) {
+	p1 := accessPending("p1", "scan-supports", "read")
+	call := &fakeCall{resp: map[string]hiroapi.Result{
+		"info summary":            ok(`{"kinds":{"supports":{"scanned_at":null},"memories":{"scanned_at":"2026-11-18 20:00:00"},"idols":{"scanned_at":null}}}`),
+		"run start scan-supports": {OK: true, Pending: &p1},
+		"run start scan-idols":    {OK: false, Error: &hiroapi.CliError{Code: "service_down", Message: "游戏没连上", Hint: "到设置里试连"}},
+		"confirm p1":              ok(`{"job":{"id":"j1","kind":"scan-supports"}}`),
+	}}
+	a, run := newTestApp(newMem(), call, nil, viewReg())
+	a.FirstScan()
+	run.Drain()
+	errs := 0
+	for _, c := range lastCardsWith(a, "error") {
+		if c["type"] == "error" {
+			errs++
+		}
+	}
+	if errs != 1 {
+		t.Errorf("没把发不起来的那项告诉用户：%+v", a.Current().Messages)
+	}
+}

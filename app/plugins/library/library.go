@@ -132,6 +132,7 @@ func choiceCard(c *ui.Context, h plugin.Host, card plugin.Card) {
 	q, _ := card["question"].(string)
 	picked, _ := card["picked"].(string)
 	done := card["status"] == "picked"
+	busy := !done && h.Busy() // 助手还在回复：这时点选会被丢掉（CodeRabbit #79）
 	kit.Card(c).MaxWidth(620).Children(func() {
 		ui.Text(c, or(q, "选一张偶像卡")).FontSize(kit.FSmall).FontWeight(600).TextColor(kit.Ink)
 		ui.Row(c).Gap(10).Wrap().Children(func() {
@@ -140,7 +141,7 @@ func choiceCard(c *ui.Context, h plugin.Host, card plugin.Card) {
 				name, title, chara, rarity, plan, art := idolLabel(h, it)
 				sel := picked == id
 				b := ui.ButtonBase(c).Key("pick-"+id).Label("选"+name).Width(132).Padding(10).Radius(kit.R12).
-					Background(kit.CardBg).Border(kit.Hair, kit.Line).Disabled(done)
+					Background(kit.CardBg).Border(kit.Hair, kit.Line).Disabled(done || busy)
 				switch {
 				case sel:
 					b = b.Background(kit.BrandT).Border(1.5, kit.Brand)
@@ -165,14 +166,16 @@ func choiceCard(c *ui.Context, h plugin.Host, card plugin.Card) {
 							}
 						})
 					})
-				}).Clicked() && !done {
+				}).Clicked() && !done && !busy {
 					card["status"], card["picked"] = "picked", id
-					h.Ask(fmt.Sprintf("用%s（%s）", name, id))
+					h.Ask("用" + name) // 只写卡名，不给玩家看编号；agent 按卡名查编号
 				}
 			}
 		})
 		if done {
 			kit.Note(c, "已选好，接着去开局。")
+		} else if busy {
+			kit.Note(c, "等这条回复说完再选。")
 		}
 	})
 }

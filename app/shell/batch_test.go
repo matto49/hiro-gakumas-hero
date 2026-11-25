@@ -157,3 +157,36 @@ func lastCardsWith(a *App, typ string) []plugin.Card {
 	}
 	return nil
 }
+
+// CodeRabbit #79：任务在第一次轮询前就结束（开局即失败），也要续做排队项 / 发结束通知
+func TestQuickFailStillNoticedAndStopsQueue(t *testing.T) {
+	a, run, call, tt := batchApp(t)
+	call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j1","kind":"scan-memories","state":"failed","summary":"扫描回忆","started_at":1,"reason":"游戏掉线"}]}`)
+	call.resp["run events"] = ok(`{"state":"failed","events":[]}`)
+	_ = tt.Click("全部开始")
+	run.Drain()
+	a.PollJobs()
+	run.Drain()
+	var texts []string
+	for _, m := range a.Current().Messages {
+		texts = append(texts, m.Text)
+	}
+	all := strings.Join(texts, "\n")
+	if !strings.Contains(all, "后面 1 项没做") || !strings.Contains(all, "出错停下了：游戏掉线") {
+		t.Errorf("开局即失败也要通知、停队列：%q", texts)
+	}
+}
+
+// 「全部开始」请求还没回来时不能去掉项（会让排队错位）
+func TestRemoveIgnoredWhileResolving(t *testing.T) {
+	a, _, call, _ := batchApp(t)
+	card := lastCardsWith(a, "confirm")[0]
+	if a.ui.resolving == nil {
+		a.ui.resolving = map[string]bool{}
+	}
+	a.ui.resolving["p1"] = true
+	a.removeBatchItem(a.Current(), card, 1)
+	if call.called("cancel p2") || len(batchOf(card)) != 2 {
+		t.Error("确认进行中不该能去掉项")
+	}
+}

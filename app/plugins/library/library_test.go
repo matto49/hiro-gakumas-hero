@@ -105,11 +105,24 @@ func TestChoiceCardPicksIdol(t *testing.T) {
 		t.Fatal(err)
 	}
 	tt.Frame()
-	if len(h.Asked) != 1 || !strings.Contains(h.Asked[0], "i_card-b") || card["status"] != "picked" || card["picked"] != "i_card-b" {
+	if len(h.Asked) != 1 || !strings.Contains(h.Asked[0], "Campus mode!!") || strings.Contains(h.Asked[0], "i_card") || card["status"] != "picked" || card["picked"] != "i_card-b" {
 		t.Fatalf("点选后 asked=%v card=%v", h.Asked, card)
 	}
 	_ = tt.Click("选【世界一可愛い私】藤田ことね")
 	if len(h.Asked) != 1 {
 		t.Errorf("选过了不该再发：%v", h.Asked)
+	}
+}
+
+// CodeRabbit #79：助手还在回复时点选会被丢掉：这时不能选，也不锁卡
+func TestChoiceCardWaitsWhileBusy(t *testing.T) {
+	h, p := host(), New()
+	h.Busy_ = true
+	card := plugin.Card{"type": "choice", "kind": "idols", "status": "waiting", "options": []any{map[string]any{"id": "i_card-a", "name": "【A】藤田ことね", "idol": "藤田ことね", "title": "A"}}}
+	tt := ui.NewTester(func(c *ui.Context) { p.Cards["choice"](c, h, card) }, 760, 400)
+	tt.Frame()
+	_ = tt.Click("选【A】藤田ことね")
+	if len(h.Asked) != 0 || card["status"] != "waiting" {
+		t.Errorf("忙的时候不该选：asked=%v card=%v", h.Asked, card)
 	}
 }

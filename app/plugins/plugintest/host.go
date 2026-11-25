@@ -28,6 +28,7 @@ type Host struct {
 	Jobs     map[string]*plugin.JobView
 	Live     string
 	Chat     map[string]bool // 在对话里开的局
+	Busy_    bool            // 助手正在回复
 	HomeDir  string
 	At       time.Time
 }
@@ -86,6 +87,9 @@ func (h *Host) Job(id string) *plugin.JobView {
 	return v
 }
 func (h *Host) LiveJob() string { return h.Live }
+
+// Busy 是 Busy_。
+func (h *Host) Busy() bool { return h.Busy_ }
 
 // ChatJob 是 Chat 里记着的局。
 func (h *Host) ChatJob(id string) bool { return h.Chat[id] }

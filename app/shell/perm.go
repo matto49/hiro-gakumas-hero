@@ -81,24 +81,35 @@ func (a *App) FirstScan() {
 				ScannedAt *string `json:"scanned_at"`
 			} `json:"kinds"`
 		}
-		if call(a.ctx, []string{"info", "summary"}).Decode(&sum) != nil {
-			return nil
+		if err := call(a.ctx, []string{"info", "summary"}).Decode(&sum); err != nil {
+			return func() {
+				t := a.ensureThread()
+				a.addTo(t, "agent", "本来想先扫一遍你的支援卡、回忆和偶像卡，但读不到信息库。之后可以说「扫描支援卡」再试。", []plugin.Card{
+					{"type": "error", "error": map[string]any{"code": "first_scan", "message": "读不到信息库：" + err.Error(), "hint": "到设置里看运行环境，或者之后说「扫描支援卡」"}}})
+				a.save(t)
+			}
 		}
-		var cards []plugin.Card
+		var cards, errs []plugin.Card
 		for _, k := range firstScanKinds {
 			if v, ok := sum.Kinds[k[0]]; ok && v.ScannedAt != nil && *v.ScannedAt != "" {
 				continue
 			}
-			if r := call(a.ctx, []string{"run", "start", k[1]}); r.Pending != nil {
+			r := call(a.ctx, []string{"run", "start", k[1]})
+			switch {
+			case r.Pending != nil:
 				cards = append(cards, ConfirmCard(*r.Pending))
+			case r.Error != nil:
+				errs = append(errs, plugin.Card{"type": "error", "error": map[string]any{"code": r.Error.Code,
+					"message": "没能开始扫描（" + k[1] + "）：" + r.Error.Message, "hint": r.Error.Hint}})
 			}
 		}
+		cards = append(tidyCards(cards), errs...)
 		if len(cards) == 0 {
 			return nil
 		}
 		return func() {
 			t := a.ensureThread()
-			a.addTo(t, "agent", "第一次用：先扫一遍你的支援卡、回忆和偶像卡（只看画面，不改东西），出编成方案时才知道你有什么。", tidyCards(cards))
+			a.addTo(t, "agent", "第一次用：先扫一遍你的支援卡、回忆和偶像卡（只看画面，不改东西），出编成方案时才知道你有什么。", cards)
 			a.save(t)
 		}
 	})
