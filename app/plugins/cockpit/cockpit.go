@@ -376,9 +376,22 @@ func (s *state) panel(c *ui.Context, h plugin.Host, route string) {
 	}
 	if id == "" {
 		kit.Note(c, "现在没有在跑的对局。在对话里说「帮我用某某打一把初」就能开一局。")
+		// 11-24 实测清单「结束后面板空」：对话里开的局一结束就从面板上消失了（后台任务有自己的列表）。
+		// 最近一局是对话里开的、已经结束：照样放在这里，看得到成绩、出错原因和复盘入口
+		s.refreshRecent(h)
+		if len(s.recent) > 0 && !plugin.LiveStates[s.recent[0].State] && h.ChatJob(s.recent[0].ID) {
+			kit.Section(c, "刚结束的一局")
+			s.jobView(c, h, s.recent[0].ID)
+		}
 		s.background(c, h, "")
 		return
 	}
+	s.jobView(c, h, id)
+	s.background(c, h, id)
+}
+
+// jobView 是一局的详情：标题、状态、画面、几行数、出错原因、控制、成绩和复盘入口（不含后台任务列表）。
+func (s *state) jobView(c *ui.Context, h plugin.Host, id string) {
 	v := h.Job(id)
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, title(v, id)).FontSize(15).FontWeight(650).TextColor(kit.Ink)
@@ -413,11 +426,10 @@ func (s *state) panel(c *ui.Context, h plugin.Host, route string) {
 		scoreStrip(c, exams)
 		s.reviewButton(c, h, id)
 	}
-	s.background(c, h, id)
 }
 
-// background 是「后台任务」：命令行等外部发起的任务（不属于任何对话，11-25 review：它们不再往对话里发通知）。
-func (s *state) background(c *ui.Context, h plugin.Host, current string) {
+// refreshRecent 每 10 秒在后台刷一次最近的任务（run status）；刷新失败保留旧列表、记下原因（CodeRabbit #79）。
+func (s *state) refreshRecent(h plugin.Host) {
 	if !s.recentGet && (s.recentAt.IsZero() || h.Now().Sub(s.recentAt) > 10*time.Second) {
 		s.recentGet, s.recentAt = true, h.Now()
 		h.Go(func() func() {
@@ -440,6 +452,11 @@ func (s *state) background(c *ui.Context, h plugin.Host, current string) {
 			}
 		})
 	}
+}
+
+// background 是「后台任务」：命令行等外部发起的任务（不属于任何对话，11-25 review：它们不再往对话里发通知）。
+func (s *state) background(c *ui.Context, h plugin.Host, current string) {
+	s.refreshRecent(h)
 	var jobs []plugin.Job
 	seen := map[string]bool{}
 	for _, j := range s.recent {

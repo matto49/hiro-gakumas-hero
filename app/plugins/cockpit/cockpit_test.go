@@ -234,3 +234,28 @@ func TestBackgroundKeepsListWhenRefreshFails(t *testing.T) {
 		t.Errorf("刷新失败后：%q", tt.Texts())
 	}
 }
+
+// 11-24 实测清单「结束后面板空」（11-26 真窗口复现：对话里开的局刚出错停下，右侧面板只写「现在没有在跑的对局」）：
+// 没有在跑的局时，显示刚结束的那一局（名字、状态、出错原因 / 成绩、复盘入口），对话里开的也算。
+func TestIdlePanelShowsLastEndedJob(t *testing.T) {
+	h := plugintest.New(map[string]string{
+		"run status": `{"current":null,"recent":[{"id":"j5","kind":"write-formation","state":"failed","summary":"对照编成方案看 初 的编成","started_at":1763990000,"reason":"等不到support 页签"},{"id":"j4","kind":"hajime","state":"done","summary":"更早的一局","started_at":1763800000}]}`,
+	})
+	h.Chat = map[string]bool{"j5": true, "j4": true}
+	v := h.Job("j5")
+	v.State = "failed"
+	v.Job = &plugin.Job{ID: "j5", Kind: "write-formation", State: "failed", Summary: "对照编成方案看 初 的编成", Reason: "等不到support 页签"}
+	p := New()
+	tt := ui.NewTester(func(c *ui.Context) { p.Panel(c, h, "") }, 420, 1400)
+	tt.Frame()
+	tt.Frame()
+	all := strings.Join(tt.Texts(), "\n")
+	for _, s := range []string{"现在没有在跑的对局", "刚结束的一局", "等不到support 页签"} {
+		if !strings.Contains(all, s) {
+			t.Errorf("空闲面板没有 %q：%q", s, tt.Texts())
+		}
+	}
+	if strings.Contains(all, "更早的一局") {
+		t.Errorf("只放最近一局，更早的对话局不进来：%q", tt.Texts())
+	}
+}
