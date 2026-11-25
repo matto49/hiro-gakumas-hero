@@ -404,33 +404,53 @@ def test_result_counted_once_per_exam_even_after_retry_confirm(tmp_path):
 
 def test_date_change_mid_tower_recovers_and_keeps_going(monkeypatch):
     """D4（初星課題规程待办）：偶像之路也接住日切换（初 / N.I.A 在 #62 修过）：回首页后清掉这一层打到一半的状态，
+    游戏日变了就把每日次数（tries / best / cleared / gave_up_three，和 tower_cache 的每日记录同一约定）当新的一天，
     从首页重新走进偶像之路接着打，不再整段 traceback 退出。"""
     from types import SimpleNamespace
 
     from hiro.loop.date_change import DateChanged
-    from hiro.runtime import play, tower_play
+    from hiro.runtime import play, tower_cache, tower_play
 
     calls = []
     monkeypatch.setattr(play, "recover_date_change", lambda rt, session: calls.append("recover"))
-    tp = SimpleNamespace(
-        finished=False, result_handled=True, _acted=("TOWER_RESULT", 1.0), _partial_since=3.0, exam_draws={"x": 1}
-    )
-    runs = iter([DateChanged("日付変更"), None])
+    day = ["2026-11-25"]
+    monkeypatch.setattr(tower_cache, "game_day", lambda now=None: day[0])
+    run = SimpleNamespace(tries={16: 3}, best={16: 2}, cleared={15}, gave_up_three=[16], tower_id=None)
+    tp = SimpleNamespace(finished=False, run=run, result_handled=False, _acted=None, _partial_since=None, exam_draws=None,
+                         done_layers=2)  # fmt: skip
+    seen = []
 
-    def run(until):
+    def go(until):
         calls.append("run")
-        e = next(runs)
-        if e:
-            raise e
+        if len(seen) == 0:
+            seen.append(1)
+            # 打到一半：这些状态都在；然后过了日本时间 5 点
+            tp.result_handled, tp._acted, tp._partial_since, tp.exam_draws = True, ("TOWER_RESULT", 1.0), 3.0, {"x": 1}
+            day[0] = "2026-11-26"
+            raise DateChanged("日付変更")
+        # 日切换后的这一轮：打到一半的状态和前一天的次数都清掉了，已打完的层数保留
+        assert tp.result_handled is False and tp._acted is None and tp._partial_since is None and tp.exam_draws is None
+        assert run.tries == {} and run.best == {} and run.cleared == set() and run.gave_up_three == []
+        assert tp.done_layers == 2
         tp.finished = True
 
-    rt = SimpleNamespace(run=run)
-    tower_play.play_segment(rt, object(), tp)
-    assert calls == ["run", "recover", "run"]
-    assert (
-        tp.finished
-        and tp.result_handled is False
-        and tp._acted is None
-        and tp._partial_since is None
-        and tp.exam_draws is None
+    tower_play.play_segment(SimpleNamespace(run=go), object(), tp)
+    assert calls == ["run", "recover", "run"] and tp.finished
+
+
+def test_no_date_change_keeps_daily_counts(monkeypatch):
+    from types import SimpleNamespace
+
+    from hiro.runtime import tower_cache, tower_play
+
+    monkeypatch.setattr(tower_cache, "game_day", lambda now=None: "2026-11-25")
+    run = SimpleNamespace(tries={16: 3}, best={16: 2}, cleared={15}, gave_up_three=[16], tower_id=None)
+    tp = SimpleNamespace(
+        finished=False, run=run, result_handled=False, _acted=None, _partial_since=None, exam_draws=None
     )
+
+    def go(until):
+        tp.finished = True
+
+    tower_play.play_segment(SimpleNamespace(run=go), object(), tp)
+    assert run.tries == {16: 3} and run.cleared == {15}
