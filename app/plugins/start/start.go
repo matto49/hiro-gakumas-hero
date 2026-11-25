@@ -3,6 +3,7 @@ package start
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -65,8 +66,6 @@ type state struct {
 	idol    idol
 	idols   []idol
 	loaded  bool
-	plan    *planBrief
-	planAt  time.Time
 
 	recent        []plugin.Job
 	recentAt      time.Time
@@ -93,6 +92,7 @@ type planBrief struct {
 	Memory struct {
 		Set    *int `json:"set"`
 		Chosen []struct {
+			CardID  string `json:"card_id"`
 			Name    string `json:"name"`
 			Timing  string `json:"timing"`
 			Upgrade int    `json:"upgrade"`
@@ -115,10 +115,14 @@ func (pl *planBrief) groups(h plugin.Host, cat *common.Catalog) []plugin.Explain
 	}
 	sup := plugin.ExplainGroup{Title: "支援卡"}
 	for _, o := range pl.Support.Own {
-		it := plugin.ExplainItem{Thumb: cat.Sprite(h, "support-"+o.ID), Name: name(o.ID, o.Name)}
+		nm := name(o.ID, o.Name)
+		it := plugin.ExplainItem{Thumb: cat.Sprite(h, "support-"+o.ID), Name: nm}
+		lv := ""
 		if o.Level != nil {
-			it.Note = fmt.Sprintf("Lv%d", *o.Level)
+			lv = fmt.Sprintf("Lv%d", *o.Level)
+			it.Note = lv
 		}
+		it.Tip = common.Tip(cat.Get(h, o.ID), common.Both(nm, o.Name), lv)
 		sup.Items = append(sup.Items, it)
 	}
 	if r := pl.Support.Rental; r != nil {
@@ -129,14 +133,23 @@ func (pl *planBrief) groups(h plugin.Host, cat *common.Catalog) []plugin.Explain
 		if r.ID == "" && r.Name == "" {
 			it.Name = "开局时按实际列表挑"
 		}
+		note := "租借：开局时从好友的支援卡里借这一张"
 		if r.Estimated {
 			it.Note = "估算"
+			note += "（按常见等级估算）"
 		}
+		it.Tip = common.Tip(cat.Get(h, r.ID), common.Both(it.Name, r.Name), note)
 		sup.Items = append(sup.Items, it)
 	}
 	mem := plugin.ExplainGroup{Title: "回忆"}
 	for _, m := range pl.Memory.Chosen {
-		mem.Items = append(mem.Items, plugin.ExplainItem{Tag: labels.Timing(m.Timing), Name: m.Name + strings.Repeat("+", m.Upgrade)})
+		nm := name(m.CardID, m.Name) + strings.Repeat("+", m.Upgrade)
+		it := plugin.ExplainItem{Tag: labels.Timing(m.Timing), Name: nm}
+		if e := cat.Get(h, m.CardID); e != nil && e.Asset != "" {
+			it.Thumb = cat.Sprite(h, e.Asset)
+		}
+		it.Tip = common.Tip(cat.Get(h, m.CardID), common.Both(nm, m.Name+strings.Repeat("+", m.Upgrade)), "用在："+labels.Timing(m.Timing))
+		mem.Items = append(mem.Items, it)
 	}
 	var out []plugin.ExplainGroup
 	for _, g := range []plugin.ExplainGroup{sup, mem} {
@@ -180,19 +193,22 @@ func New() *plugin.Plugin {
 
 // ---- 确认卡解读 ----
 
-func (s *state) planFor(h plugin.Host) *planBrief {
-	if s.plan != nil && h.Now().Sub(s.planAt) < time.Minute {
-		return s.plan
+// planOf 是待确认里固定的编成方案摘要（CLI 出待确认时存的快照）。确认卡只看这一份：
+// 原来每分钟去读一次 plan show，方案期间重新出过，卡上和 confirm 时实际写进游戏的就不一样了（PR #79 CodeRabbit）。
+// 没有快照（旧 CLI 出的待确认、或这个任务不读方案）时返回 nil。
+func planOf(p hiroapi.Pending) *planBrief {
+	if len(p.Plan) == 0 {
+		return nil
 	}
-	s.planAt = h.Now()
-	h.Go(func() func() {
-		var p planBrief
-		if h.Call(context.Background(), []string{"plan", "show"}).Decode(&p) != nil {
-			return nil
-		}
-		return func() { s.plan = &p }
-	})
-	return s.plan
+	raw, err := json.Marshal(p.Plan)
+	if err != nil {
+		return nil
+	}
+	var pl planBrief
+	if json.Unmarshal(raw, &pl) != nil {
+		return nil
+	}
+	return &pl
 }
 
 // 代价行：会操作游戏，再加一句这件事会动到什么（11-25 review：非培育任务也写成「用掉 1 次培育」）。
@@ -235,7 +251,7 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 		if sc := r.Flags["scenario"]; sc != "" {
 			e.Subtitle = modeName(sc) + " 的编成"
 		}
-		if pl := s.planFor(h); pl != nil {
+		if pl := planOf(p); pl != nil {
 			e.Groups = pl.groups(h, cat)
 		}
 		return e, true
@@ -276,7 +292,7 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 		case r.Flags["support-set"] != "" || r.Flags["memory-set"] != "":
 			e.Rows = append(e.Rows, [2]string{"编成", fmt.Sprintf("游戏里的支援卡 %s 号、回忆 %s 号", or(r.Flags["support-set"], "当前"), or(r.Flags["memory-set"], "当前"))})
 		default:
-			if pl := s.planFor(h); pl != nil && pl.Support.Set != nil {
+			if pl := planOf(p); pl != nil && pl.Support.Set != nil {
 				e.Rows = append(e.Rows, [2]string{"编成", fmt.Sprintf("沿用编成方案（支援卡 %d 号、回忆 %s 号）", *pl.Support.Set, intOr(pl.Memory.Set))})
 				e.Groups = pl.groups(h, cat)
 			} else {

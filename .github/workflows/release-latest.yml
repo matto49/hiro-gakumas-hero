@@ -1,0 +1,38 @@
+# 仓库 Release 页的「Latest」只给初星助手桌面包（desktop-v*，不含候选包）。游戏图、OCR 模型、引擎预编译包、主数据包
+# 都只给安装脚本按标签下载，发的时候要写 --latest=false；忘了写（11-24 引擎包、11-25 游戏图都顶掉过桌面包）时，
+# 这里把 Latest 改回最新的正式桌面包，并让这次运行失败，提醒修发布命令。
+name: release-latest
+on:
+  release:
+    types: [published, edited, deleted]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-latest
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name 2>/dev/null || true)
+          echo "现在的 Latest：${latest:-（无）}"
+          case "$latest" in
+            desktop-v*-*) ;;          # 候选包被设成了 Latest，也要改回
+            desktop-v*) exit 0 ;;
+          esac
+          want=$(gh release list -R "$GITHUB_REPOSITORY" --limit 100 --json tagName,isPrerelease,isDraft,createdAt \
+            --jq '[.[] | select((.tagName | startswith("desktop-v")) and (.tagName | ltrimstr("desktop-v") | contains("-") | not) and (.isPrerelease | not) and (.isDraft | not))] | sort_by(.createdAt) | last | .tagName // empty')
+          if [ -z "$want" ]; then
+            echo "::warning::还没有正式的桌面包 Release，Latest 先不动"
+            exit 0
+          fi
+          gh release edit "$want" -R "$GITHUB_REPOSITORY" --latest
+          echo "::error::Latest 被 ${latest} 占了，已改回 ${want}。发非桌面包的 Release 时请加 --latest=false"
+          exit 1

@@ -75,6 +75,28 @@ def idol_info(idol: str, main_attr: str | None = None, mode: str | None = None) 
             "profile": profile, "profile_caveat": caveat, "default_main": default, "attr_order": order, "growth": growth, "main_why": main_why}  # fmt: skip
 
 
+def guide_shares(mode: str | None, idol_card: str, decision: str) -> dict[str, float]:
+    """攻略推荐 → {卡 id: 排行榜占比}（formation.support / formation.memory）。这张卡没有条目时用同流派的合并条目
+    （guides.style_average）；写死权重的条目（written）按 weight / 100 折成占比。没给模式、HIRO_PLAN_GUIDES=0 返回 {}。"""
+    import os
+
+    if not mode or os.environ.get("HIRO_PLAN_GUIDES", "1") == "0":
+        return {}
+    from hiro.brain import guides
+    from hiro.brain.idol_know import lookup
+
+    out: dict[str, float] = {}
+    for it in guides.merge(lookup(mode, idol_card, decision)):
+        if it.side != "prefer":
+            continue
+        share = (it.fields.get("stat") or {}).get("share")
+        if share is None and it.fields.get("weight") is not None:
+            share = float(it.fields["weight"]) / 100
+        if share:
+            out[it.id] = round(float(share), 4)
+    return out
+
+
 def param_bases(attr_order: list[str]) -> tuple[dict, dict]:
     """主属性 / 第二 / 第三属性 → 回忆词条的作用基数与预计结束值。"""
     return dict(zip(attr_order, GAIN_BY_RANK)), dict(zip(attr_order, FINAL_BY_RANK))
@@ -96,7 +118,7 @@ def build(idol: str, *, support_inventory: dict | None, memory_inventory: dict |
 
     info = idol_info(idol, main_attr, mode)
     out = {
-        "version": 1,
+        "version": PLAN_VERSION,
         "created": time.strftime("%Y-%m-%d %H:%M:%S"),
         "idol": info,
         "profile": info["profile"],
@@ -118,22 +140,26 @@ def build(idol: str, *, support_inventory: dict | None, memory_inventory: dict |
         # 11-24 標 麻央 攻略 Vo，按支援卡价值逆练成 Da（Da 卡价值高 309），但麻央成长率 Vo 22% / Vi 18% / Da 6%、
         # 选拔审查基准 Vo 45% / Vi 30% / Da 25%，Da 是最差的主属性，选拔第 3 场只打到过线的 57%
         guided = str(info.get("main_why") or "").startswith("攻略")
+        sup_guide = guide_shares(mode, info["idol_card_id"], "formation.support")
+        if sup_guide:
+            out["notes"].append(f"支援卡按攻略推荐加分（{len(sup_guide)} 张有排行榜占比，占比 × {ss.GUIDE_WEIGHT:g}）")
         if fixed_main or guided:
-            with ss.using(info["default_main"], info["plan"], main_count):
+            with ss.using(info["default_main"], info["plan"], main_count, guide=sup_guide):
                 r = ss.choose(inv, size=size)
             r = dict(
                 r,
                 main_attr_why=f"{'指定' if fixed_main else info['main_why']} 主属性 {info['default_main']}（不比较逆练）",
             )
         else:
-            r = ss.choose_main(
-                inv,
-                plan=info["plan"],
-                default_attr=info["default_main"],
-                size=size,
-                main_count=main_count,
-                growth=info.get("growth"),
-            )
+            with ss.using(guide=sup_guide):
+                r = ss.choose_main(
+                    inv,
+                    plan=info["plan"],
+                    default_attr=info["default_main"],
+                    size=size,
+                    main_count=main_count,
+                    growth=info.get("growth"),
+                )
         if "error" in r:
             sup["error"] = r["error"]
             sup["main_attr_candidates"] = r.get("main_attr_candidates")
@@ -160,7 +186,10 @@ def build(idol: str, *, support_inventory: dict | None, memory_inventory: dict |
     gains, finals = param_bases(order)
     mem: dict = {"set": memory_set}
     if memory_inventory:
-        r = select_memories(memory_inventory, gains=gains, finals=finals, plan=info["plan"], profile=info["profile"])
+        mem_guide = guide_shares(mode, info["idol_card_id"], "formation.memory")
+        r = select_memories(
+            memory_inventory, gains=gains, finals=finals, plan=info["plan"], profile=info["profile"], guide=mem_guide
+        )
         mem.update(chosen=r.get("chosen") or [], total=r.get("total"), runner_up=r.get("runner_up"), notes=r.get("notes") or [],
                    farm=r.get("farm") or [], skipped=r.get("skipped") or [], not_chosen=r.get("not_chosen") or [])  # fmt: skip
         mem["cards"] = [c["card_id"] for c in mem["chosen"]]
@@ -294,6 +323,126 @@ def load(path: str | Path | None = None) -> dict | None:
         return _load(path or PLAN_PATH)
     except (OSError, ValueError):
         return None
+
+
+# ---------------------------------------------------------------- 按「偶像卡 × 模式」存方案（2026-11-26）
+# 方案存在 <目录>/plans/<模式>/<偶像卡>.json；<目录>/formation-plan.json 是「当前方案」（开局核对、写编成都读它），
+# 开局前把这一局用的那份复制过去。version 2 的方案要写进游戏后（mark_written）才放行开局；以前的方案（没有 version 2）照旧。
+PLAN_VERSION = 2
+CURRENT = "formation-plan.json"
+PRODUCE_OF = {("hajime", None): "produce-001", ("hajime", "regular"): "produce-001", ("hajime", "pro"): "produce-002",
+              ("hajime", "master"): "produce-003", ("hajime", "legend"): "produce-006", ("nia", None): "produce-004",
+              ("nia", "pro"): "produce-004", ("nia", "master"): "produce-005", ("hif", None): "produce-007"}  # fmt: skip
+
+
+def produce_of(family: str, difficulty: str | None = None) -> str | None:
+    """模式 + 难度 → produce id（查攻略用）。H.I.F 不分难度，按选拔。"""
+    return PRODUCE_OF.get((family, None if family == "hif" else difficulty)) or PRODUCE_OF.get((family, None))
+
+
+def plan_family(plan: dict) -> str | None:
+    """方案是给哪个模式出的（plan["family"]，旧方案没写时按 plan["mode"] 的 produce id 推）。"""
+    from hiro.state.modes import family
+
+    return (
+        plan.get("family")
+        or family(plan.get("mode"))
+        or (plan.get("mode") if plan.get("mode") in ("hajime", "nia", "hif") else None)
+    )
+
+
+def plan_key_path(root: Path, idol: str, fam: str) -> Path:
+    return Path(root) / "plans" / fam / f"{idol.replace('i_card-skin-', 'i_card-')}.json"
+
+
+def _write_json(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(path)
+
+
+def activate(root: Path, plan: dict) -> None:
+    """设为当前方案。当前方案原来是别的偶像的、又没有按模式存过的副本（旧格式，或不带 --mode 出的）时，
+    先收进 plans/_legacy/<偶像卡>.json 免得丢（_legacy 里已有同一张卡的旧文件就用这份更新的覆盖）。"""
+    root = Path(root)
+    cur = load(root / CURRENT)
+    old = ((cur or {}).get("idol") or {}).get("idol_card_id")
+    if cur and old and old != (plan.get("idol") or {}).get("idol_card_id"):
+        fam = cur.get("family")
+        if not fam or not plan_key_path(root, old, fam).is_file():
+            _write_json(plan_key_path(root, old, "_legacy"), cur)
+    _write_json(root / CURRENT, plan)
+
+
+def save_plan(root: Path, plan: dict, fam: str) -> Path:
+    """存进 plans/<模式>/<偶像卡>.json 并设为当前方案。"""
+    plan = dict(plan, family=fam)
+    path = plan_key_path(Path(root), (plan.get("idol") or {}).get("idol_card_id") or "", fam)
+    _write_json(path, plan)
+    activate(root, plan)
+    return path
+
+
+def find_plan(root: Path, idol: str, fam: str) -> tuple[dict, Path] | None:
+    """这张卡 × 这个模式的方案：plans/<模式>/<偶像卡>.json；没有时看当前方案 / 收起来的旧方案（旧格式、同一张卡、没标模式或同模式）。"""
+    root, cid = Path(root), idol.replace("i_card-skin-", "i_card-")
+    path = plan_key_path(root, cid, fam)
+    if (plan := load(path)) is not None:
+        return plan, path
+    for p in (root / CURRENT, plan_key_path(root, cid, "_legacy")):
+        plan = load(p)
+        if plan and (plan.get("idol") or {}).get("idol_card_id") == cid and plan_family(plan) in (None, fam):
+            return plan, p
+    return None
+
+
+def inherited_sets(root: Path, fam: str) -> tuple[int | None, int | None]:
+    """新方案的编成位号：这个模式最近一份方案用的；没有时用旧格式的当前方案（它没标模式）的。都没有 (None, None)。"""
+    root = Path(root)
+    cands = list((root / "plans" / fam).glob("*.json")) if (root / "plans" / fam).is_dir() else []
+    plans = [x for x in (load(p) for p in cands) if x]
+    cur = load(root / CURRENT)
+    if cur and plan_family(cur) in (None, fam):
+        plans.append(cur)
+    plans = [x for x in plans if (x.get("support") or {}).get("set") and (x.get("memory") or {}).get("set")]
+    if not plans:
+        return None, None
+    best = max(plans, key=lambda x: x.get("created") or "")
+    return int(best["support"]["set"]), int(best["memory"]["set"])
+
+
+def needs_write(plan: dict, fam: str, parts=("support", "memory")) -> bool:
+    """新格式的方案还没把 parts（缺省支援卡和回忆都算）写进这个模式的游戏编成位（旧方案按以前的做法：认为玩家自己写好了）。"""
+    done = set(((plan.get("written") or {}).get(fam) or {}).get("what") or ())
+    return plan.get("version") == PLAN_VERSION and not set(parts) <= done
+
+
+def unwritten(plan: dict, fam: str, parts=("support", "memory")) -> list[str]:
+    """parts 里还没写进游戏的那几样（按 support、memory 的顺序）。旧方案不算。"""
+    if plan.get("version") != PLAN_VERSION:
+        return []
+    done = set(((plan.get("written") or {}).get(fam) or {}).get("what") or ())
+    return [w for w in ("support", "memory") if w in parts and w not in done]
+
+
+def mark_written(current: str | Path, fam: str, what) -> None:
+    """写编成任务写完、回读核对通过后调：当前方案和 plans/<模式>/<偶像卡>.json 都记上 written[模式]。"""
+    current = Path(current)
+    plan = load(current)
+    if not plan:
+        return
+    w = dict(plan.get("written") or {})
+    prev = set((w.get(fam) or {}).get("what") or ())  # 分次写（先支援卡、后回忆）：合并写过的部分
+    w[fam] = {"what": sorted(prev | set(what)), "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+              "support_set": (plan.get("support") or {}).get("set"), "memory_set": (plan.get("memory") or {}).get("set")}  # fmt: skip
+    plan["written"] = w
+    _write_json(current, plan)
+    cid = (plan.get("idol") or {}).get("idol_card_id")
+    if cid and plan.get("version") == PLAN_VERSION:
+        key = plan_key_path(current.parent, cid, plan_family(plan) or fam)
+        if key.is_file():
+            _write_json(key, plan)
 
 
 def main(argv: list[str] | None = None) -> int:

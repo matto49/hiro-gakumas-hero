@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func bootEnv(goos string, have ...string) BootEnv {
@@ -33,16 +35,17 @@ func ids(steps []Step) string {
 	return strings.Join(s, ",")
 }
 
-func TestPlanFreshMacClonesThenRunsSetupWithBundledUV(t *testing.T) {
-	steps, err := PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "path:git"))
+func TestPlanFreshMacDownloadsSourceThenRunsSetupWithBundledUV(t *testing.T) {
+	// 没有 git 也能装：PATH 上什么都没有，只有程序自带的 uv
+	steps, err := PlanBootstrap(bootEnv("darwin", "/r/bin/uv"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if ids(steps) != "source,setup" {
 		t.Fatalf("steps %s", ids(steps))
 	}
-	if strings.Join(steps[0].Argv, " ") != "/usr/bin/git clone --depth 1 --branch main https://github.com/matto49/hiro-gakumas-hero /h/src" {
-		t.Fatalf("clone %v", steps[0].Argv)
+	if steps[0].Run == nil || len(steps[0].Argv) != 0 {
+		t.Fatalf("下载源码是程序自己做的一步，不调外部命令：%+v", steps[0])
 	}
 	if steps[1].Argv[0] != "bash" || !strings.HasSuffix(steps[1].Argv[1], "scripts/setup.sh") || steps[1].Dir != "/h/src" {
 		t.Fatalf("setup %+v", steps[1])
@@ -52,15 +55,104 @@ func TestPlanFreshMacClonesThenRunsSetupWithBundledUV(t *testing.T) {
 	}
 }
 
+func TestPlanSourceStepDownloadsTheTagOfThisVersion(t *testing.T) {
+	gh := newFakeGitHub(t, map[string][]byte{
+		"/archive/refs/tags/desktop-v0.1.1.tar.gz": makeArchive(t, "hiro-gakumas-hero-desktop-v0.1.1", fakeCommit, repoFiles...),
+	})
+	home := t.TempDir()
+	e := bootEnv("darwin", "/r/bin/uv")
+	e.Home, e.RepoURL, e.Ref, e.Version, e.HTTP, e.Backoff = home, gh.URL, "", "v0.1.1", gh.Client(), time.Millisecond
+	steps, perr := PlanBootstrap(e)
+	if perr != nil {
+		t.Fatal(perr)
+	}
+	if err := steps[0].Run(context.Background(), func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if gh.hitList() != "/archive/refs/tags/desktop-v0.1.1.tar.gz" {
+		t.Fatalf("hits %s", gh.hitList())
+	}
+	if info := readSourceInfo(t, filepath.Join(home, "src")); info["source"] != "tag" || info["ref"] != "desktop-v0.1.1" {
+		t.Fatalf("info %v", info)
+	}
+}
+
+func TestPlanSourceStepUsesMainWhenThereIsNoVersion(t *testing.T) {
+	gh := newFakeGitHub(t, map[string][]byte{
+		"/archive/refs/heads/main.tar.gz": makeArchive(t, "hiro-gakumas-hero-main", "", repoFiles...),
+	})
+	home := t.TempDir()
+	e := bootEnv("darwin", "/r/bin/uv")
+	e.Home, e.RepoURL, e.Ref, e.Version, e.HTTP, e.Backoff = home, gh.URL, "", "", gh.Client(), time.Millisecond
+	steps, _ := PlanBootstrap(e)
+	if err := steps[0].Run(context.Background(), func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if gh.hitList() != "/archive/refs/heads/main.tar.gz" {
+		t.Fatalf("hits %s", gh.hitList())
+	}
+}
+
+func TestPlanSourceStepHonoursAnExplicitRefWithoutFallback(t *testing.T) {
+	gh := newFakeGitHub(t, map[string][]byte{})
+	e := bootEnv("darwin", "/r/bin/uv")
+	e.Home, e.RepoURL, e.Ref, e.Version, e.HTTP, e.Backoff = t.TempDir(), gh.URL, "feat_x", "0.1.1", gh.Client(), time.Millisecond
+	steps, _ := PlanBootstrap(e)
+	if err := steps[0].Run(context.Background(), func(string) {}); err == nil {
+		t.Fatal("指定了分支但下不到，应该报错而不是悄悄换成 main")
+	}
+	if gh.hitList() != "/archive/feat_x.tar.gz" {
+		t.Fatalf("hits %s", gh.hitList())
+	}
+}
+
+func TestPlanLeavesSourceAloneForAnOldGitCloneAndForAHalfInstalledSrc(t *testing.T) {
+	// 以前 git clone 的安装：没有标记就只补 setup，不重新下载
+	steps, _ := PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "/h/src/.git", "/h/src/scripts/setup.sh"))
+	if ids(steps) != "setup" {
+		t.Fatalf("steps %s", ids(steps))
+	}
+	// 新装的 src（没有 .git）装到一半：同样只补 setup
+	steps, _ = PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "/h/src/scripts/setup.sh", "/h/src/.venv/bin/python"))
+	if ids(steps) != "setup" {
+		t.Fatalf("steps %s", ids(steps))
+	}
+}
+
 func TestPlanIsEmptyOnceInstalled(t *testing.T) {
-	steps, err := PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "path:git", "/h/src/.git", "/h/src/.venv/bin/python", "/h/src/.hiro-installed"))
+	steps, err := PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "/h/src/.git", "/h/src/.venv/bin/python", "/h/src/.hiro-installed"))
 	if err != nil || len(steps) != 0 {
 		t.Fatalf("steps %v err %v", ids(steps), err)
 	}
 }
 
+func TestPlanIsEmptyOnceInstalledWithoutGit(t *testing.T) {
+	// 新装的 src 没有 .git：看 venv 的 python 和装完标记就够了
+	steps, err := PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "/h/src/scripts/setup.sh", "/h/src/.venv/bin/python", "/h/src/.hiro-installed"))
+	if err != nil || len(steps) != 0 {
+		t.Fatalf("steps %v err %v", ids(steps), err)
+	}
+	steps, err = PlanBootstrap(bootEnv("windows", "/r/bin/uv.exe", "/h/src/.venv/Scripts/python.exe", "/h/src/.hiro-installed"))
+	if err != nil || len(steps) != 0 {
+		t.Fatalf("steps %v err %v", ids(steps), err)
+	}
+}
+
+func TestRunLinesDoesNotDownloadInDevWhenHiroCLIIsSet(t *testing.T) {
+	t.Setenv("HIRO_CLI", `["hiro"]`)
+	home := filepath.Join(t.TempDir(), "home")
+	b := &Bootstrap{Home: home, Hiro: &Hiro{}}
+	var lines []string
+	if err := b.RunLines(context.Background(), func(p Progress) { lines = append(lines, p.Line) }); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "src")); err == nil {
+		t.Fatal("开发环境不该下载源码")
+	}
+}
+
 func TestPlanUsesChinaMirrorsWhenAsked(t *testing.T) {
-	e := bootEnv("darwin", "/r/bin/uv", "path:git", "/h/src/.git")
+	e := bootEnv("darwin", "/r/bin/uv", "/h/src/.git")
 	e.MirrorCN = true
 	steps, _ := PlanBootstrap(e)
 	if ids(steps) != "setup" || !hasEnvPrefix(steps[0].Env, "UV_INDEX_URL=") || !hasEnvPrefix(steps[0].Env, "UV_PYTHON_INSTALL_MIRROR=") {
@@ -68,19 +160,15 @@ func TestPlanUsesChinaMirrorsWhenAsked(t *testing.T) {
 	}
 }
 
-func TestPlanExplainsMissingGitAndUV(t *testing.T) {
-	_, err := PlanBootstrap(bootEnv("darwin", "/r/bin/uv"))
-	if err == nil || err.Code != "git_missing" || !strings.Contains(err.Hint, "xcode-select") {
-		t.Fatalf("err %+v", err)
-	}
-	_, err = PlanBootstrap(bootEnv("windows", "path:git"))
+func TestPlanExplainsMissingUV(t *testing.T) {
+	_, err := PlanBootstrap(bootEnv("windows"))
 	if err == nil || err.Code != "uv_missing" {
 		t.Fatalf("err %+v", err)
 	}
 }
 
 func TestPlanWindowsRunsPowerShellSetup(t *testing.T) {
-	steps, _ := PlanBootstrap(bootEnv("windows", "/r/bin/uv.exe", "path:git", "/h/src/.git"))
+	steps, _ := PlanBootstrap(bootEnv("windows", "/r/bin/uv.exe", "/h/src/.git"))
 	if ids(steps) != "setup" || steps[0].Argv[0] != "powershell" || !strings.Contains(strings.Join(steps[0].Argv, " "), "setup.ps1") {
 		t.Fatalf("setup %+v", steps)
 	}
@@ -96,7 +184,7 @@ func hasEnvPrefix(env []string, p string) bool {
 }
 
 func TestPlanRefusesWhenTheDiskIsTooFull(t *testing.T) {
-	e := bootEnv("darwin", "/r/bin/uv", "path:git")
+	e := bootEnv("darwin", "/r/bin/uv")
 	e.FreeBytes = func(string) (uint64, error) { return 2 << 30, nil }
 	_, err := PlanBootstrap(e)
 	if err == nil || err.Code != "disk_full" || !strings.Contains(err.Message, "2.0 GB") {
@@ -117,11 +205,11 @@ func TestFreeBytesReadsTheRealDisk(t *testing.T) {
 
 func TestHalfFinishedInstallIsNotReady(t *testing.T) {
 	// setup.sh 第 1 步就建好了 .venv：没有「装完」标记就还要再跑 setup
-	steps, _ := PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "path:git", "/h/src/.git", "/h/src/.venv/bin/python"))
+	steps, _ := PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "/h/src/.git", "/h/src/.venv/bin/python"))
 	if ids(steps) != "setup" {
 		t.Fatalf("steps %s", ids(steps))
 	}
-	steps, _ = PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "path:git", "/h/src/.git", "/h/src/.venv/bin/python", "/h/src/.hiro-installed"))
+	steps, _ = PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "/h/src/.git", "/h/src/.venv/bin/python", "/h/src/.hiro-installed"))
 	if len(steps) != 0 {
 		t.Fatalf("steps %s", ids(steps))
 	}

@@ -1,6 +1,6 @@
 ﻿# 一条命令装好实机游玩环境（Windows，PowerShell 版；步骤与 scripts/setup.sh 一一对应）：
 # .venv（Python 3.10）→ 安装 → OCR 模型 → 识别用的游戏原图（resources/game_data）→ 模拟器主数据 + 主数据库 → 自检。
-# 可重复跑，做过的步骤会跳过。需要 uv、git 和网络。
+# 可重复跑，做过的步骤会跳过。需要 uv 和网络（不需要 git）。
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup.ps1 [-NoData] [-OcrDevice auto|dml|cpu]
 #
@@ -22,7 +22,6 @@ function Step($t) { Write-Host ""; Write-Host "== $t" }
 function Need($cmd, $hint) { if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { throw "需要 $cmd（$hint）" } }
 
 Need uv "https://docs.astral.sh/uv/getting-started/installation/"
-Need git "https://git-scm.com/download/win"
 
 Step "1/6 虚拟环境 .venv（Python 3.10）"
 $Py = Join-Path $Root ".venv\Scripts\python.exe"
@@ -125,7 +124,7 @@ import hiro.sim
 print(f"模拟器：引擎 {hiro.sim.ROOT}；主数据 {'已构建' if hiro.sim.master_ready() else '没有（模拟相关决策退回社区规则）'}")
 from pathlib import Path
 if not (Path("data") / "value_tables" / "drink_scale.json").exists():
-    print("  ⚠ 没有 data/value_tables/（价值表随仓库发布）：轮间饮料增益不校准，请用 git 拿完整仓库")
+    print("  ⚠ 没有 data/value_tables/（价值表随仓库发布）：轮间饮料增益不校准，请用完整源码（git clone 整个仓库，或下载 GitHub 的源码压缩包）")
 print("自检通过：入口能导入")
 '@ | & $Py -
 if ($LASTEXITCODE) { throw "自检失败" }

@@ -240,7 +240,7 @@ func (s *state) row(c *ui.Context, h plugin.Host, kind string, it map[string]any
 	case "supports":
 		supportRow(c, h, it)
 	case "memories":
-		memoryRow(c, it)
+		memoryRow(c, h, it)
 	case "game_settings":
 		settingRow(c, it)
 	default:
@@ -307,23 +307,36 @@ func planName(p string) string {
 func supportRow(c *ui.Context, h plugin.Host, it map[string]any) {
 	id := str(it, "id")
 	art := common.Shared.Sprite(h, "support-"+id)
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(4, 0).Children(func() {
+	e := common.Shared.Get(h, id)
+	ja := str(it, "name")
+	name := or(ja, "（没认出）")
+	if e != nil && e.Name != "" {
+		name = e.Name // 资料库的中文名（11-22：资源站的信息用上，先加中文）；日文原名跟在后面
+	}
+	meta := strings.TrimSpace(str(it, "rarity"))
+	if lv := str(it, "level"); lv != "" {
+		meta += " Lv" + lv
+	}
+	if b := str(it, "breaks"); b != "" {
+		meta += " · 突破 " + b
+	}
+	row := ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(4, 0)
+	if id != "" {
+		row = row.Tooltip(common.Tip(e, common.Both(name, ja), strings.TrimSpace(meta)))
+	}
+	row.Children(func() {
 		kit.Thumb(c, art, 36, 36, 8)
 		ui.Box(c).Size(7, 7).Radius(4).Background(kit.AttrColor(str(it, "attr"))).Shrink(0)
-		ui.Text(c, or(str(it, "name"), "（没认出）")).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…").Shrink(1)
+		ui.Text(c, name).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…").Shrink(1)
+		if ja != "" && ja != name {
+			ui.Text(c, ja).FontSize(11.5).TextColor(kit.Ink3).MaxLines(1).Ellipsis("…").Shrink(2)
+		}
 		ui.Spacer(c)
-		meta := strings.TrimSpace(str(it, "rarity"))
-		if lv := str(it, "level"); lv != "" {
-			meta += " Lv" + lv
-		}
-		if b := str(it, "breaks"); b != "" {
-			meta += " · 突破 " + b
-		}
 		ui.Text(c, strings.TrimSpace(meta)).FontSize(11.5).TextColor(kit.Ink2).SingleLine()
 	})
 }
 
-func memoryRow(c *ui.Context, it map[string]any) {
+func memoryRow(c *ui.Context, h plugin.Host, it map[string]any) {
 	st, _ := it["stats"].(map[string]any)
 	num := func(k string) string {
 		if v, ok := st[k].(float64); ok {
@@ -331,11 +344,32 @@ func memoryRow(c *ui.Context, it map[string]any) {
 		}
 		return "?"
 	}
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(4, 0).Children(func() {
-		ui.Text(c, or(labels.Timing(str(it, "timing")), "?")).FontSize(11).TextColor(kit.Ink2).Padding(1, 6).Radius(5).Background(kit.Surface2)
-		ui.Text(c, or(str(it, "card"), "（没认出）")).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…").Shrink(1)
+	id := str(it, "card_id")
+	ja := str(it, "card")
+	name := or(ja, "（没认出）")
+	art := ""
+	e := common.Shared.Get(h, id)
+	if e != nil {
+		if e.Name != "" {
+			name = e.Name
+		}
+		art = common.Shared.Sprite(h, e.Asset)
+	}
+	stats := "Vo " + num("Vo") + " · Da " + num("Da") + " · Vi " + num("Vi")
+	timing := or(labels.Timing(str(it, "timing")), "?")
+	row := ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(4, 0)
+	if id != "" {
+		row = row.Tooltip(common.Tip(e, common.Both(name, ja), "用在："+timing, stats))
+	}
+	row.Children(func() {
+		kit.Thumb(c, art, 36, 36, 8)
+		ui.Text(c, name).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…").Shrink(1)
+		if ja != "" && ja != name {
+			ui.Text(c, ja).FontSize(11.5).TextColor(kit.Ink3).MaxLines(1).Ellipsis("…").Shrink(2)
+		}
 		ui.Spacer(c)
-		ui.Text(c, "Vo "+num("Vo")+" · Da "+num("Da")+" · Vi "+num("Vi")).FontSize(11.5).TextColor(kit.Ink2).SingleLine()
+		ui.Text(c, stats).FontSize(11.5).TextColor(kit.Ink2).SingleLine()
+		ui.Text(c, timing).FontSize(11).TextColor(kit.Ink2).Padding(1, 6).Radius(5).Background(kit.Surface2).Shrink(0)
 	})
 }
 

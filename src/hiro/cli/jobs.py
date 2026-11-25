@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import hiro
+from hiro.cli import reason_text
 from hiro.cli.catalog import idol_name
 
 REPO = Path(hiro.__file__).resolve().parents[2]  # 仓库根（tools/ 下的脚本从这里找）
@@ -49,6 +50,7 @@ def failure_reason(lines: list[str]) -> str | None:
     if not why:
         return None
     why = _SHOT_SUFFIX.sub("", why).strip()
+    why = reason_text.plain(why)  # 卡号换卡名、程序原话换白话（先换再截：名字比编号短）
     return why if len(why) <= REASON_MAX else why[: REASON_MAX - 1] + "…"
 
 

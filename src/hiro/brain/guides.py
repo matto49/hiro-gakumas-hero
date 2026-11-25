@@ -309,9 +309,59 @@ def lookup(*, mode: str | None, difficulty: str | None, idol_card: str | None, d
     if norm_idol(idol_card) == HIRO_IDOL and not hiro_enabled():
         return []
     pool_entries = list(entries(mode)) + list(extra or [])
-    return select(
+    hits = select(
         pool_entries, mode=mode, difficulty=difficulty, idol_card=idol_card, decision=decision, pool=pool, ctx=ctx
     )
+    if decision in STYLE_FALLBACK and not any(h.entry.layer >= 5 for h in hits):
+        agg = style_average(pool_entries, mode=mode, difficulty=difficulty, idol_card=idol_card, decision=decision)
+        if agg is not None:
+            hits = sorted([*hits, Hit(agg)], key=lambda h: (-h.entry.level, -h.entry.layer))
+    return hits
+
+
+# 编成类决策点：攻略包里几乎都是按单张偶像卡写的排行榜统计；这张卡没有条目时，按同流派的卡合并（2026-11-26）
+STYLE_FALLBACK = ("formation.support", "formation.memory", "formation.main_attr", "formation.pitem")
+
+
+def style_average(pool_entries: list[Entry], *, mode: str, difficulty: str | None, idol_card: str | None,
+                  decision: str) -> Entry | None:  # fmt: skip
+    """同模式（难度相符）、同プラン同流派的其他偶像卡在 decision 上的排行榜条目 → 一条流派层的合并条目：
+    每项的占比取这些卡的平均（某张卡没推荐它就算 0），按占比排。这张卡的流派认不出、或没有同流派的卡有条目时返回 None。"""
+    plan, style = idol_traits(idol_card)
+    if not style:
+        return None
+    me = norm_idol(idol_card)
+    per_card: dict[str, dict[str, float]] = {}
+    n_total = 0
+    for e in pool_entries:
+        sc = e.scope
+        other = sc.get("idol_card")
+        if e.decision != decision or not other or other == me or e.raw.get("kind") != "stat":
+            continue
+        if sc.get("mode") not in (None, mode) or sc.get("difficulty") not in (None, difficulty):
+            continue
+        if idol_traits(other) != (plan, style) or other in per_card:
+            continue
+        per_card[other] = {
+            str(it["id"]): float((it.get("stat") or {}).get("share") or 0)
+            for it in e.content.get("prefer") or []
+            if isinstance(it, dict) and it.get("id")
+        }
+        n_total += max((int(ev.get("n") or 0) for ev in e.raw.get("evidence") or []), default=0)
+    if not per_card:
+        return None
+    ids = dict.fromkeys(i for shares in per_card.values() for i in shares)
+    avg = {i: sum(s.get(i, 0.0) for s in per_card.values()) / len(per_card) for i in ids}
+    prefer = [{"id": i, "stat": {"share": round(v, 4)}} for i, v in sorted(avg.items(), key=lambda kv: -kv[1])]
+    return Entry({
+        "id": f"derived.{mode}.style-{style}.{decision}",
+        "kind": "derived",
+        "scope": {"mode": mode, "style": style},
+        "decision": decision,
+        "content": {"prefer": prefer, "avoid": [],
+                    "why": f"这张卡在这个模式没有攻略条目，按同流派（{style}）{len(per_card)} 张偶像卡的排行榜占比取平均"},
+        "evidence": [{"kind": "ranking", "mode": mode, "n": n_total}],
+    })  # fmt: skip
 
 
 def fetch(base: str = BASE_URL, modes=("hajime", "nia", "hif"), timeout: float = 30.0) -> dict:

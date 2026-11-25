@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,7 +18,7 @@ import (
 )
 
 // 第一次打开时装 Python 环境（设计稿 §4、§11 第 1 步）：程序自带 uv（resources/<平台>/bin/uv），
-// 把 hiro-gakumas-hero 拉到 HIRO_HOME/src，再跑仓库自己的安装脚本（scripts/setup.sh / setup.ps1：Python 3.10 → 依赖 → 游戏数据 → 自检）。
+// 把和安装包同版本的源码（GitHub 标签 desktop-v<版本> 的压缩包，不用 git）下到 HIRO_HOME/src，再跑仓库自己的安装脚本（scripts/setup.sh / setup.ps1：Python 3.10 → 依赖 → 游戏数据 → 自检）。
 // 用户不用装 Python。国内网络连不上 PyPI 时自动换镜像。
 
 // Step 是安装的一步。
@@ -27,12 +28,17 @@ type Step struct {
 	Argv  []string `json:"-"`
 	Dir   string   `json:"-"`
 	Env   []string `json:"-"`
+	// Run 不为空时这一步是程序自己做的（下载源码），不调外部命令；say 输出一行进度。
+	Run func(ctx context.Context, say func(string)) error `json:"-"`
 }
 
 // BootEnv 是做安装计划需要知道的事（测试里换成假的）。
 type BootEnv struct {
 	Home, Resources, GOOS string
-	RepoURL, Ref          string
+	RepoURL, Ref          string // RepoURL / Ref 来自 HIRO_REPO_URL / HIRO_REPO_REF；Ref 不空就只下这个分支 / 标签
+	Version               string // 安装包自己的版本（mygo.json 的 version），决定下载哪个标签的源码；空 = 开发版
+	HTTP                  *http.Client
+	Backoff               time.Duration // 下载重试前的等待（测试里调小）
 	MirrorCN              bool
 	LookPath              func(string) (string, error)
 	Exists                func(string) bool
@@ -47,7 +53,6 @@ const installedMarker = ".hiro-installed"
 
 const (
 	defaultRepoURL = "https://github.com/matto49/hiro-gakumas-hero"
-	defaultRepoRef = "main"
 	mirrorIndex    = "https://pypi.tuna.tsinghua.edu.cn/simple"
 	mirrorPython   = "https://registry.npmmirror.com/-/binary/python-build-standalone"
 )
@@ -59,10 +64,11 @@ func venvPython(home, goos string) string {
 	return filepath.Join(home, "src", ".venv", "bin", "python")
 }
 
-// PlanBootstrap 算出还差哪几步；已经装好时返回空。缺 git / uv 时返回带白话提示的错误。
+// PlanBootstrap 算出还差哪几步；已经装好时返回空。缺 uv / 磁盘不够时返回带白话提示的错误。
 func PlanBootstrap(e BootEnv) ([]Step, *CliError) {
 	src := filepath.Join(e.Home, "src")
-	if e.Exists(filepath.Join(src, ".git")) && e.Exists(venvPython(e.Home, e.GOOS)) && e.Exists(filepath.Join(src, installedMarker)) {
+	// 装好的判断只看 venv 的 python 和装完标记，不看 .git：新装的源码是压缩包解出来的没有 .git，以前 git clone 的旧安装照样认
+	if e.Exists(venvPython(e.Home, e.GOOS)) && e.Exists(filepath.Join(src, installedMarker)) {
 		return nil, nil
 	}
 	uvName := "uv"
@@ -77,14 +83,6 @@ func PlanBootstrap(e BootEnv) ([]Step, *CliError) {
 		}
 		uvDir = filepath.Dir(p)
 	}
-	git, err := e.LookPath("git")
-	if err != nil {
-		hint := "装好 Git 后再点「安装」：https://git-scm.com/download/win"
-		if e.GOOS == "darwin" {
-			hint = "打开「终端」运行 xcode-select --install，装好后再点「安装」"
-		}
-		return nil, &CliError{Code: "git_missing", Message: "这台电脑没有 git（下载初星助手的程序要用）", Hint: hint}
-	}
 	if e.FreeBytes != nil {
 		if free, err := e.FreeBytes(e.Home); err == nil && free < needFree {
 			return nil, &CliError{Code: "disk_full", Message: fmt.Sprintf("磁盘只剩 %.1f GB，装环境要 %d GB 左右", float64(free)/(1<<30), needFree>>30),
@@ -92,15 +90,17 @@ func PlanBootstrap(e BootEnv) ([]Step, *CliError) {
 		}
 	}
 	var steps []Step
-	if !e.Exists(filepath.Join(src, ".git")) {
-		repo, ref := e.RepoURL, e.Ref
-		if repo == "" {
-			repo = defaultRepoURL
+	// 源码已经在（旧安装的 .git，或新装解出来的安装脚本）就不再下载；半截目录由下载步骤清掉重来
+	if !e.Exists(filepath.Join(src, ".git")) && !e.Exists(filepath.Join(src, "scripts", "setup.sh")) {
+		spec := SourceSpec{Repo: e.RepoURL, Ref: e.Ref, Dest: src, Client: e.HTTP, Backoff: e.Backoff}
+		if spec.Repo == "" {
+			spec.Repo = defaultRepoURL
 		}
-		if ref == "" {
-			ref = defaultRepoRef
+		if v := strings.TrimPrefix(strings.TrimSpace(e.Version), "v"); v != "" {
+			spec.Tag = "desktop-v" + v
 		}
-		steps = append(steps, Step{ID: "source", Title: "下载初星助手的程序", Argv: []string{git, "clone", "--depth", "1", "--branch", ref, repo, src}, Dir: e.Home})
+		steps = append(steps, Step{ID: "source", Title: "下载初星助手的程序", Dir: e.Home,
+			Run: func(ctx context.Context, say func(string)) error { return FetchSource(ctx, spec, say) }})
 	}
 	env := []string{"PATH=" + uvDir + string(os.PathListSeparator) + os.Getenv("PATH"), "PYTHONUTF8=1"}
 	if e.MirrorCN {
@@ -151,7 +151,7 @@ type Bootstrap struct {
 
 func (b *Bootstrap) env(ctx context.Context, probeMirror bool) BootEnv {
 	res, _ := mygo.App.Path(mygo.PathResources)
-	e := BootEnv{Home: b.Home, Resources: res, GOOS: runtime.GOOS, RepoURL: os.Getenv("HIRO_REPO_URL"), Ref: os.Getenv("HIRO_REPO_REF"),
+	e := BootEnv{Home: b.Home, Resources: res, Version: mygo.App.Version(), GOOS: runtime.GOOS, RepoURL: os.Getenv("HIRO_REPO_URL"), Ref: os.Getenv("HIRO_REPO_REF"),
 		LookPath: exec.LookPath, Exists: func(p string) bool { _, err := os.Stat(p); return err == nil }, FreeBytes: freeBytes}
 	if probeMirror {
 		e.MirrorCN = needMirror(ctx)
@@ -182,6 +182,9 @@ func (b *Bootstrap) RunLines(ctx context.Context, send func(Progress)) error {
 		return errors.New("已经在安装了")
 	}
 	defer b.mu.Unlock()
+	if os.Getenv("HIRO_CLI") != "" { // 开发环境用自己的 hiro 命令，不下载也不装（和 Status 一致）
+		return nil
+	}
 	if err := os.MkdirAll(b.Home, 0o755); err != nil {
 		return err
 	}
@@ -191,6 +194,12 @@ func (b *Bootstrap) RunLines(ctx context.Context, send func(Progress)) error {
 	}
 	for _, st := range steps {
 		send(Progress{Step: st.ID, Line: "==> " + st.Title})
+		if st.Run != nil {
+			if err := st.Run(ctx, func(line string) { send(Progress{Step: st.ID, Line: line}) }); err != nil {
+				return errors.New(st.Title + "失败：" + err.Error() + "（网络问题可以稍后重试）")
+			}
+			continue
+		}
 		cmd := exec.CommandContext(ctx, st.Argv[0], st.Argv[1:]...)
 		cmd.Dir = st.Dir
 		cmd.Env = append(os.Environ(), st.Env...)

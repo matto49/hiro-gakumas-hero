@@ -626,6 +626,34 @@ class TowerPlay:
         return {k: track(k, v if k in ("TOWER_RESULT", "TOWER_RANKING") else reopen(v)) for k, v in hs.items()}
 
 
+def play_segment(rt, session, tp) -> None:
+    """打到设定的层数。日切换（日本时间 5 点「日付変更」，只有「タイトルへ」）：回首页后清掉这一层打到一半的状态，
+    游戏日变了就按新的一天清掉每日次数（tries / best / cleared / gave_up_three，和 tower_cache 每日记录同一约定：
+    换了游戏日，重启进程读回来的也是空的），从首页重新走进偶像之路接着打（同初 / N.I.A 的 play.segment_with_date_changes，
+    一段最多 MAX_DATE_CHANGES 次）。已打完的层数（done_layers）保留。"""
+    from hiro.runtime import play
+
+    day = [tower_cache.game_day()]
+
+    def resume():
+        # 日切换打断的那一场作废：结果页、再挑戦确认框、刚点过的页面、抽牌记录都从头来
+        tp.result_handled, tp._acted, tp._partial_since, tp.exam_draws = False, None, None, None
+        tp._nav_reset()  # 选层搜索从头来：回首页再进来，层选择页的位置变了，之前看过的层也要按新的一天重看（CodeRabbit #96）
+        today = tower_cache.game_day()
+        if today != day[0]:
+            run = tp.run
+            run.tries.clear()
+            run.best.clear()
+            run.cleared.clear()
+            run.gave_up_three.clear()
+            logger.info("偶像之路：游戏日从 %s 换到 %s，每日次数从头算", day[0], today)
+            day[0] = today
+
+    play.segment_with_date_changes(
+        rt, session, new=None, resume=resume, play_until=lambda: rt.run(until=lambda: tp.finished)
+    )
+
+
 def run(args) -> int:
     """跑一段偶像之路。返回退出码：0 打完设定的层数，3 停机交给人。"""
     from hiro.contracts import TraceWriter
@@ -649,7 +677,7 @@ def run(args) -> int:
                  dialog_words=DIALOG_WORDS, idle_stop_s=IDLE_STOP_S, rescue=not args.no_llm)  # fmt: skip
     active.use(rt)
     try:
-        rt.run(until=lambda: tp.finished)
+        play_segment(rt, session, tp)
         return 0
     except ResumeBlocked as e:
         logger.error("%s", e)

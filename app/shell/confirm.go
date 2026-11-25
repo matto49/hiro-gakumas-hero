@@ -198,24 +198,35 @@ func (a *App) confirmCard(c *ui.Context, m *Message, card plugin.Card) {
 	})
 }
 
-// explainGroup 是确认卡卡身里的一组列表：小标题，下面每行「小图 标签 名字 …… 右边小字」。
+// explainGroup 是确认卡卡身里的一组：小标题，下面每张卡一个小块（图标 · 名字 / 小字 · 行尾 tag），
+// 两三块排一行，不再一张一行把卡片拉得很长（11-25 review）；鼠标停在块上显示 Tip（效果文字等）。
 func explainGroup(c *ui.Context, key string, g plugin.ExplainGroup) {
-	ui.Column(c).Key(key).Gap(4).Children(func() {
+	ui.Column(c).Key(key).Gap(6).Children(func() {
 		ui.Text(c, g.Title).FontSize(11.5).FontWeight(600).TextColor(kit.Ink3)
-		for i, it := range g.Items {
-			ui.Row(c).Key(fmt.Sprintf("%s-%d", key, i)).Gap(8).AlignItems(ui.Center).Children(func() {
-				if it.Thumb != "" {
-					kit.Thumb(c, it.Thumb, 26, 26, 6)
+		ui.Row(c).Wrap().Gap(6).Children(func() {
+			for i, it := range g.Items {
+				c.Key(fmt.Sprintf("%s-%d", key, i))
+				tile := ui.Row(c).Width(230).Grow(1).Shrink(1).Gap(8).AlignItems(ui.Center).Padding(5, 8, 5, 5).Radius(kit.R8).Background(kit.Surface2)
+				if it.Tip != "" {
+					tile = tile.Tooltip(it.Tip)
 				}
-				if it.Tag != "" {
-					ui.Text(c, it.Tag).FontSize(11).TextColor(kit.Ink2).Padding(1, 6).Radius(5).Background(kit.Surface2)
-				}
-				ui.Text(c, it.Name).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…").Shrink(1)
-				if it.Note != "" {
-					ui.Spacer(c)
-					ui.Text(c, it.Note).FontSize(11).TextColor(kit.Ink3)
-				}
-			})
-		}
+				tile.Children(func() {
+					if it.Thumb != "" {
+						kit.Thumb(c, it.Thumb, 30, 30, 6)
+					} else {
+						ui.Box(c).Size(30, 30).Radius(6).Background(kit.Line).Shrink(0)
+					}
+					ui.Column(c).Gap(1).Grow(1).Shrink(1).Children(func() {
+						ui.Text(c, it.Name).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…")
+						if it.Note != "" {
+							ui.Text(c, it.Note).FontSize(11).TextColor(kit.Ink3).SingleLine()
+						}
+					})
+					if it.Tag != "" {
+						ui.Text(c, it.Tag).FontSize(11).TextColor(kit.Ink2).Padding(1, 6).Radius(5).Background(kit.CardBg).Border(kit.Hair, kit.Line).Shrink(0)
+					}
+				})
+			}
+		})
 	})
 }

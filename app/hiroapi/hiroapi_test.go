@@ -22,3 +22,23 @@ func TestResultJSONFieldNames(t *testing.T) {
 		t.Fatalf("读回 %+v %v", back, err)
 	}
 }
+
+// 待确认里固定的方案快照要跟着确认卡存下来、再读回来（PR #79 CodeRabbit：确认卡方案快照）
+func TestPendingPlanSnapshotRoundTrip(t *testing.T) {
+	raw := `{"id":"abc","command":"run start","summary":"写编成","expires_at":9,"plan":{"support":{"set":2}}}`
+	var m map[string]any
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		t.Fatal(err)
+	}
+	p, ok := PendingFromMap(m)
+	if !ok || p.Plan["support"] == nil {
+		t.Fatalf("读不出 plan：%+v", p)
+	}
+	back, _ := PendingFromMap(p.Map())
+	if back.Plan["support"] == nil {
+		t.Errorf("存进卡片再读回来丢了 plan：%+v", p.Map())
+	}
+	if _, has := (Pending{ID: "x"}).Map()["plan"]; has {
+		t.Error("没有快照时不该写 plan")
+	}
+}

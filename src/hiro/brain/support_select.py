@@ -36,6 +36,10 @@ ATTR_OF = {
 NAME = {"Vo": "vocal", "Da": "dance", "Vi": "visual"}
 MAIN_ATTR = "Da"  # Campus 広：主 Da（用户 / 决策-07）
 MAIN_COUNT = 4  # 4-2-0 / 4-1-1 [ep08][playbook]
+GUIDE: dict[
+    str, float
+] = {}  # 攻略推荐：支援卡 id → 排行榜占比（formation_plan 按模式 / 流派查攻略后经 using(guide=) 设）
+GUIDE_WEIGHT = 400.0  # 占比 1.0 折多少价值（单卡价值约 150–300：占比 65% 的推荐卡约等于多一张卡的价值，2026-11-26）
 PLAN = "ProducePlanType_Plan2"  # 広 是 ロジック（Plan2，やる気）；master IdolCard i_card-shro-3-007.planType
 # 识屏 / 库存里的 plan 字段（游戏卡面写法或 master 枚举）→ master 枚举。总控 2026-11-02：编成里有「プラン不一致」的卡开不了局，必须硬过滤
 PLAN_ALIASES = {"センス": "ProducePlanType_Plan1", "sense": "ProducePlanType_Plan1", "plan1": "ProducePlanType_Plan1",
@@ -294,6 +298,9 @@ def card_value(slot: Slot, sp: dict) -> tuple[float, list[str]]:
             total += v
             notes.append(f"{why} {v:+.0f}")
 
+    if share := GUIDE.get(slot.card_id):
+        add(share * GUIDE_WEIGHT, f"攻略推荐 {share:.0%}")
+
     for etype, value, tid, limit in slot.skills:
         n = _trigger_count(tid, sp)
         if limit:
@@ -427,19 +434,22 @@ def choose(inventory: dict, *, size: int = 6) -> dict:
 
 
 @contextmanager
-def using(main_attr: str | None = None, plan: str | None = None, main_count: int | None = None):
+def using(main_attr: str | None = None, plan: str | None = None, main_count: int | None = None,
+          guide: dict[str, float] | None = None):  # fmt: skip
     """临时换主属性 / 方案（换偶像、比较逆练）：ROUTE["lessons"] 和 GROWTH_BASE 按主属性重排，结束后还原。
-    默认值（Da / Plan2）下重排结果与原表相同。main_count：编成里主属性要几张（只选自己 5 张、租借格开局再租主属性时用 3）。"""
-    global MAIN_ATTR, PLAN, GROWTH_BASE, MAIN_COUNT
-    saved = (MAIN_ATTR, PLAN, GROWTH_BASE, ROUTE["lessons"], MAIN_COUNT)
+    默认值（Da / Plan2）下重排结果与原表相同。main_count：编成里主属性要几张（只选自己 5 张、租借格开局再租主属性时用 3）。
+    guide：攻略推荐的支援卡 id → 排行榜占比，按占比加价值（GUIDE_WEIGHT）；不给就保持外层的。"""
+    global MAIN_ATTR, PLAN, GROWTH_BASE, MAIN_COUNT, GUIDE
+    saved = (MAIN_ATTR, PLAN, GROWTH_BASE, ROUTE["lessons"], MAIN_COUNT, GUIDE)
     MAIN_ATTR, PLAN = main_attr or MAIN_ATTR, _norm_plan(plan) or PLAN
     MAIN_COUNT = main_count or MAIN_COUNT
+    GUIDE = dict(guide) if guide is not None else GUIDE
     ROUTE["lessons"] = {a: (MAIN_LESSONS if a == MAIN_ATTR else 0) for a in NAME}
     GROWTH_BASE = {a: (GROWTH_MAIN if a == MAIN_ATTR else GROWTH_OTHER) for a in NAME}
     try:
         yield
     finally:
-        MAIN_ATTR, PLAN, GROWTH_BASE, ROUTE["lessons"], MAIN_COUNT = saved
+        MAIN_ATTR, PLAN, GROWTH_BASE, ROUTE["lessons"], MAIN_COUNT, GUIDE = saved
 
 
 def choose_main(inventory: dict, *, plan: str | None = None, default_attr: str | None = None, size: int = 6,

@@ -2,6 +2,7 @@ package shell
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -197,5 +198,111 @@ func TestFirstScanReportsErrors(t *testing.T) {
 	}
 	if errs != 1 {
 		t.Errorf("没把发不起来的那项告诉用户：%+v", a.Current().Messages)
+	}
+}
+
+// 11-25 review：「这个设置，我们放进对话框里吧，ui 同 codex」——输入框左下角就是当前档位，点开换档。
+func composerPermApp(t *testing.T, level string, confirmed bool) (*App, *ui.Tester, *[]string) {
+	t.Helper()
+	a, _ := newTestApp(newMem(), &fakeCall{}, nil, viewReg())
+	saved := &[]string{}
+	a.d.Permission = func() string { return level }
+	a.d.AllowAllConfirmed = func() bool { return confirmed }
+	a.d.SetPermission = func(l string) error {
+		*saved = append(*saved, l)
+		level = l
+		if l == PermAll {
+			confirmed = true
+		}
+		return nil
+	}
+	tt := ui.NewTester(a.View, 1280, 800)
+	tt.Frame()
+	return a, tt, saved
+}
+
+func TestComposerShowsCurrentPermission(t *testing.T) {
+	_, tt, _ := composerPermApp(t, "", false)
+	if !tt.HasText("允许读操作") {
+		t.Fatalf("输入框里应看得到当前档位：%q", tt.Texts())
+	}
+}
+
+func TestComposerSwitchesPermission(t *testing.T) {
+	_, tt, saved := composerPermApp(t, PermRead, false)
+	if err := tt.Click("操作权限：" + PermName[PermRead]); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if err := tt.Click("允许读写操作"); err != nil {
+		t.Fatalf("菜单里没有「允许读写操作」：%v %q", err, tt.Texts())
+	}
+	tt.Frame()
+	if len(*saved) != 1 || (*saved)[0] != PermReadWrite {
+		t.Fatalf("应存成 readwrite：%v", *saved)
+	}
+	if !tt.HasText("允许读写操作") {
+		t.Errorf("换档后输入框里应显示新档位：%q", tt.Texts())
+	}
+}
+
+func TestComposerAllowAllAsksOnce(t *testing.T) {
+	_, tt, saved := composerPermApp(t, PermRead, false)
+	if err := tt.Click("操作权限：" + PermName[PermRead]); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	_ = tt.Click("允许所有行为")
+	tt.Frame()
+	if len(*saved) != 0 || !tt.HasText("确定允许所有行为？") {
+		t.Fatalf("第一次切到允许所有行为要先二次确认：%v %q", *saved, tt.Texts())
+	}
+	if err := tt.Click("确定，允许所有行为"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if len(*saved) != 1 || (*saved)[0] != PermAll {
+		t.Fatalf("确认后应存成 all：%v", *saved)
+	}
+	// 确认过一次，之后直接切
+	_, tt2, saved2 := composerPermApp(t, PermRead, true)
+	_ = tt2.Click("操作权限：" + PermName[PermRead])
+	tt2.Frame()
+	_ = tt2.Click("允许所有行为")
+	tt2.Frame()
+	if len(*saved2) != 1 || tt2.HasText("确定允许所有行为？") {
+		t.Errorf("确认过的不再弹：%v", *saved2)
+	}
+}
+
+func TestPreviewComposerPermission(t *testing.T) {
+	_, tt, _ := composerPermApp(t, PermRead, false)
+	snap(t, tt, "perm-composer")
+	_ = tt.Click("操作权限：" + PermName[PermRead])
+	tt.Frame()
+	snap(t, tt, "perm-composer-menu")
+}
+
+// CodeRabbit #91：存不上（文件不可写等）时要说清楚、能再试，不能当作已经换档；确认框存成功才关。
+func TestComposerPermissionSaveErrorShown(t *testing.T) {
+	a, tt, _ := composerPermApp(t, PermAll, true)
+	a.d.SetPermission = func(string) error { return errors.New("settings.json 写不进去") }
+	_ = tt.Click("操作权限：" + PermName[PermAll])
+	tt.Frame()
+	_ = tt.Click("总是询问")
+	tt.Frame()
+	if !tt.HasText("操作权限没存上：settings.json 写不进去。现在还是「允许所有行为」，再选一次试试") {
+		t.Errorf("保存失败要说原因和下一步：%q", tt.Texts())
+	}
+	a2, tt2, _ := composerPermApp(t, PermRead, false)
+	a2.d.SetPermission = func(string) error { return errors.New("磁盘满了") }
+	_ = tt2.Click("操作权限：" + PermName[PermRead])
+	tt2.Frame()
+	_ = tt2.Click("允许所有行为")
+	tt2.Frame()
+	_ = tt2.Click("确定，允许所有行为")
+	tt2.Frame()
+	if !tt2.HasText("确定允许所有行为？") || !tt2.HasText("没存上：磁盘满了，再点一次试试") {
+		t.Errorf("确认框存失败不能关，要说原因：%q", tt2.Texts())
 	}
 }

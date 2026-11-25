@@ -24,7 +24,7 @@ func (a *App) composer(c *ui.Context) {
 // inputBox 是输入框那一行（底部和新对话页共用）。
 func (a *App) inputBox(c *ui.Context) {
 	{
-		ui.Row(c).AlignItems(ui.End).Gap(10).Padding(10, 10, 10, 16).Radius(kit.R20).Background(kit.CardBg).Border(kit.Hair, kit.LineStr).
+		ui.Column(c).Gap(6).Padding(10, 10, 8, 16).Radius(kit.R20).Background(kit.CardBg).Border(kit.Hair, kit.LineStr).
 			Shadow(0, 4, 18, 0, ui.RGBA(0, 0, 0, 0.04)).Children(func() {
 			ph := "说点什么，或者输入「/」用插件"
 			if _, w := a.latestWaiting(); w != nil {
@@ -33,7 +33,7 @@ func (a *App) inputBox(c *ui.Context) {
 			if !a.hasModel() {
 				ph = "先到设置里配一个模型，才能直接说话；现在可以用「/」命令"
 			}
-			ui.TextAreaBase(c, &a.input).Lines(1, 6).AutoFocus().Placeholder(ph).FontSize(kit.FBody).TextColor(kit.Ink).Grow(1).Padding(5, 0).
+			ui.TextAreaBase(c, &a.input).Lines(1, 6).AutoFocus().Placeholder(ph).FontSize(kit.FBody).TextColor(kit.Ink).Padding(5, 0).
 				Label("输入框").OnTextKey(func(k ui.TextKey) bool {
 				if (k.Key == ui.KeyEnter || k.Key == ui.KeyEscape) && k.Mods == 0 && strings.TrimSpace(k.Text()) == "" {
 					return a.keyOnEmptyInput(k.Key)
@@ -46,14 +46,20 @@ func (a *App) inputBox(c *ui.Context) {
 				}
 				return false
 			})
-			send := ui.PrimaryButton(c, "").Label("发送").Size(30, 30).Padding(0).Radius(15).Disabled(a.busy || strings.TrimSpace(a.input) == "").
-				Children(func() { ui.Icon(c, kit.IcArrowUp).FontSize(15) })
-			if send.Clicked() {
-				text := a.input
-				a.input = ""
-				a.submit(text)
-			}
+			// 底下一行像 codex：左边是操作权限，右边是发送
+			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+				a.permMenu(c)
+				ui.Spacer(c)
+				send := ui.PrimaryButton(c, "").Label("发送").Size(30, 30).Padding(0).Radius(15).Disabled(a.busy || strings.TrimSpace(a.input) == "").
+					Children(func() { ui.Icon(c, kit.IcArrowUp).FontSize(15) })
+				if send.Clicked() {
+					text := a.input
+					a.input = ""
+					a.submit(text)
+				}
+			})
 		})
+		a.permError(c)
 	}
 }
 

@@ -31,7 +31,7 @@ def _dir() -> Path:
     return d
 
 
-def create(command: str, args: dict, summary: str, access: str = "all") -> dict:
+def create(command: str, args: dict, summary: str, access: str = "all", snapshot: dict | None = None) -> dict:
     pid = secrets.token_hex(6)
     t = _now()
     rec = {
@@ -43,6 +43,8 @@ def create(command: str, args: dict, summary: str, access: str = "all") -> dict:
         "created_at": t,
         "expires_at": t + TTL,
     }
+    if snapshot:
+        rec["snapshot"] = snapshot
     tmp = _dir() / f"{pid}.tmp"
     tmp.write_text(json.dumps(rec, ensure_ascii=False), encoding="utf-8")
     tmp.replace(_dir() / f"{pid}.json")
@@ -51,7 +53,10 @@ def create(command: str, args: dict, summary: str, access: str = "all") -> dict:
 
 def public(rec: dict) -> dict:
     """给 agent / 界面看的待确认：带上参数（args），确认卡按种类和参数画（11-25 review：只有 command 时界面认不出种类）。"""
-    return {k: rec.get(k) for k in ("id", "command", "args", "access", "summary", "expires_at")}
+    out = {k: rec.get(k) for k in ("id", "command", "args", "access", "summary", "expires_at")}
+    if (rec.get("snapshot") or {}).get("plan") is not None:
+        out["plan"] = rec["snapshot"]["plan"]  # 确认卡按这份方案摘要画，不再另外去读方案文件（可能已经变了）
+    return out
 
 
 def take(pid: str) -> dict:

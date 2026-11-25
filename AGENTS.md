@@ -75,7 +75,7 @@
 平台见下面「设备」：**作者实机验证过的有 macOS（Apple Silicon）+ PlayCover，和 Windows + MuMu 12**
 （MuMu 6.8，22 局 3 次本战夺冠）；Windows DMM 版实机开局跑通（见「设备」）；安卓设备 / 模拟器（ADB）、雷电走 `AdbDevice`，代码接好了、有离线测试，但没有实机打过一局。
 
-1. 装环境（一条命令，可重复跑，做过的步骤会跳过；需要 uv、git 和网络）：
+1. 装环境（一条命令，可重复跑，做过的步骤会跳过；需要 uv 和网络；脚本本身不要 git，下面用 git clone 只是拿源码的一种办法，下载 GitHub 的源码压缩包解压也行）：
    ```bash
    git clone https://github.com/matto49/hiro-gakumas-hero && cd hiro-gakumas-hero
    scripts/setup.sh      # .venv（Python 3.10）→ 安装 → OCR 模型 → 识别用的游戏原图 → 模拟器主数据 + 主数据库 → 自检
@@ -84,6 +84,8 @@
    游戏原图（技能卡 / 偶像卡 / 饮料，`resources/game_data/`）由 `tools/assets/game_images.py` 从本仓库 Release `game-images-b9577da`
    （kaa-game-data b9577da 版的副本，识别按这一版调）下载、校验 SHA256；主数据库（`cache/master/game.db`）由 `python -m hiro.state.master_db` 从模拟器主数据生成，
    和原来 KAA 的 game.db 同结构。见 `docs/assets.md`。
+   往本仓库发这类数据 Release（游戏图、OCR 模型、引擎包、主数据包）一律加 `--latest=false`：「Latest」只给桌面包 `desktop-v*`，
+   被顶掉时 `.github/workflows/release-latest.yml` 会改回并报错。
    自检最后会打印插件来源、有没有主数据和自建素材，以及开局命令。
 2. 游戏窗口：用 [hguandl 的 PlayCover 分支](https://github.com/hguandl/PlayCover)，在游戏的 PlayCover 设置里打开 `maaTools`（端口 `maaToolsPort`）。
    截图和点击走游戏进程内的 MaaTools 服务（见 `hiro/devices/maatools.py`），**不要求窗口在前台，也不动鼠标**。

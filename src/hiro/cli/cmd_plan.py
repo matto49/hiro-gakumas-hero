@@ -74,6 +74,9 @@ def summarize(plan: dict) -> dict:
     }
 
 
+MODES = ("hajime", "nia", "hif")
+
+
 @command(
     "plan formation",
     Risk.READ,
@@ -85,9 +88,28 @@ def summarize(plan: dict) -> dict:
         Arg("--memory-set", "方案存进第几号メモリー编成（1–20）", type="int"),
         Arg("--main-attr", "默认主属性（不给按偶像成长率）", choices=ATTRS),
         Arg("--fixed-main", "只用 --main-attr，不比较逆练", type="bool"),
+        Arg(
+            "--mode",
+            "给哪个模式出（hajime / nia / hif）：按这个模式查社区攻略，方案按「偶像卡 × 模式」存",
+            choices=MODES,
+        ),
+        Arg("--difficulty", "难度（初 regular / pro / master / legend，N.I.A pro / master），查攻略用；不给按默认难度"),
     ),
 )
 def _formation(a: dict) -> dict:
+    home = ensure_home()
+    plan, path = make_plan(home, a["idol"], a.get("mode"), difficulty=a.get("difficulty"), support_set=a["support_set"],
+                           memory_set=a["memory_set"], main_attr=a["main_attr"], fixed_main=a["fixed_main"])  # fmt: skip
+    from hiro.brain import formation_plan as fp
+
+    return {**summarize(plan), "path": str(path), "report": fp.format_report(plan)}
+
+
+def make_plan(home, idol: str, fam: str | None, *, difficulty: str | None = None, support_set: int | None = None,
+              memory_set: int | None = None, main_attr: str | None = None, fixed_main: bool = False,
+              source: str | None = None) -> tuple[dict, object]:  # fmt: skip
+    """读信息库里最新的库存 → 出方案 → 存（给了模式按「偶像卡 × 模式」存并设为当前方案，没给只写当前方案）。
+    plan formation 和开局前自动出方案（hiro run start）共用。"""
     st = open_store()
     sup, mem = st.latest_raw("supports"), st.latest_raw("memories")
     if sup is None and mem is None:
@@ -96,39 +118,64 @@ def _formation(a: dict) -> dict:
             "还没有支援卡和回忆的库存",
             "先扫描支援卡和回忆（hiro run start scan-supports / scan-memories）",
         )
-    home = ensure_home()
     paths.apply_to_process(home)  # 主数据路径
     from hiro.brain import formation_plan as fp
     from hiro.state.catalog import CatalogUnavailable
 
     try:
         plan = fp.build(
-            a["idol"],
+            idol,
             support_inventory=sup,
             memory_inventory=mem,
-            support_set=a["support_set"],
-            memory_set=a["memory_set"],
-            main_attr=a["main_attr"],
-            fixed_main=a["fixed_main"],
+            support_set=support_set,
+            memory_set=memory_set,
+            main_attr=main_attr,
+            fixed_main=fixed_main,
+            mode=fp.produce_of(fam, difficulty) if fam else None,
         )
     except CatalogUnavailable:
         raise CliError(
             "no_master_data", "没有游戏主数据，算不了编成", "设置 → 环境 → 重新安装（会下载主数据）"
         ) from None
     except (KeyError, ValueError) as e:
-        raise CliError(
-            "bad_idol", f"认不出这张偶像卡：{a['idol']}（{e}）", "用 hiro catalog search 查偶像卡编号"
-        ) from None
-    path = paths.plan_path(home)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
-    tmp.replace(path)
-    return {**summarize(plan), "path": str(path), "report": fp.format_report(plan)}
+        raise CliError("bad_idol", f"认不出这张偶像卡：{idol}（{e}）", "用 hiro catalog search 查偶像卡编号") from None
+    if source:
+        plan = dict(plan, source=source)
+    if fam:
+        path = fp.save_plan(home, plan, fam)
+        plan = fp.load(path) or plan
+    else:  # 没给模式：照以前只写当前方案
+        path = paths.plan_path(home)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
+        tmp.replace(path)
+    return plan, path
 
 
-@command("plan show", Risk.READ, "看现在的开局编成方案（上一次 hiro plan formation 出的）。")
+@command(
+    "plan show",
+    Risk.READ,
+    "看开局编成方案：缺省是当前方案（上一次出的 / 上一局用的）；给 --idol 和 --mode 看那张卡在那个模式的方案。",
+    args=(
+        Arg("--idol", "偶像卡编号"),
+        Arg("--mode", "模式（hajime / nia / hif）", choices=MODES),
+    ),
+)
 def _show(a: dict) -> dict:
-    path = paths.plan_path(ensure_home())
+    from hiro.brain import formation_plan as fp
+
+    home = ensure_home()
+    if a.get("idol") and a.get("mode"):
+        found = fp.find_plan(home, a["idol"], a["mode"])
+        if found is None:
+            raise CliError(
+                "no_plan",
+                f"{a['idol']} 在 {a['mode']} 还没有编成方案",
+                f"出一份：hiro plan formation --idol {a['idol']} --mode {a['mode']}",
+            )
+        plan, path = found
+        return {**summarize(plan), "path": str(path)}
+    path = paths.plan_path(home)
     try:
         plan = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):

@@ -44,6 +44,10 @@ type Deps struct {
 	Gate func(c *ui.Context, h plugin.Host) bool
 	// Permission 是用户选的操作权限档（PermAsk / PermRead / …）；nil 或空是「允许读操作」。
 	Permission func() string
+	// SetPermission 存新的档位（存成 all 时也记下「确认过」）；nil 时输入框里只显示、不能换。
+	SetPermission func(level string) error
+	// AllowAllConfirmed 是第一次切到「允许所有行为」时的二次确认做过没有（只弹一次）。
+	AllowAllConfirmed func() bool
 }
 
 // App 是主界面的全部状态。只在界面线程里改。
@@ -58,6 +62,10 @@ type App struct {
 
 	input string
 	ui    viewState
+	// confirmAll 是输入框里切到「允许所有行为」时的二次确认框开着。
+	confirmAll bool
+	// permErr 是上次换操作权限没存上的原因。
+	permErr string
 
 	jobs     map[string]*plugin.JobView
 	live     string // 活着的任务编号

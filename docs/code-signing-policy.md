@@ -41,8 +41,10 @@ The app does not collect telemetry. API keys stay on the user's computer.
 
 ## First launch
 
-- Windows: if SmartScreen appears, click "More info" → "Run anyway".
-- macOS: after moving the app to Applications, right-click it in Finder → Open, or allow it in System Settings → Privacy & Security.
+- Windows: if SmartScreen appears ("Windows protected your PC"), click "More info" → "Run anyway".
+- macOS 15 and later (the Finder "right-click → Open" bypass no longer works): move the app to Applications and open it; when macOS says it
+  cannot be opened, click "Done", then open System Settings → Privacy & Security, scroll to "Security", click "Open Anyway" next to
+  ""初星助手" was blocked…", enter your login password and click "Open" in the confirmation dialog. This is needed only once.
 
 ## Uninstall
 

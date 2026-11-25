@@ -17,6 +17,40 @@ type Entry struct {
 	Asset  string `json:"asset"`
 	Type   string `json:"type"`
 	Attr   string `json:"attr"`
+	// Text 是效果文字（中文资料库的，悬停说明用）。
+	Text string `json:"text"`
+}
+
+// Both 是「中文名（日文原名）」：卡名中文优先，日文原名跟在后面（app/DESIGN.md）；两者一样或缺一个时只给一个。
+func Both(zh, ja string) string {
+	switch {
+	case zh == "" || zh == ja:
+		return ja
+	case ja == "":
+		return zh
+	}
+	return zh + "（" + ja + "）"
+}
+
+// Tip 是一张卡的悬停说明：名字（稀有度）、效果文字，再加调用方给的几行（等级、租借等）。没有资料时只用 extra。
+func Tip(e *Entry, name string, extra ...string) string {
+	var lines []string
+	head := name
+	if e != nil && e.Rarity != "" {
+		head += "（" + e.Rarity + "）"
+	}
+	if head != "" {
+		lines = append(lines, head)
+	}
+	if e != nil && strings.TrimSpace(e.Text) != "" {
+		lines = append(lines, strings.TrimSpace(e.Text))
+	}
+	for _, x := range extra {
+		if x != "" {
+			lines = append(lines, x)
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // Catalog 缓存资料库查询和小图路径：view 里同步问，没有就在后台查一次，查到后界面会重画。
