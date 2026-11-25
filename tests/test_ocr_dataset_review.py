@@ -88,3 +88,38 @@ def test_apply_reads_answers_file(tmp_path):
         encoding="utf-8",
     )
     assert review.apply(ds, f)["resolved"] == 1
+
+
+def _evil_dataset(tmp_path):
+    """投稿者能控制 answers 的键、box 的 tags.type：这些原样进复核页 / 抽查页的 HTML 就是 XSS（PR #104）。"""
+    ds = _dataset(tmp_path)
+    p = ds / "core" / "dmm540-r-00001.json"
+    fr = json.loads(p.read_text(encoding="utf-8"))
+    for b in fr["boxes"]:
+        b["answers"]["<img src=x onerror=alert(1)>"] = "綿成" if b["id"] == 1 else b["text"]
+        b["tags"]["type"] = "<script>alert(2)</script>"
+    p.write_text(json.dumps(fr, ensure_ascii=False), encoding="utf-8")
+    label.rebuild_disputed(ds)
+    return ds
+
+
+def test_review_page_escapes_answer_keys_and_tags(tmp_path):
+    html = review.build(_evil_dataset(tmp_path)).read_text(encoding="utf-8")
+    assert "<img src=x onerror" not in html and "<script>alert(2)" not in html
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html
+
+
+def test_spot_check_page_escapes_answer_keys_and_tags(tmp_path):
+    html = label.spot_check(_evil_dataset(tmp_path), n=5, seed=1).read_text(encoding="utf-8")
+    assert "<img src=x onerror" not in html and "<script>alert(2)" not in html
+    assert "&lt;img src=x onerror=alert(1)&gt;" in html
+
+
+def test_apply_blank_text_is_not_a_resolved_answer(tmp_path):
+    """复核页点了候选又把输入框清空：导出 text 是空串，不能写成 resolved + 真值空串（要「忽略」按钮才表示没字，PR #104）。"""
+    ds = _dataset(tmp_path)
+    got = review.apply(ds, [{"frame": "dmm540-r-00001", "set": "core", "box": 1, "text": "  "},
+                            {"frame": "dmm540-r-00001", "set": "core", "box": 2, "text": ""}])  # fmt: skip
+    assert got == {"resolved": 0, "ignored": 0, "disputed": 0, "missing": 2}
+    boxes = {b["id"]: b for b in _frame(ds)["boxes"]}
+    assert boxes[1]["status"] == "disputed" and boxes[1]["text"] == "綿成"

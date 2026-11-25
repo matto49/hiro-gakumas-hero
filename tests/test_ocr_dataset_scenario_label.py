@@ -10,14 +10,12 @@ pytestmark = pytest.mark.synthetic
 
 
 @pytest.fixture(autouse=True)
-def _sheet_without_pillow(monkeypatch):
-    """对照表要用 Pillow 写日文名字；CI 只装 .[dev] 没有 Pillow：换成同尺寸的白图，拼图和提示词的逻辑照样测。"""
-    try:
-        import PIL  # noqa: F401
-    except ImportError:
-        from tools.ocr_dataset import status_sheet
+def _blank_sheet(monkeypatch):
+    """对照表依赖 Pillow、CJK 字体和图标素材；这些模拟测试只看拼图和提示词的逻辑，一律换成同尺寸的白图（装了 Pillow 但没字体 / 没图标索引的机器上也不会先挂）。
+    真实对照表另有一个单独的测试（缺字体 / 素材时跳过）。"""
+    from tools.ocr_dataset import status_sheet
 
-        monkeypatch.setattr(status_sheet, "sheet", lambda icon_dir: np.full((1220, 1600, 3), 255, np.uint8))
+    monkeypatch.setattr(status_sheet, "sheet", lambda icon_dir: np.full((1220, 1600, 3), 255, np.uint8))
 
 
 def test_ask_parses_items_and_buttons():
@@ -131,3 +129,19 @@ def test_status_items_come_with_icon_reference_sheet():
     plain = _ImageSpy(replies=[{"items": {"hp": 3}, "buttons": []}])
     sl.ask(plain, np.zeros((1280, 720, 3), np.uint8), "exam", keys=["hp"])
     assert plain.image.shape[:2] == (1280, 720) and "对照表" not in plain.calls[0][1]
+
+
+def test_real_status_sheet_renders_when_font_and_icons_are_available(monkeypatch):
+    """真实的状态栏对照表：需要 Pillow、CJK 字体和图标素材（index.json）；缺哪样就跳过，不当成失败。"""
+    pytest.importorskip("PIL")
+    import importlib
+
+    from tools.ocr_dataset import status_sheet
+
+    importlib.reload(status_sheet)  # 上面的 autouse 夹具已经把 sheet 换掉了，这里要真的那个
+    icon_dir = status_sheet.default_icon_dir()
+    try:
+        out = status_sheet.sheet(str(icon_dir))
+    except (RuntimeError, FileNotFoundError, OSError) as e:
+        pytest.skip(f"缺字体或图标素材：{e}")
+    assert out.ndim == 3 and out.shape[0] > 100

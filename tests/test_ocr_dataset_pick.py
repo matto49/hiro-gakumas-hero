@@ -171,3 +171,26 @@ def test_platform_override_does_not_beat_recorded_device(tmp_path):
         run={"started": 1, "platform": {"device": "mumu", "native": [720, 1280]}},
     )
     assert [c.platform for c in pick.collect([d], platform="dmm")] == ["mumu"]
+
+
+def test_skipped_loading_page_does_not_make_next_frame_a_duplicate(tmp_path):
+    """加载页本身不是纯色时，以前先记进去重状态再因 loading 跳过：紧跟着的相似有效帧被当成重复丢了（PR #104）。"""
+    d = _trace(tmp_path, "hif-mac-p1", ["LOADING", "home"], [1, 1])  # 同一画面，第一张被页面过滤
+    assert [c.seq for c in pick.collect([d])] == [2]
+
+
+def test_write_inbox_skips_same_id_with_different_content_from_another_day(tmp_path):
+    """同一 platform / run / seq 在别的日子的 inbox 或已标注的 core 里有了、内容不同：不能写进今天的 inbox
+    （它会被当成已标注，从 meta.json 里悄悄删掉，PR #104）。要跳过并报告，不是静默丢。"""
+    d1 = _trace(tmp_path, "maindmm1-20261110-192152", ["home"], [1])
+    d2 = _trace(tmp_path, "other", ["home"], [2], run=None)
+    sel1 = pick.collect([d1])
+    ds = tmp_path / "ds"
+    pick.write_inbox(sel1, ds, "matto", {}, date="2026-11-23")
+    # 另一天又采到同 run / seq、画面不同的帧
+    c2 = pick.collect([d2])[0]
+    c2.run, c2.seq, c2.platform = sel1[0].run, sel1[0].seq, sel1[0].platform
+    skipped: list = []
+    out = pick.write_inbox([c2], ds, "matto", {}, date="2026-11-24", skipped=skipped)
+    meta = json.loads((out / "meta.json").read_text(encoding="utf-8"))
+    assert meta["frames"] == [] and len(skipped) == 1 and skipped[0][0] == schema.frame_id(c2.platform, c2.run, c2.seq)

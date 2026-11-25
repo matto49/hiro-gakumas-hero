@@ -12,6 +12,7 @@ import json
 import time
 from pathlib import Path
 
+from tools.ocr_dataset import schema
 from tools.ocr_dataset.lexicon import Lexicon, levenshtein, norm
 
 import numpy as np
@@ -299,8 +300,10 @@ def predictor(backend: str, lex: Lexicon):
 
 
 def load_frames(dataset: Path, set_: str) -> list[dict]:
+    """只要框级帧（schema 1）：场景帧（3）、字段帧（2）没有 boxes，喂给 score 会 KeyError；它们各有自己的评测。"""
     d = dataset / set_
-    return [json.loads(p.read_text(encoding="utf-8")) for p in sorted(d.glob("*.json"))] if d.is_dir() else []
+    frames = [json.loads(p.read_text(encoding="utf-8")) for p in sorted(d.glob("*.json"))] if d.is_dir() else []
+    return [fr for fr in frames if isinstance(fr, dict) and fr.get("schema") == schema.SCHEMA_VERSION]
 
 
 def run_backend(dataset: Path, frames: list[dict], backend: str, lex: Lexicon, set_: str, log=print) -> dict:
@@ -322,11 +325,13 @@ def main(dataset: Path, backends: list[str], set_: str = "core", tags: dict | No
          name: str = "eval", log=print) -> tuple[Path, Path]:  # fmt: skip
     from tools.ocr_dataset import lexicon
 
-    lexdir = dataset / "lexicon"
-    lex = lexicon.load(lexdir) if (lexdir / "words.txt").is_file() else lexicon.build()
     frames = filter_frames(load_frames(dataset, set_), tags or {})
     if not frames:
-        raise SystemExit(f"{dataset / set_} 里没有符合条件的帧")
+        raise SystemExit(
+            f"{dataset / set_} 里没有符合条件的帧（框级评测只看 schema 1 的框级帧；场景帧用 scenario_eval，字段帧用 eval-fields）"
+        )
+    lexdir = dataset / "lexicon"
+    lex = lexicon.load(lexdir) if (lexdir / "words.txt").is_file() else lexicon.build()
     results = []
     for b in backends:
         log(f"跑 {b}（{len(frames)} 帧）…")

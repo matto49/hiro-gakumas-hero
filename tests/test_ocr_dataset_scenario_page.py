@@ -39,3 +39,23 @@ def test_page_shows_truth_answers_and_system_results(tmp_path):
 
 def test_server_accepts_final_answer_kind():
     assert cs.clean({"target": "dmm-r-00001", "field": "genki", "kind": "定答案", "text": "0"})["kind"] == "定答案"
+
+
+def test_scenario_filter_does_not_depend_on_string_replacing_shared_js(tmp_path):
+    """场景下拉框的筛选以前靠 .replace("s.dataset.page === p", ...) 改共享 JS：共享 JS 一改写法就不命中、下拉框没反应还不报错（PR #104）。
+    现在每个 section 同时带 data-page（共享 filt 用的）和 data-sc。"""
+    ds, reads = _ds(tmp_path)
+    html = sp.build(ds, reads, out=tmp_path / "site" / "index.html").read_text(encoding="utf-8")
+    assert 'data-page="exam"' in html and 'data-sc="exam"' in html
+    assert "s.dataset.sc === p" not in html and "s.dataset.page === p" in html
+
+
+def test_pending_marker_follows_index_status_keys_on_keyed_lists(tmp_path):
+    ds = schema.init(tmp_path / "ds")
+    cv2.imwrite(str(ds / "core" / "dmm-r-00002.jpg"), np.full((1280, 720, 3), 90, np.uint8))
+    fr = {"schema": 3, "id": "dmm-r-00002", "image": "dmm-r-00002.jpg", "scenario": "action_select", "page": "ACTION_SELECT", "platform": {"kind": "dmm"},
+          "truth": {"actions": [{"label": "休む", "hp_change": 11}]}, "item_status": {"actions[0].hp_change": "disputed"},
+          "answers": {}, "buttons": []}  # fmt: skip
+    (ds / "core" / "dmm-r-00002.json").write_text(json.dumps(fr, ensure_ascii=False), encoding="utf-8")
+    html = sp.build(ds, {"vision": {}}, out=tmp_path / "site" / "index.html").read_text(encoding="utf-8")
+    assert "待定 1 项" in html

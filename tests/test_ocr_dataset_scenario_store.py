@@ -142,3 +142,25 @@ def test_apply_final_answers_finds_frames_in_any_set(tmp_path):
     )
     assert got == {"applied": 1, "missing": 0}
     assert json.loads((ds / "hard" / "dmm-r-00002.json").read_text(encoding="utf-8"))["truth"]["hp"] == 21
+
+
+def test_ingest_can_be_rerun_after_detect_failed(tmp_path):
+    """某帧 detect 抛错：图片已经挪进 core 但标注没写，重跑时 shutil.move 找不到源图、永远卡在这一帧（PR #104）。"""
+    ds = schema.init(tmp_path / "ds")
+    (ds / "legacy-v1").mkdir()
+    img = ds / "legacy-v1" / "mac-x-00001.jpg"
+    cv2.imwrite(str(img), np.full((1280, 720, 3), 50, np.uint8))
+    (ds / "legacy-v1" / "mac-x-00001.json").write_text(json.dumps({"schema": 1, "id": "mac-x-00001", "image": "mac-x-00001.jpg", "page": "HIF_EXAM",
+        "source": {"run": "x", "seq": 1}, "platform": {"kind": "mac", "stored": [720, 1280]}}), encoding="utf-8")  # fmt: skip
+    runs = tmp_path / "runs"
+    runs.mkdir()
+    (runs / "mac-x-00001.json").write_text(json.dumps({**_labeled(), "image": str(img)}), encoding="utf-8")
+
+    def boom(_im):
+        raise RuntimeError("检测挂了")
+
+    with pytest.raises(RuntimeError):
+        st.ingest(ds, "exam", runs, detect=boom)
+    got = st.ingest(ds, "exam", runs, detect=lambda im: [("SKIP", (560, 760, 640, 820))])  # 重跑接着处理
+    assert got == {"written": 1, "buttons_missing": 0}
+    assert (ds / "core" / "mac-x-00001.json").is_file()

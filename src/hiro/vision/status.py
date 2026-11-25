@@ -261,7 +261,7 @@ def _turns_above(img: MatLike, k: int) -> int | None:
     value, suffix = read_leading_int(img, (SLOT_X + 12, y1, SLOT_X + 60, y2))
     if value is not None and suffix in ("text", None):
         return value
-    if suffix == "empty" and not _bright_behind(img, k):
+    if suffix == "empty" and not _bright_behind(img, k, above=True):  # 看的是上一行的框亮不亮，不是下面数值框的
         return None
     m = TURNS_TEXT.search("".join(t for t, _ in ocr(img[y1 - 4 : y2 + 4, SLOT_X + 14 : SLOT_X + 130])).replace(" ", ""))
     return int(m.group(1)) if m else None
@@ -270,12 +270,14 @@ def _turns_above(img: MatLike, k: int) -> int | None:
 BRIGHT_BG_MIN = 0.15  # 数值框里白色像素占比：深色背景 0.03–0.13；天空 / 浅色石地上 0.19–0.95
 
 
-def _bright_behind(img: MatLike, k: int) -> bool:
-    """数值框背景很亮：数字的白色填充和背景连成一片，字体比对会判成「框里没字」（识别测试集进阶集 やる気 98 等 9 格），这时「没字」不可信。"""
+def _bright_behind(img: MatLike, k: int, above: bool = False) -> bool:
+    """数值框背景很亮：数字的白色填充和背景连成一片，字体比对会判成「框里没字」（识别测试集进阶集 やる気 98 等 9 格），这时「没字」不可信。
+    above=True 看两行数字的格上面那一行（回合）的框，缺省看下面的数值框。"""
     from hiro.vision.digits import WHITE
 
     cy = _slot_y(k)
-    box = img[cy + 2 : cy + 32, SLOT_X + 12 : SLOT_X + 60]
+    top, bottom = (cy + TURNS_ABOVE[0], cy + TURNS_ABOVE[1]) if above else (cy + 2, cy + 32)
+    box = img[top:bottom, SLOT_X + 12 : SLOT_X + 60]
     return box.size > 0 and cv2.inRange(cv2.cvtColor(box, cv2.COLOR_BGR2HSV), *WHITE).mean() / 255 >= BRIGHT_BG_MIN
 
 

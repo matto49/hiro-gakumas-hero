@@ -57,13 +57,22 @@ def convert(sample: dict, img_path: Path, fid: str, image: str) -> dict:
     return fr
 
 
+def _existing_schema(path: Path):
+    """已有标注的 schema 版本；文件不在或读不了返回 None。"""
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return d.get("schema") if isinstance(d, dict) else None
+
+
 def import_all(dataset: str | Path, list_path: str | Path = LIST, fixtures: str | Path = FIX) -> dict[str, int]:
     """回归帧写进 core/（图片已在就复用）；core 里其余 schema 1 的帧连同图片挪到 legacy-v1/；disputed.json 清空（字段版另算）。"""
     root, fixtures = Path(dataset), Path(fixtures)
     core = root / "core"
     core.mkdir(parents=True, exist_ok=True)
     samples = json.loads(Path(list_path).read_text(encoding="utf-8"))
-    done, missing = set(), 0
+    done, missing, conflicts = set(), 0, set()
     for s in samples:
         src = fixtures / s["file"]
         if not src.is_file():
@@ -72,22 +81,29 @@ def import_all(dataset: str | Path, list_path: str | Path = LIST, fixtures: str 
         run, seq = run_seq(s["file"])
         fid = schema.frame_id("dmm", run, seq)
         image = fid + src.suffix.lower()
+        if _existing_schema(core / f"{fid}.json") == schema.SCHEMA_SCENARIO:
+            conflicts.add(fid)  # 同 ID 已有场景真值（v3）：不能被字段真值覆盖，跳过
+            continue
         if not (core / image).is_file():
             shutil.copyfile(src, core / image)
+        elif schema.sha256(core / image) != schema.sha256(src):
+            conflicts.add(
+                fid
+            )  # 同名图片内容不同（fixture 换了图）：新真值写到旧截图上，标注里的哈希又是旧图的，校验器发现不了
+            continue
         fr = convert(s, core / image, fid, image)
         (core / f"{fid}.json").write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
         done.add(fid)
     legacy = root / LEGACY
     moved = 0
     for js in sorted(core.glob("*.json")):
-        if js.stem in done:
+        if js.stem in done or js.stem in conflicts:
             continue
-        fr = json.loads(js.read_text(encoding="utf-8"))
-        if fr.get("schema") == schema.SCHEMA_FIELDS:
+        if _existing_schema(js) != schema.SCHEMA_VERSION:  # 只挪明确是 v1 框级标注的；v2 / v3 / 读不了的原样留着
             continue
         legacy.mkdir(exist_ok=True)
         for p in core.glob(js.stem + ".*"):
             shutil.move(str(p), legacy / p.name)
         moved += 1
     (root / "disputed.json").write_text("[]\n", encoding="utf-8")
-    return {"imported": len(done), "legacy_moved": moved, "missing": missing}
+    return {"imported": len(done), "legacy_moved": moved, "missing": missing, "conflicts": len(conflicts)}

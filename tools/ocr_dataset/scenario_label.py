@@ -50,7 +50,7 @@ def label_frame(img, sid: str, readers: dict, keys: list[str] | None = None) -> 
     names = list(readers)
     answers = {n: ask(readers[n], img, sid, keys) for n in names}
     a, b = answers[names[0]], answers[names[1]]
-    truth, status = scenario.merge(a["items"], b["items"])
+    truth, status = scenario.merge(a["items"], b["items"], sid=sid)
     labels = [x for x in a["buttons"] if x in b["buttons"]]
     return {"truth": truth, "item_status": status, "answers": answers, "button_labels": labels}
 

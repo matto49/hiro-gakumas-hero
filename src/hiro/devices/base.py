@@ -181,12 +181,13 @@ class LogicalScreen:
         if box is None:
             check_aspect(w, h)  # 抛 DeviceUnavailable
         self.native, self.crop = (w, h), box
+        raw = image  # 裁之前的原生截图：HIRO_TRACE_NATIVE 另存的 PNG 要和 platform.native 的尺寸一致
         x0, y0, cw, ch = box
         if (cw, ch) != (w, h):
             image = image[y0 : y0 + ch, x0 : x0 + cw]
         size = logical_size(cw, ch)
         out = np.ascontiguousarray(image) if (cw, ch) == size else cv2.resize(image, size)
-        _remember(out, image, (w, h))
+        _remember(out, raw, (w, h))
         return out
 
     def to_native(self, x: float, y: float) -> tuple[int, int]:

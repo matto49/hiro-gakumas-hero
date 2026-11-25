@@ -82,11 +82,18 @@ class Row:
     ok: bool
 
 
+def _same(want, got) -> bool:
+    """严格相等：布尔和数字是两种东西（true != 1、False != 0），Python 的 == 会把它们算相等。"""
+    if isinstance(want, bool) != isinstance(got, bool):
+        return False
+    return want == got
+
+
 def compare(want, got) -> list[Row]:
     """真值里的每个字段和读到的比（严格相等）；读到的多出来的字段不管。"""
     flat_got = flatten(got) if got is not None else {}
     # 读数取稳定项时会丢掉值为 None 的键，所以真值是 None 时「没有这个键」也算对
     return [
-        Row(p, w, flat_got.get(p), (p in flat_got and flat_got[p] == w) or (w is None and flat_got.get(p) is None))
+        Row(p, w, flat_got.get(p), (p in flat_got and _same(w, flat_got[p])) or (w is None and flat_got.get(p) is None))
         for p, w in flatten(want).items()
     ]

@@ -99,3 +99,46 @@ def test_fields_page_kinds_are_all_accepted():
 
     for k in _json.loads(KINDS_JS):
         assert k in cs.KINDS, k
+
+
+def test_scenario_page_kinds_are_all_accepted():
+    """场景核对页的意见类型（含「定答案」）也要服务端收，两边各维护一份列表，改一份忘一份提交就 400。"""
+    from tools.ocr_dataset.scenario_page import KINDS
+
+    for k in json.loads(KINDS):
+        assert k in cs.KINDS, k
+
+
+@pytest.mark.parametrize(
+    "bad",
+    ["');alert(1);//", "a b", "a\n", "x" * 41, "<img src=x onerror=1>", "中文", '"', "a'b", "a;b", "../x", "id\n"],
+)
+def test_bad_id_is_400_and_not_written(server, tmp_path, bad):
+    """评论 id 会被复核页拿去拼脚本：只收 [A-Za-z0-9_-]{1,40}，其余 400，也不落盘（存储型 XSS，PR #104）。"""
+    for body in (
+        {"id": bad, "target": "page", "kind": "其他", "text": "a"},
+        {"id": bad, "deleted": True},
+    ):
+        with pytest.raises(urllib.error.HTTPError) as e:
+            _req(server + "/comments", body)
+        assert e.value.code == 400
+    assert not (tmp_path / "c.jsonl").exists()
+
+
+def test_good_ids_are_accepted(server):
+    for rid in ("abc", "A-b_9", "x" * 40, "0" * 32):
+        got = _req(server + "/comments", {"id": rid, "target": "page", "kind": "其他", "text": "a"})
+        assert got["id"] == rid
+
+
+def test_load_drops_stored_records_with_bad_id(tmp_path, monkeypatch):
+    """以前写进 jsonl 的恶意 id 不能再进复核页。"""
+    p = tmp_path / "c.jsonl"
+    rows = [
+        {"id": "ok1", "target": "page", "kind": "其他", "text": "a", "created": 1},
+        {"id": "');alert(1);//", "target": "page", "kind": "其他", "text": "b", "created": 2},
+        {"target": "page", "kind": "其他", "text": "没有 id", "created": 3},
+    ]
+    p.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n", encoding="utf-8")
+    monkeypatch.setattr(cs, "DATA", str(p))
+    assert [c["id"] for c in cs._load()] == ["ok1"]

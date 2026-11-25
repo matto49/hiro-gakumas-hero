@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import time
 import uuid
@@ -40,6 +41,9 @@ KINDS = (
     "可以接受",
     "OCR 选型",
 )  # 不通过项聚合页
+# 评论 id 只允许这些字符：复核页要拿它当 data 属性值、传给删除请求，不能带引号 / 尖括号 / 空白（存储型 XSS，PR #104）。
+# 用 fullmatch：re.match 加 $ 会放过结尾的换行。
+ID_RE = re.compile(r"[A-Za-z0-9_-]{1,40}")
 LOCK = threading.Lock()
 
 
@@ -70,7 +74,8 @@ def _load() -> list[dict]:
                     c = json.loads(line)
                 except ValueError:
                     continue
-                rows[c["id"]] = c
+                if isinstance(c, dict) and isinstance(c.get("id"), str) and ID_RE.fullmatch(c["id"]):
+                    rows[c["id"]] = c  # 以前写进去的不合格 id（没有 id、带引号等）不再给页面
     return sorted((c for c in rows.values() if not c.get("deleted")), key=lambda c: c.get("created", 0))
 
 
@@ -111,10 +116,13 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(body, dict):
                 raise ValueError("body 要是 JSON 对象")
             now = time.time()
-            if body.get("deleted") and body.get("id"):
-                rec = {"id": str(body["id"])[:40], "deleted": True, "updated": now}
+            rid = body.get("id")
+            if rid is not None and not (isinstance(rid, str) and ID_RE.fullmatch(rid)):
+                raise ValueError("id 只能是字母、数字、下划线、连字符，最长 40 位")
+            if body.get("deleted") and rid:
+                rec = {"id": rid, "deleted": True, "updated": now}
             else:
-                rec = {"id": str(body.get("id") or uuid.uuid4().hex)[:40], **clean(body), "created": now}
+                rec = {"id": rid or uuid.uuid4().hex, **clean(body), "created": now}
                 old = next((c for c in _load() if c["id"] == rec["id"]), None)
                 if old:
                     rec["created"], rec["updated"] = old.get("created", now), now

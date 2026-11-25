@@ -189,7 +189,7 @@ function render() {
   document.querySelectorAll("[data-cm]").forEach((el) => {
     const t = el.dataset.target, f = el.dataset.field;
     el.innerHTML = all.filter((c) => c.target === t && (c.field ?? "") === f && c.box == null)
-      .map((c) => `<div class="c"><span class="k">${esc(c.kind)}</span> ${esc(c.text)}<a href="#" onclick="del('${esc(c.id)}');return false">删除</a></div>`).join("");
+      .map((c) => `<div class="c"><span class="k">${esc(c.kind)}</span> ${esc(c.text)}<a href="#" class="del" data-id="${esc(c.id)}">删除</a></div>`).join("");
   });
   document.getElementById("count").textContent = `已提 ${all.filter((c) => c.box == null).length} 条意见`;
 }
@@ -213,6 +213,8 @@ function openForm(btn) {
   ta.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) send(); });
   btn.insertAdjacentElement("afterend", f); ta.focus();
 }
+// 删除链接用 data-id + 委托监听，不把评论 id 拼进内联脚本（id 是投稿者给的，拼进去就是 XSS）
+document.addEventListener("click", (ev) => { const a = ev.target.closest("a.del"); if (a) { ev.preventDefault(); del(a.dataset.id); } });
 async function del(id) {
   if (!confirm("删除这条意见？")) return;
   await fetch(API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, deleted: true }) });

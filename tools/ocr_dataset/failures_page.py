@@ -276,7 +276,7 @@ function render() {
     g.classList.toggle("done", !!v); if (v) done++;
     g.querySelectorAll(".verdict button[data-verdict]").forEach((b) => b.classList.toggle("on", !!v && b.dataset.verdict === v.kind));
     const notes = mine().filter((c) => c.field === key && !VKINDS.includes(c.kind));
-    g.querySelector(".notes").innerHTML = notes.map((c) => `<div class="note"><span class="k">${esc(c.kind)}</span>${esc(c.text)}<a href="#" onclick="del('${esc(c.id)}');return false">删除</a></div>`).join("");
+    g.querySelector(".notes").innerHTML = notes.map((c) => `<div class="note"><span class="k">${esc(c.kind)}</span>${esc(c.text)}<a href="#" class="del" data-id="${esc(c.id)}">删除</a></div>`).join("");
     const row = document.querySelector(`tr[data-key="${CSS.escape(key)}"] .vtag`);
     if (row) { row.textContent = v ? VLABEL[v.kind] : "未判定"; row.classList.toggle("on", !!v); }
   });
@@ -306,6 +306,8 @@ function note(btn) {
   ta.addEventListener("keydown", (ev) => { if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) send(); });
   g.querySelector(".verdict").insertAdjacentElement("afterend", f); ta.focus();
 }
+// 删除链接用 data-id + 委托监听，不把评论 id 拼进内联脚本（id 是投稿者给的，拼进去就是 XSS）
+document.addEventListener("click", (ev) => { const a = ev.target.closest("a.del"); if (a) { ev.preventDefault(); del(a.dataset.id); } });
 async function del(id) { if (!confirm("删除这条备注？")) return; await post({ id, deleted: true }); await load(); }
 function more(btn) { const g = btn.closest("section.group"); g.classList.toggle("open"); btn.textContent = g.classList.contains("open") ? "收起" : btn.dataset.label; }
 function filt() {

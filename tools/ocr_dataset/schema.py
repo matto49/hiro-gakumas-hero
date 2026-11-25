@@ -52,7 +52,11 @@ def validate_frame(d) -> list[str]:
     if not isinstance(d, dict):
         return ["标注不是 JSON 对象"]
     errs: list[str] = []
-    if d.get("schema") not in (SCHEMA_VERSION, SCHEMA_FIELDS, SCHEMA_SCENARIO):
+    if not _is_int(d.get("schema")) or d["schema"] not in (
+        SCHEMA_VERSION,
+        SCHEMA_FIELDS,
+        SCHEMA_SCENARIO,
+    ):  # true / 3.0 不算版本号
         errs.append(
             f"schema 应为 {SCHEMA_SCENARIO}（场景真值）、{SCHEMA_FIELDS}（字段真值）或 {SCHEMA_VERSION}（旧的框级标注）"
         )
@@ -83,9 +87,11 @@ def validate_frame(d) -> list[str]:
         if not isinstance(b, dict):
             errs.append(f"{where} 不是对象")
             continue
-        if not _is_int(b.get("id")) or b.get("id") in seen:
+        bid = b.get("id")
+        if not _is_int(bid) or bid in seen:
             errs.append(f"{where}.id 应为不重复的整数")
-        seen.add(b.get("id"))
+        if _is_int(bid):  # 只记整数：[] 之类不可哈希，加进去会抛 TypeError，后面的诊断就都没了
+            seen.add(bid)
         box = b.get("box")
         if not (
             isinstance(box, list)
@@ -141,7 +147,10 @@ def _validate_scenario(d: dict) -> list[str]:
     st = d.get("item_status", {})
     if not isinstance(st, dict) or any(v not in STATUSES for v in st.values()):
         errs.append(f"item_status 应为 {{信息项路径: {STATUSES} 之一}}")
-    for i, b in enumerate(d.get("buttons") or []):
+    buttons = d.get("buttons")
+    if buttons is not None and not isinstance(buttons, list):
+        return [*errs, "buttons 应为列表（没有按钮就省略或写 []）"]
+    for i, b in enumerate(buttons or []):
         box = b.get("box") if isinstance(b, dict) else "x"
         if (
             not isinstance(b, dict)
@@ -155,6 +164,8 @@ def _validate_scenario(d: dict) -> list[str]:
 def validate_dir(root: str | Path) -> list[str]:
     """整个数据仓库的问题：每帧格式、图片和标注一一对应、sha256、id 与文件名一致、跨目录不重复。"""
     root = Path(root)
+    if not root.is_dir():
+        return [f"数据集目录不存在：{root}"]
     errs: list[str] = []
     ids: dict[str, str] = {}
     shas: dict[str, str] = {}
@@ -180,8 +191,16 @@ def validate_dir(root: str | Path) -> list[str]:
                 continue
             if fr.get("id") != js.stem:
                 errs.append(f"{rel}：id {fr.get('id')!r} 和文件名不一致")
-            img = d / str(fr.get("image") or "")
-            if not img.is_file():
+            name = str(fr.get("image") or "")
+            img = d / name
+            if (  # 主图必须是本分区里和标注同名的图：指到别的目录的图，哈希对得上也不行（贡献者拿到的数据集会缺主图）
+                Path(name).name != name
+                or Path(name).stem != js.stem
+                or Path(name).suffix.lower() not in IMAGE_EXT
+                or name.endswith(NATIVE_SUFFIX)
+            ):
+                errs.append(f"{rel}：图片 {name!r} 应是本目录里和标注同名的图（{js.stem}.jpg / .png）")
+            elif not img.is_file():
                 errs.append(f"{rel}：图片 {fr.get('image')} 不存在")
             elif sha256(img) != fr.get("sha256"):
                 errs.append(f"{rel}：sha256 和图片对不上")

@@ -77,3 +77,21 @@ def test_platform_meta_resolves_auto_device_on_mac(monkeypatch):
     monkeypatch.delenv("HIRO_DEVICE", raising=False)
     monkeypatch.setattr(dbase.sys, "platform", "darwin")
     assert platform_meta()["device"] == "maatools"
+
+
+def test_native_png_keeps_the_uncropped_screenshot_for_16_10(tmp_path, monkeypatch):
+    """横屏 16:10（1600x1000）逻辑帧居中裁成 16:9，但原生 PNG 要是裁之前的整张，尺寸和 platform.native 一致（PR #104）。"""
+    import cv2
+
+    monkeypatch.setenv("HIRO_TRACE_NATIVE", "1")
+    screen = LogicalScreen()
+    raw = np.zeros((1000, 1600, 3), np.uint8)
+    raw[0:10] = 200  # 最上面一行：裁掉的边缘
+    logical = screen.frame(raw)
+    assert screen.crop is not None and screen.crop[3] < 1000  # 确实裁过
+    tw = TraceWriter(root=tmp_path, name="r5")
+    tw.save_frame(tw.next_seq(), logical)
+    plat = json.loads((tw.dir / "run.json").read_text(encoding="utf-8"))["platform"]
+    native = cv2.imread(str(tw.dir / "frames" / "00001.native.png"))
+    assert plat["native"] == [1600, 1000] and native.shape[:2] == (1000, 1600)
+    assert native[:10].mean() > 100  # 上边缘还在

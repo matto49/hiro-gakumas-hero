@@ -455,3 +455,122 @@ def test_cli_reask_runs(tmp_path, monkeypatch):
     monkeypatch.setattr(label, "RealReaders", lambda spec=None: FakeReaders())
     monkeypatch.setattr(label, "_load_lexicon", lambda root: LEX)
     assert cli.main(["reask", "--dataset", str(ds), "--workers", "1"]) == 0
+
+
+def test_adjudicate_retries_boxes_the_second_llm_skipped(tmp_path):
+    """第二个 LLM 漏答一个编号时 read_llm 给 None、写成 llm2: null：框还是待定，下次要再问；空串是「明确没有文字」，不再问（PR #104）。"""
+    ds, inbox = _dataset(tmp_path)
+
+    class Split(FakeReaders):
+        def read_llm(self, img, boxes):
+            return ["", "4,680", "絹成"]
+
+    label.run(ds, inbox, readers=Split(), lex=LEX, pad=0)
+
+    class Skips:
+        name = "codex"
+        calls = 0
+
+        def read_llm(self, img, boxes):
+            Skips.calls += 1
+            return [None]
+
+    assert label.adjudicate(ds, Skips(), lex=LEX)["frames"] == 1
+    assert label.adjudicate(ds, Skips(), lex=LEX)["frames"] == 1  # null 不算答过
+    assert Skips.calls == 2
+
+    class Blank:
+        name = "codex"
+
+        def read_llm(self, img, boxes):
+            return [""]
+
+    label.adjudicate(ds, Blank(), lex=LEX)
+    assert label.adjudicate(ds, Blank(), lex=LEX)["frames"] == 0  # 空串是明确回答
+
+
+def test_run_keeps_inbox_image_until_frame_is_fully_written(tmp_path, monkeypatch):
+    """图片挪走后写标注失败 / 被打断：以前 inbox 里的原图没了、标注也没写，下次永远读不了这一帧（PR #104）。"""
+    ds, inbox = _dataset(tmp_path)
+    real = schema.sha256
+    calls = []
+
+    def boom(p):
+        calls.append(p)
+        if len(calls) == 1:
+            raise OSError("磁盘写满")
+        return real(p)
+
+    monkeypatch.setattr(label.schema, "sha256", boom)
+    with pytest.raises(OSError):
+        label.run(ds, inbox, readers=FakeReaders(), lex=LEX, pad=0)
+    assert (inbox / "dmm540-r-00001.jpg").is_file() and not (ds / "core" / "dmm540-r-00001.json").exists()
+    assert not list((ds / "core").glob("*.tmp"))
+    monkeypatch.setattr(label.schema, "sha256", real)
+    assert label.run(ds, inbox, readers=FakeReaders(), lex=LEX, pad=0) == 1  # 下次接着标
+    assert (ds / "core" / "dmm540-r-00001.json").is_file() and not inbox.exists()
+    assert schema.validate_dir(ds) == []
+
+
+def test_reask_does_not_hold_every_decoded_frame(tmp_path):
+    """reask 把所有入选帧的像素数组都留在任务列表里（302 张约 800 MiB）：任务里只放路径，工作线程用的时候再读（PR #104）。"""
+    import gc
+    import weakref
+
+    ds, inbox = _dataset(tmp_path, n=4)
+    label.run(ds, inbox, readers=FakeReaders(), lex=LEX, pad=0)
+    seen = []
+    real = label.cv2.imread
+
+    def spy(*a, **k):
+        img = real(*a, **k)
+        if img is not None:
+            seen.append(weakref.ref(img))
+        return img
+
+    alive = []
+
+    class Again:
+        name = "claude"
+
+        def read_llm(self, img, boxes):
+            gc.collect()
+            alive.append(sum(r() is not None for r in seen))
+            return ["", "4,680", "編成"]
+
+    label.cv2.imread = spy
+    try:
+        label.reask(ds, Again(), lex=LEX, multi_sheet_only=False, pad=0)
+    finally:
+        label.cv2.imread = real
+    assert alive and max(alive) <= 2, alive  # 当前这张（+ 正在读下一张的一张），不是 4 张全在
+
+
+def test_spot_check_without_agreed_boxes_says_so(tmp_path):
+    ds = schema.init(tmp_path / "ds")
+    html = label.spot_check(ds, n=5, seed=1).read_text(encoding="utf-8")
+    assert "没有可抽查的框" in html
+
+
+def test_cli_label_refuses_second_llm_from_the_same_source(tmp_path, monkeypatch, capsys):
+    """--llm2 和 --llm 解析成同一个来源时，第二轮答案不是独立意见：decide 会把两次相同的答案当一致、写成 agreed。
+    要在开跑前拒绝，不能白跑一轮再把同源答案算成第二票（PR #104）。"""
+    from tools.ocr_dataset import __main__ as cli
+
+    ds, inbox = _dataset(tmp_path)
+
+    class Named(FakeReaders):
+        def __init__(self, spec=None):
+            self.name = spec or "claude:opus"
+
+    ran = []
+    monkeypatch.setattr(label, "RealReaders", Named)
+    monkeypatch.setattr(label, "run", lambda *a, **k: ran.append(1) or 0)
+    rc = cli.main(["label", str(inbox), "--dataset", str(ds), "--llm", "claude:opus", "--llm2", "claude:opus"])
+    assert rc != 0 and not ran and "同一个来源" in capsys.readouterr().err
+    monkeypatch.setattr(label, "adjudicate", lambda *a, **k: {"frames": 0, "changed": 0})
+    monkeypatch.setattr(label, "rebuild_disputed", lambda root: [])
+    assert (
+        cli.main(["label", str(inbox), "--dataset", str(ds), "--llm", "claude:opus", "--llm2", "codex:gpt"]) == 0
+        and ran
+    )

@@ -71,3 +71,27 @@ def test_save_load_keeps_master_names(tmp_path):
     save(Lexicon(words={"編成", "次へ"}, charset={"編"}, version="v", names={"編成"}), tmp_path)
     lex = load(tmp_path)
     assert lex.names == {"編成"} and lex.words == {"編成", "次へ"}
+
+
+def test_version_comes_from_the_master_db_that_was_actually_queried(tmp_path):
+    """词表版本以前从 HIRO_KAA_GAME_DATA / resources/game_data 取，和 catalog() 实际查词的库可能是两份数据，目录里没有 version.txt 和 game.db 时还直接 FileNotFoundError（PR #104）。"""
+    import sqlite3
+
+    from hiro.state import master_db
+
+    p = tmp_path / "game.db"
+    db = sqlite3.connect(p)
+    db.execute(f"CREATE TABLE {master_db.META} (key TEXT PRIMARY KEY, value TEXT)")
+    db.execute(f"INSERT INTO {master_db.META} VALUES ('source_commit', 'edc305aac3ac0204806c96164ce36fb795ba81e1')")
+    db.commit()
+    assert lexicon._version(db) == "edc305aac3ac0204806c96164ce36fb795ba81e1"
+
+
+def test_version_missing_is_an_error_not_a_fallback(tmp_path):
+    import sqlite3
+
+    db = sqlite3.connect(tmp_path / "old.db")  # 不是 master_db 生成的库：没有版本信息
+    db.execute("CREATE TABLE t (id)")
+    db.commit()
+    with pytest.raises(RuntimeError, match="版本"):
+        lexicon._version(db)

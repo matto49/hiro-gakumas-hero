@@ -62,3 +62,35 @@ def test_merge_two_answers():
 def test_abs_fields_drop_sign():
     got = scenario.normalize("exam", {"hand": [{"name": "a", "plus": False, "cost_type": "hp", "cost": "-2"}]})
     assert got["hand"][0]["cost"] == 2
+
+
+def test_merge_container_shape_conflict_keeps_first_and_disputes():
+    """一方给 null、另一方给列表：以前 _set 往 None 里写子路径抛 TypeError；反过来第一方的列表会被 None 盖掉（PR #104）。"""
+    full = {"hand": [{"name": "イメトレ", "plus": False}], "hp": 5}
+    truth, status = scenario.merge({"hand": None, "hp": 5}, full)
+    assert truth["hand"] is None and status["hand[0].name"] == "disputed" and "hp" not in status
+    truth, status = scenario.merge(full, {"hand": None, "hp": 5})
+    assert truth["hand"] == [{"name": "イメトレ", "plus": False}]  # 第一方的读法留着
+    assert status["hand"] == "disputed" and status["hand[0].name"] == "disputed" and "hp" not in status
+    truth, status = scenario.merge({"hand": []}, {"hand": None})
+    assert truth["hand"] == [] and status == {"hand": "disputed"}
+
+
+def test_merge_same_invalid_enum_still_goes_to_review():
+    """两方都答了同一个不在取值表里的枚举：normalize 改成「?原文」，两边相同 merge 就跳过，真值里留着「?ボーカル」又没有待定记录（PR #104）。"""
+    a = scenario.normalize("exam", {"exam_attr": "ボーカル"})
+    b = scenario.normalize("exam", {"exam_attr": "ボーカル"})
+    truth, status = scenario.merge(a, b, sid="exam")
+    assert status == {"exam_attr": "disputed"} and truth["exam_attr"] == "?ボーカル"
+    _ok, status = scenario.merge({"exam_attr": "vocal"}, {"exam_attr": "vocal"}, sid="exam")
+    assert status == {}
+
+
+def test_merge_question_mark_text_value_is_not_mistaken_for_invalid_enum():
+    """文字项本身以 ? 开头（识别不了的字）不是非法枚举：只对场景定义里是 enum 的项判。"""
+    items = [it for it in scenario.load()["exam"]["items"] if it["type"] == "text"]
+    if not items:
+        pytest.skip("exam 场景里没有文字项")
+    k = items[0]["key"]
+    _t, status = scenario.merge({k: "?x"}, {k: "?x"}, sid="exam")
+    assert status == {}

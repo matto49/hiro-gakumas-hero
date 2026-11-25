@@ -151,15 +151,62 @@ def _set(obj, path: str, value) -> None:
                 cur = cur.setdefault(p, [] if nxt.startswith("[") else {})
 
 
-def merge(a: dict, b: dict) -> tuple[dict, dict]:
-    """两方答案 → (真值, 待定项)。逐个叶子比：一致 → 定下；不一致或只有一方有 → disputed（真值先填第一方的读法）。"""
+def spec_for(sid: str, path: str) -> dict | None:
+    """信息项路径（hand[0].cost、hp、actions[休む].hp_change）→ 场景定义里这一项 / 子项的类型说明。"""
+    parts = re.sub(r"\[[^\]]*\]", "", path).split(".")
+    item = next((it for it in load()[sid]["items"] if it["key"] == parts[0]), None)
+    if item is None or len(parts) == 1:
+        if item is not None and item["type"] == "list" and "fields" not in item and "[" in path:
+            return {"type": item.get("item", "text")}
+        return item
+    return next((f for f in item.get("fields", []) if f["key"] == parts[1]), None)
+
+
+def _blocked(obj, path: str) -> bool:
+    """往 obj 的 path 写一个叶子会不会撞上形状冲突：路径中间碰到 None / 标量 / 类型不对的容器，或者要写的位置上已经是容器。"""
+    parts = re.findall(r"[^.\[\]]+|\[\d+\]", path)
+    cur = obj
+    for i, p in enumerate(parts):
+        last = i == len(parts) - 1
+        if p.startswith("["):
+            if not isinstance(cur, list):
+                return True
+            k = int(p[1:-1])
+            if k >= len(cur):
+                return False  # 后面补新元素，不会冲突
+            if last:
+                return isinstance(cur[k], (dict, list))
+            cur = cur[k]
+        else:
+            if not isinstance(cur, dict):
+                return True
+            if p not in cur:
+                return False
+            if last:
+                return isinstance(cur[p], (dict, list))
+            cur = cur[p]
+    return False
+
+
+def _bad_enum(sid: str | None, path: str, value) -> bool:
+    """normalize 把不在取值表里的枚举写成「?原文」；只有场景定义里这一项是 enum 才算（文字项本身可以以 ? 开头）。"""
+    if sid is None or not isinstance(value, str) or not value.startswith("?"):
+        return False
+    spec = spec_for(sid, path)
+    return bool(spec and spec.get("type") == "enum")
+
+
+def merge(a: dict, b: dict, sid: str | None = None) -> tuple[dict, dict]:
+    """两方答案 → (真值, 待定项)。逐个叶子比：一致 → 定下；不一致或只有一方有 → disputed（真值先填第一方的读法）。
+    形状冲突（一方是 null / 另一方是列表等）保留第一方的值、记 disputed，不往 None 里写子路径。
+    给了 sid 时，两方都答了同一个非法枚举（「?原文」）也记 disputed：这个值不能当成已定的真值。"""
     fa, fb = truth_mod.flatten(a), truth_mod.flatten(b)
     out = copy.deepcopy(a)
     status = {}
     for p in list(fa) + [p for p in fb if p not in fa]:
-        if p in fa and p in fb and fa[p] == fb[p]:
+        if p in fa and p in fb and fa[p] == fb[p] and not _bad_enum(sid, p, fa[p]):
             continue
         status[p] = "disputed"
-        if p not in fa:
+        if p not in fa and not _blocked(out, p):
             _set(out, p, fb[p])
     return out, status

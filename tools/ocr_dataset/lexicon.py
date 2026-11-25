@@ -10,9 +10,7 @@
 from __future__ import annotations
 
 import ast
-import hashlib
 import json
-import os
 import re
 import unicodedata
 from dataclasses import dataclass, field
@@ -160,14 +158,20 @@ def code_literals(src: Path = ROOT / "src" / "hiro") -> set[str]:
     return out
 
 
-def _version(game_data: Path) -> str:
-    vf = game_data / "version.txt"
-    if vf.is_file():
-        return vf.read_text(encoding="utf-8").strip()[:40]
-    h = hashlib.sha1()
-    with open(game_data / "game.db", "rb") as f:
-        h.update(f.read())
-    return h.hexdigest()
+def _version(db) -> str:
+    """词表用的主数据的版本：从 catalog 实际查词的这个库取（hiro.state.master_db 生成的库记着模拟器主数据的提交）。
+    拿不到版本就报错：不退回别的目录里的 version.txt / game.db，那可能是另一份数据。"""
+    from hiro.state import master_db
+
+    row = db.execute("PRAGMA database_list").fetchone()
+    path = row[2] if row else ""
+    version = master_db.commit_of(path) if path else None
+    if not version:
+        raise RuntimeError(
+            f"词表用的主数据库（{path or '内存库'}）里没有版本信息：它不是 hiro.state.master_db 生成的库，"
+            "没法记词表的主数据版本。先跑 python -m hiro.state.master_db 重新生成，或不要用 HIRO_MASTER_DB 指到旧库"
+        )
+    return version
 
 
 def build() -> Lexicon:
@@ -177,8 +181,7 @@ def build() -> Lexicon:
     words, chars = master_texts(db)
     ui = code_literals()
     chars |= {c for w in ui for c in w}
-    game_data = Path(os.environ.get("HIRO_KAA_GAME_DATA") or ROOT / "resources" / "game_data")
-    return Lexicon(words=words | ui, charset=chars | KANA | ASCII, version=_version(game_data), names=words)
+    return Lexicon(words=words | ui, charset=chars | KANA | ASCII, version=_version(db), names=words)
 
 
 def save(lex: Lexicon, out_dir: Path) -> None:

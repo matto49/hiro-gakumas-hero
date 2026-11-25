@@ -67,11 +67,13 @@ def _item(s: str, fr: dict, b: dict, img) -> str:
             seen.setdefault(v, []).append(src)
     for v, srcs in seen.items():
         e = html.escape(v)
-        buttons.append(f'<button data-v="{e}" onclick="pick(this)">{e} <small>{"/".join(srcs)}</small></button>')
+        buttons.append(
+            f'<button data-v="{e}" onclick="pick(this)">{e} <small>{html.escape("/".join(srcs))}</small></button>'
+        )
     e = html.escape
     return (
         f'<div class="item" data-frame="{e(fr["id"])}" data-set="{s}" data-box="{b["id"]}">'
-        f'<div class="meta">{e(fr["id"])} #{b["id"]} · 页面 {e(fr.get("page") or "")} · {b["tags"]["type"]} · 框 {b["box"]}</div>'
+        f'<div class="meta">{e(fr["id"])} #{b["id"]} · 页面 {e(fr.get("page") or "")} · {e(str(b["tags"]["type"]))} · 框 {b["box"]}</div>'
         f'<img src="data:image/png;base64,{label._png_b64(crop)}">'
         f'<img src="data:image/png;base64,{label._png_b64(_context(img, b["box"]))}" style="max-width:720px">'
         f'<div class="ans">{"".join(buttons)}</div>'
@@ -138,7 +140,7 @@ def apply(dataset: str | Path, answers) -> dict[str, int]:
             elif a.get("disputed"):
                 b["status"], b["ignore"] = "disputed", False
                 stats["disputed"] += 1
-            elif isinstance(a.get("text"), str):
+            elif isinstance(a.get("text"), str) and a["text"].strip():  # 空白不算答案（要表示没字用「忽略」）
                 b["text"], b["status"], b["ignore"] = label.norm(a["text"]), "resolved", False
                 stats["resolved"] += 1
             else:

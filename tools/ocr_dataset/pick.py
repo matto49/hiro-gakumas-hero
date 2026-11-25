@@ -167,12 +167,12 @@ def collect(
         sha = schema.sha256(path)
         if sha in seen:
             return
-        last[:] = [th]
-        seen.add(sha)
         if page is None:
             page = classify(img)
         if page and page.lower() in SKIP_PAGES:
-            return
+            return  # 被页面过滤掉的帧不进去重状态：否则紧跟着的相似有效帧会被当成它的重复丢掉
+        last[:] = [th]
+        seen.add(sha)
         native = path.with_name(f"{path.stem}.native.png")
         out.append(Candidate(path, run, seq, plat, page, sha, run_meta, native if native.is_file() else None, captured))
 
@@ -294,15 +294,37 @@ def known_hashes(dataset: str | Path) -> set[str]:
     return out
 
 
+def _known_ids(dataset: str | Path, today_meta: Path) -> set[str]:
+    """数据仓库里已经有的帧 id：各分区（含 legacy-*）的标注文件名，和别的日子 / 别人的 inbox meta.json。今天这份 meta 不算（同天追加照旧）。"""
+    root, out = Path(dataset), set()
+    for d in root.iterdir() if root.is_dir() else []:
+        if d.is_dir() and (d.name in schema.SETS or d.name.startswith("legacy-")):
+            out |= {j.stem for j in d.glob("*.json")}
+    for m in (root / "inbox").rglob("meta.json") if (root / "inbox").is_dir() else []:
+        if m.resolve() == today_meta.resolve():
+            continue
+        with contextlib.suppress(ValueError, OSError):
+            out |= {f.get("id") for f in json.loads(m.read_text(encoding="utf-8")).get("frames", [])}
+    out.discard(None)
+    return out
+
+
 def _note(notes: dict[str, str], c: Candidate) -> str | None:
     return notes.get(f"{c.run}:{c.seq}") or notes.get(str(c.seq))
 
 
 def write_inbox(
-    sel: list[Candidate], dataset: str | Path, contributor: str, notes: dict[str, str], date: str | None = None
+    sel: list[Candidate],
+    dataset: str | Path,
+    contributor: str,
+    notes: dict[str, str],
+    date: str | None = None,
+    skipped: list | None = None,
 ) -> Path:
     """图片原样拷到 inbox/<贡献者>/<日期>/<frame_id>.<扩展名>（有原生 PNG 一起拷），写 meta.json；同一天再挑一次会追加。
-    notes 的键是 `<运行名>:<seq>` 或 `<seq>`。"""
+    notes 的键是 `<运行名>:<seq>` 或 `<seq>`。
+    同一个帧 id 在数据仓库别处（别的日子的 inbox、core / hard、legacy-*）已经有了就跳过，记进 skipped（(id, 原因)）：
+    标注流程按「core/<id>.json 在不在」判断一帧标没标完，同 id 不同内容的新帧会被当成已标注、悄悄从 meta.json 里删掉。"""
     out = Path(dataset) / "inbox" / contributor / (date or time.strftime("%Y-%m-%d"))
     out.mkdir(parents=True, exist_ok=True)
     meta_path = out / "meta.json"
@@ -310,9 +332,14 @@ def write_inbox(
     if meta_path.is_file():
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
     have = {f["id"] for f in meta["frames"]}
+    elsewhere = _known_ids(dataset, meta_path)
     for c in sel:
         fid = schema.frame_id(c.platform, c.run, c.seq)
         if fid in have or c.path is None:
+            continue
+        if fid in elsewhere:
+            if skipped is not None:
+                skipped.append((fid, "数据仓库里已有同 id 的帧（别的日子的 inbox 或已标注）"))
             continue
         image = fid + c.path.suffix.lower()
         shutil.copyfile(c.path, out / image)

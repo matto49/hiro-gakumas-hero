@@ -140,3 +140,25 @@ def test_report_shows_ignored_share_and_matching_caveat():
     assert r["ignored_share"] == pytest.approx(1 / 3)
     md = ev.report_md([r])
     assert "忽略占比 33.3%" in md and "一段识别只归一个标注框" in md
+
+
+def test_load_frames_keeps_only_box_level_frames(tmp_path):
+    """core 里有场景帧（schema 3）、字段帧（schema 2）时，框级评测不能把它们喂给 score（fr["boxes"] 会 KeyError，PR #104）。"""
+    import json
+
+    (tmp_path / "core").mkdir()
+    for fid, sc in (("a", 1), ("b", 2), ("c", 3)):
+        fr = {"schema": sc, "id": fid, "image": fid + ".jpg"}
+        (tmp_path / "core" / f"{fid}.json").write_text(json.dumps(fr), encoding="utf-8")
+    assert [f["id"] for f in ev.load_frames(tmp_path, "core")] == ["a"]
+
+
+def test_main_without_box_level_frames_stops_with_a_message(tmp_path):
+    import json
+
+    (tmp_path / "core").mkdir()
+    (tmp_path / "core" / "c.json").write_text(json.dumps({"schema": 3, "id": "c"}), encoding="utf-8")
+    (tmp_path / "lexicon").mkdir()
+    with pytest.raises(SystemExit) as e:
+        ev.main(tmp_path, ["rapidocr"], "core", log=lambda *_: None)
+    assert "没有符合条件的帧" in str(e.value)

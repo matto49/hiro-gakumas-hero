@@ -171,7 +171,7 @@ def lexicon_answer(answers: dict, lex: Lexicon) -> str:
 def adjudicate(
     dataset: str | Path, reader, lex: Lexicon | None = None, workers: int = 1, log: Callable[[str], None] = print
 ) -> dict[str, int]:
-    """第二个 LLM 读一遍还待定的框（每帧一次，只拼待定框），答案存进 answers.llm2，再按 decide 重判。问过的框不再问。"""
+    """第二个 LLM 读一遍还待定的框（每帧一次，只拼待定框），答案存进 answers.llm2，再按 decide 重判。问过的框不再问（漏答写成 null 的算没问过）。"""
     root = Path(dataset)
     lex = lex or _load_lexicon(root)
     jobs = []
@@ -181,7 +181,9 @@ def adjudicate(
             todo = [
                 b
                 for b in fr.get("boxes", [])
-                if b.get("status") == "disputed" and "llm2" not in (b.get("answers") or {}) and not b.get("reviewed")
+                if b.get("status") == "disputed"
+                and (b.get("answers") or {}).get("llm2") is None
+                and not b.get("reviewed")  # null = 漏答，要再问；"" 是明确没字
             ]
             if todo:
                 jobs.append((s, js, fr, todo))
@@ -231,14 +233,23 @@ def reask(dataset: str | Path, reader, lex: Lexicon | None = None, multi_sheet_o
             fr = json.loads(js.read_text(encoding="utf-8"))
             if not fr.get("boxes"):
                 continue
-            img = cv2.imread(str(root / s / fr["image"]))
-            if multi_sheet_only and len(crop_sheets(img, [b["box"] for b in fr["boxes"]], pad)) <= 1:
-                continue
-            jobs.append((js, fr, img))
+            if multi_sheet_only:
+                img = cv2.imread(str(root / s / fr["image"]))  # 只为数拼图张数，数完就放掉；像素数组不留在任务列表里
+                if len(crop_sheets(img, [b["box"] for b in fr["boxes"]], pad)) <= 1:
+                    continue
+                del img
+            jobs.append((js, fr, root / s / fr["image"]))
+
+    def ask(job):
+        _js, fr, path = job
+        return reader.read_llm(
+            cv2.imread(str(path)), [b["box"] for b in fr["boxes"]]
+        )  # 用到时才读，同时只有 workers 张在内存里
+
     pool = ThreadPoolExecutor(max(1, workers))
     asked = changed = 0
     try:
-        futs = [(j, pool.submit(reader.read_llm, j[2], [b["box"] for b in j[1]["boxes"]])) for j in jobs]
+        futs = [(j, pool.submit(ask, j)) for j in jobs]
         for k, ((js, fr, _), fut) in enumerate(futs, 1):
             try:
                 texts = fut.result()
@@ -563,11 +574,19 @@ def run(dataset: str | Path, inbox_dir: str | Path, readers=None, lex: Lexicon |
             except Exception as e:  # noqa: BLE001  一帧失败不影响别的
                 log(f"[{k}/{len(todo)}] {f['id']} 失败：{type(e).__name__}: {e}")
                 continue
-            shutil.move(str(inbox / f["image"]), dest / f["image"])
+            # 先拷图、再原子写标注（临时文件 → 改名），最后才删 inbox 的原图：中途写盘失败 / 被打断，原图还在，下次接着标
+            sources = [inbox / f["image"]]
+            shutil.copyfile(sources[0], dest / f["image"])
             if f.get("native_image") and (inbox / f["native_image"]).is_file():
-                shutil.move(str(inbox / f["native_image"]), dest / f["native_image"])
+                sources.append(inbox / f["native_image"])
+                shutil.copyfile(sources[1], dest / f["native_image"])
             fr["sha256"] = schema.sha256(dest / f["image"])
-            (dest / f"{f['id']}.json").write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
+            final = dest / f"{f['id']}.json"
+            tmp = final.with_name(final.name + ".tmp")
+            tmp.write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
+            tmp.replace(final)
+            for src in sources:
+                src.unlink()
             done_ids.add(f["id"])
             n_done += 1
             st = [b["status"] for b in fr["boxes"]]
@@ -601,7 +620,7 @@ def _png_b64(img) -> str:
 
 SPOT_JS = """
 function upd(){const all=document.querySelectorAll('.item');let bad=0;all.forEach(e=>{if(e.querySelector('input[type=checkbox]').checked)bad++});
-document.getElementById('acc').textContent=`错 ${bad} / ${all.length}，准确率 ${((all.length-bad)/all.length*100).toFixed(1)}%（≥ 98% 才合格）`}
+document.getElementById('acc').textContent=all.length?`错 ${bad} / ${all.length}，准确率 ${((all.length-bad)/all.length*100).toFixed(1)}%（≥ 98% 才合格）`:'没有可抽查的框'}
 function save(){const out=[];document.querySelectorAll('.item').forEach(e=>{if(e.querySelector('input[type=checkbox]').checked)
 {const fix=e.querySelector('input[type=text]').value.trim();const b={frame:e.dataset.frame,set:e.dataset.set,box:+e.dataset.box,was:e.dataset.text};
 if(fix)b.text=fix;else b.disputed=true;out.push(b)}});
@@ -628,11 +647,11 @@ def spot_check(dataset: str | Path, n: int = 50, seed: int | None = None) -> Pat
             imgs[key] = cv2.imread(str(root / key))
         c = _crop(imgs[key], b["box"], 6)
         c = cv2.resize(c, None, fx=2, fy=2, interpolation=cv2.INTER_CUBIC)
-        ans = " · ".join(f"{k}: {html.escape(str(v))}" for k, v in (b.get("answers") or {}).items())
+        ans = " · ".join(f"{html.escape(str(k))}: {html.escape(str(v))}" for k, v in (b.get("answers") or {}).items())
         items.append(
             f'<div class="item" data-frame="{html.escape(fr["id"])}" data-set="{s}" data-box="{b["id"]}" data-text="{html.escape(b["text"])}">'
             f'<img src="data:image/png;base64,{_png_b64(c)}"><div class="t">{html.escape(b["text"])}</div>'
-            f'<div class="a">{html.escape(fr["id"])} #{b["id"]} · {b["tags"]["type"]} · {ans}</div>'
+            f'<div class="a">{html.escape(fr["id"])} #{b["id"]} · {html.escape(str(b["tags"]["type"]))} · {ans}</div>'
             f'<label><input type="checkbox"> 认错了</label> <input type="text" placeholder="正确文字（可不填）"></div>'
         )
     page = root / ".work" / f"spot-{time.strftime('%Y%m%d-%H%M%S')}.html"
@@ -642,7 +661,7 @@ def spot_check(dataset: str | Path, n: int = 50, seed: int | None = None) -> Pat
         "body{font:14px system-ui,sans-serif;margin:24px;max-width:1100px}.item{border-bottom:1px solid #ddd;padding:12px 0}"
         "img{max-width:100%;image-rendering:auto;background:#eee}.t{font-size:22px;margin:6px 0}.a{color:#666;font-size:12px;margin-bottom:6px}"
         "#bar{position:sticky;top:0;background:#fff;padding:8px 0;border-bottom:2px solid #333}</style>"
-        f'<div id="bar"><b>agreed 框抽查 {len(items)} 个</b> · <span id="acc"></span> · <button onclick="save()">导出错框</button></div>'
+        f'<div id="bar"><b>agreed 框抽查 {len(items)} 个</b> · <span id="acc">{"" if items else "没有可抽查的框"}</span> · <button onclick="save()">导出错框</button></div>'
         + "".join(items)
         + f"<script>{SPOT_JS}</script>",
         encoding="utf-8",

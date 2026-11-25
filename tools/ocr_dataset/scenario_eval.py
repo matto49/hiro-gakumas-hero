@@ -138,26 +138,29 @@ def _keyed_lists(sid: str) -> set[str]:
     return {it["key"] for it in scenario.load()[sid]["items"] if any(f["key"] == "label" for f in it.get("fields", []))}
 
 
-def _flat(sid: str, d: dict) -> dict:
+def _flat(sid: str, d: dict, alias: dict | None = None) -> dict:
+    """叶子路径 → 值。按 label 对齐的列表路径是 actions[休む].hp_change；alias 给了就顺便记下每条路径对应的下标写法
+    （actions[0].hp_change）：标注端的 item_status 用的是下标路径。"""
     keyed = _keyed_lists(sid)
     out = {}
 
-    def walk(v, p):
+    def walk(v, p, q):
         if isinstance(v, dict) and v:
             for k, x in v.items():
-                walk(x, f"{p}.{k}" if p else k)
+                walk(x, f"{p}.{k}" if p else k, f"{q}.{k}" if q else k)
         elif isinstance(v, list) and v:
-            if p in keyed:
-                for x in v:
+            for i, x in enumerate(v):
+                if p in keyed:
                     lab = (x or {}).get("label") if isinstance(x, dict) else None
-                    walk(x, f"{p}[{lab}]")
-            else:
-                for i, x in enumerate(v):
-                    walk(x, f"{p}[{i}]")
+                    walk(x, f"{p}[{lab}]", f"{q}[{i}]")
+                else:
+                    walk(x, f"{p}[{i}]", f"{q}[{i}]")
         elif p:
             out[p] = v
+            if alias is not None:
+                alias[p] = q
 
-    walk(d, "")
+    walk(d, "", "")
     return out
 
 
@@ -195,12 +198,15 @@ def _canon(sid: str, d: dict) -> dict:
 
 def score_frame(sid: str, truth: dict, got: dict, item_status: dict | None = None) -> list[dict]:
     st = item_status or {}
-    ft = _flat(sid, _canon(sid, truth))
+    alias: dict[str, str] = {}
+    ft = _flat(sid, _canon(sid, truth), alias)
     fg = _flat(sid, _canon(sid, scenario.normalize(sid, got or {})))
     flags = _field_flags(sid)
+    # 打分时 turns_left = 圆环大数字 + 额外回合：额外回合待定 / 忽略，合出来的值就不可信，不计
+    sum_pending = sid == "exam" and "extra_turns" in truth and st.get("extra_turns") in SKIP
     rows = []
     for p, w in ft.items():
-        if st.get(p) in SKIP:
+        if st.get(p) in SKIP or st.get(alias.get(p)) in SKIP or (sum_pending and p == "turns_left"):
             continue
         g = fg.get(p)
         leaf = _norm_item(p)

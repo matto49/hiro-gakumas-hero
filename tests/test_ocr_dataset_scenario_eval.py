@@ -251,3 +251,26 @@ def test_status_with_turns_and_percent():
     assert se.adapt("exam", raw)["statuses"] == [
         {"kind": "status", "name": "パラメータ上昇量増加", "value": 5, "pct": 20}
     ]
+
+
+@pytest.mark.parametrize("state", ["disputed", "ignored"])
+def test_pending_extra_turns_keeps_the_summed_turns_out_of_scoring(state):
+    """turns_left 在打分时 = 圆环大数字 + 额外回合；额外回合待定 / 忽略时，合出来的值不能参与计分（PR #104）。"""
+    truth = {"turns_left": 9, "extra_turns": 2}
+    rows = se.score_frame("exam", truth, {"turns_left": 9}, item_status={"extra_turns": state})
+    assert [r["path"] for r in rows] == []
+    rows = se.score_frame("exam", truth, {"turns_left": 11})  # 两项都能计分时照旧相加
+    assert [(r["path"], r["result"]) for r in rows] == [("turns_left", "对")]
+
+
+def test_pending_status_given_by_index_path_skips_keyed_list_items():
+    """标注端 item_status 的键是下标路径（actions[0].hp_change），打分端按 label 对齐成 actions[休む].hp_change：
+    待定的行动项以前查不到，照样被打分（PR #104）。"""
+    truth = {"actions": [{"label": "おでかけ", "hp_change": 3}, {"label": "休む", "hp_change": 11}]}
+    got = {"actions": [{"label": "休む", "hp_change": 99}, {"label": "おでかけ", "hp_change": 3}]}
+    rows = se.score_frame("action_select", truth, got, item_status={"actions[1].hp_change": "disputed"})
+    res = {r["path"]: r["result"] for r in rows}
+    assert "actions[休む].hp_change" not in res and res["actions[おでかけ].hp_change"] == "对"
+    rows = se.score_frame("action_select", truth, got, item_status={"actions[0].hp_change": "ignored"})
+    res = {r["path"]: r["result"] for r in rows}
+    assert "actions[おでかけ].hp_change" not in res and res["actions[休む].hp_change"] == "错"

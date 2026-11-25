@@ -92,7 +92,9 @@ def ingest(dataset: str | Path, sid: str, labeled_dir: str | Path, detect) -> di
         where, meta = found
         img_src = where / meta["image"]
         img_dst = core / meta["image"]
-        if where != core:
+        if (
+            where != core and not img_dst.exists()
+        ):  # 上次这一帧图片挪过来了、后面（检测按钮等）失败了：重跑接着处理，不再挪
             shutil.move(str(img_src), img_dst)
         labeled = json.loads(p.read_text(encoding="utf-8"))
         buttons = locate_buttons(labeled.get("button_labels") or [], detect(cv2.imread(str(img_dst))))
@@ -101,21 +103,6 @@ def ingest(dataset: str | Path, sid: str, labeled_dir: str | Path, detect) -> di
         (core / f"{meta['id']}.json").write_text(json.dumps(fr, ensure_ascii=False, indent=1), encoding="utf-8")
         written += 1
     return {"written": written, "buttons_missing": missing}
-
-
-def _spec_for(sid: str, path: str) -> dict | None:
-    """信息项路径（hand[0].cost、hp、actions[休む].hp_change）→ 场景定义里这一项 / 子项的类型说明。"""
-    import re
-
-    from tools.ocr_dataset import scenario
-
-    parts = re.sub(r"\[[^\]]*\]", "", path).split(".")
-    item = next((it for it in scenario.load()[sid]["items"] if it["key"] == parts[0]), None)
-    if item is None or len(parts) == 1:
-        if item is not None and item["type"] == "list" and "fields" not in item and "[" in path:
-            return {"type": item.get("item", "text")}
-        return item
-    return next((f for f in item.get("fields", []) if f["key"] == parts[1]), None)
 
 
 def apply_answers(dataset: str | Path, comments: list[dict]) -> dict[str, int]:
@@ -146,7 +133,7 @@ def apply_answers(dataset: str | Path, comments: list[dict]) -> dict[str, int]:
         fr = json.loads(js.read_text(encoding="utf-8"))
         sid = fr["scenario"]
         for c in cs:
-            spec = _spec_for(sid, c["field"])
+            spec = scenario.spec_for(sid, c["field"])
             if spec is None:
                 missing += 1
                 continue

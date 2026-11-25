@@ -120,11 +120,20 @@ def main(argv: list[str] | None = None) -> int:
 
         root = dataset_root(a.dataset)
         readers = label.RealReaders(a.llm or os.environ.get("HIRO_LLM") or "claude:opus")
+        readers2 = label.RealReaders(a.llm2) if a.llm2 != "none" else None
+        if (
+            readers2 is not None and readers2.name == readers.name
+        ):  # 同源的第二轮不是独立意见：decide 会把两次相同的答案当一致
+            print(
+                f"--llm2 {a.llm2!r} 和第一个 LLM 是同一个来源（{readers.name}），第二轮不算独立意见：换一个，或写 --llm2 none",
+                file=sys.stderr,
+            )
+            return 2
         total = 0
         for d in a.inbox:
             total += label.run(root, d, readers=readers, set_=a.set, workers=a.workers, limit=a.limit)
-        if a.llm2 != "none":
-            st = label.adjudicate(root, label.RealReaders(a.llm2), workers=a.workers)
+        if readers2 is not None:
+            st = label.adjudicate(root, readers2, workers=a.workers)
             print(f"第二个 LLM（{a.llm2}）看了 {st['frames']} 帧的待定框，改判 {st['changed']} 个")
         disputed = json.loads((root / "disputed.json").read_text(encoding="utf-8"))
         print(f"标完 {total} 帧；待定框 {len(disputed)} 个（disputed.json），用 review 处理")
@@ -140,6 +149,10 @@ def main(argv: list[str] | None = None) -> int:
 
         st = regression.import_all(dataset_root(a.dataset))
         print(f"导入 {st['imported']} 帧（缺图 {st['missing']}），旧框级帧挪走 {st['legacy_moved']} 帧 → legacy-v1/")
+        if st["conflicts"]:
+            print(
+                f"有 {st['conflicts']} 帧跳过：同名图片内容不同，或同 ID 已有场景真值（v3）；没写任何真值，先查清楚再导入"
+            )
         return 0
     if a.cmd == "eval-fields":
         from tools.ocr_dataset import fields_eval
@@ -196,7 +209,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"读到 {len(cands)} 帧（去重后），挑中 {len(sel)}")
         print(pick.summary(sel))
         if not a.dry_run and sel:
-            print(f"→ {pick.write_inbox(sel, root, a.contributor, notes)}")
+            skipped: list = []
+            print(f"→ {pick.write_inbox(sel, root, a.contributor, notes, skipped=skipped)}")
+            for fid, why in skipped:
+                print(f"  跳过 {fid}：{why}")
         return 0
     if a.cmd == "init":
         root = schema.init(dataset_root(a.dir))

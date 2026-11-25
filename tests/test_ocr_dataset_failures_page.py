@@ -84,3 +84,13 @@ def test_excluded_frames_are_skipped_in_aggregate():
     frames = [{**_fr("a", {"deck_left": 5}), "excluded": "不是这个场景"}]
     reads = {b: {"a": {"fields": {}}} for b in B}
     assert fp.aggregate([("core", frames)], {"core": reads}, B) == []
+
+
+def test_failures_page_delete_link_does_not_build_script_from_comment_id():
+    """备注的删除链接不能把评论 id 拼进 onclick（存储型 XSS，PR #104）。"""
+    import re
+
+    js = fp.JS_PAGE
+    assert not re.findall(r"""\bon\w+\s*=\s*"[^"]*\$\{[^"]*\}""", js)
+    assert 'data-id="${esc(c.id)}"' in js
+    assert 'addEventListener("click"' in js and "closest" in js

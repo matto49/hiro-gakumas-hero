@@ -35,7 +35,8 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
     for fr in frames:
         fid, sid = fr["id"], fr["scenario"]
         (out.parent / "img" / f"{fid}.jpg").write_bytes(fields_page._jpg(root / set_ / fr["image"]))
-        ft = se._flat(sid, fr.get("truth") or {})
+        alias: dict[str, str] = {}
+        ft = se._flat(sid, fr.get("truth") or {}, alias)
         ans = {n: se._flat(sid, (a or {}).get("items") or {}) for n, a in (fr.get("answers") or {}).items()}
         names = list(ans)[:2]
         sysrows = {}
@@ -50,7 +51,10 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
         paths = list(dict.fromkeys(paths)) + [f"button:{b['label']}" for b in fr.get("buttons") or []]
         for p in paths:
             is_btn = p.startswith("button:")
-            disputed = st.get(p) == "disputed"
+            disputed = "disputed" in (
+                st.get(p),
+                st.get(alias.get(p, "")),
+            )  # item_status 的键是下标路径，按 label 对齐的列表要换算
             n_disputed += disputed
             if is_btn:
                 b = next(x for x in fr["buttons"] if f"button:{x['label']}" == p)
@@ -78,7 +82,7 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
             )
         pages = " · ".join(f"{b} 判成 {e(str(sysrows[b][1]))}" for b in backends)
         secs.append(
-            f'<section class="frame" id="{e(fid)}" data-sc="{e(sid)}"><h2>{e(fid)}</h2><p class="meta">场景 <b>{e(scenario.load()[sid]["name"])}</b> · 平台 '
+            f'<section class="frame" id="{e(fid)}" data-sc="{e(sid)}" data-page="{e(sid)}"><h2>{e(fid)}</h2><p class="meta">场景 <b>{e(scenario.load()[sid]["name"])}</b> · 平台 '
             f"{e((fr.get('platform') or {}).get('kind') or '?')} · 系统判页：{pages}</p>"
             f'<div class="row"><img class="shot" src="img/{e(fid)}.jpg" loading="lazy" onclick="this.classList.toggle(\'big\')"><div class="tbl"><table>'
             f"<tr><th>信息项</th><th>真值</th>"
@@ -110,7 +114,7 @@ def build(dataset: str | Path, reads: dict[str, dict], out: str | Path | None = 
         '<div data-cm data-target="scenario-page" data-field=""></div></div>'
         + "".join(secs)
         + "<script>"
-        + fields_page.JS.replace("__KINDS__", KINDS).replace("s.dataset.page === p", "s.dataset.sc === p")
+        + fields_page.JS.replace("__KINDS__", KINDS)
         + r"""
 async function pick(btn) {
   btn.disabled = true;

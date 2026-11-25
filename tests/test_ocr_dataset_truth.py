@@ -89,3 +89,16 @@ def test_compare_missing_equals_none():
     """读数取稳定项时会丢掉值为 None 的键：真值是 None、读数里没有这个键，算对。"""
     rows = truth.compare({"statuses": [{"card_id": None, "value": 3}]}, {"statuses": [{"value": 3}]})
     assert [(r.path, r.ok) for r in rows] == [("statuses[0].card_id", True), ("statuses[0].value", True)]
+
+
+def test_compare_does_not_count_bool_and_number_as_same():
+    """真值 purchased: true、读到 1：Python 的 == 会算对，但这是两种东西（严格比对，PR #104）。"""
+    rows = truth.compare(
+        {"purchased": True, "n": 1, "z": 0, "f": False}, {"purchased": 1, "n": True, "z": False, "f": 0}
+    )
+    assert [r.ok for r in rows] == [False, False, False, False]
+    assert all(
+        r.ok for r in truth.compare({"purchased": True, "n": 1, "f": False}, {"purchased": True, "n": 1, "f": False})
+    )
+    assert all(r.ok for r in truth.compare({"x": 1}, {"x": 1.0}))  # JSON 里 1 和 1.0 不区分
+    assert truth.compare({"a": None}, {})[0].ok  # 真值 null 允许缺键，照旧

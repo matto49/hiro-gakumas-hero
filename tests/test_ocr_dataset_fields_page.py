@@ -48,3 +48,18 @@ def test_page_can_link_images_as_files(tmp_path):
     html = out.read_text(encoding="utf-8")
     assert 'src="img/dmm-r-00001.jpg"' in html and 'loading="lazy"' in html and "base64" not in html
     assert (tmp_path / "site" / "img" / "dmm-r-00001.jpg").is_file()
+
+
+def _inline_handlers_with_interpolation(js: str) -> list[str]:
+    """内联事件属性（onclick="…"）里拼了 ${…} 的片段：评论的 id / 文字不能这样拼进脚本。"""
+    import re
+
+    return re.findall(r"""\bon\w+\s*=\s*"[^"]*\$\{[^"]*\}""", js)
+
+
+def test_comment_delete_link_does_not_build_script_from_comment_id():
+    """复核页删除链接曾是 onclick="del('${esc(c.id)}')"：id 里带 ') 就能跳出字符串执行脚本（存储型 XSS，PR #104）。"""
+    js = fields_page.JS
+    assert not _inline_handlers_with_interpolation(js)
+    assert 'data-id="${esc(c.id)}"' in js  # id 只当属性值放进去（已转义），不进脚本
+    assert 'addEventListener("click"' in js and "closest" in js  # 委托监听，不靠内联脚本
