@@ -60,7 +60,11 @@ class ObservationExamStateSource:
         from hiro.plugin_record import RECORD
 
         state, why = self.inner.read(frame, memory)
-        self.used_trust, self.notes, self.lists_from_plugin, self.hand_from_plugin = None, [], False, False
+        self.used_trust, self.notes, self.lists_from_plugin = None, [], False
+        # 手牌顺序先按原来的局面来源算：它自己带了 hand_from_plugin 就用它；没带的（私有存档插件）可信度 save 就是存档顺序。
+        # 数据来源插件只有真给了手牌才再置真
+        inner_flag = getattr(self.inner, "hand_from_plugin", None)
+        self.hand_from_plugin = inner_flag if isinstance(inner_flag, bool) else self.inner.confidence() == "save"
         cfg = strategy.current()
         if not cfg.sources:
             return state, why

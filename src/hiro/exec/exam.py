@@ -342,6 +342,9 @@ def _confirm_dialog(boxes, texts) -> bool:
 RETAP_MAX = 2  # 同一位置 RETAP_WINDOW_S 内最多再点几次
 RETAP_WINDOW_S = 30.0
 _RETAP: dict = {"pos": None, "n": 0, "t0": 0.0}
+WAIT_INFO: dict = {
+    "select": False
+}  # 最近一次 _wait_change 里处理过停在选中态的 SELECT（补点 / 取消选中）：局面不一定变了
 UNPLAYABLE: dict = {"hit": False}  # 再点上限触发：主循环把本次动作本回合禁用
 
 
@@ -377,11 +380,13 @@ def _select_retap(sel: Text) -> bool:
         device.click(*DESELECT_TAP)
         _RETAP.update(pos=None, n=0, t0=0.0)
         UNPLAYABLE["hit"] = True
+        WAIT_INFO["select"] = True
         sleep(0.8)
         return True
     x, y = sx, sy - 110
     logger.info("H.I.F 卡牌停在选中态（SELECT）→ 再点一次 (%d, %d)", x, y)
     device.click(x, y)
+    WAIT_INFO["select"] = True
     sleep(1.0)
     return True
 
@@ -950,6 +955,7 @@ def _wait_change(before: tuple) -> bool:
     弹出的确认框（ターン終了 / 使用確認）压暗画面、签名不变时照常处理，签名变了的由主循环下一轮处理。"""
     start = time.monotonic()
     deadline = start + CHANGE_TIMEOUT
+    WAIT_INFO["select"] = False
     while time.monotonic() < deadline:
         img = device.screenshot()
         with _phase("wait_frame"):
@@ -1673,7 +1679,9 @@ def run_exam(
                 progress_t = time.monotonic()
                 brain.commit(state, memory, d)
                 source.executed(Action.from_legal(d.action), result)
-                _executed(advisor, d.action)
+                if not WAIT_INFO["select"] and not UNPLAYABLE.get("hit"):
+                    # 只是补点了停在选中态的 SELECT、或再点超限取消了选中（本回合禁用）：局面没变，不算插件的决定生效
+                    _executed(advisor, d.action)
                 failures = 0
                 if session is not None:
                     save_exam_memory(session.trace.dir, memory)

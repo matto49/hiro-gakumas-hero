@@ -153,10 +153,16 @@ class Session:
             self.notes.append(f"数据来源出错：{type(e).__name__}: {e}")
             return
         self.notes.extend(notes)
+        from hiro.plugin_record import RECORD, RESULT_PAGES
+
         for o in extra:
             # 不跑事件识别：获得弹窗等事件只由画面那份观测发一次（插件观测再发会把同一张卡多算）
             self.state = self._reduce_checked(o, events=False)
             self._buffer.append(o)
+            if o.page.name in RESULT_PAGES:
+                RECORD.note_page(
+                    o.page.name, o.fields
+                )  # 插件补读 / 覆盖的结算字段并进同一条结算读数，育成插件 end 拿到的结果最全
 
     def _reduce_checked(self, obs: Observation, *, events: bool = True) -> GameState:
         """互验 → 去掉读错的读数 → reduce → 标字段状态（§5，hiro.loop.events.reduce_checked，离线回放同一函数）。"""

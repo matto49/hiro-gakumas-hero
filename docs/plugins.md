@@ -34,7 +34,7 @@ class MyAdvisor:
 
 - `begin(context)` 拿到：`mode`（培育 id）、`family`（hif / hajime / nia）、`difficulty`（regular / pro / master / legend，H.I.F 是 selection / finals）、`idol`、`profile`、`main_attr`、`formation_plan`（开局编成方案的副本，没用方案时 `None`）、`guides`（偶像卡攻略包概况：`enabled`、`dir`、`packs`（模式 → 包名）、`pack`（这一局模式的包名）；条目本身用 `hiro.brain.guides.entries(模式)` / `lookup()` 取）、`trace_dir`。认不出的培育 id，`family` / `difficulty` 是 `None`。
 - `begin` 抛异常：记一次错，这个插件之后的页面都交回内置，不再调它的 `decide` / `end`。
-- `end(result)` 的 `result` 是本进程这一段攒下的结果：`trace_dir`、`final_page`（最后停在哪一页）、`results`（每次看到的结算页读数，按先后排：`page` 是 `HIF_EXAM_RESULT` / `HIF_FINALS_RANKING`，其余是读到的字段，如 `exam_no`、`score`、`rank`、`passed`；整张排行榜 `entries` 不放）、`last_result`（`results` 的最后一条，没有为 `None`）。续跑的上一段不在里面，要的话去那一段的 trace。
+- `end(result)` 的 `result` 是本进程这一段攒下的结果：`trace_dir`、`final_page`（最后停在哪一页）、`results`（每次看到的结算页读数，按先后排，画面读到的和数据来源插件补读 / 覆盖的字段并在同一条里，和游戏状态里采用的一致：每个键是最后采用的值；`page` 是 `HIF_EXAM_RESULT` / `HIF_FINALS_RANKING`，其余是读到的字段，如 `exam_no`、`score`、`rank`、`passed`；整张排行榜 `entries` 不放）、`last_result`（`results` 的最后一条，没有为 `None`）。续跑的上一段不在里面，要的话去那一段的 trace。
 
 - `state` 是 `hiro.contracts.GameState` 的**副本**（改它不影响主循环）；`state.hidden` 里是数据来源给的、画面上看不到的信息，和页面字段一样只管当前页，换页就清空（要跨页留着自己存）。
 - 返回的 `Decision` 要过三道检查，任何一道不过都交回内置决策器，并在这一步的 `warnings` 里写明原因：
@@ -73,7 +73,7 @@ class Hook:
 - 页面始终由画面判断：插件说在 A 页、画面在 B 页时，插件这次的数据不用。
 - **只要收过非空的 `hidden`，这一段对局就会打上 `uses_hidden`**：报告标题写明「用了隐藏信息」，战绩要单独统计，不要和只看画面的对局放在一起比。
 - 考试循环通过转接层（`hiro.defaults.exam_bridge.ObservationExamStateSource`）用同样的规则问你的插件，`hidden` 进 `BattleState.hidden`。手牌、饮料可以给完整的 `CardView` / `DrinkView` 字典，也可以只给 `{card_id, upgrade, available, slot}` / `{drink_id}`，框架按主数据补全（和画面识别同一条路）。
-  手牌来自插件时，出牌按卡 id 对到屏幕位置，插件的手牌顺序和屏幕不同也不会点错；某格认不出就留占位，一张都认不出就不用插件的手牌。只有体力、分数这类数值来自存档级插件、手牌还是画面的，出牌照画面顺序点，不按卡 id 找位置（局面可信度仍记「存档」）。
+  手牌来自插件时，出牌按卡 id 对到屏幕位置，插件的手牌顺序和屏幕不同也不会点错；某格认不出就留占位，一张都认不出就不用插件的手牌。只有体力、分数这类数值来自存档级插件、手牌还是画面的，出牌照画面顺序点，不按卡 id 找位置（局面可信度仍记「存档」）。原来的局面来源（私有存档插件）按存档顺序给手牌的，这个规则照旧保留，数据来源插件只补数值也不会改掉它。
 
 ## 2. 注册
 
@@ -104,7 +104,7 @@ class Hook:
 
 - 没写的决策点、写 `builtin` 的、配了但没装 / 不能用的，都用内置逻辑，开局照常；配置问题在开局时写进任务事件。`exam.<模式>: "builtin"` 能盖掉全局的 `exam`。
 - 出招插件出错、返回的动作不在合法动作里时，这一步交给原来的出招，计入出错。`on_round_start` 抛异常时，这一场剩下的步骤都交给原来的出招，下一场开局再试。
-- 「定几步」按动作真的在游戏里生效来计：决策帧过时没点、画面对不上、牌没打出去、点了画面没变的步骤作废，不算插件定的。
+- 「定几步」按动作真的在游戏里生效来计：决策帧过时没点、画面对不上、牌没打出去、点了画面没变的步骤作废，不算插件定的；只是补点了停在选中态的 SELECT、或再点超限被取消选中（本回合禁用）的也不算。
 - 单局覆盖：`hiro run start hif … --plugins produce.ACTION_SELECT=uinet_produce,exam=gnrpa_pro --sources gkms_hook`。
 - 育成决策点就是 `ProduceDeciders.decide` 分派表里的页面名，清单在 `hiro.strategy.PRODUCE_PAGES`。
 

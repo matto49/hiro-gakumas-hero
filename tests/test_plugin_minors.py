@@ -1,8 +1,9 @@
 """插件框架 11-25 合入时暂缓的小问题（2026-11-26），每条一组复现用例。编号对应当时列的 9 条。"""
 
 import json
+import time
 from types import SimpleNamespace
-from typing import ClassVar
+from typing import Any, ClassVar, cast
 
 from hiro import plugins, strategy
 from hiro.brain import plugin_gate
@@ -760,3 +761,173 @@ def test_example_source_named_after_what_it_does():
         sys.path.remove(str(root / "src"))
         for m in [m for m in sys.modules if m.startswith("hiro_example_plugins")]:
             del sys.modules[m]
+
+
+# ---- PR #102 CodeRabbit 三条
+
+
+class ResultSrc:
+    """数据来源插件：结算页上补画面漏读的字段（也可以覆盖，高档位时）。"""
+
+    id = "res"
+    version = "1"
+    contracts = "1"
+    trust = "screen"
+    pages = frozenset({"HIF_EXAM_RESULT"})
+    reply: ClassVar[dict] = {}
+
+    def start(self, context): ...
+    def read(self, page, frame_t, state):
+        return SourceRead(t=frame_t, fields=dict(type(self).reply))
+
+    def stop(self): ...
+
+
+class SaveResultSrc(ResultSrc):
+    id = "resave"
+    trust = "save"
+
+
+def test_plugin_filled_result_fields_reach_end_result(tmp_path, monkeypatch):
+    monkeypatch.setenv("HIRO_GUIDES_DIR", str(tmp_path / "nothing"))
+    plugins.register("observation_source", ResultSrc, id="res")
+    ResultSrc.reply = {"rank": 2, "passed": True}
+    plugins.register("produce_advisor", CtxProduce, id="ctx")
+    _cfg(tmp_path, monkeypatch, {"sources": ["res"], "produce": {"STUDY": "ctx"}})
+    CtxProduce.ended = []
+    s = _session(tmp_path)
+    s.observe(scene="STUDY", img=IMG, fields={"complete": True}, ready=True)
+    ProduceDeciders(None).decide("STUDY", s.state, n_options=3)
+    s.observe(scene="ACTION_SELECT", img=IMG, fields={"stamina": 30}, ready=True)
+    s.observe(scene="HIF_EXAM", img=IMG, fields={"hp": 30}, ready=True)
+    s.observe(scene="HIF_EXAM_RESULT", img=IMG, fields={"score": 99, "exam_no": 1}, ready=True)  # 画面漏读了名次
+    assert s.state.page.name == "HIF_EXAM_RESULT" and s.state.page_fields["rank"] == 2  # 插件的读数进了状态
+    RECORD.at_exit()
+    r = CtxProduce.ended[0]
+    assert [(x["exam_no"], x["score"], x["rank"], x["passed"]) for x in r["results"]] == [(1, 99, 2, True)]
+
+
+def test_plugin_result_when_screen_read_nothing(tmp_path, monkeypatch):
+    monkeypatch.setenv("HIRO_GUIDES_DIR", str(tmp_path / "nothing"))
+    plugins.register("observation_source", ResultSrc, id="res")
+    ResultSrc.reply = {"score": 5, "rank": 1}
+    plugins.register("produce_advisor", CtxProduce, id="ctx")
+    _cfg(tmp_path, monkeypatch, {"sources": ["res"], "produce": {"STUDY": "ctx"}})
+    CtxProduce.ended = []
+    s = _session(tmp_path)
+    s.observe(scene="STUDY", img=IMG, fields={"complete": True}, ready=True)
+    ProduceDeciders(None).decide("STUDY", s.state, n_options=3)
+    s.observe(scene="ACTION_SELECT", img=IMG, fields={"stamina": 30}, ready=True)
+    s.observe(scene="HIF_EXAM", img=IMG, fields={"hp": 30}, ready=True)
+    s.observe(scene="HIF_EXAM_RESULT", img=IMG, fields={}, ready=True)
+    RECORD.at_exit()
+    assert [(x["score"], x["rank"]) for x in CtxProduce.ended[0]["results"]] == [(5, 1)]
+
+
+def test_higher_trust_plugin_result_overrides_screen_in_end_result(tmp_path, monkeypatch):
+    monkeypatch.setenv("HIRO_GUIDES_DIR", str(tmp_path / "nothing"))
+    plugins.register("observation_source", SaveResultSrc, id="resave")
+    SaveResultSrc.reply = {"score": 100}
+    plugins.register("produce_advisor", CtxProduce, id="ctx")
+    _cfg(tmp_path, monkeypatch, {"sources": ["resave"], "produce": {"STUDY": "ctx"}})
+    CtxProduce.ended = []
+    s = _session(tmp_path)
+    s.observe(scene="STUDY", img=IMG, fields={"complete": True}, ready=True)
+    ProduceDeciders(None).decide("STUDY", s.state, n_options=3)
+    s.observe(scene="ACTION_SELECT", img=IMG, fields={"stamina": 30}, ready=True)
+    s.observe(scene="HIF_EXAM", img=IMG, fields={"hp": 30}, ready=True)
+    s.observe(scene="HIF_EXAM_RESULT", img=IMG, fields={"score": 90, "exam_no": 1}, ready=True)
+    RECORD.at_exit()
+    assert [(x["exam_no"], x["score"]) for x in CtxProduce.ended[0]["results"]] == [(1, 100)]  # 和状态里采用的一致
+
+
+def test_select_retap_is_not_counted_as_decided(exam_env, tmp_path, monkeypatch):
+    def wait(sig):
+        exam_env.WAIT_INFO["select"] = True  # 只是处理了停在选中态的 SELECT（补点），局面还没变
+        return True
+
+    monkeypatch.setattr(exam_env, "_wait_change", wait)
+    _run_one_step(exam_env, tmp_path, monkeypatch)
+    assert RECORD.points["exam.hif"]["decided"] == 0
+
+
+def test_unplayable_step_is_not_counted_as_decided(exam_env, tmp_path, monkeypatch):
+    def wait(sig):
+        exam_env.UNPLAYABLE["hit"] = True  # 再点超限、取消选中：本回合禁用这个动作
+        exam_env.UNPLAYABLE["why"] = "使用条件不满足"
+        return True
+
+    monkeypatch.setattr(exam_env, "_wait_change", wait)
+    _run_one_step(exam_env, tmp_path, monkeypatch)
+    assert RECORD.points["exam.hif"]["decided"] == 0
+
+
+def test_real_change_after_wait_still_counts(exam_env, tmp_path, monkeypatch):
+    def wait(sig):
+        exam_env.WAIT_INFO["select"] = False
+        return True
+
+    monkeypatch.setattr(exam_env, "_wait_change", wait)
+    _run_one_step(exam_env, tmp_path, monkeypatch)
+    assert RECORD.points["exam.hif"]["decided"] == 1
+
+
+def test_select_retap_sets_flag_and_wait_change_resets_it(monkeypatch):
+    import hiro.exec.exam as ex
+
+    ex.WAIT_INFO["select"] = False
+    img = object()
+    sel = SimpleNamespace(rect=SimpleNamespace(center=SimpleNamespace(x=100, y=300)))
+    monkeypatch.setattr(ex, "sleep", lambda s: None)
+    monkeypatch.setattr(ex, "device", SimpleNamespace(screenshot=lambda: img, click=lambda *a: None))
+    monkeypatch.setattr(ex, "_selects", lambda im: [sel])
+    assert ex._select_retap(cast(Any, sel)) is True
+    assert ex.WAIT_INFO["select"] is True
+    ex._RETAP.update(pos=None, n=0, t0=0.0)
+
+    class F:
+        remaining = 5
+        signature = ("same",)
+
+    monkeypatch.setattr(ex, "Frame", lambda im: F())
+    monkeypatch.setattr(ex, "_handle_dialogs", lambda im, **kw: False)
+    t = [0.0]
+    monkeypatch.setattr(ex.time, "monotonic", lambda: t[0])
+    monkeypatch.setattr(ex, "sleep", lambda s: t.__setitem__(0, t[0] + 10))
+    assert ex._wait_change(("same",)) is False
+    assert ex.WAIT_INFO["select"] is False  # 每次等之前清零
+
+
+def test_bridge_inherits_inner_hand_order_flag(tmp_path, monkeypatch):
+    from hiro.defaults.exam_bridge import ObservationExamStateSource
+
+    class Hp(HiddenSrc):
+        trust = "save"
+
+        def read(self, page, frame_t, state):
+            return SourceRead(t=frame_t, fields={"hp": 7})
+
+    plugins.register("observation_source", Hp, id="hook")
+    _cfg(tmp_path, monkeypatch, {"sources": ["hook"]})
+
+    class InnerSave:  # 私有存档插件：手牌按存档顺序，没有 hand_from_plugin 属性
+        def begin(self, c): ...
+        def read(self, f, m):
+            return SimpleNamespace(hp=1, hand=[], hidden={}), "存档"
+
+        def confidence(self) -> str:
+            return "save"
+
+    class InnerFlagged(InnerSave):
+        hand_from_plugin = False
+
+    class InnerScreen(InnerSave):
+        def confidence(self) -> str:
+            return "screen"
+
+    for inner, want in ((InnerSave(), True), (InnerFlagged(), False), (InnerScreen(), False)):
+        b = ObservationExamStateSource(inner)
+        b.read(SimpleNamespace(wall_t=time.time()), None)
+        assert b.hand_from_plugin is want, type(inner).__name__
+    b = ObservationExamStateSource(InnerSave())
+    assert b.hand_from_plugin is False  # 还没 read 过
