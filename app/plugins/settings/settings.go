@@ -405,6 +405,7 @@ func (s *S) envSection(c *ui.Context, h plugin.Host) {
 			ui.Icon(c, kit.IcCheck).FontSize(14).TextColor(kit.Good)
 			ui.Text(c, "运行环境装好了").FontSize(kit.FSmall).TextColor(kit.Ink)
 		})
+		s.ocrLine(c)
 		if kit.Secondary(c, "下载 / 更新资料库").Disabled(s.busy).Clicked() {
 			s.busy = true
 			h.Go(func() func() {
@@ -434,6 +435,25 @@ func (s *S) envSection(c *ui.Context, h plugin.Host) {
 	}
 	if n := len(s.bootLines); n > 0 {
 		ui.Text(c, strings.Join(s.bootLines[max(0, n-30):], "\n")).Font(kit.Mono).FontSize(11).TextColor(kit.Ink2).Padding(10).Radius(kit.R8).Background(kit.Surface2).Wrap()
+	}
+}
+
+// ocrLine 写现在用哪个文字识别后端（doctor 的 ocr 项，随试连游戏一起读到；还没读到时不画）。
+// SIMD 没装好时用 RapidOCR，识别慢一些：告诉用户怎么再装一次。
+func (s *S) ocrLine(c *ui.Context) {
+	s.devMu.Lock()
+	it, ok := s.doctor["ocr"]
+	s.devMu.Unlock()
+	if !ok {
+		return
+	}
+	col := kit.Ink2
+	if it.OK != nil && !*it.OK {
+		col = kit.Bad
+	}
+	ui.Text(c, "文字识别："+it.Detail).FontSize(kit.FSmall).TextColor(col).Wrap()
+	if it.Next != "" && it.OK != nil && !*it.OK {
+		kit.Note(c, it.Next)
 	}
 }
 

@@ -9,8 +9,9 @@
 #   （DirectML，任意 DX12 显卡；整帧识别约 2 s → 0.4 s，CPU 占用和风扇声下降），没有时运行时自己退回 CPU。缺省不换：识别阈值、放大倍数都是按 CPU 版调的，GPU 版先显式打开、回归一致后再讨论默认开。
 #   运行时再用 HIRO_OCR_DEVICE（auto / cuda / dml / cpu）选，见 hiro.vision.ocr.ocr_device_order。
 #   CUDA 版（onnxruntime-gpu）要和 play 组钉的 1.14 及本机 CUDA 11.x / cuDNN 8 对得上，不自动装。
+# -NoSimd：不装 SIMD 文字识别（下面第 2 步里的可选项）；桌面版安装程序把它当单独一步装，所以传这个开关。
 # Windows 上没有 PlayCover：开局前设 HIRO_DEVICE（adb / mumu / leidian / dmm），见 AGENTS.md「设备」。
-param([switch]$NoData, [ValidateSet("auto", "dml", "cpu")][string]$OcrDevice = "cpu")
+param([switch]$NoData, [switch]$NoSimd, [ValidateSet("auto", "dml", "cpu")][string]$OcrDevice = "cpu")
 $ErrorActionPreference = "Stop"
 # 中文提示与内嵌 Python 都按 UTF-8 传（PowerShell 5.1 默认用 ANSI 往管道写，中文会变成问号）
 $OutputEncoding = [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
@@ -38,6 +39,14 @@ if ($LASTEXITCODE) { throw "安装失败" }
 # RapidOCR 后端的识别模型：从本仓库 GitHub Release 下载、校验 SHA256（没装 SIMD 时 Windows 缺省用它）
 & $Py tools\assets\rapid_models.py
 if ($LASTEXITCODE) { throw "RapidOCR 识别模型下载失败（网络？）：可稍后重跑本脚本，或手动 python tools\assets\rapid_models.py" }
+# SIMD 文字识别（Windows 缺省的识别后端）：辅助程序 + 模型 + .NET 10 Runtime，装在 .deps，不要管理员权限。可选：装不上不让安装失败，识别退回 RapidOCR
+if ($NoSimd) {
+    Write-Host "  跳过 SIMD 文字识别（-NoSimd）"
+} else {
+    Write-Host "  SIMD 文字识别（Windows 缺省，可选；约 100 MB，另需 .NET 10 Runtime）…"
+    & $Py tools\assets\simd_ocr.py
+    if ($LASTEXITCODE) { Write-Host "  ⚠ SIMD 文字识别没装上（原因见上面几行）：识别用 RapidOCR，不影响使用；网络好了重跑本脚本即可" }
+}
 
 Step "3/6 识别用的游戏原图（本仓库 Release game-images-b9577da：技能卡 / 偶像卡 / 饮料 → resources/game_data，约 125 MB）"
 if ($NoData) {

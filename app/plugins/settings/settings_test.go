@@ -279,3 +279,46 @@ func TestWizardModelNoAdvanceIfKeyTypedDuringTest(t *testing.T) {
 		t.Errorf("测试期间粘了新 Key 就不该自动前进，现在第 %d 步", s.step)
 	}
 }
+
+// 运行环境那块写现在用的文字识别后端（doctor 的 ocr 项）；SIMD 没装好时用红字说明并给出再装一次的办法。
+func TestPanelShowsTheOcrBackendFromDoctor(t *testing.T) {
+	cases := []struct {
+		name, item string
+		want       []string
+	}{
+		{"SIMD", `{"id":"ocr","ok":true,"detail":"SIMD PaddleOCR（PP-OCRv6，有显卡走 Vulkan）"}`, []string{"文字识别：SIMD PaddleOCR"}},
+		{"fallback", `{"id":"ocr","ok":false,"detail":"RapidOCR（SIMD 没装好：找不到 .NET 10 Runtime）","next":"设置 → 运行环境 →「重装运行环境」会再试一次装 SIMD"}`,
+			[]string{"文字识别：RapidOCR（SIMD 没装好", "重装运行环境"}},
+	}
+	for _, tc := range cases {
+		f := &fake{secrets: map[string]string{}, ready: true}
+		f.s = Settings{Provider: "deepseek", WizardDone: true}
+		h := plugintest.New(map[string]string{"doctor": `{"items":[]}`, "doctor --probe": `{"items":[` + tc.item + `]}`})
+		s := New(f.deps())
+		p := s.Plugin()
+		tt := ui.NewTester(plugintest.PanelView(func(c *ui.Context) { p.Panel(c, h, "") }), 560, 1600)
+		tt.Frame()
+		s.Probe(h)
+		tt.Frame()
+		tt.Frame()
+		for _, w := range tc.want {
+			if !tt.HasText(w) {
+				t.Errorf("%s：缺 %q：%q", tc.name, w, tt.Texts())
+			}
+		}
+	}
+}
+
+func TestPanelHasNoOcrLineBeforeDoctorHasRun(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	f.s = Settings{Provider: "deepseek", WizardDone: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`})
+	s := New(f.deps())
+	p := s.Plugin()
+	tt := ui.NewTester(plugintest.PanelView(func(c *ui.Context) { p.Panel(c, h, "") }), 560, 1600)
+	tt.Frame()
+	tt.Frame()
+	if tt.HasText("文字识别：") {
+		t.Errorf("还没读到 doctor 时不该画：%q", tt.Texts())
+	}
+}

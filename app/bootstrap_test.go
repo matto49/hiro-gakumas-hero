@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -169,8 +170,99 @@ func TestPlanExplainsMissingUV(t *testing.T) {
 
 func TestPlanWindowsRunsPowerShellSetup(t *testing.T) {
 	steps, _ := PlanBootstrap(bootEnv("windows", "/r/bin/uv.exe", "/h/src/.git"))
-	if ids(steps) != "setup" || steps[0].Argv[0] != "powershell" || !strings.Contains(strings.Join(steps[0].Argv, " "), "setup.ps1") {
+	if ids(steps) != "setup,simd" || steps[0].Argv[0] != "powershell" || !strings.Contains(strings.Join(steps[0].Argv, " "), "setup.ps1") {
 		t.Fatalf("setup %+v", steps)
+	}
+	if steps[0].Optional {
+		t.Fatal("安装脚本本身是必做的")
+	}
+}
+
+func TestPlanWindowsInstallsSimdOcrAsAnOptionalStepAfterSetup(t *testing.T) {
+	steps, _ := PlanBootstrap(bootEnv("windows", "/r/bin/uv.exe", "/h/src/.git"))
+	if !strings.HasSuffix(steps[0].Argv[len(steps[0].Argv)-1], "-NoSimd") {
+		t.Fatalf("setup.ps1 里的 SIMD 项要跳过（单独一步装）：%v", steps[0].Argv)
+	}
+	simd := steps[1]
+	if !simd.Optional || simd.Dir != "/h/src" {
+		t.Fatalf("SIMD 是可选步骤：%+v", simd)
+	}
+	if got := filepath.ToSlash(simd.Argv[0]); got != "/h/src/.venv/Scripts/python.exe" || filepath.ToSlash(simd.Argv[1]) != "/h/src/tools/assets/simd_ocr.py" {
+		t.Fatalf("用 venv 里的 python 跑安装脚本：%v", simd.Argv)
+	}
+}
+
+func TestPlanOtherSystemsDoNotInstallSimd(t *testing.T) {
+	for _, goos := range []string{"darwin", "linux"} {
+		steps, _ := PlanBootstrap(bootEnv(goos, "/r/bin/uv", "/h/src/.git"))
+		if ids(steps) != "setup" || strings.Contains(strings.Join(steps[0].Argv, " "), "NoSimd") {
+			t.Fatalf("%s: Mac 用 Apple Vision，什么都不装：%s %v", goos, ids(steps), steps[0].Argv)
+		}
+	}
+}
+
+// 假命令：测试程序自己当子进程（helper process 做法），按 HIRO_FAKE_EXIT 退出。
+func TestHelperProcess(t *testing.T) {
+	if os.Getenv("HIRO_FAKE_STEP") == "" {
+		return
+	}
+	fmt.Println("fake step output")
+	if os.Getenv("HIRO_FAKE_EXIT") == "1" {
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+func fakeCmd(exit string) ([]string, []string) {
+	return []string{os.Args[0], "-test.run=TestHelperProcess"}, []string{"HIRO_FAKE_STEP=1", "HIRO_FAKE_EXIT=" + exit}
+}
+
+func collect(steps []Step) (error, string) {
+	var lines []string
+	err := runSteps(context.Background(), steps, func(p Progress) { lines = append(lines, p.Step+":"+p.Line) })
+	return err, strings.Join(lines, "\n")
+}
+
+func TestOptionalCommandStepFailureOnlyWarns(t *testing.T) {
+	argv, env := fakeCmd("1")
+	okArgv, okEnv := fakeCmd("0")
+	steps := []Step{
+		{ID: "simd", Title: "装 SIMD", Argv: argv, Env: env, Optional: true},
+		{ID: "after", Title: "后一步", Argv: okArgv, Env: okEnv},
+	}
+	err, out := collect(steps)
+	if err != nil {
+		t.Fatalf("可选步骤失败不该让安装失败：%v", err)
+	}
+	if !strings.Contains(out, "simd:⚠ 装 SIMD没做成") || !strings.Contains(out, "after:fake step output") {
+		t.Fatalf("要提示一句、并继续后面的步骤：\n%s", out)
+	}
+}
+
+func TestRequiredCommandStepFailureStopsTheInstall(t *testing.T) {
+	argv, env := fakeCmd("1")
+	okArgv, okEnv := fakeCmd("0")
+	err, out := collect([]Step{{ID: "setup", Title: "装环境", Argv: argv, Env: env}, {ID: "after", Title: "后一步", Argv: okArgv, Env: okEnv}})
+	if err == nil || !strings.Contains(err.Error(), "装环境失败") || strings.Contains(out, "after:") {
+		t.Fatalf("必做步骤失败要停：err=%v\n%s", err, out)
+	}
+}
+
+func TestOptionalStepThatCannotStartOrErrorsOnlyWarns(t *testing.T) {
+	steps := []Step{
+		{ID: "a", Title: "找不到程序", Argv: []string{filepath.Join(t.TempDir(), "nope")}, Optional: true},
+		{ID: "b", Title: "自己做的", Optional: true, Run: func(context.Context, func(string)) error { return errors.New("网络不通") }},
+	}
+	if err, out := collect(steps); err != nil || !strings.Contains(out, "b:⚠ 自己做的没做成") {
+		t.Fatalf("err=%v\n%s", err, out)
+	}
+}
+
+func TestCancelledOptionalStepStillStopsTheInstall(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	step := Step{ID: "b", Title: "自己做的", Optional: true, Run: func(context.Context, func(string)) error { cancel(); return ctx.Err() }}
+	if err := runSteps(ctx, []Step{step}, func(Progress) {}); err == nil {
+		t.Fatal("用户取消安装时不能继续往下装")
 	}
 }
 

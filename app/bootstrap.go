@@ -30,6 +30,8 @@ type Step struct {
 	Env   []string `json:"-"`
 	// Run 不为空时这一步是程序自己做的（下载源码），不调外部命令；say 输出一行进度。
 	Run func(ctx context.Context, say func(string)) error `json:"-"`
+	// Optional 为真的步骤失败只提示、不中断安装（装不上就用退路，比如 SIMD 文字识别退回 RapidOCR）。
+	Optional bool `json:"optional,omitempty"`
 }
 
 // BootEnv 是做安装计划需要知道的事（测试里换成假的）。
@@ -108,10 +110,15 @@ func PlanBootstrap(e BootEnv) ([]Step, *CliError) {
 	}
 	setup := Step{ID: "setup", Title: "安装 Python、依赖和游戏数据（约 5 分钟）", Dir: src, Env: env,
 		Argv: []string{"bash", filepath.Join(src, "scripts", "setup.sh")}}
+	steps = append(steps, setup)
 	if e.GOOS == "windows" {
-		setup.Argv = []string{"powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", filepath.Join(src, "scripts", "setup.ps1")}
+		// SIMD 文字识别（Windows 缺省的识别后端）单独成一步：setup.ps1 里的同一项用 -NoSimd 跳过。可选，失败不挡安装，识别退回 RapidOCR；
+		// 脚本只用标准库，装辅助程序 + 模型（GitHub Release ocr-simd-v1）和没有就装的 .NET 10 Runtime，都在 src/.deps 下，不要管理员权限
+		steps[len(steps)-1].Argv = []string{"powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", filepath.Join(src, "scripts", "setup.ps1"), "-NoSimd"}
+		steps = append(steps, Step{ID: "simd", Title: "安装 SIMD 文字识别（可选，约 100 MB；装不上就用 RapidOCR）", Dir: src, Env: env, Optional: true,
+			Argv: []string{venvPython(e.Home, e.GOOS), filepath.Join(src, "tools", "assets", "simd_ocr.py")}})
 	}
-	return append(steps, setup), nil
+	return steps, nil
 }
 
 // needMirror：3 秒内连不上 PyPI 就用国内镜像。
@@ -192,11 +199,33 @@ func (b *Bootstrap) RunLines(ctx context.Context, send func(Progress)) error {
 	if perr != nil {
 		return errors.New(perr.Message + "。" + perr.Hint)
 	}
+	if err := runSteps(ctx, steps, send); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(b.Home, "src", installedMarker), []byte(time.Now().Format(time.RFC3339)+"\n"), 0o644); err != nil {
+		return err
+	}
+	b.Hiro.reset() // 下次调用重新找 hiro（改用新装的 Python）
+	return nil
+}
+
+// runSteps 一步步做；必做的步骤失败就停，Optional 的只提示。
+func runSteps(ctx context.Context, steps []Step, send func(Progress)) error {
 	for _, st := range steps {
 		send(Progress{Step: st.ID, Line: "==> " + st.Title})
+		// 可选步骤没做成：只提示，接着装后面的（设置 → 运行环境 →「重装运行环境」会再试一次）
+		failed := func(err error) error {
+			if st.Optional && ctx.Err() == nil {
+				send(Progress{Step: st.ID, Line: "⚠ " + st.Title + "没做成（" + err.Error() + "），不影响使用，稍后可以在设置里「重装运行环境」再试"})
+				return nil
+			}
+			return err
+		}
 		if st.Run != nil {
 			if err := st.Run(ctx, func(line string) { send(Progress{Step: st.ID, Line: line}) }); err != nil {
-				return errors.New(st.Title + "失败：" + err.Error() + "（网络问题可以稍后重试）")
+				if err = failed(errors.New(st.Title + "失败：" + err.Error() + "（网络问题可以稍后重试）")); err != nil {
+					return err
+				}
 			}
 			continue
 		}
@@ -210,7 +239,10 @@ func (b *Bootstrap) RunLines(ctx context.Context, send func(Progress)) error {
 		}
 		cmd.Stderr = cmd.Stdout
 		if err := cmd.Start(); err != nil {
-			return errors.New(st.Title + "没能开始：" + err.Error())
+			if err = failed(errors.New(st.Title + "没能开始：" + err.Error())); err != nil {
+				return err
+			}
+			continue
 		}
 		sc := bufio.NewScanner(out)
 		sc.Buffer(make([]byte, 64*1024), 1<<20)
@@ -218,13 +250,11 @@ func (b *Bootstrap) RunLines(ctx context.Context, send func(Progress)) error {
 			send(Progress{Step: st.ID, Line: sc.Text()})
 		}
 		if err := cmd.Wait(); err != nil {
-			return errors.New(st.Title + "失败：" + err.Error() + "（看上面的输出；网络问题可以稍后重试）")
+			if err = failed(errors.New(st.Title + "失败：" + err.Error() + "（看上面的输出；网络问题可以稍后重试）")); err != nil {
+				return err
+			}
 		}
 	}
-	if err := os.WriteFile(filepath.Join(b.Home, "src", installedMarker), []byte(time.Now().Format(time.RFC3339)+"\n"), 0o644); err != nil {
-		return err
-	}
-	b.Hiro.reset() // 下次调用重新找 hiro（改用新装的 Python）
 	return nil
 }
 

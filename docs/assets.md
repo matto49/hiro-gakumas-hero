@@ -138,6 +138,15 @@ Windows 上装好了 SIMD（辅助程序、模型、.NET 10 Runtime）就自动�
 （同一批帧上 macOS 的 Apple Vision 是 93.2% / 87.5%。）下面用 PowerShell 和 .NET 10 SDK 构建；运行时只需 .NET 10 Runtime 和这些模型文件，不把截图发到网络上。
 辅助程序是跨平台的 .NET 程序集，在 Mac 上构建的也能直接拷到 Windows 用。
 
+**自动安装（Windows，用户不用做什么）**：`scripts/setup.ps1` 和桌面版首次安装都会装好 SIMD，装不上不影响安装，识别退回 RapidOCR。装在 `.deps`（或 `HIRO_SIMD_DEPS`）下，不要管理员权限、不改系统 PATH：
+
+- 辅助程序 + 模型：本仓库 GitHub Release `ocr-simd-v1`（一个 zip，约 96 MB）。`python tools/assets/simd_ocr.py` 下载、校验 SHA256、解压到 `.deps/simd-ocr` 和 `.deps/SimdPaddleOCR/models`；已装好同一版本、或自己编的（`.deps/simd-ocr` 里没有 `.asset-sha256`）不重复下载、不覆盖；`--force` 强制重装。
+- .NET 10 Runtime：系统里有就用系统的；没有就用微软官方 `dotnet-install.ps1`（`-Runtime dotnet -Channel 10.0 -NoPath`）装到 `.deps/dotnet`，辅助程序启动时设 `DOTNET_ROOT` 指过去。
+- 桌面版里这一步单独列出（「安装 SIMD 文字识别（可选）」），失败只提示；`setup.ps1 -NoSimd` 跳过它。设置 → 运行环境 → 「重装运行环境」会再试一次。`hiro doctor` 的 `ocr` 项和设置页「运行环境」会写现在用的是哪个后端。
+- 发布资产（维护者）：在已经编好 `.deps` 的机器上 `python tools/assets/pack_simd_ocr.py --out ocr-simd-v1.zip`（打包可重复，同样内容 SHA256 不变），`gh release create ocr-simd-v1 ocr-simd-v1.zip --latest=false`，再把打印的 SHA256 填进 `tools/assets/simd_ocr.py` 的 `SHA256` 常量。填之前下载这一步会直接跳过。
+
+手动从源码构建（开发用，也可以用来替换自动装好的版本）：
+
 1. 将 [SimdPaddleOCR a9324e3](https://github.com/sdcb/SimdPaddleOCR/tree/a9324e3efadaed999e5f354a8f8e4b536c4687b6) 解压到 `.deps/SimdPaddleOCR`（其中 `models/` 要有 `medium_det.onnx`、`medium_rec.onnx` 和 `rec_keys.txt`）。
 2. 将该版本用的 [SimdOnnx cb80be7](https://github.com/sdcb/SimdOnnx/tree/cb80be7370f280c4ca62f1679c71f05688a66001) 解压到 `.deps/SimdOnnx`。从仓库根目录执行：
 
