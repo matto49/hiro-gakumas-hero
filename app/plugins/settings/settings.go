@@ -303,6 +303,10 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 				case 0:
 					s.envSection(c, h)
 				case 1:
+					// N5（G1 实测）：进这一步就自己试连一次，不用玩家先点「试连」
+					if s.deviceOK == nil && !s.probing && s.probedAt.IsZero() {
+						s.Probe(h)
+					}
 					kit.Note(c, "先把游戏打开、停在首页。Mac 用带 maaTools 的 PlayCover，并在游戏设置里打开 maaTools；Windows 用 DMM 版，窗口不要最小化。")
 					s.deviceLine(c)
 					if kit.Secondary(c, "试连").Disabled(s.probing).Clicked() {
@@ -324,7 +328,9 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 						}
 					}
 				}
-				canNext := []bool{s.boot.Ready, true, s.sound, s.modelOK, true, true}[s.step]
+				// N5：模型这一步填了 Key（或已存过）就能点「下一步」：没测通时先存、再测，测通了自己进下一步
+				modelReady := s.modelOK || strings.TrimSpace(s.key) != "" || (s.d.Settings().HasKey && s.d.Settings().Provider == s.provider)
+				canNext := []bool{s.boot.Ready, true, s.sound, modelReady && !s.busy, true, true}[s.step]
 				ui.Row(c).Gap(8).Padding(10, 0, 0, 0).Children(func() {
 					if s.step > 0 && kit.Secondary(c, "上一步").Clicked() {
 						s.step--
@@ -334,7 +340,11 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 					}
 					if s.step < len(steps)-1 {
 						if kit.Primary(c, "下一步").Disabled(!canNext).Clicked() && canNext {
-							s.step++
+							if s.step == 3 && !s.modelOK {
+								s.saveAndTest(h, true)
+							} else {
+								s.step++
+							}
 						}
 					} else if kit.Primary(c, "完成，去对话").Clicked() {
 						st := s.d.Settings()
@@ -535,17 +545,28 @@ func (s *S) modelSection(c *ui.Context, h plugin.Host) {
 			s.saveModel()
 		}
 		if kit.Secondary(c, "测试").Disabled(s.busy).Clicked() {
-			s.saveModel()
-			s.busy = true
-			h.Go(func() func() {
-				ok, msg := s.d.Test(context.Background())
-				return func() {
-					s.busy, s.modelOK, s.note, s.noteBad = false, ok, msg, !ok
-				}
-			})
+			s.saveAndTest(h, false)
 		}
 	})
 	s.noteLine(c)
+}
+
+// saveAndTest 存模型设置再测一次；advance 时（向导里点「下一步」）测通了自己进下一步，测不通留在这一步、写原因。
+func (s *S) saveAndTest(h plugin.Host, advance bool) {
+	s.saveModel()
+	if s.noteBad {
+		return // 没存上：原因已经写在下面
+	}
+	s.busy = true
+	h.Go(func() func() {
+		ok, msg := s.d.Test(context.Background())
+		return func() {
+			s.busy, s.modelOK, s.note, s.noteBad = false, ok, msg, !ok
+			if ok && advance && s.step == 3 {
+				s.step++
+			}
+		}
+	})
 }
 
 func (s *S) saveModel() {
