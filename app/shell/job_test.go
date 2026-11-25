@@ -160,7 +160,7 @@ func TestDefaultPanelIsNarrow(t *testing.T) {
 	for _, w := range []float32{1048, 1500} {
 		p := DefaultChatPercent(w)
 		panel := w * (100 - p) / 100
-		if panel < 360 || panel > 400 {
+		if panel < 320 || panel > 360 {
 			t.Errorf("主区 %v 时面板 %v px", w, panel)
 		}
 	}

@@ -15,7 +15,7 @@ import (
 	"github.com/matto49/hiro-gakumas-hero/app/plugin"
 )
 
-// PanelFrameWidth 是右侧面板里实时画面的宽（9:16；面板缺省 380 宽）。
+// PanelFrameWidth 是右侧面板里实时画面的宽（9:16；面板缺省 340 宽，去掉边距 308）。
 const PanelFrameWidth float32 = 260
 
 // MaxStreamSteps 是对话里对局卡最多列多少步（更早的折叠成一行）。

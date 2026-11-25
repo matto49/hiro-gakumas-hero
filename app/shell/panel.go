@@ -9,8 +9,8 @@ import (
 // MinChatWidth 是中间对话最少留多宽（§4）。
 const MinChatWidth float32 = 400
 
-// DefaultPanelWidth 是面板打开时的宽度（用户 11-24：一半太宽了，收窄，仍可拖宽）。
-const DefaultPanelWidth float32 = 380
+// DefaultPanelWidth 是面板打开时的宽度（用户 11-24：一半太宽了，收窄；11-25 review：再小一点点。仍可拖宽）。
+const DefaultPanelWidth float32 = 340
 
 // MinPanelWidth 是面板最窄多少。
 const MinPanelWidth float32 = 300
