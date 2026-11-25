@@ -85,3 +85,32 @@ def test_pending_list_keeps_snapshot(run_cli, hiro_home):
     run_cli("run", "start", "write-formation", "--scenario", "hif")
     _, env = run_cli("pending", "list")
     assert env["data"]["pending"][0]["plan"]["support"]["set"] == 2
+
+
+def test_per_idol_plan_activated_at_start_then_confirm_is_not_plan_changed(run_cli, hiro_home, started, monkeypatch):
+    """#87 + #93 合流：开局前检查把 plans/<模式>/<偶像卡>.json 设为当前方案（改写 formation-plan.json），
+    快照要拍在这之后；确认时开局检查再跑一遍也不能把它当成「方案变了」。"""
+    from hiro.brain import formation_plan as fp
+    from hiro.cli import cmd_run
+
+    monkeypatch.setattr(cmd_run, "exam_algo_problem", lambda: None)
+    _plan(hiro_home, name="别的偶像的")  # 当前方案是旧格式、别的偶像（luna）的
+    cur = json.loads((hiro_home / "formation-plan.json").read_text(encoding="utf-8"))
+    cur["idol"] = {"idol_card_id": "i_card-ttmr-3-000", "name": "Luna"}
+    (hiro_home / "formation-plan.json").write_text(json.dumps(cur, ensure_ascii=False), encoding="utf-8")
+    mine = {
+        "version": fp.PLAN_VERSION,
+        "created": "2026-11-26 11:00:00",
+        "idol": {"idol_card_id": "i_card-fktn-3-000", "name": "藤田ことね"},
+        "support": {"set": 5, "own": [{"support_card_id": "s_card-3-0001", "name": "甲", "level": 60}]},
+        "memory": {"set": 6},
+        "written": {"hajime": {"what": ["memory", "support"]}},
+    }
+    fp.save_plan(hiro_home, mine, "hajime")
+    fp.activate(hiro_home, cur)  # 当前方案又换回 luna 的：开局时要重新设回琴音的
+    _, env = run_cli("run", "start", "hajime", "--idol", "i_card-fktn-3-000")
+    pend = env["data"]["pending"]
+    assert pend["plan"]["support"]["set"] == 5, env
+    code, env = run_cli("confirm", pend["id"])
+    assert code == 0 and env["ok"] is True, env
+    assert started and started[0][0] == "start"
