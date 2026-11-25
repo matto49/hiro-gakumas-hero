@@ -247,7 +247,12 @@ open /tmp/hiro-view/demo-run.html
 `desktop-v*` 的安装包（Windows 安装程序、macOS 磁盘镜像），第一次打开时它会下载本仓库、装好 Python 环境。
 安装包由 GitHub Actions（`.github/workflows/desktop.yml`）从源码构建。
 
-安装包目前没有代码签名，第一次打开时系统会拦一下（Windows 点「更多信息 → 仍要运行」，macOS 在 Finder 里右键 → 打开）。
+安装包目前没有代码签名，第一次打开时系统会拦一下，放行一次以后就不再问：
+
+- **macOS**（15 起「右键 → 打开」已经不管用）：把「初星助手」拖进「应用程序」后双击，弹「无法打开」时点「完成」；
+  打开「系统设置 → 隐私与安全性」，往下翻到「安全性」，在「"初星助手"已被阻止使用」旁边点「仍要打开」，输入开机密码，
+  再在弹出的确认框里点「打开」。
+- **Windows**：安装程序弹出蓝色的「Windows 已保护你的电脑」时，点「更多信息」，再点「仍要运行」。
 签名打算、隐私说明和卸载方法见 [docs/code-signing-policy.md](docs/code-signing-policy.md)。
 
 ## 致谢与许可
