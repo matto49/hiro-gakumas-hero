@@ -384,14 +384,29 @@ __all__ = [
 PICKER_TRIES = 4  # 点格子后最多看几次列表开没开（每次 1.5 秒，第一次和中途各点一次）
 
 
-def open_picker(dev: Device, kind: str, *, ready: Callable[[object], bool], read_formation=None) -> None:
+def open_picker(
+    dev: Device,
+    kind: str,
+    *,
+    ready: Callable[[object], bool],
+    read_formation=None,
+    use_set: Callable[[str | None], int | None] | None = None,
+) -> dict:
     """从首页（或编成菜单）进支援卡 / 回忆的选择列表，给库存扫描用（初星助手的「扫描」按钮）：进菜单 → 切到 kind 页 →
-    点当前编成第 1 格。只点格子，不点「決定」；列表里由扫描自己读完点キャンセル。ready(截图) 判断列表开了没有。"""
+    点当前编成第 1 格。只点格子，不点「決定」；列表里由扫描自己读完点キャンセル。ready(截图) 判断列表开了没有。
+    use_set(模式) 给了编成号时先翻到那个编成再点：回忆选择页顶栏 = 这份回忆 + 编成里其余 3 格（11-26 实机），
+    从全空的编成进去读到的才是回忆本身的属性（设计 5.3）。返回 {mode, set: 进来时的编成号, used: 翻到的号或 None}，
+    扫完由调用方切回 set。"""
     from hiro.produce.formation_writer import FormationWriteError, _settled_step2
 
     menu = Menu(dev)
     menu.open()
-    menu.ensure_tab(kind)
+    m = menu.ensure_tab(kind)
+    where = {"mode": m.get("mode"), "set": m.get("number"), "used": None}
+    target = use_set(where["mode"]) if use_set else None
+    if target is not None and target != where["set"]:
+        menu.ensure_set(target)
+        where["used"] = target
     if kind == "memory":
         slot = MEMORY_TILES[0]
     else:
@@ -404,8 +419,8 @@ def open_picker(dev: Device, kind: str, *, ready: Callable[[object], bool], read
             dev.click(*slot)
         dev.sleep(1.5)
         if ready(dev.shoot()):
-            logger.info("编成菜单：%s 选择列表已打开（点了第 1 格）", kind)
-            return
+            logger.info("编成菜单：%s 选择列表已打开（点了第 1 格；编成 %s）", kind, where["used"] or where["set"])
+            return where
     raise FormationWriteError(f"点{'回忆' if kind == 'memory' else '支援卡'}格没打开选择列表")
 
 

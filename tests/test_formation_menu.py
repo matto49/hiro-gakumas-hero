@@ -104,6 +104,8 @@ class FakeGame:
             self.tab = "support"
         elif (x, y) == (333, 1093):
             self.tab = "memory"
+        elif (x, y) == fm.MEMORY_TILES[0] and self.tab == "memory":
+            self.where = "picker"
         elif (x, y) == fm.ARROWS["next"]:
             self.number = min(20, self.number + 1)
         elif (x, y) == fm.ARROWS["prev"]:
@@ -341,3 +343,22 @@ def test_find_tolerates_hen_misread():
     ]
     assert _find(texts, "メモリー編成", y_min=1040) == (276, 1081, 394, 1103)
     assert _find(texts, "サポート編成", y_min=1040) == (70, 1080, 189, 1104)  # 不会认成「メモリー綿成」
+
+
+def test_open_memory_picker_from_empty_set_and_report_original(game):
+    """11-26 实机：回忆选择页顶栏 = 这份回忆 + 编成里其余 3 格。从全空的编成进去，读到的就是回忆本身的属性（设计 5.3）。
+    返回进去前的编成号，扫完切回去。"""
+    g, dev = game
+    g.mode, g.tab, g.number = "hif", "memory", 20
+    got = fm.open_picker(
+        dev, "memory", ready=lambda img: img["where"] == "picker", use_set=lambda mode: 19 if mode == "hif" else None
+    )
+    assert g.where == "picker" and g.number == 19
+    assert got == {"mode": "hif", "set": 20, "used": 19}
+
+
+def test_open_memory_picker_without_empty_set_stays(game):
+    g, dev = game
+    g.mode, g.tab, g.number = "hif", "memory", 20
+    got = fm.open_picker(dev, "memory", ready=lambda img: img["where"] == "picker", use_set=lambda mode: None)
+    assert g.number == 20 and got == {"mode": "hif", "set": 20, "used": None}
