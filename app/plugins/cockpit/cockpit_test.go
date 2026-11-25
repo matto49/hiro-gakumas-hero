@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/matto49/hiro-gakumas-hero/app/hiroapi"
+	"github.com/matto49/hiro-gakumas-hero/app/labels"
 	"github.com/matto49/hiro-gakumas-hero/app/plugin"
 	"github.com/matto49/hiro-gakumas-hero/app/plugins/plugintest"
 )
@@ -232,5 +233,73 @@ func TestBackgroundKeepsListWhenRefreshFails(t *testing.T) {
 	all := strings.Join(tt.Texts(), "\n")
 	if !strings.Contains(all, "命令行开的扫描") || !strings.Contains(all, "刷新失败") {
 		t.Errorf("刷新失败后：%q", tt.Texts())
+	}
+}
+
+// 11-24 实测清单「结束后面板空」（11-26 真窗口复现：对话里开的局刚出错停下，右侧面板只写「现在没有在跑的对局」）：
+// 没有在跑的局时，显示刚结束的那一局（名字、状态、出错原因 / 成绩、复盘入口），对话里开的也算。
+func TestIdlePanelShowsLastEndedJob(t *testing.T) {
+	h := plugintest.New(map[string]string{
+		"run status": `{"current":null,"recent":[{"id":"j5","kind":"write-formation","state":"failed","summary":"对照编成方案看 初 的编成","started_at":1763990000,"reason":"等不到support 页签"},{"id":"j4","kind":"hajime","state":"done","summary":"更早的一局","started_at":1763800000}]}`,
+	})
+	h.Chat = map[string]bool{"j5": true, "j4": true}
+	v := h.Job("j5")
+	v.State = "failed"
+	v.Job = &plugin.Job{ID: "j5", Kind: "write-formation", State: "failed", Summary: "对照编成方案看 初 的编成", Reason: "等不到support 页签"}
+	p := New()
+	tt := ui.NewTester(func(c *ui.Context) { p.Panel(c, h, "") }, 420, 1400)
+	tt.Frame()
+	tt.Frame()
+	all := strings.Join(tt.Texts(), "\n")
+	for _, s := range []string{"现在没有在跑的对局", "刚结束的一局", "等不到support 页签"} {
+		if !strings.Contains(all, s) {
+			t.Errorf("空闲面板没有 %q：%q", s, tt.Texts())
+		}
+	}
+	if strings.Contains(all, "更早的一局") {
+		t.Errorf("只放最近一局，更早的对话局不进来：%q", tt.Texts())
+	}
+}
+
+// N6（11-26 G1）：扫描这类任务不说「游玩中」「0 步」「已打」「正在连游戏、开局…」「等第一张画面」，写做到哪了。
+func TestScanJobUsesTaskWording(t *testing.T) {
+	h, p := liveHost(), New()
+	v := h.Job("j7")
+	v.Job = &plugin.Job{ID: "j7", Kind: "scan-memories", State: "running", Summary: "扫描回忆库存（只读，不改编成）", StartedAt: float64(h.Now().Unix() - 120)}
+	v.Events = []plugin.JobEvent{
+		{Seq: 0, Type: "start", Text: "扫描回忆库存"},
+		{Seq: 1, Type: "log", Text: "[2026-11-26 04:51:34,433] [INFO] [hiro.produce.memory_picker] 回忆扫描：第 70 页，已读 204 格"},
+	}
+	card := ui.NewTester(func(c *ui.Context) { p.Cards["run"](c, h, plugin.Card{"type": "run", "jobId": "j7"}) }, 760, 600)
+	card.Frame()
+	panel := ui.NewTester(plugintest.PanelView(func(c *ui.Context) { p.Panel(c, h, "job:j7") }), 380, 900)
+	panel.Frame()
+	for _, tt := range []*ui.Tester{card, panel} {
+		if !tt.HasText("回忆扫描：第 70 页，已读 204 格") || !tt.HasText("进行中") {
+			t.Errorf("应写做到哪了、状态「进行中」：%q", tt.Texts())
+		}
+		for _, bad := range []string{"游玩中", "0 步", "正在连游戏、开局…", "等第一张画面", "步数", "已打"} {
+			for _, s := range tt.Texts() {
+				if strings.Contains(s, bad) {
+					t.Errorf("扫描任务不该出现 %q：%q", bad, s)
+				}
+			}
+		}
+	}
+	v.State, v.Job.State = "done", "done"
+	v.Events = append(v.Events, plugin.JobEvent{Seq: 2, Type: "done", Text: "完成"})
+	card.Frame()
+	if card.HasText("还没有步骤") {
+		t.Errorf("做完的扫描不该写「还没有步骤」：%q", card.Texts())
+	}
+}
+
+// #109 review：没日志的暂停 / 等接手的任务不说「正在连游戏…」，按状态说。
+func TestScanProgressFollowsState(t *testing.T) {
+	for state, want := range map[string]string{"running": "正在连游戏…", "paused": labels.State("paused"), "takeover": labels.State("takeover")} {
+		v := &plugin.JobView{State: state, Job: &plugin.Job{Kind: "scan-idols", State: state}}
+		if got := progress(v); got != want || got == "" {
+			t.Errorf("%s：%q，要 %q", state, got, want)
+		}
 	}
 }

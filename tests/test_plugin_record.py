@@ -85,7 +85,7 @@ def test_report_reads_plugins_json(tmp_path):
 def test_report_without_plugins_json(tmp_path):
     (tmp_path / "steps.jsonl").write_text("")
     r = report(tmp_path)
-    assert r["uses_hidden"] is False and r["plugins"] is None
+    assert "uses_hidden" not in r and "plugins" not in r  # 没装插件：不多出字段（11-26）
 
 
 def test_markdown_marks_hidden(tmp_path):

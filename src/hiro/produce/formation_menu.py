@@ -161,6 +161,19 @@ def read_memory_icons(img) -> list[dict]:
 
 
 # ---------------------------------------------------------------- 导航
+BACK_TRIES = 4  # 从别的画面退回首页 / 编成页最多点几次
+BACK_WORDS = ("閉じる", "キャンセル", "戻る")  # 只点这些不改东西的按钮（按这个顺序找）
+
+
+def _back_button(texts):
+    """画面上能安全退回的按钮：閉じる / キャンセル / 戻る（整个框就是这几个字），没有就用底栏的ホーム。永远不返回「決定」。"""
+    for word in BACK_WORDS:
+        b = next((b for t, b in texts if same(t, word)), None)
+        if b is not None:
+            return b
+    return _find(texts, "ホーム", y_min=1050)
+
+
 class Menu:
     """编成菜单的导航。dev：formation_writer.Device（要带 ocr：img → [(text, conf, (x1, y1, x2, y2))]）。"""
 
@@ -188,6 +201,20 @@ class Menu:
         别的页面停下。11-17 Mac 第一次实机：面板上的「プロデュース編成・スキルカード」(243,832) 也含「プロデュース編成」，
         原来点了它就去等编成页，没点弹出的子菜单里的「プロデュース編成」(198,579)。"""
         img, texts, m = self.look()
+        for _ in range(BACK_TRIES):
+            if m is not None:
+                return m
+            if (_find(texts, "ホーム", y_min=1050) and _find(texts, "コンテスト", y_min=1050)) or _find(
+                texts, "プロデュース編成"
+            ) is not None:
+                break
+            # G0b（11-26）：停在选择列表、弹窗这类画面时，先点不改东西的按钮退回来，不让玩家自己去点；永远不点「決定」
+            back = _back_button(texts)
+            if back is None:
+                break
+            self.dev.click(*_center(back))
+            self.dev.sleep(WAIT_GAP)
+            img, texts, m = self.look()
         if m is not None:
             return m
         if (
@@ -195,7 +222,7 @@ class Menu:
             and _find(texts, "プロデュース編成") is None
         ):
             self.dev.snap(img, "menu-not-home")
-            raise FormationWriteError("不在主页也不在プロデュース編成页：请先回主页再运行")
+            raise FormationWriteError("游戏不在首页，也没能自己退回首页：请先回到首页再试")
         # 点了几次：点了几轮画面没变就补点，最多 RETAP_MAX 次（11-24 DMM 机器负载高时第一下没生效）
         tapped_idol = tapped_panel = 0
         idol_wait = panel_wait = 0

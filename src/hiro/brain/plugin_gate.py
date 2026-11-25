@@ -49,13 +49,15 @@ ALLOWED_KINDS: dict[str, frozenset[ActionKind]] = {
     "EXAM_RETRY": frozenset({ActionKind.DIALOG}),
 }
 
-_begun: set[str] = set()
+_begun: set[str] = set()  # begin 成功的育成插件
+_failed: set[str] = set()  # begin 出错的：之后这些页面一律交回内置，不再调它，也不调它的 end
 _warned: set[str] = set()
 
 
 def reset() -> None:
     """测试用。"""
     _begun.clear()
+    _failed.clear()
     _warned.clear()
     _running.clear()
 
@@ -128,15 +130,18 @@ def produce_decide(
         _warn_once(f"pages:{pid}:{page}", f"育成插件 {pid!r} 没声明接 {page}，这一页用内置决策器")
         return None, None
     lab = plugins.label(plugin)
+    if pid in _failed:
+        return None, None  # begin 出错那一次已经记了错、写了原因；之后安静地用内置
     if pid not in _begun:
-        _begun.add(pid)
-        RECORD.on_exit(lambda: plugin.end(None))
         try:
             plugin.begin(context())
         except Exception as e:  # noqa: BLE001
-            why = f"插件 {lab} begin 出错：{type(e).__name__}: {e}"
+            _failed.add(pid)
+            why = f"插件 {lab} begin 出错：{type(e).__name__}: {e}，之后这个插件的页面都用内置决策器"
             RECORD.error(point, lab, why)
             return None, why
+        _begun.add(pid)
+        RECORD.on_exit(lambda: plugin.end(RECORD.end_result()))
     from hiro import strategy as st
 
     view = copy.deepcopy(state)  # 插件拿副本：超时后它的线程还在跑，也碰不到主循环的状态

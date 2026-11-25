@@ -513,16 +513,23 @@ def split_card_names(text: str) -> list[dict] | None:
     return None
 
 
-def read_bubble(img: MatLike, y1: int, y2: int) -> tuple[str, dict]:
+BADGE_ONLY = re.compile(r"(おすすめ|NEW|ＮＥＷ)*")  # 卡片角标：只读到这些的「气泡」其实是选择框的白底（G1-F4）
+
+
+def read_bubble(img: MatLike, y1: int, y2: int) -> tuple[str, dict] | None:
     """底部消息气泡的文字（局部 OCR，约 50 ms）→ (页面名, 字段)：
     「〜を強化しました」→ UPGRADE_RESULT；「〜をカスタマイズしました」→ CUSTOMIZE_RESULT；
     「A と B を削除しました」→ DELETE_RESULT {cards[{card_id, name, upgrade}], text}（考试后自动处理基础卡 / 相談删卡；认不全时 cards=None）；
-    其余 → TRANSITION {kind: message, text}。"""
+    其余 → TRANSITION {kind: message, text}。
+    读到的只有卡片角标（「おすすめ」「NEW」）或什么都没有 → None：那是选择框（课程后三选一）卡片下面的白底，不是消息气泡
+    （G1-F4，11-26 Mac：当成消息一直点 (12,12)，180 秒看门狗停机）。"""
     from hiro.vision.ocr import ocr
     from hiro.vision.pages import read_upgrade_result
 
     crop = img[max(0, y1 - 10) : y2 + 10, 30:690]
     text = "".join(t for t, _ in ocr(crop, scale=2)).replace(" ", "")
+    if BADGE_ONLY.fullmatch(text):
+        return None
     from hiro.vision.ocr import engine
 
     if engine() != "vision" and re.search(r"を(強化|削.|カスタマイズ)しまし", text):

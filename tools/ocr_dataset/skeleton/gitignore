@@ -1,0 +1,3 @@
+# 本地生成的核对页 / 抽查页（review、spot-check），不入库
+.work/
+.DS_Store

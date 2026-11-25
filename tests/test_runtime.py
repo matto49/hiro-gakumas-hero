@@ -829,7 +829,12 @@ def test_use_limit_on_real_frame():
         pytest.skip("需要实机截图 pages/home-use-limit.png")
     rt, _ = runtime([frame()])
     assert "使用期限" in interrupts.check(Frame(cv2.resize(cv2.imread(str(path)), (720, 1280)), 0.0), rt)
-    assert rt.raw_device.taps == [(212, 1161)]
+    # 按钮中心按 OCR 框算，后端 / 系统版本之间差几个像素（macOS 27.2.1 的 Vision 是 (214, 1161)）
+    assert (
+        len(rt.raw_device.taps) == 1
+        and abs(rt.raw_device.taps[0][0] - 212) <= 6
+        and abs(rt.raw_device.taps[0][1] - 1161) <= 6
+    )
 
 
 def test_live_setting_dialog_on_real_frame():

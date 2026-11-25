@@ -177,7 +177,7 @@ PYTHONPATH=src .venv/bin/python -m pytest -q            # 没有截图样例时�
    - **DMM 版要用日文原版客户端。** 装了汉化补丁（比如 gakuen-imas-localify）的中文界面认不出来。
    - **内存**：hiro 的进程要 3 GB 多（图库、卡图索引、OCR 模型、主数据、模拟器），DMM 版游戏本身约 4 GB。
      内存吃紧时加 `-NoSim` 关掉模拟器。MuMu 被系统杀掉时程序会认出来停下，重开游戏后 `resume` 续跑（`-Relaunch` 自动拉起只在旧 KAA 主循环里接过，新主循环还没接）。
-   - **文字识别**：Windows 缺省用 RapidOCR，macOS 缺省用系统自带的 Vision；也可以选用[本机 SIMD OCR](docs/assets.md#可选simd-paddleocr)。
+   - **文字识别**：macOS 缺省用系统自带的 Vision；Windows 装好了[本机 SIMD OCR](docs/assets.md#windows-缺省simd-paddleocr)就用它（GPU 走 Vulkan），没装时用 RapidOCR。
    - **Rust**：`setup.ps1` 找不到 cargo 时，会下载 CI 编好的考试引擎预编译包，不用自己装 Rust。
 
    **其他模式**（自建主循环，游戏停在首页，编成号按开局编成方案）：
@@ -247,7 +247,12 @@ open /tmp/hiro-view/demo-run.html
 `desktop-v*` 的安装包（Windows 安装程序、macOS 磁盘镜像），第一次打开时它会下载本仓库、装好 Python 环境。
 安装包由 GitHub Actions（`.github/workflows/desktop.yml`）从源码构建。
 
-安装包目前没有代码签名，第一次打开时系统会拦一下（Windows 点「更多信息 → 仍要运行」，macOS 在 Finder 里右键 → 打开）。
+安装包目前没有代码签名，第一次打开时系统会拦一下，放行一次以后就不再问：
+
+- **macOS**（15 起「右键 → 打开」已经不管用）：把「初星助手」拖进「应用程序」后双击，弹「无法打开」时点「完成」；
+  打开「系统设置 → 隐私与安全性」，往下翻到「安全性」，在「"初星助手"已被阻止使用」旁边点「仍要打开」，输入开机密码，
+  再在弹出的确认框里点「打开」。
+- **Windows**：安装程序弹出蓝色的「Windows 已保护你的电脑」时，点「更多信息」，再点「仍要运行」。
 签名打算、隐私说明和卸载方法见 [docs/code-signing-policy.md](docs/code-signing-policy.md)。
 
 ## 致谢与许可

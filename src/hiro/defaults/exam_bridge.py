@@ -7,7 +7,8 @@ BattleState.hidden。没配数据来源时 run_exam 不包，行为和原来一�
 考试循环不是每帧都经过 Session.observe，所以这里直接问插件，合并规则和 hiro.loop.sources 一样：
 时间差超过容差不用；只收 FIELD_CATALOG["HIF_EXAM"] 里登记的字段；档位高于 screen 时以插件为准，否则只补读不到的。
 手牌 / 饮料可以给完整的 CardView / DrinkView 字典，也可以只给 {card_id, upgrade, available} / {drink_id}，按主数据补全；
-手牌来自插件时 confidence() 报 save，点击按卡 id 对到屏幕位置。
+手牌来自插件时 confidence() 报 save、hand_from_plugin 为真，点击按卡 id 对到屏幕位置；
+只有数值来自存档级插件、手牌还是画面的，confidence() 也报 save，但 hand_from_plugin 为假，点击仍按画面顺序。
 """
 
 from __future__ import annotations
@@ -29,8 +30,8 @@ class ObservationExamStateSource:
         self.inner = inner
         self.used_trust: str | None = None  # 上一次 read 用到的最高档位
         self.lists_from_plugin = False  # 上一次 read 的手牌 / 饮料来自插件
+        self.hand_from_plugin = False  # 上一次 read 的手牌来自插件（run_exam 据此决定要不要按卡 id 对屏幕位置）
         self.notes: list[str] = []  # 冲突 / 出错说明（最近一次 read）
-        self._started: set[str] = set()
 
     # ---- ExamStateSource 接口，除 read / confidence 外原样转给原来的实现
     def begin(self, context: dict) -> None:
@@ -47,7 +48,7 @@ class ObservationExamStateSource:
         self.inner.end(result)
 
     def confidence(self) -> str:
-        # 手牌 / 饮料来自插件、或用了 save 档：run_exam 按卡 id 把局面槽位对到屏幕位置，插件的顺序和屏幕不同也不会点错
+        # 用了 save 档的数值、或手牌 / 饮料来自插件，都报 save（可信度）。点击要不要按卡 id 对屏幕位置看 hand_from_plugin，不看这个
         if self.used_trust == "save" or self.lists_from_plugin:
             return "save"
         return self.inner.confidence()
@@ -55,11 +56,15 @@ class ObservationExamStateSource:
     def read(self, frame, memory):
         from hiro import plugins, strategy
         from hiro.brain.plugin_gate import PluginTimeout, call_with_timeout
-        from hiro.loop.sources import fresh
+        from hiro.loop.sources import ensure_started, fresh
         from hiro.plugin_record import RECORD
 
         state, why = self.inner.read(frame, memory)
         self.used_trust, self.notes, self.lists_from_plugin = None, [], False
+        # 手牌顺序先按原来的局面来源算：它自己带了 hand_from_plugin 就用它；没带的（私有存档插件）可信度 save 就是存档顺序。
+        # 数据来源插件只有真给了手牌才再置真
+        inner_flag = getattr(self.inner, "hand_from_plugin", None)
+        self.hand_from_plugin = inner_flag if isinstance(inner_flag, bool) else self.inner.confidence() == "save"
         cfg = strategy.current()
         if not cfg.sources:
             return state, why
@@ -75,14 +80,11 @@ class ObservationExamStateSource:
                 continue
             lab = plugins.label(src)
             point = f"source.{sid}"
-            if sid not in self._started:
-                self._started.add(sid)
-                RECORD.on_exit(src.stop)
-                try:
-                    src.start({"page": PAGE, "exam": True})
-                except Exception as e:  # noqa: BLE001
-                    RECORD.error(point, lab, f"start 出错：{e}")
-                    continue
+            if (why := ensure_started(sid, src, lab, {"page": PAGE, "exam": True})) is not None:
+                if why:
+                    RECORD.error(point, lab, why)
+                    self.notes.append(why)
+                continue
             view = copy.deepcopy(state)  # 插件拿副本
             try:
                 r = call_with_timeout(
@@ -112,6 +114,7 @@ class ObservationExamStateSource:
                         used = True
                         taken.update(dict.fromkeys(fields, rank))
                         self.lists_from_plugin = self.lists_from_plugin or bool({"hand", "drinks"} & set(fields))
+                        self.hand_from_plugin = self.hand_from_plugin or "hand" in fields
                 if state is None:
                     RECORD.deferred(point, lab)
                     continue
@@ -136,6 +139,8 @@ class ObservationExamStateSource:
                     used = True
                     if k in ("hand", "drinks"):
                         self.lists_from_plugin = True
+                    if k == "hand":
+                        self.hand_from_plugin = True
             if hidden:
                 h = getattr(state, "hidden", None)
                 if isinstance(h, dict):

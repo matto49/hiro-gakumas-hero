@@ -342,6 +342,9 @@ def _confirm_dialog(boxes, texts) -> bool:
 RETAP_MAX = 2  # 同一位置 RETAP_WINDOW_S 内最多再点几次
 RETAP_WINDOW_S = 30.0
 _RETAP: dict = {"pos": None, "n": 0, "t0": 0.0}
+WAIT_INFO: dict = {
+    "select": False
+}  # 最近一次 _wait_change 里处理过停在选中态的 SELECT（补点 / 取消选中）：局面不一定变了
 UNPLAYABLE: dict = {"hit": False}  # 再点上限触发：主循环把本次动作本回合禁用
 
 
@@ -377,11 +380,13 @@ def _select_retap(sel: Text) -> bool:
         device.click(*DESELECT_TAP)
         _RETAP.update(pos=None, n=0, t0=0.0)
         UNPLAYABLE["hit"] = True
+        WAIT_INFO["select"] = True
         sleep(0.8)
         return True
     x, y = sx, sy - 110
     logger.info("H.I.F 卡牌停在选中态（SELECT）→ 再点一次 (%d, %d)", x, y)
     device.click(x, y)
+    WAIT_INFO["select"] = True
     sleep(1.0)
     return True
 
@@ -950,6 +955,7 @@ def _wait_change(before: tuple) -> bool:
     弹出的确认框（ターン終了 / 使用確認）压暗画面、签名不变时照常处理，签名变了的由主循环下一轮处理。"""
     start = time.monotonic()
     deadline = start + CHANGE_TIMEOUT
+    WAIT_INFO["select"] = False
     while time.monotonic() < deadline:
         img = device.screenshot()
         with _phase("wait_frame"):
@@ -1180,13 +1186,19 @@ _advisor_warned: set[str] = set()
 
 class GuardedAdvisor:
     """strategy.json 选的出招插件外面包一层（spec 4.4 / 4.7）：插件抛异常、返回的不是 Decision、动作不在合法动作里时，
-    这一步交给原来的出招（fallback），并计入出错；校验通过才计 decided、标上插件 id@版本。"""
+    这一步交给原来的出招（fallback），并计入出错；校验通过才标上插件 id@版本。
+
+    - 「已定」要等这一步真的在游戏里执行成功（run_exam 调 executed）才计：帧过时没点、画面对不上、牌没打出去、点了没变化的步骤
+      都被作废，不算插件定的。
+    - 开局回调（on_round_start）出错时，这一场剩下的步骤直接交给原来的出招，不再调它；下一场开局会再试一次。"""
 
     def __init__(self, plugin, fallback, label: str, point: str):
         self.plugin, self.fallback, self.label, self.point = plugin, fallback, label, point
+        self.broken: str | None = None  # 这一场开局回调出错的原因；None = 能用
+        self._pending = False  # 最近一次 decide 是插件定的、还没确认执行
 
     def on_round_start(self, round_no, context) -> None:
-        self._guard(lambda: self.plugin.on_round_start(round_no, context), "on_round_start")
+        self.broken = self._guard(lambda: self.plugin.on_round_start(round_no, context), "on_round_start")
         if self.fallback is not None:
             self.fallback.on_round_start(round_no, context)
 
@@ -1196,44 +1208,65 @@ class GuardedAdvisor:
             self.fallback.on_round_end(result)
 
     def not_executed(self, action, why: str) -> None:
+        self._pending = False  # 这一步作废了：不算插件已定
         for a in (self.plugin, self.fallback):
             if (hook := getattr(a, "not_executed", None)) is not None:
                 self._guard(lambda hook=hook: hook(action, why), "not_executed")
 
-    def _guard(self, fn, what: str) -> None:
+    def executed(self, action) -> None:
+        """这一步的动作在游戏里生效了（run_exam 调）：如果是插件定的，计一次「已定」。"""
+        if not self._pending:
+            return
+        from hiro.plugin_record import RECORD
+
+        self._pending = False
+        RECORD.decided(self.point, self.label)
+
+    def _guard(self, fn, what: str) -> str | None:
+        """调插件的钩子；出错时记一次错并返回原因，没出错返回 None。"""
         from hiro.plugin_record import RECORD
 
         try:
             fn()
         except Exception as e:  # noqa: BLE001  插件的钩子出错不影响考试
-            RECORD.error(self.point, self.label, f"出招插件 {self.label} {what} 出错：{type(e).__name__}: {e}")
+            why = f"出招插件 {self.label} {what} 出错：{type(e).__name__}: {e}"
+            RECORD.error(self.point, self.label, why)
+            return why
+        return None
 
     def decide(self, state, memory, previews, legal):
         from hiro.contracts.decision import SOURCES
         from hiro.plugin_record import RECORD
 
+        self._pending = False
         why = None
         d = None
-        try:
-            d = self.plugin.decide(state, memory, previews, legal)
-            if not isinstance(d, DecisionContract):
-                why = f"返回的不是契约 Decision（{type(d).__name__}）"
-            elif not any(d.action == a for a in legal):
-                why = f"动作 {d.action.kind.value} {d.action.args} 不在合法动作里"
-        except Exception as e:  # noqa: BLE001
-            why = f"出错（{type(e).__name__}: {e}）"
+        if self.broken is not None:
+            why = "开局回调出错，这一场不再用它"
+        else:
+            try:
+                d = self.plugin.decide(state, memory, previews, legal)
+                if not isinstance(d, DecisionContract):
+                    why = f"返回的不是契约 Decision（{type(d).__name__}）"
+                elif not any(d.action == a for a in legal):
+                    why = f"动作 {d.action.kind.value} {d.action.args} 不在合法动作里"
+            except Exception as e:  # noqa: BLE001
+                why = f"出错（{type(e).__name__}: {e}）"
         if why is None and isinstance(d, DecisionContract):
             if d.source not in SOURCES:
                 d.source = "plugin"
             d.plugin = self.label
-            RECORD.decided(self.point, self.label)
+            self._pending = True
             return d
-        RECORD.error(self.point, self.label, f"出招插件 {self.label} {why}")
-        logger.warning("出招插件 %s %s，这一步交给原来的出招", self.label, why)
+        if self.broken is None:  # 开局回调出错那一次已经记过了，后面每步不重复计
+            RECORD.error(self.point, self.label, f"出招插件 {self.label} {why}")
+            logger.warning("出招插件 %s %s，这一步交给原来的出招", self.label, why)
         if self.fallback is None:
             raise RuntimeError(f"出招插件 {self.label} {why}，也没有原来的出招可交")
         d = self.fallback.decide(state, memory, previews, legal)
-        d.warnings.append(f"出招插件 {self.label} {why}，这一步交给原来的出招")
+        d.warnings.append(
+            f"出招插件 {self.label} {self.broken if self.broken is not None else why}，这一步交给原来的出招"
+        )
         return d
 
 
@@ -1339,6 +1372,26 @@ def _not_executed(advisor, action, why: str) -> None:
         hook(action, why)
     except Exception as e:  # noqa: BLE001  钩子出错不影响执行
         logger.info("出招插件 not_executed 出错：%s: %s", type(e).__name__, e)
+
+
+def _hand_order_from_source(source) -> bool:
+    """局面里的手牌顺序是不是局面来源自己给的（不是画面认出来的）：是就要按卡 id 对到屏幕位置，顺序不同也不会点错。
+    考试转接层（ObservationExamStateSource）明说手牌是不是插件给的（hand_from_plugin）：只有体力 / 分数等数值来自存档级插件、
+    手牌还是画面的，不能因为可信度报 save 就改成按卡 id 找位置（画面认出的卡 id 和执行器的不一致时，会把能打的牌当成「定位不到」禁用）。
+    没有这个属性的局面来源（私有存档插件）照旧：可信度 save 就按卡 id 对位置。"""
+    flag = getattr(source, "hand_from_plugin", None)
+    return flag if isinstance(flag, bool) else source.confidence() == "save"
+
+
+def _executed(advisor, action) -> None:
+    """这一步的动作在游戏里生效了：告诉包着插件的出招（GuardedAdvisor.executed），由它计「插件已定」。"""
+    hook = getattr(advisor, "executed", None)
+    if hook is None:
+        return
+    try:
+        hook(action)
+    except Exception as e:  # noqa: BLE001  记账出错不影响执行
+        logger.info("出招 executed 出错：%s: %s", type(e).__name__, e)
 
 
 def run_exam(
@@ -1557,7 +1610,7 @@ def run_exam(
             )
             logger.info("[%s T%s] %s ← %s：%s", exam, memory.turn, d.action, d.source, d.reason)
             todo = d
-            if d.kind == "drink" or (source.confidence() == "save" and d.kind == "play"):
+            if d.kind == "drink" or (d.kind == "play" and _hand_order_from_source(source)):
                 # 局面槽位（存档顺序 / 饮料栏格位）→ 画面槽位：按卡 / 饮料 ID 映射
                 slot = _screen_slot(frame, state, d)
                 if slot is None:
@@ -1626,6 +1679,9 @@ def run_exam(
                 progress_t = time.monotonic()
                 brain.commit(state, memory, d)
                 source.executed(Action.from_legal(d.action), result)
+                if not WAIT_INFO["select"] and not UNPLAYABLE.get("hit"):
+                    # 只是补点了停在选中态的 SELECT、或再点超限取消了选中（本回合禁用）：局面没变，不算插件的决定生效
+                    _executed(advisor, d.action)
                 failures = 0
                 if session is not None:
                     save_exam_memory(session.trace.dir, memory)

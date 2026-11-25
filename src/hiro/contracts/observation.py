@@ -7,7 +7,7 @@ fields 的键是决策层字段名（培育对齐 ProduceState / 客户端协议
 from dataclasses import dataclass, field
 from typing import Any
 
-from hiro.contracts.base import VERSION, Contract
+from hiro.contracts.base import OPTIONAL, VERSION, Contract
 
 SOURCES = ("screen", "save", "dataset", "replay", "plugin")
 
@@ -92,9 +92,13 @@ class Observation(Contract):
     screenshot: str | None = None  # 截图路径（相对 trace / 数据集目录）
     source: str = "screen"  # screen / save / dataset / replay / plugin（1.3：数据来源插件）
     timings_ms: dict[str, float] = field(default_factory=dict)  # capture / classify / extract
-    by: str | None = None  # 1.3：source=plugin 时是「插件 id@版本」
-    trust: str | None = None  # 1.3：source=plugin 时插件声明的档位（save / screen / infer），reduce 当来源用
-    hidden: dict[str, Any] = field(default_factory=dict)  # 1.3：画面上看不到的字段（并进 GameState.hidden）
+    by: str | None = field(default=None, metadata=OPTIONAL)  # 1.3：source=plugin 时是「插件 id@版本」；没有时不写
+    trust: str | None = field(
+        default=None, metadata=OPTIONAL
+    )  # 1.3：source=plugin 时插件声明的档位（save / screen / infer），reduce 当来源用；没有时不写
+    hidden: dict[str, Any] = field(
+        default_factory=dict, metadata=OPTIONAL
+    )  # 1.3：画面上看不到的字段（并进 GameState.hidden）；空时不写
     version: str = VERSION
 
     def known(self) -> dict[str, Any]:

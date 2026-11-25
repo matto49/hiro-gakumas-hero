@@ -5,6 +5,7 @@ package cockpit
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -79,15 +80,64 @@ func elapsed(h plugin.Host, v *plugin.JobView) string {
 }
 
 func stats(h plugin.Host, v *plugin.JobView) string {
-	parts := []string{fmt.Sprintf("%d 步", len(v.Steps()))}
+	var parts []string
+	if plays(v) {
+		parts = append(parts, fmt.Sprintf("%d 步", len(v.Steps())))
+	}
 	if e := elapsed(h, v); e != "" {
-		if v.Live() {
-			parts = append(parts, "已打 "+e)
-		} else {
+		switch {
+		case !v.Live():
 			parts = append(parts, "用时 "+e)
+		case plays(v):
+			parts = append(parts, "已打 "+e)
+		default:
+			parts = append(parts, "已用时 "+e)
 		}
 	}
 	return strings.Join(parts, " · ")
+}
+
+// plays：一步步打牌 / 培育的任务（有步骤、有画面）。扫描、检查设置、日常这些不是：不写「0 步」「已打」「开局」（N6，11-26 G1）。
+func plays(v *plugin.JobView) bool {
+	if v == nil || v.Job == nil {
+		return true
+	}
+	return labels.Plays(v.Job.Kind) || len(v.Steps()) > 0
+}
+
+func kindOf(v *plugin.JobView) string {
+	if v == nil || v.Job == nil {
+		return ""
+	}
+	return v.Job.Kind
+}
+
+var logPrefix = regexp.MustCompile(`^\[[^\]]*\]\s*\[[A-Z]+\]\s*\[[^\]]*\]\s*`)
+
+// progress 是不打牌的任务现在做到哪：最近一条日志（去掉时间 / 级别 / 模块前缀），如「回忆扫描：第 70 页，已读 204 格」；
+// 没有日志时按状态给一句。
+func progress(v *plugin.JobView) string {
+	if v != nil {
+		for i := len(v.Events) - 1; i >= 0; i-- {
+			if e := v.Events[i]; e.Type == "log" {
+				if t := strings.TrimSpace(logPrefix.ReplaceAllString(e.Text, "")); t != "" {
+					return t
+				}
+			}
+		}
+	}
+	switch {
+	case v == nil || v.State == "running": // 暂停 / 等接手 / 停止中不是在连游戏，交给下面按状态说（#109 review）
+		return "正在连游戏…"
+	case v.State == "done":
+		return "做完了"
+	case v.State == "failed":
+		if why := v.FailReason(); why != "" {
+			return "出错停下：" + why
+		}
+		return "出错停下了"
+	}
+	return labels.State(v.State)
 }
 
 // ---- 对话里的对局卡：摘要 + 流式步骤 ----
@@ -102,11 +152,13 @@ func (s *state) runCard(c *ui.Context, h plugin.Host, id string) {
 			head = head.Background(kit.Surface2)
 		}
 		if head.Children(func() {
-			kit.Thumb(c, v.LastFrame(), 27, 48, 5)
+			if plays(v) || v.LastFrame() != "" {
+				kit.Thumb(c, v.LastFrame(), 27, 48, 5)
+			}
 			ui.Column(c).Gap(3).Shrink(1).Children(func() {
 				ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 					ui.Text(c, title(v, id)).FontSize(kit.FSmall).FontWeight(600).TextColor(kit.Ink)
-					kit.StatePill(c, v.State)
+					kit.StatePillOf(c, kindOf(v), v.State)
 				})
 				ui.Text(c, stats(h, v)).FontSize(kit.FNote).TextColor(kit.Ink3)
 			})
@@ -119,7 +171,10 @@ func (s *state) runCard(c *ui.Context, h plugin.Host, id string) {
 			rows := streamRows(steps)
 			if len(rows) == 0 {
 				msg := "还没有步骤"
-				if v.Live() {
+				switch {
+				case !plays(v):
+					msg = progress(v)
+				case v.Live():
 					msg = "正在连游戏、开局…"
 				}
 				ui.Text(c, msg).FontSize(kit.FNote).TextColor(kit.Ink3).Padding(8, 6)
@@ -304,6 +359,9 @@ func (s *state) pinned(c *ui.Context, h plugin.Host, id string) {
 				ui.Text(c, stats(h, v)).FontSize(kit.FNote).TextColor(kit.Ink3)
 			})
 			last := "正在连游戏、开局…"
+			if !plays(v) {
+				last = progress(v)
+			}
 			if n := len(steps); n > 0 {
 				last = "刚才：" + labels.Page(steps[n-1].Page) + "，" + steps[n-1].Text
 			}
@@ -376,16 +434,31 @@ func (s *state) panel(c *ui.Context, h plugin.Host, route string) {
 	}
 	if id == "" {
 		kit.Note(c, "现在没有在跑的对局。在对话里说「帮我用某某打一把初」就能开一局。")
+		// 11-24 实测清单「结束后面板空」：对话里开的局一结束就从面板上消失了（后台任务有自己的列表）。
+		// 最近一局是对话里开的、已经结束：照样放在这里，看得到成绩、出错原因和复盘入口
+		s.refreshRecent(h)
+		if len(s.recent) > 0 && !plugin.LiveStates[s.recent[0].State] && h.ChatJob(s.recent[0].ID) {
+			kit.Section(c, "刚结束的一局")
+			s.jobView(c, h, s.recent[0].ID)
+		}
 		s.background(c, h, "")
 		return
 	}
+	s.jobView(c, h, id)
+	s.background(c, h, id)
+}
+
+// jobView 是一局的详情：标题、状态、画面、几行数、出错原因、控制、成绩和复盘入口（不含后台任务列表）。
+func (s *state) jobView(c *ui.Context, h plugin.Host, id string) {
 	v := h.Job(id)
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, title(v, id)).FontSize(15).FontWeight(650).TextColor(kit.Ink)
-		kit.StatePill(c, v.State)
+		kit.StatePillOf(c, kindOf(v), v.State)
 	})
-	// 竖着排：画面在上（面板窄），下面几行数和控制
-	ui.Column(c).AlignItems(ui.Center).Children(func() { frame(c, v.LastFrame(), v.Live(), PanelFrameWidth) })
+	// 竖着排：画面在上（面板窄），下面几行数和控制；扫描这类不存画面的任务不画空画面框
+	if plays(v) || v.LastFrame() != "" {
+		ui.Column(c).AlignItems(ui.Center).Children(func() { frame(c, v.LastFrame(), v.Live(), PanelFrameWidth) })
+	}
 	ui.Column(c).Gap(6).Children(func() {
 		kv := func(k, val string) {
 			ui.Row(c).Children(func() {
@@ -394,9 +467,16 @@ func (s *state) panel(c *ui.Context, h plugin.Host, route string) {
 				ui.Text(c, val).FontSize(kit.FNote).FontWeight(600).TextColor(kit.Ink)
 			})
 		}
-		kv("步数", fmt.Sprint(len(v.Steps())))
-		if e := elapsed(h, v); e != "" {
-			kv("已打", e)
+		if plays(v) {
+			kv("步数", fmt.Sprint(len(v.Steps())))
+			if e := elapsed(h, v); e != "" {
+				kv("已打", e)
+			}
+		} else {
+			if e := elapsed(h, v); e != "" {
+				kv("用时", e)
+			}
+			ui.Text(c, progress(v)).FontSize(kit.FNote).TextColor(kit.Ink2).Wrap()
 		}
 		if st := v.Steps(); len(st) > 0 {
 			kv("现在", labels.Page(st[len(st)-1].Page))
@@ -413,11 +493,10 @@ func (s *state) panel(c *ui.Context, h plugin.Host, route string) {
 		scoreStrip(c, exams)
 		s.reviewButton(c, h, id)
 	}
-	s.background(c, h, id)
 }
 
-// background 是「后台任务」：命令行等外部发起的任务（不属于任何对话，11-25 review：它们不再往对话里发通知）。
-func (s *state) background(c *ui.Context, h plugin.Host, current string) {
+// refreshRecent 每 10 秒在后台刷一次最近的任务（run status）；刷新失败保留旧列表、记下原因（CodeRabbit #79）。
+func (s *state) refreshRecent(h plugin.Host) {
 	if !s.recentGet && (s.recentAt.IsZero() || h.Now().Sub(s.recentAt) > 10*time.Second) {
 		s.recentGet, s.recentAt = true, h.Now()
 		h.Go(func() func() {
@@ -440,6 +519,11 @@ func (s *state) background(c *ui.Context, h plugin.Host, current string) {
 			}
 		})
 	}
+}
+
+// background 是「后台任务」：命令行等外部发起的任务（不属于任何对话，11-25 review：它们不再往对话里发通知）。
+func (s *state) background(c *ui.Context, h plugin.Host, current string) {
+	s.refreshRecent(h)
 	var jobs []plugin.Job
 	seen := map[string]bool{}
 	for _, j := range s.recent {
@@ -479,7 +563,7 @@ func (s *state) background(c *ui.Context, h plugin.Host, current string) {
 				ui.Text(c, sub).FontSize(11).TextColor(kit.Ink3).MaxLines(1).Ellipsis("…")
 			})
 			ui.Spacer(c)
-			kit.StatePill(c, j.State)
+			kit.StatePillOf(c, j.Kind, j.State)
 		}).Clicked() {
 			h.OpenPanel("cockpit", "job:"+j.ID)
 		}
@@ -584,7 +668,7 @@ func (s *state) context(ctx context.Context, h plugin.Host) string {
 	var b strings.Builder
 	if id := h.LiveJob(); id != "" {
 		v := h.Job(id)
-		b.WriteString("正在跑：" + title(v, id) + "（" + labels.State(v.State) + "，" + stats(h, v) + "）\n")
+		b.WriteString("正在跑：" + title(v, id) + "（" + labels.StateOf(kindOf(v), v.State) + "，" + stats(h, v) + "）\n")
 		st := v.Steps()
 		if n := len(st); n > 0 {
 			b.WriteString("最近几步：\n")

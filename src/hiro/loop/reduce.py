@@ -6,6 +6,7 @@
 3. 页面转移按 transitions.allowed 校验：合法转移立即接受；不合法的、或目标是弱证据页面（IDLE）的，要连续 DEBOUNCE 帧同一页面才接受（pending_page）。
 4. mode 由 page 推出。
 5. 进入考试（从非考试页面到 HIF_EXAM）清空 exam 与 exam_session；remaining_turns 变小视为新回合。
+6. 隐藏信息（GameState.hidden，数据来源插件给的）换页清空，和 page_fields 一样只管当前页。
 """
 
 import copy
@@ -89,6 +90,7 @@ def _enter(s: GameState, page: str, area: str, seq: int, *, frames: int = 1) -> 
     s.page = PageState(page, area, seq, frames >= STABLE, frames)
     s.pending_page = None
     s.page_fields = {}
+    s.hidden = {}  # 数据来源插件给的隐藏信息和页面字段一样只管当前页：上一场的牌库顺序不带进下一页的记录
     s.mode = mode_of(page, s.mode)
     if page in EXAM_PAGES and prev not in EXAM_PAGES and page == "HIF_EXAM":
         s.exam = {}

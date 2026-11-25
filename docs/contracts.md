@@ -20,6 +20,7 @@
 
 每个对象：`to_dict / to_json / from_dict / from_json / schema() / validate() / problems()`。
 `from_dict` 遇到未知字段报错（防改名丢数据），缺字段用默认值。`None` 表示没读到，不是 0。
+例外：1.3 插件架构加的 `by` / `trust` / `hidden` / `plugin` 是「可省略字段」（`field(…, metadata=hiro.contracts.base.OPTIONAL)`）——值是默认值（`None` / `{}`）时 `to_dict` 不写、schema 不要求出现，没装插件的记录和 1.2 一样。
 
 ## Observation
 
@@ -164,3 +165,4 @@ HIF_EXAM 的 `motivation` / `impression`：状态栏读到槽位且每个蓝底�
 | 2026-11-14 | 去 KAA 第 1 步：判页 `hiro.vision.classify.classify(img) -> PageHit`（纯函数、不依赖 KAA），`PageObs.source` 新增取值 `template`（自有模板判页，接替 `kaa`）、`signature`、`page_ocr`、`start_ocr`、`deck_ocr`、`landscape`；新页面名 `INITIAL_CHOICE`（开局二选一，原来 KAA 判页时双击第一项后报 IDLE）、`LIVE`（横屏）。旧主循环经 `scene.classify_current` 用它，两个新名字映射回 `IDLE` / `unknown`。 |
 | 2026-11-18 | 初课程：`ExamSession.lesson`（可空、只增不改）= `{kind, attr, nth, turns_total, clear_target, perfect_target, param_start, level_ids, exam_extra_turn, lesson_limit_up_score}`，`hiro.runtime.hajime.LessonInfo` 从练习课画面读、按主数据 `ProduceStepLessonLevel` 对照；读不到 / 对不上为 None。考试（非课程）进场时清成 None。 |
 | 2026-11-25 | **1.3**（插件架构，`docs/ryugi/specs/2026-11-25-strategy-plugins-design.md`）：`Observation.source` 新增 `plugin`，加 `by`（插件 id@版本）、`trust`（插件声明的档位 save / screen / infer，reduce 当来源用）、`hidden`（画面上看不到的字段）；`GameState.hidden`、`Source.by`；`Decision.SOURCES` 新增 `plugin`，加 `Decision.plugin`。只增字段，旧 trace 照常读。 |
+| 2026-11-26 | 1.3 的 `by` / `trust` / `hidden` / `plugin` 改成可省略字段（默认值时不写，schema 的 required 里去掉）；`GameState.hidden` 换页清空（和 `page_fields` 一样只管当前页）。读旧 trace 不受影响。 |

@@ -127,8 +127,7 @@
     },
     "required": [
      "origin",
-     "seq",
-     "by"
+     "seq"
     ],
     "additionalProperties": false,
     "description": "Source(origin: str, seq: int, by: str | None = None)"
@@ -274,7 +273,6 @@
   "field_status",
   "pending_review",
   "ledger",
-  "hidden",
   "version"
  ],
  "additionalProperties": false,

@@ -61,7 +61,8 @@ class TraceWriter:
         self.seq = _last_seq(self.dir)
         self._steps = (self.dir / "steps.jsonl").open("a", encoding="utf-8")
         run = self.dir / "run.json"
-        this = {"started": time.time(), **(meta or {})}
+        self._native_known = False
+        this = {"started": time.time(), "platform": _platform_meta(), **(meta or {})}
         try:
             old = json.loads(run.read_text(encoding="utf-8")) if run.exists() else None
         except (OSError, ValueError):
@@ -82,7 +83,24 @@ class TraceWriter:
 
         rel = f"frames/{seq:05d}.jpg"
         imgio.imwrite(str(self.dir / rel), image, [cv2.IMWRITE_JPEG_QUALITY, 85])
+        self._native_frame(seq, image)
         return rel
+
+    def _native_frame(self, seq: int, image) -> None:
+        """这一帧是刚截的那张：第一次补 run.json 的原生尺寸；HIRO_TRACE_NATIVE=1 时另存原生 PNG（OCR 测试集采集用）。出错不影响存帧。"""
+        try:
+            from hiro.devices.base import native_for
+
+            native, size = native_for(image)
+            if size is None:
+                return
+            if not self._native_known:
+                self._native_known = True
+                _set_native(self.dir / "run.json", list(size))
+            if native is not None:
+                imgio.imwrite(str(self.dir / f"frames/{seq:05d}.native.png"), native)
+        except Exception:  # noqa: BLE001  采集旁路不能打断对局
+            pass
 
     def write(self, step: Step) -> None:
         self._steps.write(step.to_json() + "\n")
@@ -90,6 +108,25 @@ class TraceWriter:
 
     def close(self) -> None:
         self._steps.close()
+
+
+def _platform_meta() -> dict[str, Any]:
+    from hiro.devices.base import platform_meta
+
+    return platform_meta()
+
+
+def _set_native(run: Path, size: list[int]) -> None:
+    """run.json 里这一段的 platform.native 还空着就填上（续写的 trace 填最后一段的）。"""
+    try:
+        data = json.loads(run.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    target = data["segments"][-1] if data.get("segments") else data
+    plat = target.get("platform")
+    if isinstance(plat, dict) and plat.get("native") is None:
+        plat["native"] = size
+        run.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
 def _last_seq(trace_dir: Path) -> int:

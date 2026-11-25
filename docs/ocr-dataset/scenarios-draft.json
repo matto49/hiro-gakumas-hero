@@ -1,0 +1,816 @@
+{
+ "intro": "按真实游玩流程列出的场景，每个场景写「玩家在这一屏要知道什么」和「能点什么」。只看画面起草，没有参考识别代码；示例值抄自示例截图。重要度：高 = 读错会直接选错 / 点错 / 卡住；中 = 影响决策但有别的信息可补；低 = 知道更好、不知道也能玩。形式：画面上这条信息长什么样（数字 / 文字 / 图标 / 颜色），图标和颜色只有本身代表信息时才列。",
+ "scenarios": [
+  {
+   "id": "common_hud",
+   "name": "培育中的通用顶栏",
+   "when": "培育中大多数画面的上方（选行动、相談、选卡、授業、おでかけ……）",
+   "image": "core/dmm-maindmm1m-20261110-205150-r3-00001.jpg",
+   "info": [
+    {
+     "item": "体力（当前 / 上限）",
+     "example": "9/33",
+     "form": "数字",
+     "importance": "高",
+     "why": "决定能不能上课、要不要休息"
+    },
+    {
+     "item": "P 点数",
+     "example": "280",
+     "form": "数字",
+     "importance": "高",
+     "why": "相談 / 轮间能买什么"
+    },
+    {
+     "item": "審査基準加成",
+     "example": "950（前面的 + 没有意义，只记数字）",
+     "form": "数字",
+     "importance": "低",
+     "why": "考试评分参考"
+    },
+    {
+     "item": "左上当前行动 / 页面标签",
+     "example": "相談 图标",
+     "form": "图标",
+     "importance": "低",
+     "why": "判断在哪一步"
+    }
+   ],
+   "buttons": []
+  },
+  {
+   "id": "action_select",
+   "name": "选行动（培育日常）",
+   "when": "每个培育回合开始",
+   "image": "core/dmm-maindmm1m-20261110-205150-00058.jpg",
+   "info": [
+    {
+     "item": "距离考试还有几天",
+     "example": "選抜試験まで 4日",
+     "form": "数字 + 文字",
+     "importance": "高",
+     "why": "决定冲属性还是准备考试"
+    },
+    {
+     "item": "三维当前值 Vo / Da / Vi",
+     "example": "1473 / 2336 / 1207",
+     "form": "数字",
+     "importance": "高",
+     "why": "选哪门课；必须和属性对上"
+    },
+    {
+     "item": "三维上限",
+     "example": "/3200",
+     "form": "数字",
+     "importance": "中",
+     "why": "到顶就不用再加"
+    },
+    {
+     "item": "三维成长率",
+     "example": "45.5% / 44.4% / 41.3%",
+     "form": "数字",
+     "importance": "中",
+     "why": "估算上课收益"
+    },
+    {
+     "item": "三维评级",
+     "example": "A+ / SS / A+",
+     "form": "图标文字",
+     "importance": "低",
+     "why": "可由数值推出"
+    },
+    {
+     "item": "スター性",
+     "example": "731",
+     "form": "数字",
+     "importance": "中",
+     "why": "考试合格条件之一"
+    },
+    {
+     "item": "可选的行动及其体力消耗 / 回复",
+     "example": "おでかけ、差し入れ、休む（+11）",
+     "form": "文字 + 数字",
+     "importance": "高",
+     "why": "决策的选项本身"
+    },
+    {
+     "item": "持有的饮料",
+     "example": "2 瓶（图标）",
+     "form": "图标",
+     "importance": "中",
+     "why": "体力不够时能不能喝"
+    }
+   ],
+   "buttons": [
+    {
+     "label": "各行动按钮",
+     "example": "おでかけ / 差し入れ / 授業 / レッスン",
+     "importance": "高",
+     "why": "点错 = 走错一回合"
+    },
+    {
+     "label": "休む",
+     "example": "休む",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "label": "P手帳 / 牌组 / 背包 / 菜单",
+     "example": "底部图标",
+     "importance": "低",
+     "why": "查看用"
+    }
+   ]
+  },
+  {
+   "id": "exam",
+   "name": "考试中（选拔 / 本战）",
+   "when": "每场考试的每一回合",
+   "image": "core/dmm-maindmm1m-20261110-205150-r3-00074.jpg",
+   "info": [
+    {
+     "item": "剩余回合",
+     "example": "9",
+     "form": "数字",
+     "importance": "高",
+     "why": "出牌规划"
+    },
+    {
+     "item": "本回合属性和倍率",
+     "example": "ボーカル 2805%",
+     "form": "文字 + 数字",
+     "importance": "高",
+     "why": "估算这回合打多少分"
+    },
+    {
+     "item": "自己的分数和名次",
+     "example": "本战：第 3 名",
+     "form": "数字",
+     "importance": "高",
+     "why": "还差多少能过 / 拿第一"
+    },
+    {
+     "item": "对手分数 / 突破线",
+     "example": "403,729 / 303,833（本战）",
+     "form": "数字",
+     "importance": "高",
+     "why": "目标分"
+    },
+    {
+     "item": "体力 / 元气",
+     "example": "27 / 0",
+     "form": "数字",
+     "importance": "高",
+     "why": "能不能打高消耗的卡"
+    },
+    {
+     "item": "每张手牌：卡名",
+     "example": "気まぐれハート+ / イメトレ / ありがとうの言葉+",
+     "form": "图标（卡面）+ 文字",
+     "importance": "高",
+     "why": "出牌决策的核心"
+    },
+    {
+     "item": "每张手牌：有没有强化（+）",
+     "example": "+ / 无 / +",
+     "form": "文字",
+     "importance": "高",
+     "why": "强化前后效果不同"
+    },
+    {
+     "item": "每张手牌：消耗、能不能打",
+     "example": "元气 1 / 元气 4 / 体力 3",
+     "form": "数字 + 颜色",
+     "importance": "高",
+     "why": "打不出的卡不能选"
+    },
+    {
+     "item": "选中卡的预估得分",
+     "example": "337",
+     "form": "数字",
+     "importance": "中",
+     "why": "核对出牌估算"
+    },
+    {
+     "item": "状态 buff 及层数 / 剩余回合",
+     "example": "左侧两个状态各 6 层、另一个 1回",
+     "form": "图标 + 数字",
+     "importance": "高",
+     "why": "影响每张卡的得分"
+    },
+    {
+     "item": "持有饮料 / 能不能喝",
+     "example": "4 瓶",
+     "form": "图标",
+     "importance": "中",
+     "why": ""
+    },
+    {
+     "item": "P 道具剩余次数",
+     "example": "5",
+     "form": "数字",
+     "importance": "中",
+     "why": ""
+    },
+    {
+     "item": "牌堆剩余张数",
+     "example": "5",
+     "form": "数字",
+     "importance": "低",
+     "why": ""
+    }
+   ],
+   "buttons": [
+    {
+     "label": "每张手牌",
+     "example": "三 / 四 / 五张",
+     "importance": "高",
+     "why": "点错 = 打错牌"
+    },
+    {
+     "label": "SKIP（跳过回合）",
+     "example": "SKIP（右侧，带体力回复数）",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "label": "饮料",
+     "example": "左下",
+     "importance": "中",
+     "why": ""
+    }
+   ]
+  },
+  {
+   "id": "consult",
+   "name": "相談（商店）",
+   "when": "选行动选了「相談」",
+   "image": "core/dmm-maindmm1m-20261110-205150-r3-00001.jpg",
+   "info": [
+    {
+     "item": "货架每格是什么（卡 / 饮料、名字、有没有 +）",
+     "example": "8 格：4 张卡 + 4 瓶饮料",
+     "form": "图标",
+     "importance": "高",
+     "why": "买什么"
+    },
+    {
+     "item": "货架每格价格",
+     "example": "53（SALE 77→53）/ 77 / 70 / 77 / 52 / 50 / 50 / 100",
+     "form": "数字",
+     "importance": "高",
+     "why": "买不买得起"
+    },
+    {
+     "item": "SALE 和原价",
+     "example": "SALE 77→53",
+     "form": "文字 + 数字",
+     "importance": "中",
+     "why": ""
+    },
+    {
+     "item": "已经换过的格子",
+     "example": "交換済",
+     "form": "文字",
+     "importance": "高",
+     "why": "不能再点"
+    },
+    {
+     "item": "強化 / 削除服务价格、是否已用",
+     "example": "強化 150、削除 次 125（交換済）",
+     "form": "文字 + 数字",
+     "importance": "高",
+     "why": ""
+    }
+   ],
+   "buttons": [
+    {
+     "label": "货架各格",
+     "example": "",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "label": "強化 / 削除",
+     "example": "強化 / 削除",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "label": "交換する",
+     "example": "交換する",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "label": "終了",
+     "example": "終了",
+     "importance": "高",
+     "why": "点不到就卡在商店"
+    }
+   ]
+  },
+  {
+   "id": "round_interval",
+   "name": "H.I.F 轮间商店",
+   "when": "本战每轮之间",
+   "image": "core/dmm-maindmm1m-20261110-205150-r3-00107.jpg",
+   "info": [
+    {
+     "item": "货架每格是什么、价格、NEW",
+     "example": "50 / 30 / 30（NEW）/ 50（NEW）/ 50 / 30 / 100 / 75",
+     "form": "图标 + 数字",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "item": "強化价格、还能强化几张",
+     "example": "強化 100、あと1枚",
+     "form": "数字",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "item": "还能定制几张",
+     "example": "カスタマイズ あと2枚",
+     "form": "数字",
+     "importance": "中",
+     "why": ""
+    },
+    {
+     "item": "刷新价格",
+     "example": "リフレッシュ 10",
+     "form": "数字",
+     "importance": "中",
+     "why": ""
+    },
+    {
+     "item": "体力回复",
+     "example": "回復",
+     "form": "图标",
+     "importance": "中",
+     "why": ""
+    }
+   ],
+   "buttons": [
+    {
+     "label": "货架各格 / 強化 / スキルカードカスタマイズ / 回復 / リフレッシュ / 交換する / 終了 / チェンジ",
+     "example": "",
+     "importance": "高",
+     "why": ""
+    }
+   ]
+  },
+  {
+   "id": "select_card",
+   "name": "三选一选卡（授業 / 差し入れ 奖励等）",
+   "when": "获得技能卡时",
+   "image": "core/dmm-maindmm1m-20261110-205150-00075.jpg",
+   "info": [
+    {
+     "item": "三张候选卡：卡名、有没有 +",
+     "example": "3 张",
+     "form": "图标",
+     "importance": "高",
+     "why": "选哪张"
+    },
+    {
+     "item": "推荐标记",
+     "example": "おすすめ ×2",
+     "form": "文字",
+     "importance": "低",
+     "why": "参考"
+    },
+    {
+     "item": "除外 / 再抽選剩余次数",
+     "example": "（本图没有）",
+     "form": "数字",
+     "importance": "中",
+     "why": "按钮能不能用"
+    }
+   ],
+   "buttons": [
+    {
+     "label": "三张卡",
+     "example": "",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "label": "受け取る",
+     "example": "受け取る",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "label": "再抽選 / 除外",
+     "example": "",
+     "importance": "中",
+     "why": ""
+    }
+   ]
+  },
+  {
+   "id": "select_drink",
+   "name": "三选一选饮料",
+   "when": "获得饮料时",
+   "image": "core/dmm-maindmm1m-20261110-205150-00069.jpg",
+   "info": [
+    {
+     "item": "三瓶候选饮料是什么",
+     "example": "3 瓶（图标）",
+     "form": "图标",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "item": "持有饮料",
+     "example": "左下 2 瓶",
+     "form": "图标",
+     "importance": "中",
+     "why": "满了要换"
+    }
+   ],
+   "buttons": [
+    {
+     "label": "三瓶饮料 / 受け取る",
+     "example": "受け取る",
+     "importance": "高",
+     "why": ""
+    }
+   ]
+  },
+  {
+   "id": "pdrink_max",
+   "name": "饮料满了要丢一瓶",
+   "when": "持有饮料已满又拿到新饮料",
+   "image": "core/dmm-qualifydmm1-20261110-192152-00422.jpg",
+   "info": [
+    {
+     "item": "新拿到的饮料和效果",
+     "example": "パラメータ上昇量増加 10%（5ターン）…",
+     "form": "图标 + 文字",
+     "importance": "高",
+     "why": "比较留哪瓶"
+    },
+    {
+     "item": "手持各瓶和效果",
+     "example": "スキルカード使用数追加+1 ×2、ランダムな強化済みスキルカード（SSR）…",
+     "form": "图标 + 文字",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "item": "勾选状态、还要选几个",
+     "example": "あと0個選択",
+     "form": "颜色 + 数字",
+     "importance": "高",
+     "why": ""
+    }
+   ],
+   "buttons": [
+    {
+     "label": "各瓶勾选框 / 残す",
+     "example": "残す",
+     "importance": "高",
+     "why": ""
+    }
+   ]
+  },
+  {
+   "id": "deck_pick",
+   "name": "从牌组里选卡（チェンジ / 強化 / 削除 / 特別指導定制）",
+   "when": "相談的强化删除、特別指導、选卡更换",
+   "image": "core/dmm-maindmm1m-20261110-205150-00094.jpg",
+   "info": [
+    {
+     "item": "牌组每张卡：卡名、有没有 +、是否定制过",
+     "example": "4 列网格，可滚动",
+     "form": "图标",
+     "importance": "高",
+     "why": "选哪张"
+    },
+    {
+     "item": "已选中的卡",
+     "example": "スキルカードが選択されていません",
+     "form": "文字 + 颜色",
+     "importance": "高",
+     "why": "确认选对了"
+    },
+    {
+     "item": "还能定制几张 / 提示文",
+     "example": "カスタマイズ可能スキルカード あと2枚",
+     "form": "数字",
+     "importance": "中",
+     "why": ""
+    }
+   ],
+   "buttons": [
+    {
+     "label": "各张卡 / チェンジ / キャンセル / カスタマイズ / 終了",
+     "example": "チェンジ、キャンセル",
+     "importance": "高",
+     "why": ""
+    }
+   ]
+  },
+  {
+   "id": "study_outing",
+   "name": "授業 / おでかけ 的三个选项",
+   "when": "选了授業或おでかけ",
+   "image": "core/dmm-maindmm1m-20261110-205150-00088.jpg",
+   "info": [
+    {
+     "item": "每个选项的文字",
+     "example": "余裕です！/ 不安です…… / 勝ってきます",
+     "form": "文字",
+     "importance": "中",
+     "why": "认出是哪个选项"
+    },
+    {
+     "item": "每个选项的代价",
+     "example": "体力 -5 / P -50",
+     "form": "数字",
+     "importance": "高",
+     "why": "付不起不能选"
+    },
+    {
+     "item": "トラブル追加 标记",
+     "example": "トラブル追加",
+     "form": "文字",
+     "importance": "中",
+     "why": "有负面效果"
+    },
+    {
+     "item": "选中选项的效果说明",
+     "example": "ボーカル上昇+180 …",
+     "form": "文字",
+     "importance": "高",
+     "why": "选哪个"
+    },
+    {
+     "item": "三维预览变化",
+     "example": "+180",
+     "form": "数字",
+     "importance": "中",
+     "why": ""
+    }
+   ],
+   "buttons": [
+    {
+     "label": "三个选项",
+     "example": "",
+     "importance": "高",
+     "why": ""
+    }
+   ]
+  },
+  {
+   "id": "exam_briefing",
+   "name": "考前说明",
+   "when": "每场考试开始前",
+   "image": "core/dmm-qualifydmm1-20261110-192152-00252.jpg",
+   "info": [
+    {
+     "item": "合格条件：突破线 名次 / 人数",
+     "example": "選抜試験1突破ライン 64/128人",
+     "form": "文字 + 数字",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "item": "三维和本场倍率",
+     "example": "542 → 1386%、780 → 1467%、327 → 882%",
+     "form": "数字",
+     "importance": "高",
+     "why": "决定考试策略"
+    },
+    {
+     "item": "スター性是否达成",
+     "example": "180 达成",
+     "form": "数字 + 图标",
+     "importance": "中",
+     "why": ""
+    },
+    {
+     "item": "審査基準",
+     "example": "50 / 150",
+     "form": "数字",
+     "importance": "低",
+     "why": ""
+    }
+   ],
+   "buttons": [
+    {
+     "label": "タップして次へ",
+     "example": "",
+     "importance": "中",
+     "why": ""
+    }
+   ]
+  },
+  {
+   "id": "finals_ranking",
+   "name": "本战排名",
+   "when": "本战每轮结束",
+   "image": "core/dmm-maindmm1m-20261110-205150-r3-00071.jpg",
+   "info": [
+    {
+     "item": "各名次的分数",
+     "example": "1st 400,729 / 2nd 303,833",
+     "form": "数字",
+     "importance": "高",
+     "why": "离第一差多少"
+    },
+    {
+     "item": "自己的名次",
+     "example": "NEXT（下一位是自己）",
+     "form": "图标 + 文字",
+     "importance": "高",
+     "why": ""
+    }
+   ],
+   "buttons": [
+    {
+     "label": "タップして次へ / 次へ",
+     "example": "",
+     "importance": "高",
+     "why": "点不到会卡在排名页"
+    }
+   ]
+  },
+  {
+   "id": "exam_result",
+   "name": "选拔结果",
+   "when": "每场选拔结束",
+   "image": "legacy-v1/mac-hif-mac-h2-02046.jpg",
+   "info": [
+    {
+     "item": "第几次选拔",
+     "example": "第2回",
+     "form": "文字",
+     "importance": "中",
+     "why": ""
+    },
+    {
+     "item": "自己突破 / 敗退、分数",
+     "example": "37,574Pt",
+     "form": "文字 + 数字",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "item": "突破线名次 / 人数",
+     "example": "32 / 64人",
+     "form": "数字",
+     "importance": "高",
+     "why": ""
+    },
+    {
+     "item": "再挑战剩余次数",
+     "example": "あと2回",
+     "form": "数字",
+     "importance": "高",
+     "why": "要不要重打"
+    }
+   ],
+   "buttons": [
+    {
+     "label": "再挑戦 / 次へ / ログ",
+     "example": "再挑戦、次へ",
+     "importance": "高",
+     "why": "点错再挑战会浪费次数"
+    }
+   ]
+  },
+  {
+   "id": "select_pitem",
+   "name": "P 道具三选一",
+   "when": "H.I.F 考试后",
+   "image": "core/dmm-qualifydmm1-20261110-192152-00297.jpg",
+   "info": [
+    {
+     "item": "三个背包分别是哪种（颜色）",
+     "example": "黄 / 绿 / 红",
+     "form": "颜色",
+     "importance": "高",
+     "why": "选哪个"
+    }
+   ],
+   "buttons": [
+    {
+     "label": "三个背包 / 受け取る",
+     "example": "受け取る",
+     "importance": "高",
+     "why": ""
+    }
+   ]
+  },
+  {
+   "id": "produce_start",
+   "name": "培育开始确认",
+   "when": "开局编成完成后",
+   "image": "legacy-v1/dmm-qualifyz6-20261119-105040-00017.jpg",
+   "info": [
+    {
+     "item": "偶像和衣装",
+     "example": "篠澤 広",
+     "form": "文字",
+     "importance": "中",
+     "why": "确认没选错"
+    },
+    {
+     "item": "三维初值和成长率",
+     "example": "230 / 372 / 235、45.5% / 44.4% / 41.3%",
+     "form": "数字",
+     "importance": "中",
+     "why": ""
+    },
+    {
+     "item": "支援卡 / 回忆",
+     "example": "6 张 + 回忆",
+     "form": "图标",
+     "importance": "中",
+     "why": "确认编成"
+    },
+    {
+     "item": "要用的道具勾选",
+     "example": "使う ×2",
+     "form": "颜色",
+     "importance": "中",
+     "why": ""
+    },
+    {
+     "item": "消耗",
+     "example": "70 → 50",
+     "form": "数字",
+     "importance": "高",
+     "why": ""
+    }
+   ],
+   "buttons": [
+    {
+     "label": "プロデュース開始 / 編成詳細 / 育成情報",
+     "example": "",
+     "importance": "高",
+     "why": ""
+    }
+   ]
+  },
+  {
+   "id": "dialog",
+   "name": "弹窗（确认 / 提示 / 错误）",
+   "when": "随时",
+   "image": "core/dmm-qualifydmm1-20261110-192152-00803.jpg",
+   "info": [
+    {
+     "item": "标题",
+     "example": "フルスクリーン設定",
+     "form": "文字",
+     "importance": "高",
+     "why": "认出是什么弹窗"
+    },
+    {
+     "item": "是不是危险操作（リタイア、破棄、ジュエル消耗……）",
+     "example": "否",
+     "form": "文字",
+     "importance": "高",
+     "why": "绝不能点确认"
+    },
+    {
+     "item": "开关状态",
+     "example": "OFF",
+     "form": "文字",
+     "importance": "低",
+     "why": ""
+    }
+   ],
+   "buttons": [
+    {
+     "label": "キャンセル / 決定 / 閉じる / リトライ / 再開する",
+     "example": "キャンセル、決定",
+     "importance": "高",
+     "why": "点错可能破坏存档"
+    }
+   ]
+  }
+ ],
+ "missing": [
+  {
+   "name": "编成菜单（プロデュース編成、サポート編成、メモリー選択）",
+   "why": "「編成」认成「綿成」就出在这里，测试集一张都没有，要补采"
+  },
+  {
+   "name": "开局流程（选偶像、选支援卡、选回忆）",
+   "why": "测试集几乎没有"
+  },
+  {
+   "name": "首页 / 培育再开 / 日切换 / 通信错误 / 登录奖励",
+   "why": "测试集里很少，流程一卡就停在这些画面"
+  },
+  {
+   "name": "N.I.A、初（hajime）、塔等其他模式的场景",
+   "why": "这批只整理了 H.I.F；测试集里有少量 Mac 帧"
+  }
+ ]
+}

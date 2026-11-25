@@ -330,6 +330,15 @@ class Runtime:
         out = handler(self, f, hit) if handler is not None else (DONE if self.advance(self, f, hit) else STAY)
         if out.kind == "stop":
             raise ResumeBlocked(f"{hit.name}：{out.reason}")
+        frozen = self._frozen_s(hit, f)
+        if handler is None and out.kind != "stay" and frozen is not None and self.rescuer is not None:
+            # G0b 后半（11-26 03:44 偶像之路从 H.I.F 回忆编成页起跑）：认不出的画面上 advance 一直点空白，每点一下都算有操作，
+            # 兜底的空闲计时永远到不了点，只能等 STALL_S 停机。画面冻住（点了也不变）就按冻住的时长交给 LLM 看；点空白不算进展
+            if self._rescue(f, hit, stuck=frozen):
+                self._mark_acted(self.clock())
+            else:
+                self._mark_acted(f.t)
+            return out
         if out.kind != "stay" or (self.landscape is not None and self.landscape.in_live(f.img)):
             # 按处理器返回时的时刻记（LIVE 演出里本来就不点：不算没进展）。原来记的是进处理器前那帧的时刻：考试处理器跑了 5 分钟，
             # 出来第一帧是结算后的过场，马上判成「284s 没有任何操作」停机（初 PRO 最終 11-18）
@@ -342,13 +351,21 @@ class Runtime:
             self._check_idle(hit, f.t, handler is not None)
         return out
 
-    def _rescue(self, f: Frame, hit: PageHit) -> bool:
+    def _frozen_s(self, hit: PageHit, f: Frame) -> float | None:
+        """同一页、画面（缩略图）一直没变已经多久（看门狗 _watch_progress 记的基准）；刚变过、或不到 1 拍时返回 None。"""
+        base = self._base
+        if base is None or base[0] != hit.name:
+            return None
+        stuck = f.t - base[2]
+        return stuck if stuck > 0 else None
+
+    def _rescue(self, f: Frame, hit: PageHit, *, stuck: float | None = None) -> bool:
         """没有处理器、advance 也没点的页：没操作够久就把截图交给 LLM（后台问，主循环照常跑），回复到了按它点 / 等。
         返回这一拍有没有做事（点了 / 等了）。LLM 说停 / 被拦截：报警放手，仍由 idle_stop_s 停机。"""
         r = self.rescuer
         if r is None:
             return False
-        idle = 0.0 if self._acted_at is None else f.t - self._acted_at
+        idle = stuck if stuck is not None else (0.0 if self._acted_at is None else f.t - self._acted_at)
         try:
             if r.pending:
                 rec = r.poll()

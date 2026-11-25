@@ -87,3 +87,11 @@ def test_switch_read_from_settings_when_env_unset(monkeypatch, hiro_home):
     assert mr.enabled()
     monkeypatch.setenv("HIRO_SCAN_BEFORE_START", "0")
     assert not mr.enabled()
+
+
+def test_refresh_runs_before_prepare_start(monkeypatch, tmp_path):
+    """G0（prepare_start：挑空白编成位、写编成）合入后两层都包在开局命令外面：先补扫回忆（库存新鲜）、再准备编成、再开局。"""
+    monkeypatch.setenv("HIRO_SCAN_BEFORE_START", "1")
+    argv = KINDS["hajime"].argv({"idol": "i_card-x", "prepare": True}, tmp_path)
+    mods = [argv[i + 1] for i, a in enumerate(argv) if a == "-m"]
+    assert mods[:2] == ["hiro.memory_refresh", "hiro.runtime.prepare_start"]

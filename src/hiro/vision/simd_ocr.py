@@ -9,12 +9,12 @@ import base64
 import json
 import logging
 import os
-import shutil
 import subprocess
 from functools import cache
-from pathlib import Path
 from queue import Empty, Queue
 from threading import RLock, Thread
+
+from hiro.vision import simd_deps
 
 import cv2
 import numpy as np
@@ -27,14 +27,14 @@ READ_TIMEOUT = 15  # 一次识别最多等这么久
 
 class SimdOcr:
     def __init__(self):
-        deps = Path(os.environ.get("HIRO_SIMD_DEPS") or Path(__file__).resolve().parents[3] / ".deps")
-        helper = deps / "simd-ocr/HiroSimdOcr.dll"
-        models = deps / "SimdPaddleOCR/models"
-        for path in (helper, *(models / name for name in ("medium_det.onnx", "medium_rec.onnx", "rec_keys.txt"))):
-            if not path.is_file():
-                raise RuntimeError(f"HIRO_OCR=simd 缺少 {path}；安装方法见 docs/assets.md")
-        if (dotnet := shutil.which("dotnet")) is None:
-            raise RuntimeError("HIRO_OCR=simd 找不到 .NET 10 (dotnet)")
+        deps = simd_deps.deps_dir()
+        helper = deps / simd_deps.HELPER
+        models = deps / simd_deps.MODELS
+        if missing := simd_deps.missing_files(deps):
+            raise RuntimeError(f"HIRO_OCR=simd 缺少 {missing[0]}；安装方法见 docs/assets.md")
+        if (found := simd_deps.find_dotnet(deps)) is None:
+            raise RuntimeError("HIRO_OCR=simd 找不到 .NET 10 Runtime；装法见 docs/assets.md")
+        dotnet, self.env = found
         self.cmd = [dotnet, str(helper.resolve()), str(models.resolve())]
         self.lock = RLock()
         self._start()
@@ -45,6 +45,7 @@ class SimdOcr:
         self.replies = Queue()
         self.proc = subprocess.Popen(
             self.cmd,
+            env={**os.environ, **self.env},
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, encoding="utf-8",
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )  # fmt: skip

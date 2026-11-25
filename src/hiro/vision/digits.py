@@ -401,9 +401,13 @@ def _number_without_font(img: MatLike, box: tuple[int, int, int, int], *, align:
     from hiro.vision.ocr import ocr
 
     x1, y1, x2, y2 = box
-    text = re.sub(r"\D", "", "".join(t for t, _ in ocr(img[y1:y2, x1:x2], scale=6.0)).translate(CIRCLED))
-    vision = int(text) if text else None
-    return vision if vision is not None and vision in (whole, trimmed) else None
+    # 先放大 6 倍；macOS 27.2.1 的 Apple Vision 在 6 倍下认不出孤零零一个「0」（元気 0，A16），读不出或对不上再试 3 倍
+    for scale in (6.0, 3.0):
+        text = re.sub(r"\D", "", "".join(t for t, _ in ocr(img[y1:y2, x1:x2], scale=scale)).translate(CIRCLED))
+        vision = int(text) if text else None
+        if vision is not None and vision in (whole, trimmed):
+            return vision
+    return None
 
 
 SPAN_PAD = 4  # ddddocr 兜底时字形组外多取的像素

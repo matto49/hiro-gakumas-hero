@@ -2,22 +2,25 @@
 
 - vision：Apple Vision（macOS 系统文字识别）。实测在作者机器上比 KAA 的 RapidOCR 快 2–7 倍且更准（见 README），
   macOS 上默认用它。区域先放大 3 倍再识别，小号描边数字更稳。
-- rapidocr：RapidOCR（rapidocr_onnxruntime + PaddleOCR PP-OCRv3 日文 / 英文识别模型，见 _rapid_model；不经过 kotonebot）。非 macOS（模拟器 / DMM）用它；
-  **识别率与速度没有在本项目的回归截图上核对过**，换平台后先用回归截图验一遍（见 docs/assets.md）。
+- rapidocr：RapidOCR（rapidocr_onnxruntime + PaddleOCR PP-OCRv3 日文 / 英文识别模型，见 _rapid_model；不经过 kotonebot）。
+  Windows 没装 SIMD 时和其他平台的缺省。
 - winocr：Windows 自带的文字识别（Windows.Media.Ocr，经 winrt 调用；要装了日文 OCR 语言，Windows 设置里加日语即可）。
   Windows 实测单块区域约 0.05 s。它按「词」返回结果，日文是一字一词：这里按间隙把一行拆成段、段内拼回文字（见 _split_words / _join_words）。
 
 - ppocr5：rapidocr 包里的 PaddleOCR PP-OCRv5（中日英一个模型，onnxruntime），比 KAA 自带的 RapidOCR 模型新；
   Mac / Windows 结果一致。中日混合模型会把部分汉字认成简体（强化、交换済），按 _SIMPLIFIED 换回日文写法。
 
-- simd：可选的本机 SIMD PaddleOCR PP-OCRv6 medium，同时供 Hiro 与 KAA 使用（安装见 docs/assets.md）。
+- simd：本机 SIMD PaddleOCR PP-OCRv6 medium（.NET 10 辅助进程，GPU 走 Vulkan / Metal），供 Hiro 使用（安装见 docs/assets.md）。
+  Windows 上装好了就是缺省：识别测试集（11-24）上准确率和 Apple Vision 差不到 1 个点，比 RapidOCR CPU 快 5–6 倍。
 
-HIRO_OCR=auto（缺省：macOS 且能导入 Vision → vision，否则 rapidocr）/ vision / rapidocr / winocr / ppocr5 / simd。
-rapidocr 的推理设备：HIRO_OCR_DEVICE=auto（缺省 CUDA → DirectML → CPU）/ cuda / dml / cpu；CPU 线程数 HIRO_OCR_THREADS（见 ocr_device_order）。
+HIRO_OCR=auto（缺省：macOS 且能导入 Vision → vision；Windows 装好了 SIMD → simd；否则 rapidocr）/ vision / rapidocr / winocr / ppocr5 / simd。
+rapidocr 的推理设备：HIRO_OCR_DEVICE=auto（缺省 CUDA → DirectML → CPU）/ cuda / dml / cpu；CPU 线程数 HIRO_OCR_THREADS（见 ocr_device_order）；
+DirectML 用哪块显卡 HIRO_OCR_DML_DEVICE（缺省按 rapidocr 用 0 号，见 dml_device_id）。
 """
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import re
@@ -45,6 +48,18 @@ def _vision_available() -> bool:
     return True
 
 
+def _simd_usable() -> bool:
+    """Windows 上 SIMD 能不能用：辅助程序、模型、.NET 10 都在且能启动（启动一次，之后复用同一个进程）。不能用时日志写明原因。"""
+    from hiro.vision import simd_ocr
+
+    try:
+        simd_ocr.simd_engine()
+    except Exception as e:  # noqa: BLE001  缺文件、没装 .NET、启动超时都退回 RapidOCR
+        logger.warning("文字识别：SIMD 用不了（%s），用 RapidOCR", e)
+        return False
+    return True
+
+
 def engine() -> str:
     """当前 OCR 后端（首次调用时按 HIRO_OCR 和平台确定，之后不变）。"""
     global _engine
@@ -53,7 +68,12 @@ def engine() -> str:
         if want not in ENGINES:
             raise ValueError(f"HIRO_OCR={want!r} 不认识；可选：{', '.join(ENGINES)}")
         if want == "auto":
-            want = "vision" if sys.platform == "darwin" and _vision_available() else "rapidocr"
+            if sys.platform == "darwin" and _vision_available():
+                want = "vision"
+            elif sys.platform == "win32" and _simd_usable():
+                want = "simd"
+            else:
+                want = "rapidocr"
         _engine = want
     return _engine
 
@@ -132,6 +152,24 @@ def ocr_device_order(want: str | None = None, available: list[str] | None = None
     return order if "cpu" in order else [*order, "cpu"]
 
 
+def dml_device_id() -> int | None:
+    """HIRO_OCR_DML_DEVICE：DirectML 用第几块显卡（DXGI 适配器序号）。不设时 None，按 rapidocr 原样用 0 号。
+    有核显 / 虚拟显卡的机器上 0 号常常不是独显：Windows 台式机（11-24）0 号比 CPU 还慢，RTX 5060 是 1 号。"""
+    v = (os.environ.get("HIRO_OCR_DML_DEVICE") or "").strip()
+    if not v:
+        return None
+    if not v.isdigit():
+        raise ValueError(f"HIRO_OCR_DML_DEVICE 要是显卡序号（0、1、2……），不是 {v!r}")
+    return int(v)
+
+
+def set_dml_device(eps: list, device_id: int | None) -> list:
+    """onnxruntime 的 providers 列表里给 DirectML 那一项加上 device_id（其他不动，不改原列表）。"""
+    if device_id is None:
+        return eps
+    return [(n, {**o, "device_id": device_id}) if n == _EP["dml"] else (n, o) for n, o in eps]
+
+
 def _ocr_threads() -> int:
     """HIRO_OCR_THREADS：CPU 推理用几个线程（缺省 -1 = onnxruntime 自己定，通常占满所有核）。CPU 模式下调小能降占用和风扇声，单帧会慢一些。"""
     try:
@@ -149,6 +187,22 @@ def _session_device(engine) -> str:
     return next((d for d, ep in _EP.items() if ep == first), "cpu")
 
 
+@contextlib.contextmanager
+def _dml_device_patch(device_id: int | None):
+    """rapidocr_onnxruntime 建 session 时 DirectML 固定用 0 号显卡、没有参数可改：建引擎期间临时包一层 _get_ep_list。"""
+    if device_id is None:
+        yield
+        return
+    from rapidocr_onnxruntime.utils.infer_engine import OrtInferSession  # pyright: ignore[reportMissingImports]
+
+    orig = OrtInferSession._get_ep_list
+    OrtInferSession._get_ep_list = lambda self: set_dml_device(orig(self), device_id)  # pyright: ignore[reportAttributeAccessIssue]
+    try:
+        yield
+    finally:
+        OrtInferSession._get_ep_list = orig
+
+
 def _rapid_engine(languages):
     from rapidocr_onnxruntime import RapidOCR
 
@@ -162,8 +216,9 @@ def _rapid_engine(languages):
                 for part in ("det", "rec")
                 for k, d in (("use_cuda", "cuda"), ("use_dml", "dml"))
             }
-            engine = RapidOCR(rec_model_path=str(_rapid_model(tag)), use_det=True, use_cls=False, use_rec=True,
-                              det_intra_op_num_threads=threads, rec_intra_op_num_threads=threads, **flags)  # fmt: skip
+            with _dml_device_patch(dml_device_id() if dev == "dml" else None):
+                engine = RapidOCR(rec_model_path=str(_rapid_model(tag)), use_det=True, use_cls=False, use_rec=True,
+                                  det_intra_op_num_threads=threads, rec_intra_op_num_threads=threads, **flags)  # fmt: skip
             got = _session_device(engine)
             if got == dev:
                 break
@@ -332,15 +387,16 @@ def _pp_engine(languages):
 
 
 def _pp_raw(img: MatLike, scale: float, languages) -> list[tuple[str, float, tuple[int, int, int, int]]]:
-    """img 已放大；四点框取外接矩形、除以 scale 换回原图坐标；简体字换回日文写法。"""
+    """img 已放大；四点框取外接矩形、减去补白偏移、除以 scale 换回原图坐标；简体字换回日文写法。"""
     if img.ndim == 2:
         img = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-    res = _pp_engine(languages)(img)
+    padded, ox, oy = _pad_to(img, RAPID_PAD)  # 小图居中补白（同 RapidOCR）：不补白时 HUD 小框上检测不到字
+    res = _pp_engine(languages)(padded)
     if res.boxes is None or res.txts is None:
         return []
     out = []
     for box, text, conf in zip(res.boxes, res.txts, res.scores, strict=False):
-        xs, ys = [p[0] for p in box], [p[1] for p in box]
+        xs, ys = [p[0] - ox for p in box], [p[1] - oy for p in box]
         out.append(
             (
                 str(text).translate(_SIMPLIFIED),

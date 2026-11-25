@@ -38,3 +38,26 @@ def test_threads_env(monkeypatch):
     assert ocr._ocr_threads() == -1
     monkeypatch.delenv("HIRO_OCR_THREADS")
     assert ocr._ocr_threads() == -1
+
+
+def test_dml_device_env(monkeypatch):
+    """HIRO_OCR_DML_DEVICE：DirectML 用第几块显卡。rapidocr 固定用 0 号，Windows 台式机（11-24）0 号是核显 / 虚拟显卡，
+    比 CPU 还慢；RTX 5060 是 1 号，整帧检测快 10 倍。不设时保持原样（返回 None，不改 rapidocr 的设置）。"""
+    monkeypatch.delenv("HIRO_OCR_DML_DEVICE", raising=False)
+    assert ocr.dml_device_id() is None
+    monkeypatch.setenv("HIRO_OCR_DML_DEVICE", "1")
+    assert ocr.dml_device_id() == 1
+    monkeypatch.setenv("HIRO_OCR_DML_DEVICE", "x")
+    with pytest.raises(ValueError):
+        ocr.dml_device_id()
+
+
+def test_set_dml_device_only_touches_directml():
+    eps = [
+        ("DmlExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"}),
+        ("CPUExecutionProvider", {"arena_extend_strategy": "kSameAsRequested"}),
+    ]
+    got = ocr.set_dml_device(eps, 1)
+    assert got[0] == ("DmlExecutionProvider", {"arena_extend_strategy": "kSameAsRequested", "device_id": 1})
+    assert got[1] == eps[1] and "device_id" not in eps[0][1]  # 不改原列表
+    assert ocr.set_dml_device(eps, None) == eps

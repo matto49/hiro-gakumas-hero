@@ -118,6 +118,18 @@ def tower_classify(img):
 
         if contest_page(screen_texts(img)):
             return PageHit("TOWER_CONTEST", "ocr")
+    if (
+        hit.name == "DIALOG"
+        and (f := hit.fields or {}).get("kind") == "produce_resume"
+        and "への道" in (f.get("title") or "")
+    ):
+        # D4b（11-26 04:07 实机）：日切换打断了挑战中的那一层，再进偶像之路弹「アイドルへの道再開」（リタイア / キャンセル / 再開する）。
+        # 只认「再開する」：通用弹窗交给 LLM 兜底时，见到リタイア / 破棄 不敢点，60s 停机
+        from hiro.vision.ocr import screen_texts
+
+        btn = next((t.rect for t in screen_texts(img) if t.text.strip() == "再開する" and t.rect.y1 > 1000), None)
+        if btn is not None:
+            return PageHit("TOWER_RESUME", "ocr", fields={"resume": ((btn.x1 + btn.x2) // 2, (btn.y1 + btn.y2) // 2)})
     return hit
 
 
@@ -602,6 +614,15 @@ class TowerPlay:
         logger.info("偶像之路：再挑戦（同じ編成で再挑戦 → OK）")
         return DONE
 
+    def on_resume(self, rt, f, hit):
+        """「アイドルへの道再開」：点「再開する」接着打挑战中的那一层（只点这个；リタイア 会破弃这一层，绝不点）。"""
+        if self._just_acted(rt, "TOWER_RESUME"):
+            return STAY
+        rt.device.tap(*hit.fields["resume"])
+        self._mark_acted(rt, "TOWER_RESUME")
+        logger.info("偶像之路：挑战中的关卡再開（点「再開する」）")
+        return DONE
+
     def handlers(self) -> dict:
         def reopen(fn):
             def h(rt, f, hit):
@@ -612,7 +633,8 @@ class TowerPlay:
 
         hs = {"home": self.on_home, "TOWER_CONTEST": self.on_contest, "TOWER_LIST": self.on_list, "TOWER_LAYERS": self.on_layers, "TOWER_LAYER_INFO": self.on_layer_info,
                 "TOWER_FORMATION": self.on_formation, "TOWER_MEMORY_SELECT": self.on_memory_select, "TOWER_EXAM": self.on_exam,
-                "TOWER_RANKING": self.on_ranking, "TOWER_RESULT": self.on_result, "TOWER_RETRY_CONFIRM": self.on_retry_confirm}  # fmt: skip
+                "TOWER_RANKING": self.on_ranking, "TOWER_RESULT": self.on_result, "TOWER_RETRY_CONFIRM": self.on_retry_confirm,
+                "TOWER_RESUME": self.on_resume}  # fmt: skip
 
         def track(page, fn):
             def h(rt, f, hit):
@@ -624,6 +646,34 @@ class TowerPlay:
 
         # 结果页和名次页自己管 result_handled（不合格名次页上直接点再挑戦，同一张页还会被认出来）
         return {k: track(k, v if k in ("TOWER_RESULT", "TOWER_RANKING") else reopen(v)) for k, v in hs.items()}
+
+
+def play_segment(rt, session, tp) -> None:
+    """打到设定的层数。日切换（日本时间 5 点「日付変更」，只有「タイトルへ」）：回首页后清掉这一层打到一半的状态，
+    游戏日变了就按新的一天清掉每日次数（tries / best / cleared / gave_up_three，和 tower_cache 每日记录同一约定：
+    换了游戏日，重启进程读回来的也是空的），从首页重新走进偶像之路接着打（同初 / N.I.A 的 play.segment_with_date_changes，
+    一段最多 MAX_DATE_CHANGES 次）。已打完的层数（done_layers）保留。"""
+    from hiro.runtime import play
+
+    day = [tower_cache.game_day()]
+
+    def resume():
+        # 日切换打断的那一场作废：结果页、再挑戦确认框、刚点过的页面、抽牌记录都从头来
+        tp.result_handled, tp._acted, tp._partial_since, tp.exam_draws = False, None, None, None
+        tp._nav_reset()  # 选层搜索从头来：回首页再进来，层选择页的位置变了，之前看过的层也要按新的一天重看（CodeRabbit #96）
+        today = tower_cache.game_day()
+        if today != day[0]:
+            run = tp.run
+            run.tries.clear()
+            run.best.clear()
+            run.cleared.clear()
+            run.gave_up_three.clear()
+            logger.info("偶像之路：游戏日从 %s 换到 %s，每日次数从头算", day[0], today)
+            day[0] = today
+
+    play.segment_with_date_changes(
+        rt, session, new=None, resume=resume, play_until=lambda: rt.run(until=lambda: tp.finished)
+    )
 
 
 def run(args) -> int:
@@ -649,7 +699,7 @@ def run(args) -> int:
                  dialog_words=DIALOG_WORDS, idle_stop_s=IDLE_STOP_S, rescue=not args.no_llm)  # fmt: skip
     active.use(rt)
     try:
-        rt.run(until=lambda: tp.finished)
+        play_segment(rt, session, tp)
         return 0
     except ResumeBlocked as e:
         logger.error("%s", e)

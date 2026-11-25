@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import hiro
+from hiro.cli import reason_text
 from hiro.cli.catalog import idol_name
 
 REPO = Path(hiro.__file__).resolve().parents[2]  # 仓库根（tools/ 下的脚本从这里找）
@@ -43,12 +44,17 @@ def failure_reason(lines: list[str]) -> str | None:
         t = line.strip()
         if t.startswith("停下："):
             stop = t[len("停下：") :]
+        elif t.endswith("停下") and not _LOG_PREFIX.match(t) and len(t) > 2:
+            stop = t[: -len("停下")].rstrip(
+                "，, "
+            )  # 工具把「停下」写在句尾（G1-F2：扫偶像卡「没进到偶像详情页（…），停下」）
         elif (m := _LOG_PREFIX.match(t)) and m.group(1) in ("ERROR", "CRITICAL"):
             err = t[m.end() :]
     why = stop or err
     if not why:
         return None
     why = _SHOT_SUFFIX.sub("", why).strip()
+    why = reason_text.plain(why)  # 卡号换卡名、程序原话换白话（先换再截：名字比编号短）
     return why if len(why) <= REASON_MAX else why[: REASON_MAX - 1] + "…"
 
 
@@ -208,12 +214,40 @@ def _produce_argv(module: str, default_level: str):
     return build
 
 
+def _with_prepare(mode: str, build):
+    """开局前准备（cmd_run._prepare_in_job 填 prepare）：任务先由 hiro.runtime.prepare_start 挑空白编成位、写编成，再 exec 原来的命令。"""
+
+    def argv(p: dict, d: Path) -> list[str]:
+        inner = build(p, d)
+        if not p.get("prepare") or (p.get("command") or "new") != "new":
+            return inner
+        what = ["--what", p["prepare_what"]] if p.get("prepare_what") else []
+        return [
+            _PY,
+            "-m",
+            "hiro.runtime.prepare_start",
+            "--mode",
+            mode,
+            *what,
+            "--out",
+            str(d / "prepare.json"),
+            "--",
+            *inner,
+        ]
+
+    return argv
+
+
+def _prepare_suffix(p: dict) -> str:
+    return f"\n开局前：{p['prepare_note']}" if p.get("prepare") and p.get("prepare_note") else ""
+
+
 def _produce_summary(name: str, default_level: str):
     def summary(p: dict) -> str:
         level = (p.get("difficulty") or default_level).upper()
         if (p.get("command") or "new") == "resume":
             return f"接着打进行中的{name}培育"
-        return f"开一局{name} {level}" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "")
+        return f"开一局{name} {level}" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "") + _prepare_suffix(p)
 
     return summary
 
@@ -239,7 +273,7 @@ def _hif_summary(p: dict) -> str:
         return "接着打进行中的 H.I.F 培育"
     if (p.get("mode") or "qualify") == "main":
         return "开一局 H.I.F 本战（会用掉一份选拔回忆）"
-    return "开一局 H.I.F 选拔" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "")
+    return "开一局 H.I.F 选拔" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "") + _prepare_suffix(p)
 
 
 KINDS: dict[str, Kind] = {
@@ -249,7 +283,13 @@ KINDS: dict[str, Kind] = {
         lambda p, d: [_PY, "-c", _SELFTEST, str(p.get("seconds") or 1), d.name],
         lambda p: "跑一次自检（不碰游戏）",
     ),
-    "hif": Kind("hif", "H.I.F 培育：选拔 / 本战 / 续跑", _hif_argv, _hif_summary, env={"HIRO_RUNTIME": "own"}),
+    "hif": Kind(
+        "hif",
+        "H.I.F 培育：选拔 / 本战 / 续跑",
+        _with_prepare("hif", _hif_argv),
+        _hif_summary,
+        env={"HIRO_RUNTIME": "own"},
+    ),
     "tower": Kind(
         "tower",
         "偶像之路：按偶像路线往上爬",
@@ -273,14 +313,14 @@ KINDS: dict[str, Kind] = {
     "hajime": Kind(
         "hajime",
         "「初」培育（レギュラー / プロ / マスター）",
-        _produce_argv("hiro.runtime.hajime", "regular"),
+        _with_prepare("hajime", _produce_argv("hiro.runtime.hajime", "regular")),
         _produce_summary("「初」", "regular"),
         env={"HIRO_RUNTIME": "own"},
     ),
     "nia": Kind(
         "nia",
         "N.I.A 培育（プロ / マスター；认不出的页会停下交给你）",
-        _produce_argv("hiro.runtime.nia_sample", "pro"),
+        _with_prepare("nia", _produce_argv("hiro.runtime.nia_sample", "pro")),
         _produce_summary(" N.I.A", "pro"),
         env={"HIRO_RUNTIME": "own"},
     ),
@@ -300,9 +340,12 @@ KINDS: dict[str, Kind] = {
     ),
     "check-settings": Kind(
         "check-settings",
-        "检查游戏设置里快进 / 跳过演出那几项开没开（只读：打开菜单看完回首页，不点开关）",
-        lambda p, d: [_PY, str(REPO / "tools" / "check_settings.py"), "--json", str(d / "out.json")],
-        lambda p: "检查游戏设置（只读，不改开关）",
+        "检查游戏设置里快进 / 跳过演出那几项开没开（只读：打开菜单看完回首页，不点开关；--fix 不对的顺手改好）",
+        lambda p, d: (
+            [_PY, str(REPO / "tools" / "check_settings.py"), "--json", str(d / "out.json")]
+            + (["--fix"] if p.get("fix") else [])
+        ),
+        lambda p: "把游戏设置改好（快进、跳过演出）" if p.get("fix") else "检查游戏设置（只读，不改开关）",
         output="game_settings",
         pausable=False,
     ),

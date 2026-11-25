@@ -268,7 +268,7 @@ func (s *state) row(c *ui.Context, h plugin.Host, kind string, it map[string]any
 	case "supports":
 		supportRow(c, h, it)
 	case "memories":
-		memoryRow(c, it)
+		memoryRow(c, h, it)
 	case "game_settings":
 		settingRow(c, it)
 	default:
@@ -335,23 +335,36 @@ func planName(p string) string {
 func supportRow(c *ui.Context, h plugin.Host, it map[string]any) {
 	id := str(it, "id")
 	art := common.Shared.Sprite(h, "support-"+id)
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(4, 0).Children(func() {
+	e := common.Shared.Get(h, id)
+	ja := str(it, "name")
+	name := or(ja, "（没认出）")
+	if e != nil && e.Name != "" {
+		name = e.Name // 资料库的中文名（11-22：资源站的信息用上，先加中文）；日文原名跟在后面
+	}
+	meta := strings.TrimSpace(str(it, "rarity"))
+	if lv := str(it, "level"); lv != "" {
+		meta += " Lv" + lv
+	}
+	if b := str(it, "breaks"); b != "" {
+		meta += " · 突破 " + b
+	}
+	row := ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(4, 0)
+	if id != "" {
+		row = row.Tooltip(common.Tip(e, common.Both(name, ja), strings.TrimSpace(meta)))
+	}
+	row.Children(func() {
 		kit.Thumb(c, art, 36, 36, 8)
 		ui.Box(c).Size(7, 7).Radius(4).Background(kit.AttrColor(str(it, "attr"))).Shrink(0)
-		ui.Text(c, or(str(it, "name"), "（没认出）")).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…").Shrink(1)
+		ui.Text(c, name).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…").Shrink(1)
+		if ja != "" && ja != name {
+			ui.Text(c, ja).FontSize(11.5).TextColor(kit.Ink3).MaxLines(1).Ellipsis("…").Shrink(2)
+		}
 		ui.Spacer(c)
-		meta := strings.TrimSpace(str(it, "rarity"))
-		if lv := str(it, "level"); lv != "" {
-			meta += " Lv" + lv
-		}
-		if b := str(it, "breaks"); b != "" {
-			meta += " · 突破 " + b
-		}
 		ui.Text(c, strings.TrimSpace(meta)).FontSize(11.5).TextColor(kit.Ink2).SingleLine()
 	})
 }
 
-func memoryRow(c *ui.Context, it map[string]any) {
+func memoryRow(c *ui.Context, h plugin.Host, it map[string]any) {
 	st, _ := it["stats"].(map[string]any)
 	num := func(k string) string {
 		if v, ok := st[k].(float64); ok {
@@ -359,22 +372,57 @@ func memoryRow(c *ui.Context, it map[string]any) {
 		}
 		return "?"
 	}
-	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(4, 0).Children(func() {
-		ui.Text(c, or(labels.Timing(str(it, "timing")), "?")).FontSize(11).TextColor(kit.Ink2).Padding(1, 6).Radius(5).Background(kit.Surface2)
-		ui.Text(c, or(str(it, "card"), "（没认出）")).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…").Shrink(1)
+	id := str(it, "card_id")
+	ja := str(it, "card")
+	name := or(ja, "（没认出）")
+	art := ""
+	e := common.Shared.Get(h, id)
+	if e != nil {
+		if e.Name != "" {
+			name = e.Name
+		}
+		art = common.Shared.Sprite(h, e.Asset)
+	}
+	stats := "Vo " + num("Vo") + " · Da " + num("Da") + " · Vi " + num("Vi")
+	timing := or(labels.Timing(str(it, "timing")), "?")
+	row := ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(4, 0)
+	if id != "" {
+		row = row.Tooltip(common.Tip(e, common.Both(name, ja), "用在："+timing, stats))
+	}
+	row.Children(func() {
+		kit.Thumb(c, art, 36, 36, 8)
+		ui.Text(c, name).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…").Shrink(1)
+		if ja != "" && ja != name {
+			ui.Text(c, ja).FontSize(11.5).TextColor(kit.Ink3).MaxLines(1).Ellipsis("…").Shrink(2)
+		}
 		ui.Spacer(c)
-		ui.Text(c, "Vo "+num("Vo")+" · Da "+num("Da")+" · Vi "+num("Vi")).FontSize(11.5).TextColor(kit.Ink2).SingleLine()
+		ui.Text(c, stats).FontSize(11.5).TextColor(kit.Ink2).SingleLine()
+		ui.Text(c, timing).FontSize(11).TextColor(kit.Ink2).Padding(1, 6).Radius(5).Background(kit.Surface2).Shrink(0)
 	})
+}
+
+// settingWrong：读到了、但不是要的状态（want 缺省按要 ON；want 为 null 表示不管）。
+func settingWrong(it map[string]any) bool {
+	state := str(it, "state")
+	if state == "" {
+		return false
+	}
+	want, has := it["want"]
+	if !has {
+		return state != "ON"
+	}
+	w, _ := want.(string)
+	return w != "" && w != state
 }
 
 func settingRow(c *ui.Context, it map[string]any) {
 	state := str(it, "state")
 	col, text := kit.Ink3, "读不到"
-	switch state {
-	case "ON":
-		col, text = kit.Good, "ON"
-	case "OFF":
-		col, text = kit.Bad, "OFF"
+	if state != "" {
+		col, text = kit.Good, state
+		if settingWrong(it) {
+			col = kit.Bad
+		}
 	}
 	ui.Row(c).Padding(4, 0).Children(func() {
 		ui.Text(c, str(it, "item")).FontSize(kit.FSmall).TextColor(kit.Ink)
@@ -469,11 +517,34 @@ func (s *state) listPanel(c *ui.Context, h plugin.Host, kind string) {
 		kit.Note(c, or(l.Hint, "还没扫描过；到「扫描」里扫一次。"))
 		return
 	}
+	if kind == "game_settings" {
+		s.settingsFix(c, h, l.Items)
+	}
 	ui.Column(c).Gap(0).Children(func() {
 		for i, it := range l.Items {
 			ui.Column(c).Key(fmt.Sprintf("%s-%d", kind, i)).BorderColor(kit.Line).BorderWidth(0, 0, kit.Hair, 0).Padding(2, 0).Children(func() {
 				s.row(c, h, kind, it)
 			})
+		}
+	})
+}
+
+// settingsFix：有不对的开关时给「一键改好」（D3）：确认后打开 メニュー → 設定 → プロデュース，只动这 5 个开关，改完回读核对。
+func (s *state) settingsFix(c *ui.Context, h plugin.Host, items []map[string]any) {
+	var wrong []string
+	for _, it := range items {
+		if settingWrong(it) {
+			wrong = append(wrong, str(it, "item"))
+		}
+	}
+	if len(wrong) == 0 {
+		return
+	}
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(6, 0).Children(func() {
+		kit.Note(c, fmt.Sprintf("%d 项不对（%s）：开局会多弹几个设置框。游戏停在首页时可以让初星助手改好。", len(wrong), strings.Join(wrong, "、"))).Shrink(1)
+		ui.Spacer(c)
+		if kit.Primary(c, "一键改好").Key("settings-fix").Label("一键改好").Clicked() {
+			h.RunArgs("把游戏设置改好", []string{"run", "start", "check-settings", "--fix"})
 		}
 	})
 }

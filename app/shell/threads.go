@@ -69,6 +69,9 @@ func loadThreads(store ThreadStore) []*Thread {
 			if m.Cards == nil {
 				m.Cards = []plugin.Card{}
 			}
+			for _, card := range m.Cards {
+				delete(card, "sending") // 「再试一次」发起中只在这次运行里有效：程序关了回调不会再来，留着按钮会一直灰（#110 review）
+			}
 			msgs = append(msgs, m)
 		}
 		t.Messages = msgs

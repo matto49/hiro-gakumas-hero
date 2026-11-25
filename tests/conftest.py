@@ -430,3 +430,15 @@ def pytest_runtest_makereport(item, call):
     ):
         rep.outcome = "skipped"
         rep.longrepr = (str(item.path), item.location[1] or 0, f"Skipped: 要可选组 play（{call.excinfo.value}）")
+
+
+@pytest.fixture(autouse=True)
+def _no_catalog_network(monkeypatch):
+    """资料库缺了会自动下载（hiro.cli.catalog._ensure_synced，G1-F3）：测试里缺省指到本机关着的端口，立刻失败、不连外网；
+    要下载的测试自己起本地服务器再设 HIRO_CATALOG_URL。每个测试前重置「刚试过」的冷却。"""
+    monkeypatch.setenv("HIRO_CATALOG_URL", "http://127.0.0.1:9")
+    try:
+        from hiro.cli import catalog
+    except ImportError:
+        return
+    monkeypatch.setattr(catalog, "_auto_sync_at", None)

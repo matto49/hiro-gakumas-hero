@@ -13,6 +13,9 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 FILE = "plugins.json"
+# 结算类页面 → 区分「同一页的第几次」的字段。育成插件 end 拿到的结果里按这两类页面攒（本进程这一段里看到的）
+RESULT_PAGES = {"HIF_EXAM_RESULT": "exam_no", "HIF_FINALS_RANKING": "finals_round"}
+RESULT_SKIP = {"entries"}  # 整张排行榜太长，不放进 end 的结果（要看去 trace）
 
 
 class Record:
@@ -98,8 +101,14 @@ class Record:
         except OSError as e:
             logger.warning("写 %s 失败：%s", FILE, e)
 
-    def reset(self) -> None:
+    def reset(self, *, closers: bool = False) -> None:
+        """从零记（换 trace 目录时、测试里）。closers=True 连收尾回调一起丢（只有测试用：正常运行时它们要留到进程结束）。"""
+        if closers:
+            self._closers.clear()
         self.dirty = False
+        self.results: list[dict[str, Any]] = []  # 本段看到的结算页读数（育成插件 end 的结果）
+        self._result_open = False  # 眼下是不是还停在上一条结算页上（同一页的后续帧并进同一条）
+        self.last_page: str | None = None
         self.points: dict[str, dict[str, Any]] = defaultdict(
             lambda: {"plugin": None, "decided": 0, "deferred": 0, "errors": 0, "last_error": None}
         )
@@ -129,6 +138,33 @@ class Record:
         if text not in self.warnings:
             self.warnings.append(text)
             self.dirty = True
+
+    def note_page(self, page: str, fields: dict[str, Any] | None) -> None:
+        """Session 每观测到一个页面调一次：结算页的读数攒进 results，育成插件的 end 当结果拿到。
+        同一次结算页停留期间多帧读到的字段并进同一条（先读到分数、后读到名次）；离开再进来才算新的一条。"""
+        self.last_page = page
+        if page not in RESULT_PAGES:
+            self._result_open = False
+            return
+        keep = {k: v for k, v in (fields or {}).items() if v is not None and k not in RESULT_SKIP}
+        if self._result_open and self.results and self.results[-1]["page"] == page:
+            self.results[-1].update(keep)
+            return
+        if not keep:
+            return
+        self.results.append({"page": page, **keep})
+        self._result_open = True
+
+    def end_result(self) -> dict[str, Any]:
+        """给育成插件 end 的结果：本段 trace 目录、最后停在哪一页、看到的每次结算页读数（评价 / 名次 / 分数 / 是否通过等）。
+        只含本进程这一段；续跑的上一段在它自己的 trace 里。"""
+        results = [dict(r) for r in self.results]
+        return {
+            "trace_dir": str(self.trace_dir) if self.trace_dir is not None else None,
+            "final_page": self.last_page,
+            "results": results,
+            "last_result": results[-1] if results else None,
+        }
 
     def hidden(self, names: list[str] | set[str], label: str) -> None:
         if not names:

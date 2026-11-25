@@ -16,6 +16,7 @@ import pytest
     [
         ({"kind": "scan-memories"}, "read"),
         ({"kind": "check-settings"}, "read"),
+        ({"kind": "check-settings", "fix": True}, "write"),
         ({"kind": "selftest"}, "read"),
         ({"kind": "daily"}, "daily"),
         ({"kind": "hajime", "idol": "i_card-x"}, "all"),

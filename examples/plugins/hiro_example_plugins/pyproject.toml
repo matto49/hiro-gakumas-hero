@@ -6,7 +6,7 @@ requires-python = ">=3.10"
 
 [project.entry-points."hiro_gakumas.plugins"]
 "produce_advisor.example_study" = "hiro_example_plugins.produce:StudyFirstOption"
-"observation_source.example_replay" = "hiro_example_plugins.source:ReplaySource"
+"observation_source.example_json" = "hiro_example_plugins.source:JsonFileSource"
 
 [build-system]
 requires = ["setuptools>=61"]

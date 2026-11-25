@@ -290,7 +290,6 @@
   "llm",
   "seconds",
   "decider",
-  "plugin",
   "version"
  ],
  "additionalProperties": false,

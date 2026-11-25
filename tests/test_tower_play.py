@@ -400,3 +400,120 @@ def test_result_counted_once_per_exam_even_after_retry_confirm(tmp_path):
     h["TOWER_RETRY_CONFIRM"](rt, None, NS(fields={"cost": None, "same": [492, 1037], "ok": [509, 1160]}))  # 换页
     now[0] = 30.0
     assert h["TOWER_RESULT"](rt, None, res) is DONE and p.run.tries[20] == 2
+
+
+def test_date_change_mid_tower_recovers_and_keeps_going(monkeypatch):
+    """D4（初星課題规程待办）：偶像之路也接住日切换（初 / N.I.A 在 #62 修过）：回首页后清掉这一层打到一半的状态，
+    游戏日变了就把每日次数（tries / best / cleared / gave_up_three，和 tower_cache 的每日记录同一约定）当新的一天，
+    从首页重新走进偶像之路接着打，不再整段 traceback 退出。"""
+    from types import SimpleNamespace
+
+    from hiro.loop.date_change import DateChanged
+    from hiro.runtime import play, tower_cache, tower_play
+
+    calls = []
+    monkeypatch.setattr(play, "recover_date_change", lambda rt, session: calls.append("recover"))
+    day = ["2026-11-25"]
+    monkeypatch.setattr(tower_cache, "game_day", lambda now=None: day[0])
+    run = SimpleNamespace(tries={16: 3}, best={16: 2}, cleared={15}, gave_up_three=[16], tower_id=None)
+    tp = SimpleNamespace(finished=False, run=run, result_handled=False, _acted=None, _partial_since=None, exam_draws=None,
+                         done_layers=2, nav={"seen": {}, "start": None})  # fmt: skip
+    tp._nav_reset = lambda: setattr(tp, "nav", {"seen": {}, "start": None})
+    seen = []
+
+    def go(until):
+        calls.append("run")
+        if len(seen) == 0:
+            seen.append(1)
+            # 打到一半：这些状态都在；然后过了日本时间 5 点
+            tp.result_handled, tp._acted, tp._partial_since, tp.exam_draws = True, ("TOWER_RESULT", 1.0), 3.0, {"x": 1}
+            tp.nav = {
+                "seen": {1: (0, False)},
+                "start": 2,
+            }  # 选层搜索做到一半（CodeRabbit #96：第 1 层次数用完的记录要清）
+            day[0] = "2026-11-26"
+            raise DateChanged("日付変更")
+        # 日切换后的这一轮：打到一半的状态和前一天的次数都清掉了，已打完的层数保留
+        assert tp.result_handled is False and tp._acted is None and tp._partial_since is None and tp.exam_draws is None
+        assert run.tries == {} and run.best == {} and run.cleared == set() and run.gave_up_three == []
+        assert tp.done_layers == 2
+        assert tp.nav == {"seen": {}, "start": None}
+        tp.finished = True
+
+    tower_play.play_segment(SimpleNamespace(run=go), object(), tp)
+    assert calls == ["run", "recover", "run"] and tp.finished
+
+
+def test_no_date_change_keeps_daily_counts(monkeypatch):
+    from types import SimpleNamespace
+
+    from hiro.runtime import tower_cache, tower_play
+
+    monkeypatch.setattr(tower_cache, "game_day", lambda now=None: "2026-11-25")
+    run = SimpleNamespace(tries={16: 3}, best={16: 2}, cleared={15}, gave_up_three=[16], tower_id=None)
+    tp = SimpleNamespace(
+        finished=False, run=run, result_handled=False, _acted=None, _partial_since=None, exam_draws=None
+    )
+    tp._nav_reset = lambda: None
+
+    def go(until):
+        tp.finished = True
+
+    tower_play.play_segment(SimpleNamespace(run=go), object(), tp)
+    assert run.tries == {16: 3} and run.cleared == {15}
+
+
+def _resume_texts():
+    from types import SimpleNamespace
+
+    from hiro.vision.ocr import Box
+
+    rows = [("リタイア", (541, 853, 620, 873)), ("挑戦中のステージ情報があります。", (54, 932, 426, 962)),
+            ("ステージを再開しますか?", (56, 965, 340, 995)), ("✕キャンセル", (117, 1146, 311, 1176)), ("再開する", (467, 1148, 579, 1178))]  # fmt: skip
+    return [SimpleNamespace(text=t, rect=Box(*b)) for t, b in rows]
+
+
+def test_resume_dialog_after_date_change_is_tower_resume(monkeypatch):
+    """D4b（11-26 04:07 实机）：日切换打断了挑战中的那一层，回首页再进偶像之路弹「アイドルへの道再開」（リタイア / キャンセル / 再開する）。
+    认成 TOWER_RESUME，只点「再開する」；原来是通用弹窗、LLM 兜底见到リタイア不敢点，60s 停机。"""
+    from hiro.runtime import tower_play
+    from hiro.vision import classify as cls
+    from hiro.vision import ocr
+
+    monkeypatch.setattr(
+        cls,
+        "classify",
+        lambda img: cls.PageHit(
+            "DIALOG", "page_ocr", fields={"kind": "produce_resume", "title": "アイドルへの道再開リ"}
+        ),
+    )
+    monkeypatch.setattr(ocr, "screen_texts", lambda img: _resume_texts())
+    hit = tower_play.tower_classify(object())
+    assert hit.name == "TOWER_RESUME" and hit.fields["resume"] == (523, 1163)
+
+
+def test_produce_resume_dialog_of_other_mode_is_not_touched(monkeypatch):
+    from hiro.runtime import tower_play
+    from hiro.vision import classify as cls
+
+    monkeypatch.setattr(
+        cls,
+        "classify",
+        lambda img: cls.PageHit("DIALOG", "page_ocr", fields={"kind": "produce_resume", "title": "プロデュース再開"}),
+    )
+    assert tower_play.tower_classify(object()).name == "DIALOG"
+
+
+def test_resume_handler_taps_resume_only():
+    from types import SimpleNamespace
+
+    from hiro.runtime import tower_play
+
+    taps = []
+    rt = SimpleNamespace(
+        device=SimpleNamespace(tap=lambda x, y: taps.append((x, y))), sleep=lambda s: None, clock=lambda: 100.0
+    )
+    tp = tower_play.TowerPlay.__new__(tower_play.TowerPlay)
+    tp._acted = None
+    out = tp.on_resume(rt, None, SimpleNamespace(fields={"resume": (523, 1163)}))
+    assert taps == [(523, 1163)] and out.kind == "done"

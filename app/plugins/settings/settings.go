@@ -96,8 +96,6 @@ type S struct {
 	step      int
 	sound     bool
 	modelOK   bool
-	// confirmAll：第一次切到「允许所有行为」的二次确认弹窗开着
-	confirmAll bool
 
 	// 模型表单
 	formFor  string // 表单是按哪次读到的设置填的
@@ -307,6 +305,10 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 				case 0:
 					s.envSection(c, h)
 				case 1:
+					// N5（G1 实测）：进这一步就自己试连一次，不用玩家先点「试连」
+					if s.deviceOK == nil && !s.probing && s.probedAt.IsZero() {
+						s.Probe(h)
+					}
 					kit.Note(c, "先把游戏打开、停在首页。Mac 用带 maaTools 的 PlayCover，并在游戏设置里打开 maaTools；Windows 用 DMM 版，窗口不要最小化。")
 					s.deviceLine(c)
 					if kit.Secondary(c, "试连").Disabled(s.probing).Clicked() {
@@ -328,7 +330,10 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 						}
 					}
 				}
-				canNext := []bool{s.boot.Ready, true, s.sound, s.modelOK, true, true}[s.step]
+				// N5：模型这一步填了 Key（或已存过）就能点「下一步」：没测通时先存、再测，测通了自己进下一步
+				modelReady := s.modelOK || strings.TrimSpace(s.key) != "" || s.d.Settings().HasKeys[s.provider] ||
+					(s.d.Settings().HasKey && s.d.Settings().Provider == s.provider)
+				canNext := []bool{s.boot.Ready, true, s.sound, modelReady && !s.busy, true, true}[s.step]
 				ui.Row(c).Gap(8).Padding(10, 0, 0, 0).Children(func() {
 					if s.step > 0 && kit.Secondary(c, "上一步").Clicked() {
 						s.step--
@@ -338,7 +343,11 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 					}
 					if s.step < len(steps)-1 {
 						if kit.Primary(c, "下一步").Disabled(!canNext).Clicked() && canNext {
-							s.step++
+							if s.step == 3 && !s.modelOK {
+								s.saveAndTest(h, true)
+							} else {
+								s.step++
+							}
 						}
 					} else if kit.Primary(c, "完成，去对话").Clicked() {
 						st := s.d.Settings()
@@ -357,66 +366,19 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 	})
 }
 
-// permSection 是「操作权限」四档；第一次切到「允许所有行为」弹一次二次确认，确认过以后直接切。
-func (s *S) permSection(c *ui.Context) {
-	st := s.d.Settings()
-	cur := st.Permission
+// permNote：操作权限在对话框左下角切换（11-25 review「这个设置，我们放进对话框里吧，ui 同 codex」），这里只写现在是哪一档。
+func (s *S) permNote(c *ui.Context) {
+	cur := s.d.Settings().Permission
 	if cur == "" {
 		cur = "read"
 	}
-	set := func(id string) {
-		st := s.d.Settings()
-		st.Permission = id
-		if id == "all" {
-			st.AllowAllConfirmed = true
-		}
-		_ = s.d.Save(st, "")
-	}
+	name := cur
 	for _, lv := range permLevels {
-		sel := lv.id == cur
-		b := ui.ButtonBase(c).Key("perm-"+lv.id).Label(lv.name).Justify(ui.Start).AlignItems(ui.Start).Gap(10).Padding(10, 12).
-			Radius(kit.R12).Border(kit.Hair, kit.Line)
-		if sel {
-			b = b.Background(kit.BrandT).Border(1.5, kit.Brand)
-		} else if b.Hovered() {
-			b = b.Background(kit.Surface2)
-		}
-		if b.Children(func() {
-			dot := ui.Box(c).Size(14, 14).Radius(7).Border(1.5, kit.Ink3).Shrink(0).Margin(2, 0, 0, 0)
-			if sel {
-				dot = dot.Border(4, kit.Brand)
-			}
-			_ = dot
-			ui.Column(c).Gap(3).Shrink(1).Children(func() {
-				ui.Text(c, lv.name).FontSize(kit.FSmall).FontWeight(600).TextColor(kit.Ink)
-				ui.Text(c, lv.desc).FontSize(kit.FNote).TextColor(kit.Ink3).Wrap()
-			})
-		}).Clicked() && !sel {
-			if lv.id == "all" && !st.AllowAllConfirmed {
-				s.confirmAll = true
-			} else {
-				set(lv.id)
-			}
+		if lv.id == cur {
+			name = lv.name
 		}
 	}
-	if s.confirmAll {
-		ui.Modal(c, &s.confirmAll, func() {
-			ui.Column(c).Width(420).Gap(12).Padding(20).Radius(kit.R16).Background(kit.CardBg).Children(func() {
-				ui.Text(c, "确定允许所有行为？").FontSize(16).FontWeight(700).TextColor(kit.Ink)
-				kit.Note(c, "开局、接着打、初星課題都会直接开始，不再出确认卡，会用掉培育次数和 AP。花ジュエル、放弃培育这些不管哪一档都不会做。这个提示只出这一次，之后可以随时改回来。")
-				ui.Row(c).Gap(8).Children(func() {
-					ui.Spacer(c)
-					if kit.Secondary(c, "取消").Key("perm-all-cancel").Clicked() {
-						s.confirmAll = false
-					}
-					if kit.Primary(c, "确定，允许所有行为").Key("perm-all-ok").Clicked() {
-						s.confirmAll = false
-						set("all")
-					}
-				})
-			})
-		})
-	}
+	kit.Note(c, "现在是「"+name+"」。在对话框左下角点它就能换，哪些事不用确认就直接做都写在那里。")
 }
 
 const scanBeforeStartLabel = "开局前自动补扫回忆（最多 3 分钟）"
@@ -459,6 +421,7 @@ func (s *S) envSection(c *ui.Context, h plugin.Host) {
 			ui.Icon(c, kit.IcCheck).FontSize(14).TextColor(kit.Good)
 			ui.Text(c, "运行环境装好了").FontSize(kit.FSmall).TextColor(kit.Ink)
 		})
+		s.ocrLine(c)
 		if kit.Secondary(c, "下载 / 更新资料库").Disabled(s.busy).Clicked() {
 			s.busy = true
 			h.Go(func() func() {
@@ -491,6 +454,25 @@ func (s *S) envSection(c *ui.Context, h plugin.Host) {
 	}
 }
 
+// ocrLine 写现在用哪个文字识别后端（doctor 的 ocr 项，随试连游戏一起读到；还没读到时不画）。
+// SIMD 没装好时用 RapidOCR，识别慢一些：告诉用户怎么再装一次。
+func (s *S) ocrLine(c *ui.Context) {
+	s.devMu.Lock()
+	it, ok := s.doctor["ocr"]
+	s.devMu.Unlock()
+	if !ok {
+		return
+	}
+	col := kit.Ink2
+	if it.OK != nil && !*it.OK {
+		col = kit.Bad
+	}
+	ui.Text(c, "文字识别："+it.Detail).FontSize(kit.FSmall).TextColor(col).Wrap()
+	if it.Next != "" && it.OK != nil && !*it.OK {
+		kit.Note(c, it.Next)
+	}
+}
+
 func (s *S) installEnv(h plugin.Host) {
 	s.booting = true
 	s.bootLines = nil
@@ -504,6 +486,33 @@ func (s *S) installEnv(h plugin.Host) {
 				s.bootLines = append(s.bootLines, "出错了："+err.Error())
 			}
 			s.Recheck(h)
+			s.refreshOcr(h) // 装好 SIMD 之后，「文字识别」那行不能还是装之前读到的
+		}
+	})
+}
+
+// refreshOcr 重新读文字识别后端：调不连游戏的 doctor，只更新 ocr 项（platform 等项留着试连时读到的）。
+// 不看 deviceOK，游戏试连过与否都刷。
+func (s *S) refreshOcr(h plugin.Host) {
+	h.Go(func() func() {
+		var d struct {
+			Items []doctorItem `json:"items"`
+		}
+		err := h.Call(context.Background(), []string{"doctor"}).Decode(&d)
+		return func() {
+			if err != nil {
+				return
+			}
+			s.devMu.Lock()
+			defer s.devMu.Unlock()
+			for _, it := range d.Items {
+				if it.ID == "ocr" {
+					if s.doctor == nil {
+						s.doctor = map[string]doctorItem{}
+					}
+					s.doctor[it.ID] = it
+				}
+			}
 		}
 	})
 }
@@ -600,17 +609,39 @@ func (s *S) modelSection(c *ui.Context, h plugin.Host) {
 			s.saveModel()
 		}
 		if kit.Secondary(c, "测试").Disabled(s.busy).Clicked() {
-			s.saveModel()
-			s.busy = true
-			h.Go(func() func() {
-				ok, msg := s.d.Test(context.Background())
-				return func() {
-					s.busy, s.modelOK, s.note, s.noteBad = false, ok, msg, !ok
-				}
-			})
+			s.saveAndTest(h, false)
 		}
 	})
 	s.noteLine(c)
+}
+
+// saveAndTest 存模型设置再测一次；advance 时（向导里点「下一步」）测通了自己进下一步，测不通留在这一步、写原因。
+func (s *S) saveAndTest(h plugin.Host, advance bool) {
+	s.saveModel()
+	if s.noteBad {
+		return // 没存上：原因已经写在下面
+	}
+	s.busy = true
+	tested := s.formKey() // 测的是这一份；测试期间玩家改了表单，就不按旧结果自动往下走（CodeRabbit #105）
+	h.Go(func() func() {
+		ok, msg := s.d.Test(context.Background())
+		return func() {
+			same := s.formKey() == tested
+			s.busy, s.modelOK, s.note, s.noteBad = false, ok && same, msg, !ok
+			if ok && !same {
+				s.note = "测试期间改了设置，再点一次「下一步」测新的"
+			}
+			if ok && same && advance && s.step == 3 {
+				s.step++
+			}
+		}
+	})
+}
+
+// formKey 是模型表单现在的样子（服务商、模型、地址、输入框里没保存的 Key），用来判断测试结果是不是这一份的。
+// 保存时 Key 输入框会清空：测试期间又粘了 Key，这里就和开始测时不一样（CodeRabbit #105）。只在内存里比，不落盘。
+func (s *S) formKey() string {
+	return s.provider + "\x00" + strings.TrimSpace(s.model) + "\x00" + strings.TrimSpace(s.baseURL) + "\x00" + strings.TrimSpace(s.key)
 }
 
 func (s *S) saveModel() {
@@ -720,7 +751,7 @@ func (s *S) panel(c *ui.Context, h plugin.Host, route string) {
 	ui.Text(c, "模型").FontSize(15).FontWeight(650).TextColor(kit.Ink)
 	s.modelSection(c, h)
 	ui.Text(c, "操作权限").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
-	s.permSection(c)
+	s.permNote(c)
 	ui.Text(c, "扫描").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
 	s.scanSection(c)
 	ui.Text(c, "游戏连接").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)

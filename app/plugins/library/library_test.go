@@ -8,6 +8,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"github.com/matto49/hiro-gakumas-hero/app/plugin"
+	"github.com/matto49/hiro-gakumas-hero/app/plugins/common"
 	"github.com/matto49/hiro-gakumas-hero/app/plugins/plugintest"
 )
 
@@ -191,4 +192,67 @@ func TestCollectAllSlashCommand(t *testing.T) {
 		}
 	}
 	t.Fatal("没有 /全收集 命令")
+}
+
+// 11-22：「资料库把资源站的信息用上：先加上中文信息，然后再加上图标、悬浮说明」
+func TestLibraryRowsUseChineseNameIconAndTip(t *testing.T) {
+	common.Shared.Reset() // 别的测试查过同一编号（当时资料库是空的）
+	t.Cleanup(common.Shared.Reset)
+	h := plugintest.New(map[string]string{
+		"catalog lookup": `{"items":{"s_card-2-0001":{"kind":"supports","name":"一起走吧！","rarity":"SSR","text":"课程结束时 Vo 上升 +10"},` +
+			`"p_card-01-act-2_001":{"kind":"memories","name":"成长痛","asset":"card-p_card-01-act-2_001","text":"好调 +2 回合"}}}`,
+		"catalog sprite": `{"path":"/tmp/none.webp"}`,
+	})
+	v := New().Cards["info"]
+	for _, tc := range []struct {
+		card          plugin.Card
+		name, tip, ja string
+	}{
+		{plugin.Card{"type": "info", "kind": "supports", "items": []any{map[string]any{"id": "s_card-2-0001", "name": "一緒に行こう！", "rarity": "SSR", "attr": "Vo", "level": 50.0, "breaks": 4.0}}}, "一起走吧！", "课程结束时 Vo 上升 +10", "一緒に行こう！"},
+		{plugin.Card{"type": "info", "kind": "memories", "items": []any{map[string]any{"card_id": "p_card-01-act-2_001", "card": "成長痛", "timing": "mid", "stats": map[string]any{"Vo": 100.0, "Da": 200.0, "Vi": 300.0}}}}, "成长痛", "好调 +2 回合", "成長痛"},
+	} {
+		tt := ui.NewTester(func(c *ui.Context) { v(c, h, tc.card) }, 760, 400)
+		tt.Frame()
+		tt.Frame()
+		r, ok := tt.Find(tc.name)
+		if !ok {
+			t.Errorf("%v 应显示中文名 %q：%q", tc.card["kind"], tc.name, tt.Texts())
+			continue
+		}
+		tt.Move(r.X+r.W/2, r.Y+r.H/2)
+		tt.Advance(2e9)
+		tt.Frame()
+		if !tt.HasText(tc.tip) {
+			t.Errorf("%v 悬停应显示效果：%q", tc.card["kind"], tt.Texts())
+		}
+		// CodeRabbit #92：中文名后面跟日文原名（行里和悬停说明都有）
+		if !tt.HasText(tc.ja) {
+			t.Errorf("%v 应保留日文原名 %q：%q", tc.card["kind"], tc.ja, tt.Texts())
+		}
+	}
+}
+
+// D3：游戏设置有不对的开关时给「一键改好」，点了走确认（check-settings --fix）；都对（含要 OFF 的那项）时不给。
+func TestGameSettingsFixButton(t *testing.T) {
+	run := func(items string) (*plugintest.Host, *ui.Tester) {
+		h := plugintest.New(map[string]string{
+			"catalog lookup":     `{"items":{}}`,
+			"info game-settings": `{"kind":"game_settings","scanned_at":"2026-11-26 05:00:00","items":` + items + `}`,
+		})
+		p := New()
+		return h, ui.NewTester(plugintest.PanelView(func(c *ui.Context) { p.Panel(c, h, "game_settings") }), 620, 600)
+	}
+	h, tt := run(`[{"item":"未読早送り","state":"ON","want":"ON"},{"item":"親愛度映像跳过","state":"OFF","want":"ON"}]`)
+	tt.Frame()
+	if err := plugintest.ClickButton(tt, "一键改好"); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.RunArgs_) != 1 || strings.Join(h.RunArgs_[0][1:], " ") != "run start check-settings --fix" {
+		t.Errorf("一键改好：%v", h.RunArgs_)
+	}
+	_, tt = run(`[{"item":"未読早送り","state":"OFF","want":"OFF"},{"item":"親愛度映像跳过","state":"ON","want":"ON"}]`)
+	tt.Frame()
+	if _, ok := tt.AccessByRole(ui.RoleButton, "一键改好"); ok {
+		t.Error("都是要的状态，不该给「一键改好」")
+	}
 }

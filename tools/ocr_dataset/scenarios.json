@@ -1,0 +1,772 @@
+{
+ "_doc": "场景机读定义（规格 docs/ryugi/specs/2026-11-23-recognition-dataset-scenarios-design.md §2）。来源：docs/ocr-dataset/scenarios-draft.json（用户 11-23 审过）。类型 int / text / enum / bool / list；看不到写 null。icon_only = 画面上没有文字、只靠图标，这一批不标。",
+ "exam": {
+  "name": "考试中（选拔 / 本战）",
+  "pages": [
+   "HIF_EXAM",
+   "EXAM"
+  ],
+  "items": [
+   {
+    "key": "turns_left",
+    "type": "int",
+    "importance": "高",
+    "desc": "左上「残りターン」圆环里的大数字（不含下面的「+N」）",
+    "label": "剩余回合",
+    "region": [
+     0,
+     0,
+     200,
+     230
+    ]
+   },
+   {
+    "key": "extra_turns",
+    "type": "int",
+    "importance": "高",
+    "desc": "圆环下面「+N」额外回合徽章里的 N；没有这个徽章写 0",
+    "label": "额外回合（+N）",
+    "region": [
+     0,
+     0,
+     200,
+     230
+    ]
+   },
+   {
+    "key": "exam_attr",
+    "type": "enum",
+    "values": [
+     "vocal",
+     "dance",
+     "visual"
+    ],
+    "importance": "高",
+    "desc": "本回合属性（左上「ボーカル / ダンス / ビジュアル」）",
+    "label": "本回合属性",
+    "region": [
+     60,
+     30,
+     340,
+     150
+    ]
+   },
+   {
+    "key": "multiplier_pct",
+    "type": "int",
+    "importance": "低",
+    "desc": "本回合属性旁的倍率百分比，只要数字（2805% → 2805）",
+    "label": "属性倍率",
+    "region": [
+     60,
+     30,
+     340,
+     150
+    ],
+    "note": "用户 11-23：考前说明已读清倍率，不必每回合读对；测试集保留"
+   },
+   {
+    "key": "top_scores",
+    "type": "list",
+    "item": "int",
+    "importance": "高",
+    "desc": "画面顶部排名条上能看到的分数，从左到右，只要数字（本战有；选拔若没有分数写 []）",
+    "label": "顶部排名分数",
+    "region": [
+     140,
+     0,
+     520,
+     180
+    ]
+   },
+   {
+    "key": "breakthrough_rank",
+    "type": "int",
+    "importance": "中",
+    "desc": "选拔顶部突破线的名次（「64/128人」的 64），没有写 null",
+    "label": "突破线名次",
+    "region": [
+     140,
+     0,
+     720,
+     200
+    ]
+   },
+   {
+    "key": "breakthrough_total",
+    "type": "int",
+    "importance": "低",
+    "desc": "选拔顶部突破线的总人数（「64/128人」的 128），没有写 null",
+    "label": "突破线总人数",
+    "region": [
+     140,
+     0,
+     720,
+     200
+    ]
+   },
+   {
+    "key": "hp",
+    "type": "int",
+    "importance": "高",
+    "desc": "体力（绿色爱心旁的数字）",
+    "label": "体力",
+    "region": [
+     300,
+     150,
+     720,
+     250
+    ]
+   },
+   {
+    "key": "genki",
+    "type": "int",
+    "importance": "高",
+    "desc": "元气（体力条右端蓝色方框里的数字）",
+    "label": "元气",
+    "region": [
+     300,
+     150,
+     720,
+     250
+    ]
+   },
+   {
+    "key": "hand",
+    "type": "list",
+    "importance": "高",
+    "desc": "画面最下方手牌栏里的牌，从左到右每张一项；正在打出、被抬到画面中间的那张不算手牌（写在 playing_name）",
+    "fields": [
+     {
+      "key": "name",
+      "type": "text",
+      "desc": "卡面下方的卡名，不含末尾的「+」",
+      "prefix_ok": true,
+      "label": "卡名"
+     },
+     {
+      "key": "plus",
+      "type": "bool",
+      "desc": "卡名末尾有没有「+」",
+      "label": "有没有 +",
+      "derivable": true
+     },
+     {
+      "key": "cost_type",
+      "type": "enum",
+      "values": [
+       "green_heart",
+       "red_heart",
+       "buff",
+       "none"
+      ],
+      "desc": "卡右下角的消耗图标长什么样：绿色爱心 = green_heart，红色爱心 = red_heart，蓝色菱形的状态图标（拳头、太阳等）= buff；卡右下角没有消耗图标写 none",
+      "derivable": true,
+      "label": "消耗图标"
+     },
+     {
+      "key": "cost",
+      "type": "int",
+      "desc": "消耗图标上或旁边的数字，只写正数（「-2」写 2）；没有写 null",
+      "abs": true,
+      "derivable": true,
+      "label": "消耗数值"
+     }
+    ],
+    "label": "手牌",
+    "region": [
+     0,
+     860,
+     720,
+     1160
+    ]
+   },
+   {
+    "key": "playing_name",
+    "type": "text",
+    "importance": "中",
+    "desc": "正在打出、被抬到画面中间的那张牌的卡名（不含末尾的「+」）；没有写 null",
+    "label": "正在打出的牌",
+    "region": [
+     120,
+     420,
+     600,
+     900
+    ]
+   },
+   {
+    "key": "playing_plus",
+    "type": "bool",
+    "importance": "中",
+    "desc": "正在打出的那张牌卡名末尾有没有「+」；没有在打出的牌写 null",
+    "label": "正在打出的牌有没有 +",
+    "region": [
+     120,
+     420,
+     600,
+     900
+    ]
+   },
+   {
+    "key": "selected_preview",
+    "type": "int",
+    "importance": "中",
+    "desc": "选中卡上方粉色的预估得分数字，没有写 null",
+    "label": "选中卡的预估得分",
+    "region": [
+     0,
+     780,
+     720,
+     1000
+    ]
+   },
+   {
+    "key": "statuses",
+    "type": "list",
+    "importance": "高",
+    "reference": "status_sheet",
+    "desc": "左侧状态栏从上到下每个菱形一项（状态的数字含义——层数、回合、百分比、次数——由状态本身决定，不用标）",
+    "label": "状态栏",
+    "region": [
+     0,
+     225,
+     300,
+     860
+    ],
+    "fields": [
+     {
+      "key": "kind",
+      "type": "enum",
+      "values": [
+       "status",
+       "card_effect"
+      ],
+      "label": "类型",
+      "desc": "蓝色（低下状态是红色）菱形底 + 白色图案 = status；菱形里是彩色画（卡面、饮料等）= card_effect（卡牌或道具留下的持续效果）"
+     },
+     {
+      "key": "name",
+      "type": "text",
+      "label": "状态名",
+      "derivable": true,
+      "desc": "status：照对照表写图标对应的名字（一格写了几个名字的写第一个；红底的爱心写「消費体力増加」）；card_effect：写 null"
+     },
+     {
+      "key": "value",
+      "type": "int",
+      "label": "数字（层数 / 回合 / 次数）",
+      "desc": "主数字：层数 / 回合 / 次数（「37」写 37、「4ターン」写 4、「1回」写 1）；只有百分比、或没有数字写 null"
+     },
+     {
+      "key": "pct",
+      "type": "int",
+      "label": "百分比",
+      "desc": "同一格里显示的百分比（「50%」写 50）；没有写 null"
+     }
+    ]
+   },
+   {
+    "key": "deck_left",
+    "type": "int",
+    "importance": "低",
+    "desc": "右侧牌堆图标旁的数字，没有写 null",
+    "label": "牌堆剩余张数",
+    "region": [
+     520,
+     150,
+     720,
+     330
+    ]
+   },
+   {
+    "key": "drinks_count",
+    "type": "int",
+    "importance": "中",
+    "desc": "左下饮料栏里装着饮料的格子数（空槽、灰色的空瓶图标不算）",
+    "label": "持有饮料数",
+    "region": [
+     0,
+     1130,
+     420,
+     1280
+    ]
+   }
+  ],
+  "buttons": [
+   "SKIP"
+  ]
+ },
+ "consult": {
+  "name": "相談（商店）",
+  "pages": [
+   "CONSULT"
+  ],
+  "items": [
+   {
+    "key": "hp",
+    "type": "int",
+    "importance": "高",
+    "desc": "顶部体力当前值（9/33 的 9）",
+    "label": "体力",
+    "region": [
+     100,
+     0,
+     520,
+     150
+    ]
+   },
+   {
+    "key": "hp_max",
+    "type": "int",
+    "importance": "中",
+    "desc": "顶部体力上限（9/33 的 33）",
+    "label": "体力上限",
+    "region": [
+     100,
+     0,
+     520,
+     150
+    ]
+   },
+   {
+    "key": "p_points",
+    "type": "int",
+    "importance": "高",
+    "desc": "顶部 P 点数",
+    "label": "P 点",
+    "region": [
+     100,
+     0,
+     520,
+     150
+    ]
+   },
+   {
+    "key": "shelf",
+    "type": "list",
+    "importance": "高",
+    "desc": "货架每一格，从左到右、从上到下",
+    "fields": [
+     {
+      "key": "kind",
+      "type": "enum",
+      "values": [
+       "card",
+       "drink"
+      ],
+      "desc": "技能卡还是饮料",
+      "label": "种类"
+     },
+     {
+      "key": "price",
+      "type": "int",
+      "desc": "实付价格（SALE 时是划线后的新价格）",
+      "label": "价格"
+     },
+     {
+      "key": "sale_from",
+      "type": "int",
+      "desc": "SALE 时被划掉的原价，没有 SALE 写 null",
+      "label": "SALE 原价",
+      "unscored": true,
+      "why_unscored": "用户 11-23：不识别也没事（打折后的实付价已经识别）"
+     },
+     {
+      "key": "purchased",
+      "type": "bool",
+      "desc": "这一格是否标着「交換済」",
+      "label": "已交換"
+     }
+    ],
+    "label": "货架",
+    "region": [
+     30,
+     460,
+     710,
+     1080
+    ]
+   },
+   {
+    "key": "upgrade_price",
+    "type": "int",
+    "importance": "高",
+    "desc": "「強化」按钮上的价格",
+    "label": "強化价格",
+    "region": [
+     0,
+     920,
+     720,
+     1020
+    ]
+   },
+   {
+    "key": "upgrade_used",
+    "type": "bool",
+    "importance": "高",
+    "desc": "「強化」是否标着交換済 / 变灰",
+    "label": "強化是否已用",
+    "region": [
+     0,
+     920,
+     720,
+     1020
+    ]
+   },
+   {
+    "key": "delete_price",
+    "type": "int",
+    "importance": "高",
+    "desc": "「削除」按钮上的价格（「次 125」写 125）",
+    "label": "削除价格",
+    "region": [
+     0,
+     920,
+     720,
+     1020
+    ]
+   },
+   {
+    "key": "delete_used",
+    "type": "bool",
+    "importance": "高",
+    "desc": "「削除」是否标着交換済 / 变灰",
+    "label": "削除是否已用",
+    "region": [
+     0,
+     920,
+     720,
+     1020
+    ]
+   }
+  ],
+  "buttons": [
+   "強化",
+   "削除",
+   "交換する",
+   "終了"
+  ]
+ },
+ "round_interval": {
+  "name": "H.I.F 轮间商店",
+  "pages": [
+   "HIF_ROUND_INTERVAL"
+  ],
+  "items": [
+   {
+    "key": "hp",
+    "type": "int",
+    "importance": "高",
+    "desc": "顶部体力当前值",
+    "label": "体力",
+    "region": [
+     100,
+     0,
+     520,
+     150
+    ]
+   },
+   {
+    "key": "hp_max",
+    "type": "int",
+    "importance": "中",
+    "desc": "顶部体力上限",
+    "label": "体力上限",
+    "region": [
+     100,
+     0,
+     520,
+     150
+    ]
+   },
+   {
+    "key": "p_points",
+    "type": "int",
+    "importance": "高",
+    "desc": "顶部 P 点数",
+    "label": "P 点",
+    "region": [
+     100,
+     0,
+     520,
+     150
+    ]
+   },
+   {
+    "key": "shelf",
+    "type": "list",
+    "importance": "高",
+    "desc": "货架每一格，从左到右、从上到下",
+    "fields": [
+     {
+      "key": "kind",
+      "type": "enum",
+      "values": [
+       "card",
+       "drink"
+      ],
+      "desc": "技能卡还是饮料",
+      "label": "种类"
+     },
+     {
+      "key": "price",
+      "type": "int",
+      "desc": "价格",
+      "label": "价格"
+     },
+     {
+      "key": "new",
+      "type": "bool",
+      "desc": "这一格是否有「NEW」标记",
+      "label": "NEW 标记",
+      "unscored": true,
+      "why_unscored": "用户 11-23：不识别也没事"
+     },
+     {
+      "key": "purchased",
+      "type": "bool",
+      "desc": "这一格是否标着「交換済」",
+      "label": "已交換"
+     }
+    ],
+    "label": "货架",
+    "region": [
+     30,
+     470,
+     710,
+     1000
+    ]
+   },
+   {
+    "key": "upgrade_price",
+    "type": "int",
+    "importance": "高",
+    "desc": "「強化」按钮上的价格",
+    "label": "強化价格",
+    "region": [
+     0,
+     870,
+     720,
+     1010
+    ]
+   },
+   {
+    "key": "upgrade_left",
+    "type": "int",
+    "importance": "中",
+    "desc": "強化按钮下「強化可能枚数あとN枚」的 N，没有写 null",
+    "label": "还能强化几张",
+    "region": [
+     0,
+     870,
+     720,
+     1010
+    ]
+   },
+   {
+    "key": "customize_left",
+    "type": "int",
+    "importance": "中",
+    "desc": "「カスタマイズ可能枚数あとN枚」的 N，没有写 null",
+    "label": "还能定制几张",
+    "region": [
+     0,
+     870,
+     720,
+     1010
+    ]
+   },
+   {
+    "key": "refresh_price",
+    "type": "int",
+    "importance": "中",
+    "desc": "「リフレッシュ」下面的价格，没有写 null",
+    "label": "刷新价格",
+    "region": [
+     0,
+     1020,
+     330,
+     1150
+    ]
+   }
+  ],
+  "buttons": [
+   "強化",
+   "スキルカードカスタマイズ",
+   "回復",
+   "リフレッシュ",
+   "交換する",
+   "終了"
+  ]
+ },
+ "action_select": {
+  "name": "选行动（培育日常）",
+  "pages": [
+   "ACTION_SELECT"
+  ],
+  "items": [
+   {
+    "key": "exam_name",
+    "type": "text",
+    "importance": "中",
+    "desc": "左上「〇〇まで」里的考试名，连同后面的数字原样写（如「選抜試験1」「H.I.F本戦」），没有写 null",
+    "label": "考试名",
+    "region": [
+     0,
+     0,
+     220,
+     170
+    ]
+   },
+   {
+    "key": "days_left",
+    "type": "int",
+    "importance": "高",
+    "desc": "左上大号的剩余天数（4日 → 4）",
+    "label": "剩余天数",
+    "region": [
+     0,
+     0,
+     220,
+     170
+    ]
+   },
+   {
+    "key": "hp",
+    "type": "int",
+    "importance": "高",
+    "desc": "顶部体力当前值",
+    "label": "体力",
+    "region": [
+     240,
+     0,
+     560,
+     150
+    ]
+   },
+   {
+    "key": "hp_max",
+    "type": "int",
+    "importance": "中",
+    "desc": "顶部体力上限",
+    "label": "体力上限",
+    "region": [
+     240,
+     0,
+     560,
+     150
+    ]
+   },
+   {
+    "key": "p_points",
+    "type": "int",
+    "importance": "高",
+    "desc": "顶部 P 点数",
+    "label": "P 点",
+    "region": [
+     240,
+     0,
+     560,
+     150
+    ]
+   },
+   {
+    "key": "params",
+    "type": "list",
+    "item": "int",
+    "importance": "高",
+    "desc": "三维当前值，按 Vo（粉）/ Da（蓝）/ Vi（黄）顺序",
+    "label": "三维数值",
+    "region": [
+     0,
+     640,
+     720,
+     800
+    ]
+   },
+   {
+    "key": "param_caps",
+    "type": "list",
+    "item": "int",
+    "importance": "中",
+    "desc": "三维上限（/3200），按 Vo / Da / Vi",
+    "label": "三维上限",
+    "region": [
+     0,
+     640,
+     720,
+     800
+    ]
+   },
+   {
+    "key": "growth_pct",
+    "type": "list",
+    "item": "text",
+    "importance": "中",
+    "desc": "三维成长率，按 Vo / Da / Vi，原样写（如 45.5%）",
+    "label": "三维成长率",
+    "region": [
+     0,
+     640,
+     720,
+     800
+    ]
+   },
+   {
+    "key": "star",
+    "type": "int",
+    "importance": "中",
+    "desc": "左侧三维那一行最左边、橙色 ★ 图标右边的数字（如 731）；不是金字塔上方的小徽章数字",
+    "label": "スター性",
+    "region": [
+     0,
+     620,
+     200,
+     740
+    ]
+   },
+   {
+    "key": "actions",
+    "type": "list",
+    "importance": "高",
+    "desc": "画面上能选的行动（大按钮和右侧「休む」等），从左到右",
+    "fields": [
+     {
+      "key": "label",
+      "type": "text",
+      "desc": "按钮上的文字（おでかけ / 差し入れ / 授業 / 休む ……）",
+      "label": "行动名"
+     },
+     {
+      "key": "hp_change",
+      "type": "int",
+      "desc": "按钮角上的体力消耗或回复数字（消耗写负数、回复写正数），没有写 null",
+      "label": "体力变化"
+     }
+    ],
+    "label": "行动按钮",
+    "region": [
+     0,
+     800,
+     720,
+     1160
+    ]
+   },
+   {
+    "key": "drinks_count",
+    "type": "int",
+    "importance": "中",
+    "desc": "左下饮料栏里装着饮料的格子数（空槽、灰色的空瓶图标不算）；一瓶都没有写 0",
+    "label": "持有饮料数",
+    "region": [
+     0,
+     1130,
+     420,
+     1280
+    ]
+   }
+  ],
+  "buttons": [
+   "休む"
+  ]
+ }
+}

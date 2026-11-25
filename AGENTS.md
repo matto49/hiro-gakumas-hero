@@ -75,7 +75,7 @@
 平台见下面「设备」：**作者实机验证过的有 macOS（Apple Silicon）+ PlayCover，和 Windows + MuMu 12**
 （MuMu 6.8，22 局 3 次本战夺冠）；Windows DMM 版实机开局跑通（见「设备」）；安卓设备 / 模拟器（ADB）、雷电走 `AdbDevice`，代码接好了、有离线测试，但没有实机打过一局。
 
-1. 装环境（一条命令，可重复跑，做过的步骤会跳过；需要 uv、git 和网络）：
+1. 装环境（一条命令，可重复跑，做过的步骤会跳过；需要 uv 和网络；脚本本身不要 git，下面用 git clone 只是拿源码的一种办法，下载 GitHub 的源码压缩包解压也行）：
    ```bash
    git clone https://github.com/matto49/hiro-gakumas-hero && cd hiro-gakumas-hero
    scripts/setup.sh      # .venv（Python 3.10）→ 安装 → OCR 模型 → 识别用的游戏原图 → 模拟器主数据 + 主数据库 → 自检
@@ -84,6 +84,8 @@
    游戏原图（技能卡 / 偶像卡 / 饮料，`resources/game_data/`）由 `tools/assets/game_images.py` 从本仓库 Release `game-images-b9577da`
    （kaa-game-data b9577da 版的副本，识别按这一版调）下载、校验 SHA256；主数据库（`cache/master/game.db`）由 `python -m hiro.state.master_db` 从模拟器主数据生成，
    和原来 KAA 的 game.db 同结构。见 `docs/assets.md`。
+   往本仓库发这类数据 Release（游戏图、OCR 模型、引擎包、主数据包）一律加 `--latest=false`：「Latest」只给桌面包 `desktop-v*`，
+   被顶掉时 `.github/workflows/release-latest.yml` 会改回并报错。
    自检最后会打印插件来源、有没有主数据和自建素材，以及开局命令。
 2. 游戏窗口：用 [hguandl 的 PlayCover 分支](https://github.com/hguandl/PlayCover)，在游戏的 PlayCover 设置里打开 `maaTools`（端口 `maaToolsPort`）。
    截图和点击走游戏进程内的 MaaTools 服务（见 `hiro/devices/maatools.py`），**不要求窗口在前台，也不动鼠标**。
@@ -106,7 +108,7 @@
      MuMu 缺省开后台模式（按游戏包名截它所在的显示；MuMu 6 把应用放在单独的显示里，不开时截到的是模拟器桌面），
      `HIRO_MUMU_BACKGROUND=0` 关掉。
    - 非 PlayCover 后端不做 PlayCover 专用的退路（横屏 LIVE 黑屏时切全屏、MaaTools 点了没反应时用真实鼠标再点）。
-   - 文字识别（`HIRO_OCR`）：macOS 缺省用 Apple Vision，其他系统自动改用 RapidOCR（`rapidocr_onnxruntime` + PaddleOCR PP-OCRv3 日文 / 英文识别模型，
+   - 文字识别（`HIRO_OCR`）：macOS 缺省用 Apple Vision；Windows 装好了本机 SIMD OCR（`docs/assets.md`）就用它，没装或启动失败时退回 RapidOCR，其他系统用 RapidOCR（`rapidocr_onnxruntime` + PaddleOCR PP-OCRv3 日文 / 英文识别模型，
      模型在 `cache/rapidocr/`，由安装脚本调 `tools/assets/rapid_models.py` 从本仓库 GitHub Release `ocr-models-v1` 下载、校验 SHA256）。页面判定、找按钮的整帧文字统一走 `hiro.vision.ocr.screen_texts`。
      RapidOCR 在作者的回归截图上的准确率与速度见 `docs/assets.md`；换平台后先用自己的截图验一遍。
    - Windows 用 PowerShell 版安装脚本：`powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup.ps1`（步骤与 `setup.sh` 相同）。
@@ -209,7 +211,9 @@ PYTHONPATH=src python -m hiro.run_hif resume --mode qualify|main   # 续跑进�
 | `HIRO_LIVE` / `HIRO_LIVE_TIMEOUT_S` | 培育结束后的 LIVE：`play`（缺省，照旧点开始、播完，照片按 `HIRO_PHOTO_PICK`）/ `watch`（我亲自看：曲目页开始前停下，像未读剧情一样发通知、写等人文件、DMM 窗口居中，你点开始看完程序接着走，照片自己选；`HIRO_LIVE_TIMEOUT_S` 秒（缺省 60）没人点开始就关游戏并退出（码 3）；删等人文件 = 这场跳过）/ `pick`（跳过 LIVE，照片自己选）/ `auto`（跳过 LIVE，照片用默认）。跳过 = 点右上角 SKIP（认不到时点画面中间调出菜单，有次数上限）。`play.ps1 -Live`。见 `hiro/runtime/live_mode.py` |
 | `HIRO_RETRY_GAP_MAX` | 本战 R2 没拿第 1 时重不重打：离第 1 的差距超过我方本轮分的这个比例就不重打（缺省 `0.3`，用户 11-18 定；读不到第 1 名或本轮分时按原规则重打） |
 | `HIRO_DEVICE` / `HIRO_ADB` / `HIRO_SCREENSHOT` / `HIRO_EMULATOR_INSTANCE` | 设备后端与连接，见「三、环境」的「设备」表 |
-| `HIRO_OCR` | 文字识别后端：`auto`（缺省）/ `vision`（Apple Vision，只有 macOS）/ `rapidocr` |
+| `HIRO_OCR` | 文字识别后端：`auto`（缺省：macOS → `vision`；Windows 装好了 SIMD → `simd`；否则 `rapidocr`）/ `vision`（Apple Vision，只有 macOS）/ `rapidocr` / `simd`（本机 SIMD PaddleOCR PP-OCRv6，需要 `.deps` 和 .NET 10）/ `winocr` / `ppocr5` |
+| `HIRO_OCR_DML_DEVICE` | RapidOCR 走 DirectML 时用第几块显卡（缺省 0 号；有核显的机器上独显常是 1 号，实测 0 号比 CPU 还慢） |
+| `HIRO_TRACE_NATIVE=1` | trace 存帧时另存一张原生分辨率 PNG（`frames/<序号>.native.png`），采集 OCR 测试集用（`tools/ocr_dataset/`）；run.json 里的 `platform` 记设备 / 截图方式 / OCR 后端 / 原生尺寸 |
 | `HIRO_OCR_DEVICE` / `HIRO_OCR_THREADS` | RapidOCR 推理设备：`auto`（缺省：CUDA → DirectML → CPU，按装的是哪种 onnxruntime）/ `cuda` / `dml` / `cpu`；加载不成功自动试下一个，日志写实际用的设备。Windows 上 `setup.ps1 -OcrDevice dml` 换成同版本的 `onnxruntime-directml`（缺省 `cpu` 不换：识别阈值按 CPU 版调的，GPU 版先显式打开），RTX 3060 实测整帧识别约 2 s → 0.4 s、识别文字不变。`HIRO_OCR_THREADS`：CPU 推理线程数（缺省占满所有核） |
 | `HIRO_RESCUE_LLM=0` | 关掉认不出画面时的 LLM 看图兜底（默认开） |
 | `HIRO_DEBUG_RECOG=1` | 把全部识别互验写进 trace，页面变化都存帧 |

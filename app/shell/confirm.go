@@ -198,24 +198,11 @@ func (a *App) confirmCard(c *ui.Context, m *Message, card plugin.Card) {
 	})
 }
 
-// explainGroup 是确认卡卡身里的一组列表：小标题，下面每行「小图 标签 名字 …… 右边小字」。
+// explainGroup 是确认卡卡身里的一组：画法在 kit.Tiles（和对话里的编成方案卡共用）。
 func explainGroup(c *ui.Context, key string, g plugin.ExplainGroup) {
-	ui.Column(c).Key(key).Gap(4).Children(func() {
-		ui.Text(c, g.Title).FontSize(11.5).FontWeight(600).TextColor(kit.Ink3)
-		for i, it := range g.Items {
-			ui.Row(c).Key(fmt.Sprintf("%s-%d", key, i)).Gap(8).AlignItems(ui.Center).Children(func() {
-				if it.Thumb != "" {
-					kit.Thumb(c, it.Thumb, 26, 26, 6)
-				}
-				if it.Tag != "" {
-					ui.Text(c, it.Tag).FontSize(11).TextColor(kit.Ink2).Padding(1, 6).Radius(5).Background(kit.Surface2)
-				}
-				ui.Text(c, it.Name).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…").Shrink(1)
-				if it.Note != "" {
-					ui.Spacer(c)
-					ui.Text(c, it.Note).FontSize(11).TextColor(kit.Ink3)
-				}
-			})
-		}
-	})
+	items := make([]kit.Tile, len(g.Items))
+	for i, it := range g.Items {
+		items[i] = kit.Tile{Thumb: it.Thumb, Tag: it.Tag, Name: it.Name, Note: it.Note, Tip: it.Tip}
+	}
+	kit.Tiles(c, key, g.Title, items)
 }

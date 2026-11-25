@@ -25,6 +25,7 @@ PARAMS = (
     "scenario",
     "what",
     "dry_run",
+    "fix",
     "main_attr",
     "support_set",
     "memory_set",
@@ -36,6 +37,9 @@ PARAMS = (
     "plugins",
     "sources",
     "only",
+    "prepare",
+    "prepare_note",
+    "prepare_what",
 )
 
 
@@ -148,8 +152,12 @@ def _check_memory_freshness(plan_path: Path, home: Path) -> None:
 
 
 def _check_formation_plan(a: dict) -> None:
-    """新开一局（H.I.F 只算选拔）又没指定编成号时，要有给这位偶像出的开局编成方案，否则任务进了游戏流程才报
-    「开局要编成号」退出（Mac 11-24：方案是给月村手毬的，H.I.F、藤田ことね的「初」都这样白开了一次）。"""
+    """新开一局（H.I.F 只算选拔）又没指定编成号时，要有这张卡 × 这个模式的开局编成方案，而且已经写进游戏，
+    否则任务进了游戏流程才报「开局要编成号」或第 2 / 3 步核对对不上退出（Mac 11-24：方案是给月村手毬的，H.I.F、藤田ことね的「初」都这样白开了一次）。
+
+    2026-11-26 起方案按「偶像卡 × 模式」存（plans/<模式>/<偶像卡>.json）：这张卡在这个模式没有方案就按社区攻略自动出一份
+    （编成位号沿用这个模式上一份方案的），再让玩家先「写编成」；有方案就把它设为当前方案（开局核对、写编成都读当前方案）。"""
+    from hiro.brain import formation_plan as fp
     from hiro.cli import paths
     from hiro.cli.home import hiro_home
 
@@ -159,19 +167,164 @@ def _check_formation_plan(a: dict) -> None:
     if kind == "hif" and (a.get("mode") or "qualify") == "main":
         return  # 本战不走编成步骤，用的是选拔得到的回忆
     # 支援卡 / 回忆分开看：两样都指定了编成号才不看方案；只给了一样，另一样还要方案里有（CodeRabbit #88）
-    given = {
-        "support": bool(a.get("support_set") or os.environ.get("HIRO_SUPPORT_SET")),
-        "memory": bool(a.get("memory_set") or os.environ.get("HIRO_MEMORY_SET")),
+    explicit = {
+        "support": a.get("support_set") or os.environ.get("HIRO_SUPPORT_SET"),
+        "memory": a.get("memory_set") or os.environ.get("HIRO_MEMORY_SET"),
     }
+    given = {k: bool(v) for k, v in explicit.items()}
     if all(given.values()):
         return
     env_plan = os.environ.get("HIRO_FORMATION_PLAN")
     if env_plan == "off":
         return
-    path = Path(env_plan) if env_plan else paths.plan_path(hiro_home())
     idol = (a.get("idol") or "").replace("i_card-skin-", "i_card-")
+    home = hiro_home()
+    # 显式指定了别的方案文件：照以前只核对偶像。指向当前方案的（paths.apply_to_process 补进进程环境的缺省值，
+    # 常驻服务出过一次方案后就一直在）不算显式
+    if env_plan and Path(env_plan).resolve() != paths.plan_path(home).resolve():
+        _check_plan_file(Path(env_plan), idol, kind, given)
+        return
+    todo = [w for w in ("support", "memory") if not given[w]]  # 开局给了编成号的那样直接用游戏里编好的，不用写
+
+    def not_written(plan: dict, name: str, lead: str) -> CliError:
+        """方案里没指定的那几样还没写进游戏：只列这几样的编成位号，写编成也只写这几样。"""
+        parts = fp.unwritten(plan, kind, todo)
+        label = {"support": "支援卡", "memory": "回忆"}
+        where = "、".join(f"{label[w]}编成 {(plan.get(w) or {}).get('set')} 号" for w in parts)
+        what = "" if len(parts) == 2 else f" --what {parts[0]}"
+        return CliError(
+            "plan_not_written",
+            f"{lead}（{where}），游戏里{'这两个编成位' if len(parts) == 2 else '这个编成位'}还是之前的，要先写进去",
+            f"写进游戏：hiro run start write-formation --scenario {kind}{what}；写完再开局",
+        )
+
+    found = fp.find_plan(home, idol, kind) if idol else None
+    if found is None:
+        if not idol:
+            _check_plan_file(paths.plan_path(home), idol, kind, given)
+            return
+        from hiro.cli.cmd_plan import make_plan
+        from hiro.cli.registry import CliError as _E
+
+        s_set, m_set = fp.inherited_sets(home, kind)  # 没指定的沿用这个模式上一份方案的位号
+        if sv := explicit["support"]:
+            s_set = int(sv)
+        if mv := explicit["memory"]:
+            m_set = int(mv)
+        try:
+            plan, _path = make_plan(home, idol, kind, difficulty=a.get("difficulty"), support_set=s_set,
+                                    memory_set=m_set, source="auto")  # fmt: skip
+        except _E as e:
+            if e.code == "no_inventory":
+                raise CliError(
+                    "no_plan",
+                    "这张卡在这个模式还没有开局编成方案，也没有支援卡和回忆的库存，出不了方案",
+                    "先扫描支援卡和回忆（hiro run start scan-supports / scan-memories），开局时会按社区攻略自动出方案",
+                ) from None
+            raise
+        name = (plan.get("idol") or {}).get("name") or idol
+        if _auto_formation() and _prepare_in_job(a, home, plan, kind, todo):
+            return
+        _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol, kind,
+                         lead=f"已按社区攻略给「{name}」出了这个模式的开局编成方案，")  # fmt: skip
+        raise not_written(plan, name, f"已按社区攻略给「{name}」出了这个模式的开局编成方案")
+    plan, path = found
+    if path != paths.plan_path(home):
+        fp.activate(home, plan)  # 开局核对、写编成都读当前方案
+    name = (plan.get("idol") or {}).get("name") or idol
+    if _auto_formation() and _prepare_in_job(a, home, plan, kind, todo):
+        return
+    _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol, kind, lead=f"「{name}」的")
+    if fp.needs_write(plan, kind, todo):
+        raise not_written(plan, name, f"「{name}」的开局编成方案还没写进游戏")
+
+
+def _auto_formation() -> bool:
+    """D4（11-26）：开局时方案没定编成号 / 没写进游戏，在同一个开局任务里自己挑空白编成位、写好再开局，不再反问玩家。
+    监督代为拍板的缺省行为变化，按规程做成开关、缺省关：HIRO_AUTO_FORMATION=1 打开。"""
+    return os.environ.get("HIRO_AUTO_FORMATION") == "1"
+
+
+_MODE_NAME = {"hif": "H.I.F", "hajime": "「初」", "nia": "N.I.A"}
+
+
+def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str]) -> bool:
+    """方案没定编成号或没写进游戏时，改成在开局任务里先准备（a["prepare"]，任务由 hiro.runtime.prepare_start 包一层）：
+    - 没定编成号：最近一次读的编成位现状（读完后没写过这个模式的编成）里挑空着的最小号；没读过就进游戏先读再挑；
+      读过但都满了，报 formations_full 问玩家覆盖哪一个（不替玩家覆盖已有编成）。
+    - 编成号定了、没写进去：任务里先写编成（写完回读核对）。
+    什么都不用做时返回 False（照旧往下核对）。"""
+    from hiro.brain import formation_plan as fp
+    from hiro.cli.store import open_store
+
+    label = {"support": "支援卡", "memory": "回忆"}
+    missing = [w for w in todo if (plan.get(w) or {}).get("set") is None]
+    steps: list[str] = []
+    if missing:
+        meta, rows = open_store().latest("formations")
+        fresh = [r for r in rows if r.get("mode") == kind] if meta is not None else []
+        if meta is not None and fresh and not _wrote_formation_since(meta.get("scanned_at"), kind):
+            picked = {}
+            for w in missing:
+                blanks = sorted(int(r["set"]) for r in fresh if r.get("kind") == w and r.get("filled") == 0)
+                if not blanks:
+                    raise CliError(
+                        "formations_full",
+                        f"{_MODE_NAME.get(kind, kind)}的{label[w]}编成位都满了，没有空着的可以放这套编成方案",
+                        f"选一个可以覆盖的编成位：hiro plan formation --idol {(plan.get('idol') or {}).get('idol_card_id') or '<偶像卡编号>'} "
+                        f"--mode {kind} --support-set <号> --memory-set <号>；或者开局时用 --support-set / --memory-set 直接开游戏里已经编好的",
+                    )
+                picked[w] = blanks[0]
+            for w, n in picked.items():
+                plan[w] = dict(plan.get(w) or {}, set=n)
+            fp.save_plan(home, plan, kind)
+            steps.append("把编成方案写进空着的" + "、".join(f"{label[w]}编成 {n} 号" for w, n in picked.items()))
+        else:
+            steps.append(f"先读一遍{_MODE_NAME.get(kind, kind)}的编成位，挑空着的把编成方案写进去")
+    elif left := fp.unwritten(plan, kind, todo):
+        # 编成号是沿用的：只有那个位是空的、或者是初星助手自己写过的，才自动写；玩家自己的编成照旧让玩家确认覆盖（CodeRabbit #95）
+        if not all(_slot_ours_or_blank(home, kind, w, (plan.get(w) or {}).get("set")) for w in left):
+            return False
+        steps.append("把编成方案写进" + "、".join(f"{label[w]}编成 {(plan.get(w) or {}).get('set')} 号" for w in left))
+    if not steps:
+        return False
+    if "memory" in missing or "memory" in fp.unwritten(plan, kind, todo):
+        # 要写回忆：库存扫描之后又打过培育、或方案比扫描旧，就在出确认卡之前说清楚（手动写编成那条路同样的检查，CodeRabbit #95）
+        from hiro.cli import paths
+
+        _check_memory_freshness(paths.plan_path(home), home)
+    a["prepare"] = True
+    a["prepare_what"] = ",".join(todo)
+    a["prepare_note"] = "；".join(steps) + "（只写空着的或初星助手自己写过的编成位，写完回读核对）"
+    return True
+
+
+def _slot_ours_or_blank(home: Path, kind: str, what: str, n) -> bool:
+    """这个模式的 what（support / memory）n 号编成位能不能直接写：初星助手写过（哪份方案的 written 记着这个号），
+    或者最近一次读的编成位现状（读完没再写过）里它是空的。"""
+    from hiro.brain import formation_plan as fp
+    from hiro.cli import paths
+    from hiro.cli.store import open_store
+
+    if n is None:
+        return False
+    files = list((home / "plans" / kind).glob("*.json")) if (home / "plans" / kind).is_dir() else []
+    for f in [*files, paths.plan_path(home)]:
+        w = ((fp.load(f) or {}).get("written") or {}).get(kind) or {}
+        if what in (w.get("what") or ()) and w.get(f"{what}_set") == n:
+            return True
+    meta, rows = open_store().latest("formations")
+    if meta is None or _wrote_formation_since(meta.get("scanned_at"), kind):
+        return False
+    return any(
+        r.get("mode") == kind and r.get("kind") == what and r.get("set") == n and r.get("filled") == 0 for r in rows
+    )
+
+
+def _check_plan_file(path: Path, idol: str, kind: str, given: dict) -> None:
+    """只看一个方案文件（HIRO_FORMATION_PLAN 指定的，或没给偶像时的当前方案）：有没有、偶像对不对。"""
     hint = (
-        f"先给这位偶像出编成方案：hiro plan formation --idol {idol or '<偶像卡编号>'}；"
+        f"先给这位偶像出编成方案：hiro plan formation --idol {idol or '<偶像卡编号>'} --mode {kind}；"
         f"再写进游戏：hiro run start write-formation --scenario {kind}；然后再开局。"
         "也可以用 --support-set / --memory-set 指定游戏里已经编好的编成号"
     )
@@ -185,10 +338,10 @@ def _check_formation_plan(a: dict) -> None:
     if idol and want and idol != want:
         name = (plan.get("idol") or {}).get("name") or want
         raise CliError("plan_other_idol", f"现在的编成方案是给「{name}」出的，这局是 {idol}", hint)
-    _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol)
+    _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol, kind)
 
 
-def _check_plan_sets(plan: dict, what, idol: str = "") -> None:
+def _check_plan_sets(plan: dict, what, idol: str = "", kind: str = "", lead: str = "") -> None:
     """方案里要用的编成号（支援卡 / 回忆）没定时，在出待确认之前就说清楚（11-26 Mac：方案没带编成号，
     确认开局后才报「new 开局要编成号」）。"""
     from hiro.cli.registry import CliError
@@ -199,11 +352,58 @@ def _check_plan_sets(plan: dict, what, idol: str = "") -> None:
     names = "、".join({"support": "支援卡", "memory": "回忆"}[w] for w in missing)
     raise CliError(
         "plan_no_set",
-        f"编成方案还没定{names}存进游戏里的哪个编成位，开局时不知道选哪一套",
-        f"重新出方案时带上编成号：hiro plan formation --idol {idol or '<偶像卡编号>'} --support-set <号> --memory-set <号>"
+        f"{lead}编成方案还没定{names}存进游戏里的哪个编成位，开局时不知道选哪一套",
+        f"重新出方案时带上编成号：hiro plan formation --idol {idol or '<偶像卡编号>'}{f' --mode {kind}' if kind else ''} --support-set <号> --memory-set <号>"
         "（哪些编成位空着用 hiro info formations 看，没读过就先 hiro run start scan-formations）；"
         "或者开局时直接加 --support-set / --memory-set",
     )
+
+
+def _plan_file_used(a: dict) -> Path | None:
+    """这个任务要读的开局编成方案文件；任务不读方案（不是开局 / 写编成，或两样编成号都指定了）时返回 None。"""
+    from hiro.cli import paths
+    from hiro.cli.home import hiro_home
+
+    if a["kind"] == "write-formation":
+        return paths.plan_path(hiro_home())
+    if a["kind"] not in FORMATION_KINDS or (a.get("command") or "new") != "new":
+        return None
+    if a["kind"] == "hif" and (a.get("mode") or "qualify") == "main":
+        return None
+    if (a.get("support_set") or os.environ.get("HIRO_SUPPORT_SET")) and (
+        a.get("memory_set") or os.environ.get("HIRO_MEMORY_SET")
+    ):
+        return None
+    env_plan = os.environ.get("HIRO_FORMATION_PLAN")
+    if env_plan == "off":
+        return None
+    return Path(env_plan) if env_plan else paths.plan_path(hiro_home())
+
+
+def plan_snapshot(a: dict) -> dict | None:
+    """出待确认时固定一份编成方案：内容哈希（confirm 时核对）+ 摘要（确认卡按它画）。
+    确认卡原来每分钟读一次 `plan show`、执行时任务又读方案文件，期间方案被重新出过就会卡上和实际写的不一致（PR #79 CodeRabbit）。
+    方案文件不存在时也算一份快照（哈希为空）：确认时它出现了或没了都能察觉。"""
+    import hashlib
+
+    from hiro.cli.cmd_plan import summarize
+
+    path = _plan_file_used(a)
+    if path is None:
+        return None
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return {"digest": "", "label": "编成方案", "plan": None}
+    try:
+        plan = json.loads(raw.decode("utf-8"))
+    except ValueError:
+        plan = None
+    return {
+        "digest": hashlib.sha256(raw).hexdigest(),
+        "label": "编成方案",
+        "plan": summarize(plan) if isinstance(plan, dict) else None,
+    }
 
 
 EXAM_KINDS = ("hif", "hajime", "nia", "tower")  # 有考试、出牌靠算法的任务
@@ -215,6 +415,8 @@ def run_access(a: dict) -> str:
     kind = a["kind"]
     if a.get("command") == "resume" or kind in EXAM_KINDS or kind == "main-task":
         return "all"
+    if kind == "check-settings" and a.get("fix"):
+        return "write"  # 改游戏里的设置开关（D3）
     if kind.startswith("scan-") or kind in ("check-settings", "selftest", "collect-all"):
         return "read"
     if kind == "daily":
@@ -263,7 +465,10 @@ def _wrote_formation_since(scanned_at: str | None, mode: str) -> bool:
         except (OSError, ValueError):
             continue
         p = j.get("params") or {}
-        if j.get("kind") != "write-formation" or p.get("dry_run") or (p.get("scenario") or "hif") != mode:
+        # 写编成任务（对照不算），和带 prepare 的开局任务（任务里先写编成，CodeRabbit #95）都算
+        writes = j.get("kind") == "write-formation" and not p.get("dry_run") and (p.get("scenario") or "hif") == mode
+        writes = writes or (bool(p.get("prepare")) and j.get("kind") == mode)
+        if not writes:
             continue
         if (j.get("started_at") or 0) >= t0:
             return True
@@ -348,15 +553,24 @@ def _first_reason(out: str) -> str:
         Arg("--what", "write-formation：写哪些（support / memory，逗号分隔，缺省都写）"),
         Arg("--only", "collect-all：只做这几步（account,idols,supports,memories,formations，逗号分隔；缺省全做）"),
         Arg("--dry-run", "write-formation：只看差在哪几格，不改；contest-unit：只读总合力，不重排", type="bool"),
+        Arg("--fix", "check-settings：快进 / 跳过演出那几项不对的顺手改好（会改游戏设置）", type="bool"),
         Arg(
             "--plugins",
             "这一局换用的插件（覆盖 HIRO_HOME/strategy.json）：决策点=插件 id，逗号分隔，如 produce.ACTION_SELECT=uinet,exam=gnrpa；查已装插件用 hiro plugins list",
         ),
         Arg("--sources", "这一局用的数据来源插件 id，逗号分隔（覆盖 strategy.json 的 sources）"),
+        Arg(
+            "--prepare",
+            "开局前先在同一个任务里挑空白编成位、把编成方案写进去（开局检查按需自动加上，不用手填）",
+            type="bool",
+        ),
+        Arg("--prepare-note", "开局前准备做什么（开局检查填，给确认卡看）"),
+        Arg("--prepare-what", "开局前准备哪几样（support / memory，逗号分隔；开局检查按没指定编成号的填）"),
     ),
     confirm_summary=_summary,
     precheck=_precheck,
     access=run_access,
+    snapshot=plan_snapshot,
 )
 def _start(a: dict) -> dict:
     # 对局用哪个模型：跟着发起开局的这个进程的环境（桌面程序按模型设置传；终端里就是自己 shell 的 HIRO_LLM）

@@ -102,7 +102,7 @@ def list_scan() -> list[dict]:
     screens, seen = [], set()
     r = read_support_list(d.screenshot())
     if r is None:
-        print("不在支援卡「選択」列表，停止", flush=True)
+        print("停下：不在支援卡「選択」列表", flush=True)
         return screens
     pages = r["pages"]
     for page in range(1, pages + 1):
@@ -184,16 +184,23 @@ def main() -> None:
     if a.list or a.list_offline:
         from hiro.vision.support_screens import read_support_list
 
-        if a.list and a.from_home:
-            from hiro.produce import formation_menu
-            from hiro.tool_device import open_tool_device
-            from hiro.vision.support_screens import read_support_formation
+        try:
+            if a.list and a.from_home:
+                from hiro.produce import formation_menu
+                from hiro.tool_device import open_tool_device
+                from hiro.vision.support_screens import read_support_formation
 
-            formation_menu.open_picker(formation_menu.tool_device(open_tool_device()), "support",
-                                       ready=lambda img: read_support_list(img) is not None, read_formation=read_support_formation)  # fmt: skip
-        screens = (
-            list_scan() if a.list else [r for p in a.list_offline if (r := read_support_list(_load(p))) is not None]
-        )
+                formation_menu.open_picker(formation_menu.tool_device(open_tool_device()), "support",
+                                           ready=lambda img: read_support_list(img) is not None, read_formation=read_support_formation)  # fmt: skip
+            screens = (
+                list_scan() if a.list else [r for p in a.list_offline if (r := read_support_list(_load(p))) is not None]
+            )
+        finally:
+            if a.list and a.from_home:  # 从首页进来的就回首页（G1-F1：读完停在编成页，下一个任务开头不在首页）
+                from hiro.runtime import nav
+                from hiro.tool_device import open_tool_device
+
+                nav.back_home(open_tool_device())
         inv = {"generated": time.time(), "source": "list", **aggregate_list(screens)}
     else:
         formations = offline(a.offline) if a.offline else live(a.formations)

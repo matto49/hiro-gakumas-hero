@@ -231,6 +231,9 @@ def read_card_page(boxes) -> dict:
             "effect": _lines(boxes, 270, 510)}  # fmt: skip
 
 
+DISABLED_MARK = re.compile(r"^[発免癸]動不[可回司]")  # 能力卡角上的「発動不可」（含 Vision 的形近误读）
+
+
 def read_ability_page(boxes) -> list[dict]:
     """详情 2/2：能力（被动）卡片，两列排布。按列、按纵向间距把 OCR 框拼成一张张卡片：
     [{text, disabled}]（disabled = 卡片角上有「発動不可」，例如别的偶像专用的能力），左列在前、各列从上到下。"""
@@ -249,8 +252,10 @@ def read_ability_page(boxes) -> list[dict]:
             tiles.append(cur)
     out = []
     for parts in tiles:
-        disabled = "発動不可" in parts
-        text = "".join(p for p in parts if p != "発動不可").replace(" ", "")
+        # 角标「発動不可」：以前单独一个框；macOS 27.2.1 的 Apple Vision 会把它和后面的文字并成一段、
+        # 还读成「発動不回」「免動不可」（A16）。只认开头那一截
+        disabled = any(DISABLED_MARK.match(p.replace(" ", "")) for p in parts)
+        text = "".join(DISABLED_MARK.sub("", p.replace(" ", ""), count=1) for p in parts)
         if text:
             out.append({"text": text, "disabled": disabled})
     return out
@@ -271,6 +276,7 @@ class Picker:
     ):
         self.shoot, self.click, self.swipe, self.ocr, self.clock, self.sleep = shoot, click, swipe, ocr, clock, sleep
         self.calib_dir, self._n = calib_dir, 0
+        self.formation_may_have_changed = False  # 扫描中选择页关了（编成可能被改）：调用方收尾时保留现场
 
     def snap(self, img, tag: str) -> None:
         if self.calib_dir is None:
@@ -703,6 +709,8 @@ def scan(
             start = k + 1
     except PickerClosed as ex:
         # 选择页在扫描中关了：多半点成了「決定」，编成号的这一格可能被换成刚选中的回忆。立即停，不再点任何东西（不点キャンセル）
+        # 先告诉调用方保留现场，再截图存证据：截图 / 存盘出错时收尾也不能点回首页（#110 review）
+        picker.formation_may_have_changed = True
         closed = True
         picker.snap(picker.shoot(), f"page{pages:03d}-picker-closed")
         last_cell = inv["entries"][-1]["cell"] if inv["entries"] else None

@@ -8,7 +8,7 @@ sources 记每个字段最后一次写入的来源与 seq，来源优先级 save
 from dataclasses import dataclass, field
 from typing import Any
 
-from hiro.contracts.base import VERSION, Contract
+from hiro.contracts.base import OPTIONAL, VERSION, Contract
 from hiro.contracts.events import Event
 
 MODES = ("home", "produce", "contest", "daily", "unknown")
@@ -34,7 +34,7 @@ class PageState:
 class Source:
     origin: str  # save / screen / infer
     seq: int
-    by: str | None = None  # 1.3：插件写的值是「插件 id@版本」
+    by: str | None = field(default=None, metadata=OPTIONAL)  # 1.3：插件写的值是「插件 id@版本」；没有时不写
 
 
 @dataclass
@@ -75,8 +75,8 @@ class GameState(Contract):
     pending_review: list[str] = field(default_factory=list)  # 1.2：待复核字段，非空时触发主动查看
     ledger: list[Event] = field(default_factory=list)  # 1.2：本局已应用的事件（最近 N 条，完整的在 trace）
     hidden: dict[str, Any] = field(
-        default_factory=dict
-    )  # 1.3：数据来源插件给的、画面上看不到的字段（用过的对局打 uses_hidden）
+        default_factory=dict, metadata=OPTIONAL
+    )  # 1.3：数据来源插件给的、画面上看不到的字段（用过的对局打 uses_hidden）；换页清空，空时不写
     version: str = VERSION
 
     def problems(self) -> list[str]:

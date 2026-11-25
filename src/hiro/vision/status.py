@@ -11,6 +11,7 @@
 
 import json
 import re
+import unicodedata
 from functools import lru_cache
 
 from hiro import master
@@ -54,6 +55,8 @@ STATUS_MIN_SCORE = 0.6
 CAPTURED_MIN_SCORE, CAPTURED_MIN_MARGIN = 0.72, 0.12
 ENCHANT_MIN_SCORE = 0.6
 ENCHANT_MIN_FAINT = 0.7
+# 蓝底槽图标配不上时按卡面再配：真卡牌效果 0.80–0.93；饮料效果、半透明的状态只凑到 0.46–0.68（识别测试集进阶集 11-24）
+ENCHANT_ON_BLUE_MIN = 0.75
 CARD_INNER = 24  # 卡面比对的缩放边长
 
 
@@ -234,9 +237,15 @@ def _masked_region(img: MatLike, k: int) -> tuple[MatLike, int, int]:
     return region, x0, y0
 
 
+def _fold(text: str) -> str:
+    """去空格 + NFKC（全角「％」「３」→ 半角）：macOS 27.2.1 的 Apple Vision 把状态栏的「%」读成全角「％」，
+    VALUE_UNIT / UNITS 只认半角，单位丢了也就不去读两行数字格上面那行的回合（A16，识别测试集进阶集 00154）。"""
+    return unicodedata.normalize("NFKC", text).replace(" ", "")
+
+
 def _label_text(img: MatLike, k: int) -> str:
     cy = _slot_y(k)
-    return "".join(t for t, _ in ocr(img[cy - 2 : cy + 34, SLOT_X + 14 : SLOT_X + 130])).replace(" ", "")
+    return _fold("".join(t for t, _ in ocr(img[cy - 2 : cy + 34, SLOT_X + 14 : SLOT_X + 130])))
 
 
 def _unit_label(img: MatLike, k: int) -> str | None:
@@ -247,13 +256,55 @@ def _unit_label(img: MatLike, k: int) -> str | None:
 VALUE_UNIT = re.compile(r"(\d+)(ターン|回|%)")
 
 
+TURNS_ABOVE = (-32, -4)  # 两行数字的格（上「5ターン」、下「20%」）：上一行相对槽中心的纵向范围
+# 「ターン」前面的数字：Vision 会把形近的字读进来（macOS 27.2.1：「3ターン」→「ろターン」，A16）
+TURN_LOOKALIKE = str.maketrans({"ろ": "3", "O": "0", "o": "0", "l": "1", "I": "1", "|": "1", "S": "5"})
+TURNS_TEXT = re.compile(r"([0-9ろOolI|S]{1,2})ターン")
+
+
+def _turns_from_text(text: str) -> int | None:
+    """整行 OCR 文字里的「Nターン」→ N；数字位置上的形近字按 TURN_LOOKALIKE 换回数字。没有返回 None。"""
+    m = TURNS_TEXT.search(_fold(text))
+    if not m:
+        return None
+    digits = m.group(1).translate(TURN_LOOKALIKE)
+    return int(digits) if digits.isdigit() else None
+
+
+def _turns_above(img: MatLike, k: int) -> int | None:
+    """百分比那一格上面一行的回合数（パラメータ上昇量増加 等「5ターン / 20%」）；没有这一行返回 None。
+    先用游戏字体比对，没把握再用整行 OCR 认「Nターン」。"""
+    cy = _slot_y(k)
+    y1, y2 = cy + TURNS_ABOVE[0], cy + TURNS_ABOVE[1]
+    value, suffix = read_leading_int(img, (SLOT_X + 12, y1, SLOT_X + 60, y2))
+    if value is not None and suffix in ("text", None):
+        return value
+    if suffix == "empty" and not _bright_behind(img, k, above=True):  # 看的是上一行的框亮不亮，不是下面数值框的
+        return None
+    return _turns_from_text("".join(t for t, _ in ocr(img[y1 - 4 : y2 + 4, SLOT_X + 14 : SLOT_X + 130])))
+
+
+BRIGHT_BG_MIN = 0.15  # 数值框里白色像素占比：深色背景 0.03–0.13；天空 / 浅色石地上 0.19–0.95
+
+
+def _bright_behind(img: MatLike, k: int, above: bool = False) -> bool:
+    """数值框背景很亮：数字的白色填充和背景连成一片，字体比对会判成「框里没字」（识别测试集进阶集 やる気 98 等 9 格），这时「没字」不可信。
+    above=True 看两行数字的格上面那一行（回合）的框，缺省看下面的数值框。"""
+    from hiro.vision.digits import WHITE
+
+    cy = _slot_y(k)
+    top, bottom = (cy + TURNS_ABOVE[0], cy + TURNS_ABOVE[1]) if above else (cy + 2, cy + 32)
+    box = img[top:bottom, SLOT_X + 12 : SLOT_X + 60]
+    return box.size > 0 and cv2.inRange(cv2.cvtColor(box, cv2.COLOR_BGR2HSV), *WHITE).mean() / 255 >= BRIGHT_BG_MIN
+
+
 def _value(img: MatLike, k: int, kind: str, card_id: str | None = None) -> tuple[int | None, str | None]:
     """数值用游戏字体比对，「%」由紧跟数字的小圈认出；卡牌效果槽的「ターン / 回」按卡缓存，首次用 Apple Vision 读。
     字体比对没把握时（数字被特效遮住、状态槽数字后跟着认不出的字）退回 ddddocr + Apple Vision。"""
     cy = _slot_y(k)
     region, x0, y0 = _masked_region(img, k)
     value, suffix = read_leading_int(region, (SLOT_X + 12 - x0, cy + 2 - y0, SLOT_X + 60 - x0, cy + 32 - y0))
-    if value is None and suffix == "empty":
+    if value is None and suffix == "empty" and not _bright_behind(img, k):
         return None, None  # 常驻效果（エウレカ！等）不显示数值
     if value is not None and suffix in (None, "%"):
         return value, suffix
@@ -324,7 +375,13 @@ def _read_slot(img: MatLike, k: int, *, faint: bool = False) -> dict:
     elif blue_ratio >= BLUE_MIN_RATIO:
         top = _split_pair(patch, match_status_icon(patch))
         score, key = top[0]
-        if not _accepted(meta, top):
+        cscore, asset = (0.0, None) if _accepted(meta, top) else match_enchant_card(img, k)
+        if cscore >= ENCHANT_ON_BLUE_MIN:
+            # 卡面偏蓝 / 偏淡的卡牌效果（ワクワクが止まらない、エウレカ！……）蓝色像素也够多：图标配不上、卡面配得很像就是卡牌效果
+            card = _card_from_asset(asset) if asset else None
+            entry = {"slot": k, "kind": "enchant", "card_id": card._id if card else None,
+                     "name": card.name if card else None, "asset": asset, "score": round(cscore, 3)}  # fmt: skip
+        elif not _accepted(meta, top):
             entry = {
                 "slot": k,
                 "kind": "status",
@@ -354,6 +411,8 @@ def _read_slot(img: MatLike, k: int, *, faint: bool = False) -> dict:
         entry = {"slot": k, "kind": "enchant", "card_id": card._id if card else None,
                  "name": card.name if card else None, "asset": asset, "score": round(score, 3)}  # fmt: skip
     entry["value"], entry["unit"] = _value(img, k, entry["kind"], entry.get("card_id"))
+    if entry["unit"] == "%" and (turns := _turns_above(img, k)) is not None:
+        entry["turns"] = turns  # 同一格两行：上回合、下百分比（识别测试集进阶集 33 格以前只有百分比）
     if faint:
         entry["faint"] = True
     return entry

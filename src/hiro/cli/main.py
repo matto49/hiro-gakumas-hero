@@ -106,7 +106,8 @@ def run(argv: list[str]) -> tuple[int, dict]:
 
         summary = cmd.confirm_summary(args) if cmd.confirm_summary else f"执行 hiro {cmd.name}"
         access = cmd.access(args) if cmd.access else "all"
-        rec = pending.create(cmd.name, args, summary, access)
+        snap = cmd.snapshot(args) if cmd.snapshot else None
+        rec = pending.create(cmd.name, args, summary, access, snap)
         return PENDING_EXIT, {
             "ok": True,
             "data": {
@@ -136,6 +137,22 @@ def _tools(args: dict) -> dict:
     return {"tools": [c.describe() for c in registry.COMMANDS.values()]}
 
 
+def _check_snapshot(cmd: registry.Command, rec: dict) -> None:
+    """卡上给用户看的快照和现在不一致就不执行：记录已经被拿走，用户要重新发起、重新看一遍卡。"""
+    snap = rec.get("snapshot")
+    if not snap:
+        return
+    now = cmd.snapshot(rec["args"]) if cmd.snapshot else None
+    if (now or {}).get("digest") == snap.get("digest"):
+        return
+    label = snap.get("label") or "确认卡上的内容"
+    raise CliError(
+        "plan_changed",
+        f"{label}在出确认卡之后变了（或没了），卡上看到的和现在的不一样，没有执行",
+        "重新发起这条命令，让用户按最新的内容再确认一次",
+    )
+
+
 @command(
     "confirm",
     Risk.READ,
@@ -150,6 +167,7 @@ def _confirm(a: dict) -> dict:
     cmd = registry.COMMANDS.get(rec["command"])
     if cmd is None:
         raise CliError("unknown_command", f"待确认里的命令已经不存在：{rec['command']}", "重新发起")
+    _check_snapshot(cmd, rec)
     code, env = _execute(cmd, rec["args"])
     if not env["ok"]:
         e = env["error"]

@@ -1,8 +1,12 @@
 package shell
 
 import (
+	"regexp"
 	"strings"
 
+	"github.com/egoist/mygo/ui"
+
+	"github.com/matto49/hiro-gakumas-hero/app/kit"
 	"github.com/matto49/hiro-gakumas-hero/app/plugin"
 )
 
@@ -18,6 +22,79 @@ const (
 
 // PermName 是档位的中文名。
 var PermName = map[string]string{PermAsk: "总是询问", PermRead: "允许读操作", PermReadWrite: "允许读写操作", PermAll: "允许所有行为"}
+
+// PermDesc 是每一档的一句说明（输入框的档位菜单里显示）。
+var PermDesc = map[string]string{
+	PermAsk:       "每件会动游戏的事都先出确认卡",
+	PermRead:      "扫描、检查、领日常、写空白编成位直接做",
+	PermReadWrite: "除了开局、接着打，都直接做",
+	PermAll:       "开局也直接开始；花ジュエル、放弃培育永远不做",
+}
+
+// PermOrder 是档位从严到松的顺序。
+var PermOrder = []string{PermAsk, PermRead, PermReadWrite, PermAll}
+
+// permMenu 是输入框左下角的档位按钮（11-25 review：放进对话框里，ui 同 codex）：显示当前档位，点开换档。
+// 第一次切到「允许所有行为」先弹一次二次确认。
+func (a *App) permMenu(c *ui.Context) {
+	cur := a.permission()
+	if a.d.SetPermission == nil {
+		ui.Text(c, PermName[cur]).FontSize(kit.FNote).TextColor(kit.Ink3).SingleLine()
+		return
+	}
+	c.Key("perm-menu")
+	ui.PopoverMenuButton(c, PermName[cur], func(m *ui.Menu) {
+		for _, lv := range PermOrder {
+			if m.Item(PermName[lv]).Subtitle(PermDesc[lv]).Radio(lv == cur).Chosen() && lv != cur {
+				a.choosePermission(lv)
+			}
+		}
+	}).Label("操作权限："+PermName[cur]).Tooltip("操作权限：哪些事不用确认就直接做").
+		FontSize(kit.FNote).TextColor(kit.Ink2).Padding(4, 8).Radius(kit.R8).Background(ui.RGBA(0, 0, 0, 0))
+	if a.confirmAll {
+		ui.Modal(c, &a.confirmAll, func() {
+			ui.Column(c).Width(420).Gap(12).Padding(20).Radius(kit.R16).Background(kit.CardBg).Children(func() {
+				ui.Text(c, "确定允许所有行为？").FontSize(16).FontWeight(700).TextColor(kit.Ink)
+				kit.Note(c, "开局、接着打、初星課題都会直接开始，不再出确认卡，会用掉培育次数和 AP。花ジュエル、放弃培育这些不管哪一档都不会做。这个提示只出这一次，之后可以随时改回来。")
+				ui.Row(c).Gap(8).Children(func() {
+					ui.Spacer(c)
+					if kit.Secondary(c, "取消").Key("perm-all-cancel").Clicked() {
+						a.confirmAll = false
+					}
+					if kit.Primary(c, "确定，允许所有行为").Key("perm-all-ok").Clicked() {
+						if err := a.d.SetPermission(PermAll); err != nil {
+							a.permErr = "没存上：" + err.Error() + "，再点一次试试"
+						} else {
+							a.confirmAll, a.permErr = false, ""
+						}
+					}
+				})
+				if a.permErr != "" {
+					ui.Text(c, a.permErr).FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
+				}
+			})
+		})
+	}
+}
+
+func (a *App) choosePermission(level string) {
+	a.permErr = ""
+	if level == PermAll && (a.d.AllowAllConfirmed == nil || !a.d.AllowAllConfirmed()) {
+		a.confirmAll = true
+		return
+	}
+	if err := a.d.SetPermission(level); err != nil {
+		// 存不上就还是原来的档（可能是更高的档），要说清楚、让人再试（CodeRabbit #91）
+		a.permErr = "操作权限没存上：" + err.Error() + "。现在还是「" + PermName[a.permission()] + "」，再选一次试试"
+	}
+}
+
+// permError 是输入框下面一行：上次换档没存上的原因（换档成功后清掉）。
+func (a *App) permError(c *ui.Context) {
+	if a.permErr != "" && !a.confirmAll {
+		ui.Text(c, a.permErr).FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
+	}
+}
 
 // Allows 是这一档下这类操作能不能不确认直接开始。没设过档位按「允许读操作」；不知道类别（旧版 CLI）按最高的算。
 func Allows(level, access string) bool {
@@ -69,8 +146,12 @@ func (a *App) autoStart(m *Message, card plugin.Card) {
 		}
 	}
 	card["auto"] = level
+	// N6（11-26 G1）：回复里那句「要开始「…」吗？点下面的确认卡。」是按要确认写的；自动开始了就去掉，下面那行会写「已自动开始…不用确认」
+	m.Text = strings.TrimSpace(askConfirm.ReplaceAllString(m.Text, ""))
 	a.resolve(m, card, "confirm")
 }
+
+var askConfirm = regexp.MustCompile(`要开始「[^」]*」吗？点下面的确认卡。`)
 
 // firstScanKinds 是第一次用时要扫的库存（info summary 的类别 → run start 的种类）。
 // 一键全收集的 5 步（顺序同 hiro.collect_all.STEPS）；首次进入只做信息库里从没扫过的（设计 5.7）

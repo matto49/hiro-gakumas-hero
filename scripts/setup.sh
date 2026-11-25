@@ -21,7 +21,6 @@ done
 step() { printf '\n==> %s\n' "$*"; }
 
 command -v uv >/dev/null || { echo "需要 uv（https://docs.astral.sh/uv/getting-started/installation/）" >&2; exit 1; }
-command -v git >/dev/null || { echo "需要 git" >&2; exit 1; }
 
 step "1/6 虚拟环境 .venv（Python 3.10）"
 venv_py() { if [ -x .venv/Scripts/python.exe ]; then echo .venv/Scripts/python.exe; else echo .venv/bin/python; fi; }  # Windows / 其他
@@ -95,7 +94,7 @@ import hiro.sim
 print(f"模拟器：引擎 {hiro.sim.ROOT}；主数据 {'已构建' if hiro.sim.master_ready() else '没有（模拟相关决策退回社区规则）'}")
 from pathlib import Path
 if not (Path("data") / "value_tables" / "drink_scale.json").exists():
-    print("  ⚠ 没有 data/value_tables/（价值表随仓库发布）：轮间饮料增益不校准，请用 git 拿完整仓库")
+    print("  ⚠ 没有 data/value_tables/（价值表随仓库发布）：轮间饮料增益不校准，请用完整源码（git clone 整个仓库，或下载 GitHub 的源码压缩包）")
 print("自检通过：入口能导入")
 PY
 

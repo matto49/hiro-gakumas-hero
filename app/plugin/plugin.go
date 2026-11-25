@@ -97,9 +97,10 @@ type ExplainGroup struct {
 	Items []ExplainItem
 }
 
-// ExplainItem 是列表里的一行：小图（可空）、标签（租借 / 回忆时机）、名字、右边的小字。
+// ExplainItem 是列表里的一格：小图（可空）、名字、名字下的小字（等级等）、行尾的标签（租借 / 回忆时机），
+// Tip 是鼠标停上去时的详细说明（效果文字等，可空）。
 type ExplainItem struct {
-	Thumb, Tag, Name, Note string
+	Thumb, Tag, Name, Note, Tip string
 }
 
 // Plugin 是一个插件给的全部东西（§5.1 的七类），哪项没有就留空。

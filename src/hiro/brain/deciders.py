@@ -206,14 +206,29 @@ class ProduceDeciders:
         return d
 
     def _plugin_context(self, state: GameState) -> dict:
-        """育成插件 begin 拿到的本局上下文（spec 4.5）。"""
-        from hiro.plugin_record import RECORD
+        """育成插件 begin 拿到的本局上下文（spec 4.5）：培育 id / 家族 / 难度、偶像、主属性、开局编成方案（副本）、攻略包概况、trace 目录。"""
+        import copy
 
+        from hiro import formation_env
+        from hiro.brain import guides
+        from hiro.plugin_record import RECORD
+        from hiro.state import modes
+
+        mode = (state.produce or {}).get("mode")
+        info = modes.MODES.get(mode or "")
         return {
-            "mode": (state.produce or {}).get("mode"),
+            "mode": mode,
+            "family": info.family if info else None,
+            "difficulty": info.difficulty if info else None,
             "idol": getattr(self.profile, "idol_id", None),
             "profile": self.profile,
             "main_attr": self.main_attr,
+            "formation_plan": copy.deepcopy(
+                formation_env.ACTIVE_PLAN
+            ),  # 开局编成方案（没用方案时 None）；插件改它不影响本局
+            "guides": guides.pack_info(
+                info.family if info else None
+            ),  # 偶像卡攻略包概况；条目用 hiro.brain.guides.entries / lookup 取
             "trace_dir": getattr(RECORD, "trace_dir", None),
         }
 

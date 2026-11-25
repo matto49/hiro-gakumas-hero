@@ -205,58 +205,64 @@ def main():
     picker = Picker(d.screenshot, d.tap,
                     lambda x1, y1, x2, y2: d.swipe(x1, y1, x2, y2, duration=SWIPE_DURATION, hold=SWIPE_HOLD), calib_dir=calib)  # fmt: skip
     where = None
-    if args.from_home:
-        from hiro.produce import formation_menu
-        from hiro.produce.memory_picker import picker_open
+    keep_scene = False  # 编成可能被改了：保留现场给人核对，收尾不再点
+    try:
+        if args.from_home:
+            from hiro.produce import formation_menu
+            from hiro.produce.memory_picker import picker_open
 
-        rows = _formation_rows()
-        where = formation_menu.open_picker(
-            formation_menu.tool_device(d),
-            "memory",
-            ready=lambda img: picker_open(picker.ocr(img)),
-            use_set=lambda mode: pick_empty_set(rows, mode),
-        )
-    if args.command == "explore":
-        out = Path(f"reports/live/memory-explore/{stamp}")
-        explore(picker, out)
-        print(out)
-    elif args.slices:
-        from hiro.state.memory_slices import SLICES
-
-        keys = list(SLICES) if args.slices == "all" else [k.strip() for k in args.slices.split(",") if k.strip()]
-        known_for = _known_for if args.incremental else (lambda key: None)
+            rows = _formation_rows()
+            where = formation_menu.open_picker(
+                formation_menu.tool_device(d),
+                "memory",
+                ready=lambda img: picker_open(picker.ocr(img)),
+                use_set=lambda mode: pick_empty_set(rows, mode),
+            )
         ctx = None
         if where is not None:
+            # 从哪个编成进去的：empty=True 时属性是回忆本身的；否则带着其余 3 格的常数偏移（设计 5.3 / D11）
             ctx = {
                 "mode": where["mode"],
                 "formation_set": where["used"] or where["set"],
                 "empty": bool(where.get("empty")),
             }
-        inv = scan_slices(picker, keys, Path(args.out).parent, known_for=known_for, budget_s=args.budget_s,
-                          on_slice=slices_progress_writer(Path(args.out), ctx))  # fmt: skip
-        if ctx is not None:
-            inv["context"] = ctx
-        if not inv.get("restored"):
-            print("注意：回忆列表的排序 / 筛选没能恢复，请在游戏里手动改回（选择页右下的排序按钮）", flush=True)
-        Path(args.out).write_text(json.dumps(inv, ensure_ascii=False, indent=1), encoding="utf-8")
-        if where is not None:
-            _back_to_set(d, where)
-        n = sum(len(x["entries"]) for x in inv["slices"])
-        print(
-            f"{len(inv['slices'])} 片、{n} 格（新的 {sum(x['new'] or 0 for x in inv['slices'])}）→ {args.out}（complete={inv['complete']}）"
-        )
-    else:
-        inv = scan(picker, Path(args.out), max_pages=args.max_pages)
-        if where is not None:
-            # 从哪个编成进去的：empty=True 时属性是回忆本身的；否则带着其余 3 格的常数偏移（设计 5.3 / D11）
-            inv["context"] = {
-                "mode": where["mode"],
-                "formation_set": where["used"] or where["set"],
-                "empty": bool(where.get("empty")),
-            }
+        if args.command == "explore":
+            out = Path(f"reports/live/memory-explore/{stamp}")
+            explore(picker, out)
+            print(out)
+        elif args.slices:
+            from hiro.state.memory_slices import SLICES
+
+            keys = list(SLICES) if args.slices == "all" else [k.strip() for k in args.slices.split(",") if k.strip()]
+            known_for = _known_for if args.incremental else (lambda key: None)
+            inv = scan_slices(picker, keys, Path(args.out).parent, known_for=known_for, budget_s=args.budget_s,
+                              on_slice=slices_progress_writer(Path(args.out), ctx))  # fmt: skip
+            if ctx is not None:
+                inv["context"] = ctx
+            if not inv.get("restored"):
+                print("注意：回忆列表的排序 / 筛选没能恢复，请在游戏里手动改回（选择页右下的排序按钮）", flush=True)
             Path(args.out).write_text(json.dumps(inv, ensure_ascii=False, indent=1), encoding="utf-8")
-            _back_to_set(d, where)
-        print(f"{len(inv['entries'])} 份回忆 → {args.out}（complete={inv.get('complete')}）")
+            n = sum(len(x["entries"]) for x in inv["slices"])
+            new = sum(x["new"] or 0 for x in inv["slices"])
+            print(f"{len(inv['slices'])} 片、{n} 格（新的 {new}）→ {args.out}（complete={inv['complete']}）")
+        else:
+            inv = scan(picker, Path(args.out), max_pages=args.max_pages)
+            keep_scene = bool(inv.get("formation_may_have_changed"))
+            if ctx is not None:
+                inv["context"] = ctx
+                Path(args.out).write_text(json.dumps(inv, ensure_ascii=False, indent=1), encoding="utf-8")
+            print(f"{len(inv['entries'])} 份回忆 → {args.out}（complete={inv.get('complete')}）")
+    finally:
+        # 从首页进来的就回首页（G1-F1：读完停在メモリー編成页，下一个任务开头不在首页）。
+        # 但选择页在扫描中关了（多半点成了「決定」，编成可能被改）时 scan 已经停手要人核对，不能再点回首页离开现场；
+        # 这个标记在发现的当下就打在 picker 上，存盘出错时也看得到（#108 / #110 review）
+        keep_scene = keep_scene or bool(getattr(picker, "formation_may_have_changed", False))
+        if where is not None and not keep_scene:
+            _back_to_set(d, where)  # 先切回进来时的模式和编成号（设计 5.3）
+        if args.from_home and not keep_scene:
+            from hiro.runtime import nav
+
+            nav.back_home(d)
 
 
 if __name__ == "__main__":
