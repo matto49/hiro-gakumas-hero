@@ -184,3 +184,28 @@ func TestLibraryRowsUseChineseNameIconAndTip(t *testing.T) {
 		}
 	}
 }
+
+// D3：游戏设置有不对的开关时给「一键改好」，点了走确认（check-settings --fix）；都对（含要 OFF 的那项）时不给。
+func TestGameSettingsFixButton(t *testing.T) {
+	run := func(items string) (*plugintest.Host, *ui.Tester) {
+		h := plugintest.New(map[string]string{
+			"catalog lookup":     `{"items":{}}`,
+			"info game-settings": `{"kind":"game_settings","scanned_at":"2026-11-26 05:00:00","items":` + items + `}`,
+		})
+		p := New()
+		return h, ui.NewTester(plugintest.PanelView(func(c *ui.Context) { p.Panel(c, h, "game_settings") }), 620, 600)
+	}
+	h, tt := run(`[{"item":"未読早送り","state":"ON","want":"ON"},{"item":"親愛度映像跳过","state":"OFF","want":"ON"}]`)
+	tt.Frame()
+	if err := plugintest.ClickButton(tt, "一键改好"); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.RunArgs_) != 1 || strings.Join(h.RunArgs_[0][1:], " ") != "run start check-settings --fix" {
+		t.Errorf("一键改好：%v", h.RunArgs_)
+	}
+	_, tt = run(`[{"item":"未読早送り","state":"OFF","want":"OFF"},{"item":"親愛度映像跳过","state":"ON","want":"ON"}]`)
+	tt.Frame()
+	if _, ok := tt.AccessByRole(ui.RoleButton, "一键改好"); ok {
+		t.Error("都是要的状态，不该给「一键改好」")
+	}
+}

@@ -95,8 +95,10 @@ def normalize_memories(inv: dict) -> list[dict]:
 
 
 def normalize_game_settings(inv: dict) -> list[dict]:
-    """tools/check_settings.py --json 的输出 → 每项一行（state：ON / OFF / null = 读不到）。"""
-    return [{"item": k, "state": v} for k, v in (inv.get("items") or {}).items()]
+    """tools/check_settings.py --json 的输出 → 每项一行（state：ON / OFF / null = 读不到；want：要的状态，null = 不管；
+    旧输出没有 goal 时按要 ON）。"""
+    goal = inv.get("goal") or {}
+    return [{"item": k, "state": v, "want": goal.get(k, "ON")} for k, v in (inv.get("items") or {}).items()]
 
 
 def normalize_account(inv: dict) -> list[dict]:

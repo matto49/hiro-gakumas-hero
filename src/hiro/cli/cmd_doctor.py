@@ -144,21 +144,23 @@ def _game_settings() -> dict:
             "还没检查过快进 / 跳过演出那几项",
             "游戏停在首页时让初星助手检查（hiro run start check-settings，只读）",
         )
-    off = [r["item"] for r in rows if r["state"] == "OFF"]
+    # want：要的状态（check_settings.goals；旧记录没有时按要 ON；None = 不管）
+    off = [r["item"] for r in rows if r["state"] is not None and r.get("want", "ON") not in (None, r["state"])]
     unknown = [r["item"] for r in rows if r["state"] is None]
     if off:
         return _item(
             "game_settings",
             "游戏快进设置",
             False,
-            f"这几项没开：{'、'.join(off)}（{meta['scanned_at'][5:16]} 检查）",
-            "在游戏里打开 メニュー → 設定 → プロデュース，把它们打开；不开也能打，开局会多处理几个弹框",
+            f"这几项不对：{'、'.join(off)}（{meta['scanned_at'][5:16]} 检查）",
+            "游戏停在首页时让初星助手改好（资料库 → 游戏设置 →「一键改好」，或 hiro run start check-settings --fix）；"
+            "不改也能打，开局会多处理几个弹框",
         )
     if unknown:
         return _item(
             "game_settings", "游戏快进设置", None, f"有几项没读到：{'、'.join(unknown)}", "游戏停在首页时再检查一次"
         )
-    return _item("game_settings", "游戏快进设置", True, f"5 项都开着（{meta['scanned_at'][5:16]} 检查）")
+    return _item("game_settings", "游戏快进设置", True, f"5 项都是要的状态（{meta['scanned_at'][5:16]} 检查）")
 
 
 def _catalog() -> dict:

@@ -98,6 +98,7 @@ func TestExplainNonProduceKinds(t *testing.T) {
 		{map[string]any{"kind": "write-formation", "dry_run": true}, "对照编成方案", "只看画面，不改东西"},
 		{map[string]any{"kind": "write-formation", "scenario": "hajime"}, "把编成方案写进游戏", "会改游戏里的编成"},
 		{map[string]any{"kind": "main-task"}, "做初星課題", "会操作游戏"},
+		{map[string]any{"kind": "check-settings", "fix": true}, "把游戏设置改好", "只动快进、跳过演出那 5 个开关"},
 		{map[string]any{"kind": "story", "chapter": 2}, "看初星コミュ", "会操作游戏"},
 		{map[string]any{"kind": "contest-unit", "dry_run": true}, "看竞赛编队总合力", "只看画面，不改东西"},
 		{map[string]any{"kind": "contest-unit"}, "竞赛编队", "会改竞赛编队"},

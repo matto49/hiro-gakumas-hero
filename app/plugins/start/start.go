@@ -240,6 +240,8 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 		}
 	case r.Kind == "daily":
 		e.Title, e.Cost = "领日常奖励", "会操作游戏 · 不花ジュエル"
+	case r.Kind == "check-settings" && r.Flags["fix"] == "true":
+		e.Title, e.Cost = "把游戏设置改好", "会操作游戏 · 只动快进、跳过演出那 5 个开关"
 	case strings.HasPrefix(r.Kind, "scan-") || r.Kind == "check-settings" || r.Kind == "selftest":
 		e.Cost = costReadOnly
 	case r.Kind == "write-formation":

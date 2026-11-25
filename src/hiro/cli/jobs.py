@@ -336,9 +336,12 @@ KINDS: dict[str, Kind] = {
     ),
     "check-settings": Kind(
         "check-settings",
-        "检查游戏设置里快进 / 跳过演出那几项开没开（只读：打开菜单看完回首页，不点开关）",
-        lambda p, d: [_PY, str(REPO / "tools" / "check_settings.py"), "--json", str(d / "out.json")],
-        lambda p: "检查游戏设置（只读，不改开关）",
+        "检查游戏设置里快进 / 跳过演出那几项开没开（只读：打开菜单看完回首页，不点开关；--fix 不对的顺手改好）",
+        lambda p, d: (
+            [_PY, str(REPO / "tools" / "check_settings.py"), "--json", str(d / "out.json")]
+            + (["--fix"] if p.get("fix") else [])
+        ),
+        lambda p: "把游戏设置改好（快进、跳过演出）" if p.get("fix") else "检查游戏设置（只读，不改开关）",
         output="game_settings",
         pausable=False,
     ),

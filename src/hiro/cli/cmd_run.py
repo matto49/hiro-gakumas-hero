@@ -25,6 +25,7 @@ PARAMS = (
     "scenario",
     "what",
     "dry_run",
+    "fix",
     "main_attr",
     "support_set",
     "memory_set",
@@ -400,6 +401,8 @@ def run_access(a: dict) -> str:
     kind = a["kind"]
     if a.get("command") == "resume" or kind in EXAM_KINDS or kind == "main-task":
         return "all"
+    if kind == "check-settings" and a.get("fix"):
+        return "write"  # 改游戏里的设置开关（D3）
     if kind.startswith("scan-") or kind in ("check-settings", "selftest"):
         return "read"
     if kind == "daily":
@@ -535,6 +538,7 @@ def _first_reason(out: str) -> str:
         Arg("--scenario", "write-formation：写哪个模式的编成", choices=("hif", "hajime", "nia")),
         Arg("--what", "write-formation：写哪些（support / memory，逗号分隔，缺省都写）"),
         Arg("--dry-run", "write-formation：只看差在哪几格，不改；contest-unit：只读总合力，不重排", type="bool"),
+        Arg("--fix", "check-settings：快进 / 跳过演出那几项不对的顺手改好（会改游戏设置）", type="bool"),
         Arg(
             "--plugins",
             "这一局换用的插件（覆盖 HIRO_HOME/strategy.json）：决策点=插件 id，逗号分隔，如 produce.ACTION_SELECT=uinet,exam=gnrpa；查已装插件用 hiro plugins list",

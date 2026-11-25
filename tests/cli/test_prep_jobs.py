@@ -32,6 +32,9 @@ def test_check_settings_writes_json_for_ingest(tmp_path):
     argv = k.argv({}, tmp_path)
     assert argv[1].endswith("tools/check_settings.py") and argv[2:] == ["--json", str(tmp_path / "out.json")]
     assert k.output == "game_settings" and k.pausable is False
+    assert "只读" in k.summary({})
+    fix = k.argv({"fix": True}, tmp_path)
+    assert fix[2:] == ["--json", str(tmp_path / "out.json"), "--fix"] and "改好" in k.summary({"fix": True})
 
 
 def test_fit_window_only_on_windows(run_cli, monkeypatch):
