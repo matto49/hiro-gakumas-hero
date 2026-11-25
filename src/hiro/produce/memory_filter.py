@@ -16,7 +16,15 @@ from hiro.state.memory_slices import PLAN_LABELS, PRODUCE_LABELS
 from hiro.vision.textnorm import fold
 
 SORTS = ("プロデュースクリアランク", "入手", "アイドル", "タグ")
-PILL = (485, 1051)  # 认不出按钮文字时点这里
+PILL = (485, 1051)
+SORT_ZONE = (240, 400)
+DIR_BTN = (653, 1051)  # 选择页右下的升降序按钮
+DIR_ICON = (
+    628,
+    1030,
+    680,
+    1072,
+)  # 按钮图标（x1, y1, x2, y2）：左边是箭头，↓ = 新的在前（缺省），↑ = 旧的在前（11-26 实机）  # 「ソート」页 4 个单选所在的高度（选项前有单选圆点，OCR 读成「•入手」，按包含找）  # 认不出按钮文字时点这里
 OPEN_TRIES = 3
 SCROLL_TRIES = 10
 TOP_SWIPES = 6
@@ -44,18 +52,21 @@ def _find(boxes, word: str, *, exact: bool = False, y_min: int = 0, y_max: int =
 
 
 def _sort_of(text: str) -> str | None:
-    """按钮上的排序名（长的会截成「プロデュースク…」）。"""
-    t = text.rstrip("…").rstrip(".").rstrip("・")
-    return next((s for s in SORTS if len(t) >= 2 and (fold(s).startswith(t) or t.endswith(fold(s)))), None)
+    """按钮上的排序名。长的截成「プロデュースク…」，前面常带图标杂字（11-26 实机「TE プロデュースク…」「7入手」）：
+    含完整名字，或含名字的前 6 个字，就算。"""
+    t = fold(text)
+    return next((s for s in SORTS if fold(s) in t or (len(fold(s)) > 6 and fold(s)[:6] in t)), None)
 
 
 def read_state(p) -> dict:
-    """选择页上当前的排序名（弹窗没开时读按钮）。"""
-    for t, b in _boxes(p):
+    """选择页上当前的排序名和升降序（弹窗没开时读按钮）。"""
+    img = p.shoot()
+    d = sort_direction(img)
+    for t, _, b in p.ocr(img):
         x, y = _center(b)
         if 1030 <= y <= 1075 and 380 <= x <= 620 and (s := _sort_of(t)):
-            return {"sort": s}
-    return {"sort": None}
+            return {"sort": s, "dir": d}
+    return {"sort": None, "dir": d}
 
 
 def _popup_open(boxes) -> bool:
@@ -128,12 +139,43 @@ def close_popup(p) -> bool:
     return not _popup_open(_boxes(p))
 
 
+def sort_direction(img) -> str | None:
+    """升降序按钮的方向：desc = 新的在前（箭头尖在下），asc = 旧的在前（尖在上）；认不出 None。
+    只看图标左边箭头那一列的亮像素：尖那一头的亮像素多得多（实机 28 比 10）。"""
+    if img is None:
+        return None
+    import cv2
+
+    x1, y1, x2, y2 = DIR_ICON
+    g = cv2.cvtColor(img[y1:y2, x1:x2], cv2.COLOR_BGR2GRAY)[:, :22] > 200
+    h = g.shape[0] // 2
+    top, bottom = int(g[:h].sum()), int(g[h:].sum())
+    if bottom >= 10 and bottom >= 2 * top:
+        return "desc"
+    if top >= 10 and top >= 2 * bottom:
+        return "asc"
+    return None
+
+
+def ensure_newest_first(p) -> None:
+    """入手排序要新的在前（增量补扫读到已知就停，反了会读旧回忆就停、漏掉新的，终审 C2）：不是就点一下按钮再核对；认不出就停。"""
+    d = sort_direction(p.shoot())
+    if d == "desc":
+        return
+    if d == "asc":
+        p.click(*DIR_BTN)
+        p.sleep(1.5)
+        if sort_direction(p.shoot()) == "desc":
+            return
+    raise MemoryFilterError(f"认不出 / 改不过来排序方向（{d}），停下，不扫")
+
+
 def apply_slice(p, slice_key: str) -> None:
     """排序改成「入手」，筛选只留这一片的プラン和プロデュース。先点「フィルタをリセット」回到全勾，再取消别的。"""
     plan, produce = slice_key.split(":")
     _open(p)
     _tap(p, "ソート", exact=True, y_min=1000, why="（页签）")
-    _tap(p, "入手", exact=True, y_max=600, why="（排序）")
+    _tap(p, "入手", y_min=SORT_ZONE[0], y_max=SORT_ZONE[1], why="（排序）")
     _tap(p, "フィルタ", exact=True, y_min=1000, why="（页签）")
     _tap(p, "リセット", y_min=900, y_max=1000, why="（フィルタをリセット）")
     _, got = _section(p, "プラン", tuple(PLAN_LABELS.values()), "スキルカードタイプ")
@@ -150,6 +192,7 @@ def apply_slice(p, slice_key: str) -> None:
     p.click(*_center(got[PRODUCE_LABELS[produce]]))
     p.sleep(0.4)
     _confirm(p)
+    ensure_newest_first(p)
 
 
 def restore(p, state: dict) -> bool:
@@ -157,8 +200,13 @@ def restore(p, state: dict) -> bool:
     _open(p)
     if state.get("sort"):
         _tap(p, "ソート", exact=True, y_min=1000, why="（页签）")
-        _tap(p, state["sort"], exact=True, y_max=600, why="（排序）")
+        _tap(p, state["sort"], y_min=SORT_ZONE[0], y_max=SORT_ZONE[1], why="（排序）")
     _tap(p, "フィルタ", exact=True, y_min=1000, why="（页签）")
     _tap(p, "リセット", y_min=900, y_max=1000, why="（フィルタをリセット）")
     _confirm(p)
-    return not state.get("sort") or read_state(p)["sort"] == state["sort"]
+    want = state.get("dir")
+    if want and sort_direction(p.shoot()) not in (want, None):
+        p.click(*DIR_BTN)
+        p.sleep(1.5)
+    now = read_state(p)
+    return (not state.get("sort") or now["sort"] == state["sort"]) and (not want or now["dir"] == want)

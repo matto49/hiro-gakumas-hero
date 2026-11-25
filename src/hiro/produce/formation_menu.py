@@ -390,7 +390,7 @@ def open_picker(
     *,
     ready: Callable[[object], bool],
     read_formation=None,
-    use_set: Callable[[str | None], int | None] | None = None,
+    use_set: Callable[[str | None], tuple[str, int] | None] | None = None,
 ) -> dict:
     """从首页（或编成菜单）进支援卡 / 回忆的选择列表，给库存扫描用（初星助手的「扫描」按钮）：进菜单 → 切到 kind 页 →
     点当前编成第 1 格。只点格子，不点「決定」；列表里由扫描自己读完点キャンセル。ready(截图) 判断列表开了没有。
@@ -402,11 +402,15 @@ def open_picker(
     menu = Menu(dev)
     menu.open()
     m = menu.ensure_tab(kind)
-    where = {"mode": m.get("mode"), "set": m.get("number"), "used": None}
+    where = {"mode": m.get("mode"), "set": m.get("number"), "used": None, "used_mode": None}
     target = use_set(where["mode"]) if use_set else None
-    if target is not None and target != where["set"]:
-        menu.ensure_set(target)
-        where["used"] = target
+    if target is not None and tuple(target) != (where["mode"], where["set"]):
+        t_mode, t_set = target
+        if t_mode != where["mode"]:  # 当前模式没有空编成：切到有空编成的模式（扫完 back_to 切回）
+            menu.ensure_mode(t_mode)
+            menu.ensure_tab(kind)
+        menu.ensure_set(t_set)
+        where.update(used=t_set, used_mode=t_mode)
     if kind == "memory":
         # 现场看 4 格是不是都空（终审 I4：快照可能过期）：都空时顶栏读到的才是回忆本身的属性
         where["empty"] = all(t.get("empty") for t in read_memory_icons(dev.shoot()))
@@ -424,6 +428,15 @@ def open_picker(
             logger.info("编成菜单：%s 选择列表已打开（点了第 1 格；编成 %s）", kind, where["used"] or where["set"])
             return where
     raise FormationWriteError(f"点{'回忆' if kind == 'memory' else '支援卡'}格没打开选择列表")
+
+
+def back_to(dev: Device, where: dict) -> None:
+    """扫完切回 open_picker 进来前的模式和编成号（选择页要已经关了，停在编成页）。"""
+    menu = Menu(dev)
+    if where.get("used_mode") and where.get("mode") and where["used_mode"] != where["mode"]:
+        menu.ensure_mode(where["mode"])
+    menu.ensure_tab("memory")
+    menu.ensure_set(where["set"])
 
 
 def tool_device(d) -> Device:

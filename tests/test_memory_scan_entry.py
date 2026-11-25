@@ -12,12 +12,17 @@ ROWS = [
 ]
 
 
-def test_pick_empty_set_takes_largest_empty_memory_set_of_mode():
-    assert memory_scan.pick_empty_set(ROWS, "hif") == 19
-    assert memory_scan.pick_empty_set(ROWS, "hajime") == 3
+def test_pick_empty_set_prefers_current_mode():
+    assert memory_scan.pick_empty_set(ROWS, "hif") == ("hif", 19)
+    assert memory_scan.pick_empty_set(ROWS, "hajime") == ("hajime", 3)
 
 
-def test_pick_empty_set_none_when_all_full_or_unknown():
+def test_pick_empty_set_falls_back_to_another_mode():
+    """11-26 实机：游戏停在「初」，「初」没有全空的回忆编成；回忆列表各模式一样，切到有空编成的模式去扫（扫完切回）。"""
+    rows = [r for r in ROWS if r["mode"] != "hajime"]
+    assert memory_scan.pick_empty_set(rows, "hajime") == ("hif", 19)
+    assert memory_scan.pick_empty_set(rows, None) == ("hif", 19)
+
+
+def test_pick_empty_set_none_when_all_full():
     assert memory_scan.pick_empty_set([r for r in ROWS if r["filled"]], "hif") is None
-    assert memory_scan.pick_empty_set(ROWS, "nia") is None
-    assert memory_scan.pick_empty_set(ROWS, None) is None

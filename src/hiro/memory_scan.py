@@ -16,10 +16,19 @@ from hiro.produce.memory_picker import SWIPE_DURATION, SWIPE_HOLD, Picker, explo
 from hiro.tool_device import open_tool_device
 
 
-def pick_empty_set(rows: list[dict], mode: str | None) -> int | None:
-    """编成快照（info formations 的行）里 mode 下全空的回忆编成，取号最大的；没有返回 None（设计 5.3）。"""
-    empty = [r["set"] for r in rows if r.get("mode") == mode and r.get("kind") == "memory" and r.get("filled") == 0]
-    return max(empty) if mode and empty else None
+def pick_empty_set(rows: list[dict], mode: str | None) -> tuple[str, int] | None:
+    """编成快照里全空的回忆编成 → (模式, 编成号)，取号最大的；当前模式有就用当前模式的，没有就用别的模式的
+    （11-26 实机：「初」没有全空的回忆编成；回忆列表各模式一样，切过去扫、扫完切回）。都没有返回 None（设计 5.3）。"""
+    from hiro.produce.formation_menu import MODES
+
+    def empty(m):
+        sets = [r["set"] for r in rows if r.get("mode") == m and r.get("kind") == "memory" and r.get("filled") == 0]
+        return max(sets) if sets else None
+
+    for m in ([mode] if mode else []) + [m for m in MODES if m != mode]:
+        if (n := empty(m)) is not None:
+            return m, n
+    return None
 
 
 def _formation_rows() -> list[dict]:
@@ -51,15 +60,15 @@ def _known_for(key: str):
 
 
 def _back_to_set(d, where: dict) -> None:
-    """扫完（选择页已经キャンセル）把编成页切回进来时的编成号；切不回只记日志，不影响扫描结果。"""
+    """扫完（选择页已经キャンセル）把编成页切回进来时的模式和编成号；切不回只记日志，不影响扫描结果。"""
     if not where.get("used") or not where.get("set"):
         return
     from hiro.produce import formation_menu
 
     try:
-        formation_menu.Menu(formation_menu.tool_device(d)).ensure_set(where["set"])
+        formation_menu.back_to(formation_menu.tool_device(d), where)
     except Exception as e:  # noqa: BLE001
-        logging.getLogger(__name__).warning("扫完没能切回编成 %s：%s", where["set"], e)
+        logging.getLogger(__name__).warning("扫完没能切回 %s 编成 %s：%s", where.get("mode"), where["set"], e)
 
 
 def slices_progress_writer(out: Path, context: dict | None):

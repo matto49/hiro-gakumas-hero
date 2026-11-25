@@ -25,7 +25,7 @@ class FakePicker:
         self.clicks = []
 
     def shoot(self):
-        return None
+        return _icon_frame(getattr(self, "dir", "desc"))  # 选择页的升降序按钮（缺省新的在前）
 
     def sleep(self, s):
         pass
@@ -62,6 +62,7 @@ class FakePicker:
     def click(self, x, y):
         self.clicks.append((x, y))
         hit = next((t for t, (x1, y1, x2, y2) in self._visible() if x1 <= x <= x2 and y1 <= y <= y2), None)
+        hit = hit.lstrip("•") if hit else hit
         if not self.popup:
             if hit == self.sort:
                 self.popup = True
@@ -95,7 +96,7 @@ def checked_in(p, lo, hi):
 def test_apply_slice_sets_sort_plan_and_produce():
     p = FakePicker()
     before = mf.read_state(p)
-    assert before == {"sort": "プロデュースクリアランク"}
+    assert before == {"sort": "プロデュースクリアランク", "dir": "desc"}
     mf.apply_slice(p, "sense:hif")
     assert p.sort == "入手" and not p.popup
     assert checked_in(p, 900, 1090) == ["センス"]
@@ -142,3 +143,95 @@ def test_close_popup_cancels_only_when_open():
     assert mf.close_popup(p) and not p.popup
     n = len(p.clicks)
     assert mf.close_popup(p) and len(p.clicks) == n  # 没开就不点
+
+
+def test_real_device_labels_with_radio_dots_and_icon_noise():
+    """11-26 实机：排序选项前带单选圆点（OCR「•入手」「• プロデュースクリアランク」），按钮上的排序名带图标杂字
+    （「TE プロデュースク…」「7入手」）：都要认得出。"""
+    assert mf._sort_of(mf.fold("TE プロデュースク…")) == "プロデュースクリアランク"
+    assert mf._sort_of(mf.fold("7入手")) == "入手"
+    assert mf._find([(mf.fold("•入手"), (410, 264, 445, 288))], "入手", y_max=600) is not None
+
+
+def test_apply_slice_with_radio_dot_labels():
+    p = FakePicker()
+    orig = p._visible
+
+    def dotted():
+        return [("•" + t if t in ("入手", "プロデュースクリアランク", "アイドル", "タグ") and p.popup and p.tab == "sort" else t, b)
+                for t, b in orig()]  # fmt: skip
+
+    p._visible = dotted
+    mf.apply_slice(p, "sense:hif")
+    assert p.sort == "•入手".lstrip("•")
+
+
+def _icon_frame(direction):
+    """画一张带升降序按钮的帧：箭头竖线 + 箭头尖（↓ 尖在下 = 新的在前；↑ 尖在上 = 旧的在前）。11-26 实机图标就是这样。"""
+    import numpy as np
+
+    img = np.zeros((1280, 720, 3), np.uint8)
+    x0, y0 = mf.DIR_ICON[0], mf.DIR_ICON[1]
+    img[y0 + 6 : y0 + 36, x0 + 10 : x0 + 12] = 255  # 竖线
+    tip = range(y0 + 30, y0 + 37) if direction == "desc" else range(y0 + 5, y0 + 12)
+    for i, y in enumerate(tip):
+        w = (len(tip) - i) if direction == "desc" else (i + 1)
+        img[y, x0 + 11 - w : x0 + 12 + w] = 255
+    return img
+
+
+def test_sort_direction_from_icon():
+    assert mf.sort_direction(_icon_frame("desc")) == "desc"
+    assert mf.sort_direction(_icon_frame("asc")) == "asc"
+    import numpy as np
+
+    assert mf.sort_direction(np.zeros((1280, 720, 3), np.uint8)) is None
+
+
+def test_apply_slice_flips_to_newest_first():
+    """入手排序要新的在前（增量补扫靠它：反了会读到旧回忆就停）。方向不对就点一下按钮，再核对。"""
+    p = FakePicker()
+    p.dir = "asc"
+    p.shoot = lambda: _icon_frame(p.dir)
+    orig_click = p.click
+
+    def click(x, y):
+        if (x, y) == mf.DIR_BTN and not p.popup:
+            p.dir = "desc" if p.dir == "asc" else "asc"
+            p.clicks.append((x, y))
+            return
+        orig_click(x, y)
+
+    p.click = click
+    mf.apply_slice(p, "sense:hif")
+    assert p.dir == "desc"
+
+
+def test_unknown_direction_stops():
+    import numpy as np
+
+    p = FakePicker()
+    p.shoot = lambda: np.zeros((1280, 720, 3), np.uint8)
+    with pytest.raises(mf.MemoryFilterError):
+        mf.apply_slice(p, "sense:hif")
+
+
+def test_restore_puts_direction_back():
+    """扫描时改成了新的在前；玩家原来是旧的在前，恢复时切回去。"""
+    p = FakePicker()
+    p.dir = "asc"
+    orig_click = p.click
+
+    def click(x, y):
+        if (x, y) == mf.DIR_BTN and not p.popup:
+            p.dir = "desc" if p.dir == "asc" else "asc"
+            p.clicks.append((x, y))
+            return
+        orig_click(x, y)
+
+    p.click = click
+    st = mf.read_state(p)
+    assert st["dir"] == "asc"
+    mf.apply_slice(p, "sense:hif")
+    assert p.dir == "desc"
+    assert mf.restore(p, st) and p.dir == "asc"
