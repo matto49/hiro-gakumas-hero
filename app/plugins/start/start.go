@@ -123,7 +123,7 @@ func (pl *planBrief) groups(h plugin.Host, cat *common.Catalog) []plugin.Explain
 			lv = fmt.Sprintf("Lv%d", *o.Level)
 			it.Note = lv
 		}
-		it.Tip = common.Tip(cat.Get(h, o.ID), nm, lv)
+		it.Tip = common.Tip(cat.Get(h, o.ID), common.Both(nm, o.Name), lv)
 		sup.Items = append(sup.Items, it)
 	}
 	if r := pl.Support.Rental; r != nil {
@@ -139,7 +139,7 @@ func (pl *planBrief) groups(h plugin.Host, cat *common.Catalog) []plugin.Explain
 			it.Note = "估算"
 			note += "（按常见等级估算）"
 		}
-		it.Tip = common.Tip(cat.Get(h, r.ID), it.Name, note)
+		it.Tip = common.Tip(cat.Get(h, r.ID), common.Both(it.Name, r.Name), note)
 		sup.Items = append(sup.Items, it)
 	}
 	mem := plugin.ExplainGroup{Title: "回忆"}
@@ -149,7 +149,7 @@ func (pl *planBrief) groups(h plugin.Host, cat *common.Catalog) []plugin.Explain
 		if e := cat.Get(h, m.CardID); e != nil && e.Asset != "" {
 			it.Thumb = cat.Sprite(h, e.Asset)
 		}
-		it.Tip = common.Tip(cat.Get(h, m.CardID), nm, "用在："+labels.Timing(m.Timing))
+		it.Tip = common.Tip(cat.Get(h, m.CardID), common.Both(nm, m.Name+strings.Repeat("+", m.Upgrade)), "用在："+labels.Timing(m.Timing))
 		mem.Items = append(mem.Items, it)
 	}
 	var out []plugin.ExplainGroup

@@ -158,11 +158,11 @@ func TestLibraryRowsUseChineseNameIconAndTip(t *testing.T) {
 	})
 	v := New().Cards["info"]
 	for _, tc := range []struct {
-		card      plugin.Card
-		name, tip string
+		card          plugin.Card
+		name, tip, ja string
 	}{
-		{plugin.Card{"type": "info", "kind": "supports", "items": []any{map[string]any{"id": "s_card-2-0001", "name": "一緒に行こう！", "rarity": "SSR", "attr": "Vo", "level": 50.0, "breaks": 4.0}}}, "一起走吧！", "课程结束时 Vo 上升 +10"},
-		{plugin.Card{"type": "info", "kind": "memories", "items": []any{map[string]any{"card_id": "p_card-01-act-2_001", "card": "成長痛", "timing": "mid", "stats": map[string]any{"Vo": 100.0, "Da": 200.0, "Vi": 300.0}}}}, "成长痛", "好调 +2 回合"},
+		{plugin.Card{"type": "info", "kind": "supports", "items": []any{map[string]any{"id": "s_card-2-0001", "name": "一緒に行こう！", "rarity": "SSR", "attr": "Vo", "level": 50.0, "breaks": 4.0}}}, "一起走吧！", "课程结束时 Vo 上升 +10", "一緒に行こう！"},
+		{plugin.Card{"type": "info", "kind": "memories", "items": []any{map[string]any{"card_id": "p_card-01-act-2_001", "card": "成長痛", "timing": "mid", "stats": map[string]any{"Vo": 100.0, "Da": 200.0, "Vi": 300.0}}}}, "成长痛", "好调 +2 回合", "成長痛"},
 	} {
 		tt := ui.NewTester(func(c *ui.Context) { v(c, h, tc.card) }, 760, 400)
 		tt.Frame()
@@ -177,6 +177,10 @@ func TestLibraryRowsUseChineseNameIconAndTip(t *testing.T) {
 		tt.Frame()
 		if !tt.HasText(tc.tip) {
 			t.Errorf("%v 悬停应显示效果：%q", tc.card["kind"], tt.Texts())
+		}
+		// CodeRabbit #92：中文名后面跟日文原名（行里和悬停说明都有）
+		if !tt.HasText(tc.ja) {
+			t.Errorf("%v 应保留日文原名 %q：%q", tc.card["kind"], tc.ja, tt.Texts())
 		}
 	}
 }

@@ -21,6 +21,17 @@ type Entry struct {
 	Text string `json:"text"`
 }
 
+// Both 是「中文名（日文原名）」：卡名中文优先，日文原名跟在后面（app/DESIGN.md）；两者一样或缺一个时只给一个。
+func Both(zh, ja string) string {
+	switch {
+	case zh == "" || zh == ja:
+		return ja
+	case ja == "":
+		return zh
+	}
+	return zh + "（" + ja + "）"
+}
+
 // Tip 是一张卡的悬停说明：名字（稀有度）、效果文字，再加调用方给的几行（等级、租借等）。没有资料时只用 extra。
 func Tip(e *Entry, name string, extra ...string) string {
 	var lines []string

@@ -308,9 +308,10 @@ func supportRow(c *ui.Context, h plugin.Host, it map[string]any) {
 	id := str(it, "id")
 	art := common.Shared.Sprite(h, "support-"+id)
 	e := common.Shared.Get(h, id)
-	name := or(str(it, "name"), "（没认出）")
+	ja := str(it, "name")
+	name := or(ja, "（没认出）")
 	if e != nil && e.Name != "" {
-		name = e.Name // 资料库的中文名（11-22：资源站的信息用上，先加中文）
+		name = e.Name // 资料库的中文名（11-22：资源站的信息用上，先加中文）；日文原名跟在后面
 	}
 	meta := strings.TrimSpace(str(it, "rarity"))
 	if lv := str(it, "level"); lv != "" {
@@ -321,12 +322,15 @@ func supportRow(c *ui.Context, h plugin.Host, it map[string]any) {
 	}
 	row := ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(4, 0)
 	if id != "" {
-		row = row.Tooltip(common.Tip(e, name, strings.TrimSpace(meta)))
+		row = row.Tooltip(common.Tip(e, common.Both(name, ja), strings.TrimSpace(meta)))
 	}
 	row.Children(func() {
 		kit.Thumb(c, art, 36, 36, 8)
 		ui.Box(c).Size(7, 7).Radius(4).Background(kit.AttrColor(str(it, "attr"))).Shrink(0)
 		ui.Text(c, name).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…").Shrink(1)
+		if ja != "" && ja != name {
+			ui.Text(c, ja).FontSize(11.5).TextColor(kit.Ink3).MaxLines(1).Ellipsis("…").Shrink(2)
+		}
 		ui.Spacer(c)
 		ui.Text(c, strings.TrimSpace(meta)).FontSize(11.5).TextColor(kit.Ink2).SingleLine()
 	})
@@ -341,7 +345,8 @@ func memoryRow(c *ui.Context, h plugin.Host, it map[string]any) {
 		return "?"
 	}
 	id := str(it, "card_id")
-	name := or(str(it, "card"), "（没认出）")
+	ja := str(it, "card")
+	name := or(ja, "（没认出）")
 	art := ""
 	e := common.Shared.Get(h, id)
 	if e != nil {
@@ -354,11 +359,14 @@ func memoryRow(c *ui.Context, h plugin.Host, it map[string]any) {
 	timing := or(labels.Timing(str(it, "timing")), "?")
 	row := ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(4, 0)
 	if id != "" {
-		row = row.Tooltip(common.Tip(e, name, "用在："+timing, stats))
+		row = row.Tooltip(common.Tip(e, common.Both(name, ja), "用在："+timing, stats))
 	}
 	row.Children(func() {
 		kit.Thumb(c, art, 36, 36, 8)
 		ui.Text(c, name).FontSize(kit.FSmall).TextColor(kit.Ink).MaxLines(1).Ellipsis("…").Shrink(1)
+		if ja != "" && ja != name {
+			ui.Text(c, ja).FontSize(11.5).TextColor(kit.Ink3).MaxLines(1).Ellipsis("…").Shrink(2)
+		}
 		ui.Spacer(c)
 		ui.Text(c, stats).FontSize(11.5).TextColor(kit.Ink2).SingleLine()
 		ui.Text(c, timing).FontSize(11).TextColor(kit.Ink2).Padding(1, 6).Radius(5).Background(kit.Surface2).Shrink(0)
