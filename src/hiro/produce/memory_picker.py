@@ -168,6 +168,15 @@ def read_stats(boxes) -> dict:
     return out
 
 
+def stats_with_fallback(img, boxes, ocr) -> dict:
+    """顶栏属性；有一项没读出数字时退回整屏 OCR 再读（11-26 实机：Vo 只有一个「0」，只 OCR 上半部分读不出、整屏能读出）。"""
+    s = read_stats(boxes)
+    if img is not None and any(v is None for v in s.values()):
+        full = read_stats(ocr(img))
+        s = {k: v if v is not None else full.get(k) for k, v in s.items()}
+    return s
+
+
 OCR_SWAPS = (
     ("ヘ", "へ"),
     ("宜", "宣"),
@@ -350,7 +359,7 @@ class Picker:
         for page in (first, 3 - first):
             _img, boxes = self.to_page(page)
             if page == 1:
-                entry = {"stats": read_stats(boxes), **read_card_page(boxes), **entry}
+                entry = {"stats": stats_with_fallback(_img, boxes, self.ocr), **read_card_page(boxes), **entry}
             else:
                 entry["abilities"] = read_ability_page(boxes)
         return entry

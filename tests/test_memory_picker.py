@@ -749,3 +749,15 @@ def test_to_page_ocrs_only_detail_area():
                   sleep=lambda s: None, clock=lambda: 0.0)  # fmt: skip
     p.to_page(1)
     assert heights and all(h <= mp.DETAIL_OCR_BOTTOM for h in heights) and p._page == 1
+
+
+@pytest.mark.fixtures
+@pytest.mark.parametrize(
+    ("name", "want"), [("picker-vo-zero-hif-1126.png", (0, 62, 64)), ("picker-vo-zero-hif-1126-b.png", (0, 67, 49))]
+)
+def test_stats_fall_back_to_full_frame_when_a_digit_is_missed(name, want):
+    """11-26 实机：顶栏 Vo 只有一个「0」，只 OCR 上半部分时读不出来（整屏能读出）：有属性没读出时退回整屏再读。"""
+    img = frame(name)
+    boxes = ops.ocr_boxes(img[: mp.DETAIL_OCR_BOTTOM])
+    s = mp.stats_with_fallback(img, boxes, ops.ocr_boxes)
+    assert (s["Vo"], s["Da"], s["Vi"]) == want
