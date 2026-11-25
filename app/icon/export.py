@@ -23,8 +23,8 @@ for cx, cy in ((r, r), (CONTENT * k - r - 1, r), (r, CONTENT * k - r - 1), (CONT
 mask = cv2.resize(big, (CONTENT, CONTENT), interpolation=cv2.INTER_AREA)
 icon = np.zeros((CANVAS, CANVAS, 4), np.uint8)
 o = (CANVAS - CONTENT) // 2
-icon[o:o + CONTENT, o:o + CONTENT, :3] = body
-icon[o:o + CONTENT, o:o + CONTENT, 3] = mask
+icon[o : o + CONTENT, o : o + CONTENT, :3] = body
+icon[o : o + CONTENT, o : o + CONTENT, 3] = mask
 cv2.imwrite("resources/icon.png", icon)
 
 # 128 标志（方图，界面里自己加圆角）
