@@ -23,26 +23,35 @@ def _algo_ok(monkeypatch):
     monkeypatch.setattr(cmd_run, "exam_algo_problem", lambda: None)
 
 
+# 方案是给别的偶像的、有库存时：自动给这张卡出方案（tests/cli/test_plan_per_idol.py）。这里是没有库存、出不了方案的情况
 @pytest.mark.parametrize("kind", ["hajime", "nia"])
-def test_plan_for_another_idol_is_refused_before_confirm(run_cli, hiro_home, kind):
+def test_plan_for_another_idol_without_inventory_is_refused_before_confirm(run_cli, hiro_home, kind):
     _plan(hiro_home)
     _code, env = run_cli("run", "start", kind, "--idol", KOTONE, "--difficulty", "master")
-    assert env["ok"] is False and env["error"]["code"] == "plan_other_idol"
-    assert "Luna say maybe" in env["error"]["message"]
-    assert "plan formation --idol i_card-fktn-3-000" in env["error"]["hint"]
-    assert f"write-formation --scenario {kind}" in env["error"]["hint"]
+    assert env["ok"] is False and env["error"]["code"] == "no_plan"
+    assert "扫描" in env["error"]["hint"] and "自动出方案" in env["error"]["hint"]
 
 
 def test_no_plan_is_refused_before_confirm(run_cli, hiro_home):
     _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE)
     assert env["ok"] is False and env["error"]["code"] == "no_plan"
-    assert "plan formation --idol i_card-fktn-3-000" in env["error"]["hint"]
+
+
+def test_explicit_plan_file_for_another_idol_is_still_refused(run_cli, hiro_home, tmp_path, monkeypatch):
+    other = tmp_path / "my-plan.json"
+    other.write_text(
+        json.dumps({"idol": {"idol_card_id": "i_card-ttmr-3-000", "name": "Luna say maybe"}}), encoding="utf-8"
+    )
+    monkeypatch.setenv("HIRO_FORMATION_PLAN", str(other))
+    _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE)
+    assert env["error"]["code"] == "plan_other_idol" and "Luna say maybe" in env["error"]["message"]
+    assert "plan formation --idol i_card-fktn-3-000 --mode hajime" in env["error"]["hint"]
 
 
 def test_hif_qualify_checks_plan_but_main_and_resume_do_not(run_cli, hiro_home):
     _plan(hiro_home)
     _code, env = run_cli("run", "start", "hif", "--idol", KOTONE, "--mode", "qualify")
-    assert env["error"]["code"] == "plan_other_idol"
+    assert env["error"]["code"] == "no_plan"
     for extra in (("--mode", "main"), ("--command", "resume")):
         code, env = run_cli("run", "start", "hif", "--idol", KOTONE, *extra)
         assert code == 3 and env["data"]["pending"], extra  # 本战不走编成步骤、续跑不重新编成

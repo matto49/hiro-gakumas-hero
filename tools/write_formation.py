@@ -9,6 +9,7 @@
 - --dry-run：只进菜单、翻到编成号、报和方案差哪几格，不点格子。
 - 方案文件：HIRO_FORMATION_PLAN，缺省 conf/formation-plan.json。回忆按方案里的库存位置（cell）找，库存是在菜单的回忆选择页扫的。
 - 每一步的截图存 reports/live/calib/<时间>-编成菜单/。对不上就キャンセル 停下（退出码 3），不盲选。
+- 写完核对通过（或 --dry-run 时两样都不用改）就在方案上记 written[模式]：hiro run start 开局前据此判断方案已经写进游戏。
 """
 
 from __future__ import annotations
@@ -79,6 +80,10 @@ def main() -> int:
     for kind, done in out.items():
         print(f"{kind}：{'不用改' if not done else done}")  # noqa: SIM212
     print("只报了差异，没改" if args.dry_run else "写完，回读核对通过")
+    if not args.dry_run or not any(out.values()):  # 写完核对通过，或只看差异时两样都不用改：游戏里就是这套编成
+        from hiro.brain.formation_plan import mark_written
+
+        mark_written(plan_path, args.mode, what)
     return 0
 
 

@@ -134,8 +134,12 @@ def _check_memory_freshness(plan_path: Path, home: Path) -> None:
 
 
 def _check_formation_plan(a: dict) -> None:
-    """新开一局（H.I.F 只算选拔）又没指定编成号时，要有给这位偶像出的开局编成方案，否则任务进了游戏流程才报
-    「开局要编成号」退出（Mac 11-24：方案是给月村手毬的，H.I.F、藤田ことね的「初」都这样白开了一次）。"""
+    """新开一局（H.I.F 只算选拔）又没指定编成号时，要有这张卡 × 这个模式的开局编成方案，而且已经写进游戏，
+    否则任务进了游戏流程才报「开局要编成号」或第 2 / 3 步核对对不上退出（Mac 11-24：方案是给月村手毬的，H.I.F、藤田ことね的「初」都这样白开了一次）。
+
+    2026-11-26 起方案按「偶像卡 × 模式」存（plans/<模式>/<偶像卡>.json）：这张卡在这个模式没有方案就按社区攻略自动出一份
+    （编成位号沿用这个模式上一份方案的），再让玩家先「写编成」；有方案就把它设为当前方案（开局核对、写编成都读当前方案）。"""
+    from hiro.brain import formation_plan as fp
     from hiro.cli import paths
     from hiro.cli.home import hiro_home
 
@@ -154,10 +158,70 @@ def _check_formation_plan(a: dict) -> None:
     env_plan = os.environ.get("HIRO_FORMATION_PLAN")
     if env_plan == "off":
         return
-    path = Path(env_plan) if env_plan else paths.plan_path(hiro_home())
     idol = (a.get("idol") or "").replace("i_card-skin-", "i_card-")
+    home = hiro_home()
+    # 显式指定了别的方案文件：照以前只核对偶像。指向当前方案的（paths.apply_to_process 补进进程环境的缺省值，
+    # 常驻服务出过一次方案后就一直在）不算显式
+    if env_plan and Path(env_plan).resolve() != paths.plan_path(home).resolve():
+        _check_plan_file(Path(env_plan), idol, kind)
+        return
+    write_hint = f"写进游戏：hiro run start write-formation --scenario {kind}；写完再开局"
+    found = fp.find_plan(home, idol, kind) if idol else None
+    if found is None:
+        if not idol:
+            _check_plan_file(paths.plan_path(home), idol, kind)
+            return
+        from hiro.cli.cmd_plan import make_plan
+        from hiro.cli.registry import CliError as _E
+
+        s_set, m_set = fp.inherited_sets(home, kind)
+        try:
+            plan, _path = make_plan(home, idol, kind, difficulty=a.get("difficulty"), support_set=s_set,
+                                    memory_set=m_set, source="auto")  # fmt: skip
+        except _E as e:
+            if e.code == "no_inventory":
+                raise CliError(
+                    "no_plan",
+                    "这张卡在这个模式还没有开局编成方案，也没有支援卡和回忆的库存，出不了方案",
+                    "先扫描支援卡和回忆（hiro run start scan-supports / scan-memories），开局时会按社区攻略自动出方案",
+                ) from None
+            raise
+        name = (plan.get("idol") or {}).get("name") or idol
+        if not (s_set and m_set):
+            raise CliError(
+                "no_slot",
+                f"已按社区攻略给「{name}」出了这个模式的开局编成方案，还不知道写进游戏第几号编成位",
+                f"指定编成位：hiro plan formation --idol {idol} --mode {kind} --support-set <支援卡编成号> --memory-set <回忆编成号>；"
+                f"{write_hint}。也可以用 --support-set / --memory-set 直接开游戏里已经编好的编成",
+            )
+        raise CliError(
+            "plan_not_written",
+            f"已按社区攻略给「{name}」出了这个模式的开局编成方案（支援卡编成 {s_set} 号、回忆编成 {m_set} 号），"
+            "游戏里这两个编成位还是之前的，要先写进去",
+            write_hint,
+        )
+    plan, path = found
+    if path != paths.plan_path(home):
+        fp.activate(home, plan)  # 开局核对、写编成都读当前方案
+    name = (plan.get("idol") or {}).get("name") or idol
+    if not ((plan.get("support") or {}).get("set") and (plan.get("memory") or {}).get("set")):
+        raise CliError(
+            "no_slot",
+            f"「{name}」的开局编成方案还没定写进第几号编成位",
+            f"hiro plan formation --idol {idol} --mode {kind} --support-set <支援卡编成号> --memory-set <回忆编成号>；{write_hint}",
+        )
+    if fp.needs_write(plan, kind):
+        raise CliError(
+            "plan_not_written",
+            f"「{name}」的开局编成方案（支援卡编成 {plan['support']['set']} 号、回忆编成 {plan['memory']['set']} 号）还没写进游戏",
+            write_hint,
+        )
+
+
+def _check_plan_file(path: Path, idol: str, kind: str) -> None:
+    """只看一个方案文件（HIRO_FORMATION_PLAN 指定的，或没给偶像时的当前方案）：有没有、偶像对不对。"""
     hint = (
-        f"先给这位偶像出编成方案：hiro plan formation --idol {idol or '<偶像卡编号>'}；"
+        f"先给这位偶像出编成方案：hiro plan formation --idol {idol or '<偶像卡编号>'} --mode {kind}；"
         f"再写进游戏：hiro run start write-formation --scenario {kind}；然后再开局。"
         "也可以用 --support-set / --memory-set 指定游戏里已经编好的编成号"
     )

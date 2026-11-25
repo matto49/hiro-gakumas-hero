@@ -387,8 +387,9 @@ def _inventory_position(raw: dict) -> dict:
 
 
 def select_memories(inventory: dict | list, *, gains: dict | None = None, finals: dict | None = None, plan: str = "ProducePlanType_Plan2",
-                    profile: str | None = None) -> dict:  # fmt: skip
-    """库存 → 推荐的 4 格编成、每格理由、第 2 方案与差距、值得刷的回忆。profile：流派（默认 やる気；见 memory_priority.profile_for_idol）。"""
+                    profile: str | None = None, guide: dict[str, float] | None = None) -> dict:  # fmt: skip
+    """库存 → 推荐的 4 格编成、每格理由、第 2 方案与差距、值得刷的回忆。profile：流派（默认 やる気；见 memory_priority.profile_for_idol）。
+    guide：攻略推荐的回忆卡 id → 排行榜占比，按占比加权重（GUIDE_MEMORY_WEIGHT）。"""
     from itertools import combinations
 
     from hiro.state.context import catalog
@@ -413,7 +414,7 @@ def select_memories(inventory: dict | list, *, gains: dict | None = None, finals
         if card_plan not in (None, plan, "ProducePlanType_Common"):
             continue  # 别的プラン的卡带不进来
         mems.append(m)
-    scored = _score_memories(mems, gains, finals, profile)
+    scored = _score_memories(mems, gains, finals, profile, guide)
     # 每张卡留质量最好的 3 份（同一张卡不重复带，候选数控制在组合可穷举的范围）
     by_card: dict = {}
     for m in sorted(mems, key=lambda x: -(scored[id(x)]["weight"] + scored[id(x)]["quality"])):
@@ -473,7 +474,10 @@ def select_memories(inventory: dict | list, *, gains: dict | None = None, finals
 RENT_MIN_GAIN = 2.0  # 租借要让编成总分至少高这么多才租（低于这个就是噪声级的差别，不值得用掉一次租借）
 
 
-def _score_memories(mems: list[dict], gains, finals, profile: str | None = None) -> dict:
+GUIDE_MEMORY_WEIGHT = 60.0  # 攻略占比 1.0 折多少权重（流派表权重 20–96：占比 85% 的推荐卡约 +51，2026-11-26）
+
+
+def _score_memories(mems: list[dict], gains, finals, profile: str | None = None, guide: dict | None = None) -> dict:
     from hiro.state.memory_priority import card_entry, fallback_weight, param_points
 
     scored = {}
@@ -481,6 +485,9 @@ def _score_memories(mems: list[dict], gains, finals, profile: str | None = None)
         q, why, abil = memory_quality(m, gains, finals, profile)
         e = card_entry(m["card_id"], profile)
         w = e["weight"] if e else fallback_weight(m["card_id"], profile)
+        if share := (guide or {}).get(m["card_id"]):
+            w += share * GUIDE_MEMORY_WEIGHT
+            why = [f"攻略推荐 {share:.0%}", *why]
         scored[id(m)] = {"weight": w, "quality": q, "why": why, "abilities": abil,
                          "param_q": min(param_points(m["params"], gains, finals) / PARAM_SCALE, 8)}  # fmt: skip
     return scored
