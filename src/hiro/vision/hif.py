@@ -83,6 +83,13 @@ BREAKTHROUGH_STRONG = (
 )
 
 
+def _hand_visible(img: MatLike) -> bool:
+    """手牌在（卡上的 A / M / T 字母，约 1–10 ms）。非考试画面、出牌动画中途都没有。"""
+    from hiro.vision.hand_slots import card_letters
+
+    return bool(card_letters(img))
+
+
 def is_hif_exam(img: MatLike, threshold: float = 0.6) -> bool:
     # 考试帧经 JPG 压缩后低至 0.72，其余培育画面最高 0.21
     score, _ = _match(img, "hif_exam_remaining_turns", (0, 0, 160, 45))
@@ -92,9 +99,10 @@ def is_hif_exam(img: MatLike, threshold: float = 0.6) -> bool:
         # 顶部「突破ライン」条匹配得很稳（0.82）时同样放宽到 0.45（非考试画面「残りターン」最高 0.21）
         if score < FINALS_STRIP_TURNS_MIN:
             return False
-        if is_finals_strip(img):
-            # 本战名次条在：舞台亮光压在「残りターン」后面只有 0.40–0.43（识别测试集进阶集 dmmw1-00149、mainz3-00822，核心集 p15-main-01048
-            # 整帧判成 unknown / 通用 EXAM，剩余回合没读或读成一位）。非考试画面最高 0.21，放到 0.38 仍有余量
+        if is_finals_strip(img) and _hand_visible(img):
+            # 本战名次条在：舞台亮光压在「残りターン」后面只有 0.40–0.43（识别测试集进阶集 dmmw1-00149、mainz3-00822
+            # 整帧判成 unknown，剩余回合 / 体力 / 元气都没读）。非考试画面最高 0.21，放到 0.38 仍有余量。
+            # 另要手牌在：出牌动画中途的帧（核心集 p15-main-01048）没有手牌也没有元气显示，认成考试页会读出假元气（#117 review）
             return True
         if score < FINALS_TURNS_MIN:
             return False
