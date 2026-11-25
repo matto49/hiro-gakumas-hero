@@ -37,6 +37,7 @@ PARAMS = (
     "sources",
     "prepare",
     "prepare_note",
+    "prepare_what",
 )
 
 
@@ -272,7 +273,13 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
         )
     if not steps:
         return False
+    if "memory" in todo:
+        # 要写回忆：库存扫描之后又打过培育、或方案比扫描旧，就在出确认卡之前说清楚（手动写编成那条路同样的检查，CodeRabbit #95）
+        from hiro.cli import paths
+
+        _check_memory_freshness(paths.plan_path(home), home)
     a["prepare"] = True
+    a["prepare_what"] = ",".join(todo)
     a["prepare_note"] = "；".join(steps) + "（只写空着的或初星助手自己写过的编成位，写完回读核对）"
     return True
 
@@ -419,7 +426,10 @@ def _wrote_formation_since(scanned_at: str | None, mode: str) -> bool:
         except (OSError, ValueError):
             continue
         p = j.get("params") or {}
-        if j.get("kind") != "write-formation" or p.get("dry_run") or (p.get("scenario") or "hif") != mode:
+        # 写编成任务（对照不算），和带 prepare 的开局任务（任务里先写编成，CodeRabbit #95）都算
+        writes = j.get("kind") == "write-formation" and not p.get("dry_run") and (p.get("scenario") or "hif") == mode
+        writes = writes or (bool(p.get("prepare")) and j.get("kind") == mode)
+        if not writes:
             continue
         if (j.get("started_at") or 0) >= t0:
             return True
@@ -514,6 +524,7 @@ def _first_reason(out: str) -> str:
             type="bool",
         ),
         Arg("--prepare-note", "开局前准备做什么（开局检查填，给确认卡看）"),
+        Arg("--prepare-what", "开局前准备哪几样（support / memory，逗号分隔；开局检查按没指定编成号的填）"),
     ),
     confirm_summary=_summary,
     precheck=_precheck,

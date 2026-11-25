@@ -38,16 +38,18 @@ def calls(monkeypatch):
         sets += [{"kind": "memory", "set": n, "filled": 4 if n < 7 else 0, "cards": []} for n in range(1, 21)]
         return {"scanned_at": "2026-11-26 03:10:00", "mode": mode, "complete": True, "sets": sets}
 
-    def write(mode):
+    def write(mode, what=("support", "memory")):
         log.append(("write", mode))
+        log.append(("write_what", ",".join(what)))
         from hiro.brain import formation_plan as fp
 
-        fp.mark_written(ps.plan_path(), mode, ("support", "memory"))
+        fp.mark_written(ps.plan_path(), mode, tuple(what))
         return 0
 
     monkeypatch.setattr(ps, "_survey", survey)
     monkeypatch.setattr(ps, "_write", write)
     monkeypatch.setattr(ps, "_exec", lambda argv: log.append(("exec", argv)) or 0)
+    monkeypatch.setattr(ps, "_check_memory_freshness", lambda plan_path, home: None)
     return log
 
 
@@ -56,7 +58,7 @@ def test_no_sets_surveys_picks_blank_writes_then_starts(home, calls, tmp_path):
     out = tmp_path / "prepare.json"
     rc = ps.main(["--mode", "hajime", "--out", str(out), "--", "python", "-m", "hiro.runtime.hajime", "new"])
     assert rc == 0
-    assert [c[0] for c in calls] == ["survey", "write", "exec"]
+    assert [c[0] for c in calls if c[0] != "write_what"] == ["survey", "write", "exec"]
     plan = json.loads((home / "formation-plan.json").read_text(encoding="utf-8"))
     assert plan["support"]["set"] == 3 and plan["memory"]["set"] == 7
     from hiro.cli.store import open_store
@@ -70,7 +72,7 @@ def test_no_sets_surveys_picks_blank_writes_then_starts(home, calls, tmp_path):
 def test_sets_known_not_written_only_writes(home, calls):
     _plan(home, sets=(4, 5))
     assert ps.main(["--mode", "hajime", "--", "x"]) == 0
-    assert [c[0] for c in calls] == ["write", "exec"]
+    assert [c[0] for c in calls if c[0] != "write_what"] == ["write", "exec"]
 
 
 def test_nothing_to_do_just_starts(home, calls):
@@ -90,6 +92,28 @@ def test_all_full_stops_without_writing(home, calls, monkeypatch, capsys):
 
 def test_write_failure_does_not_start(home, calls, monkeypatch):
     _plan(home, sets=(4, 5))
-    monkeypatch.setattr(ps, "_write", lambda mode: 3)
+    monkeypatch.setattr(ps, "_write", lambda mode, what=(): 3)
     assert ps.main(["--mode", "hajime", "--", "x"]) == 3
     assert not any(c[0] == "exec" for c in calls)
+
+
+def test_only_what_is_prepared(home, calls):
+    """CodeRabbit #95：--what memory 只挑 / 只写回忆；支援卡没定号也不管（开局命令里指定了）。"""
+    _plan(home)
+    assert ps.main(["--mode", "hajime", "--what", "memory", "--", "x"]) == 0
+    plan = json.loads((home / "formation-plan.json").read_text(encoding="utf-8"))
+    assert plan["support"]["set"] is None and plan["memory"]["set"] == 7
+    assert ("write_what", "memory") in calls
+
+
+def test_stale_memory_inventory_stops_before_writing(home, calls, monkeypatch, capsys):
+    from hiro.cli.registry import CliError
+
+    def stale(plan_path, home_):
+        raise CliError("inventory_stale", "回忆库存扫描之后又打过培育，位置变了", "重扫回忆")
+
+    monkeypatch.setattr(ps, "_check_memory_freshness", stale)
+    _plan(home, sets=(4, 5))
+    assert ps.main(["--mode", "hajime", "--", "x"]) != 0
+    assert not any(c[0] in ("write", "exec") for c in calls)
+    assert "回忆库存扫描之后又打过培育" in capsys.readouterr().err

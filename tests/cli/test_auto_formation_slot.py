@@ -104,3 +104,62 @@ def test_prepare_wraps_produce_job_argv(tmp_path):
     assert argv[i + 1 : i + 3] == ["--mode", "hajime"] and "--" in argv and "hiro.runtime.hajime" in " ".join(argv)
     plain = jobs.KINDS["hajime"].argv({"idol": KOTONE}, tmp_path)
     assert "hiro.runtime.prepare_start" not in plain
+
+
+def _job(home, kind, params, started_at):
+    from hiro.cli.jobs import jobs_dir
+
+    d = jobs_dir(home) / f"j-{kind}-{started_at}"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "job.json").write_text(
+        json.dumps({"kind": kind, "params": params, "started_at": started_at}), encoding="utf-8"
+    )
+
+
+def test_prepare_job_invalidates_old_scan(run_cli, hiro_home, on):
+    """CodeRabbit #95：自动准备的开局任务也会写编成；它开始之后，读编成位前的现状不能再拿来挑空位（两个方案会挑到同一个号）。"""
+    import time
+
+    _plan(hiro_home)
+    _formations("hajime", {1: 5, 2: 0}, {1: 4, 2: 0})
+    _job(hiro_home, "hajime", {"prepare": True, "idol": "i_card-ttmr-3-000"}, time.time() + 5)
+    code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
+    assert code == 3 and "先读" in env["data"]["pending"]["summary"], env
+    per = json.loads((hiro_home / "plans" / "hajime" / f"{KOTONE}.json").read_text(encoding="utf-8"))
+    assert per["support"]["set"] is None  # 没拿旧现状挑号，留给任务里重新读
+
+
+def test_only_unspecified_kind_is_prepared(run_cli, hiro_home, on):
+    """CodeRabbit #95：开局给了 --support-set 的，只准备回忆；支援卡位都满了也不影响。"""
+    _plan(hiro_home)
+    _formations("hajime", dict.fromkeys(range(1, 21), 5), {1: 4, 2: 0})
+    code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN, "--support-set", "4")
+    assert code == 3, env
+    args = env["data"]["pending"]["args"]
+    assert args["prepare"] is True and args["prepare_what"] == "memory"
+    assert (
+        "回忆编成 2 号" in env["data"]["pending"]["summary"] and "支援卡编成" not in env["data"]["pending"]["summary"]
+    )
+
+
+def test_stale_memory_inventory_stops_before_confirm(run_cli, hiro_home, on, monkeypatch):
+    """CodeRabbit #95：要写回忆而回忆库存扫描后又打过培育（位置变了），出确认卡之前就说清楚，不进游戏。"""
+    from hiro.cli import cmd_run
+    from hiro.cli.registry import CliError
+
+    def stale(plan_path, home):
+        raise CliError("inventory_stale", "回忆库存是旧的", "重扫回忆")
+
+    monkeypatch.setattr(cmd_run, "_check_memory_freshness", stale)
+    _plan(hiro_home)
+    _formations("hajime", {2: 0}, {3: 0})
+    _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
+    assert env["error"]["code"] == "inventory_stale"
+
+
+def test_prepare_what_reaches_job_argv(tmp_path):
+    from hiro.cli import jobs
+
+    argv = jobs.KINDS["hajime"].argv({"idol": KOTONE, "prepare": True, "prepare_what": "memory"}, tmp_path)
+    i = argv.index("hiro.runtime.prepare_start")
+    assert "--what" in argv[i:] and argv[argv.index("--what") + 1] == "memory"

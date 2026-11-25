@@ -49,10 +49,17 @@ def _survey(mode: str) -> dict:
     return survey(dev, mode, read_formation=read_support_formation)
 
 
-def _write(mode: str) -> int:
+def _write(mode: str, what=("support", "memory")) -> int:
     """写编成（写完回读核对，通过后 mark_written）。返回退出码。"""
-    r = subprocess.run([sys.executable, str(REPO / "tools" / "write_formation.py"), "--mode", mode], check=False)  # noqa: S603
-    return r.returncode
+    argv = [sys.executable, str(REPO / "tools" / "write_formation.py"), "--mode", mode, "--what", ",".join(what)]
+    return subprocess.run(argv, check=False).returncode  # noqa: S603
+
+
+def _check_memory_freshness(plan_file: Path, home: Path) -> None:
+    """写回忆前的库存新鲜度检查（同手动写编成，hiro.cli.cmd_run._check_memory_freshness）：不新鲜抛 CliError。"""
+    from hiro.cli.cmd_run import _check_memory_freshness as check
+
+    check(plan_file, home)
 
 
 def _exec(argv: list[str]) -> int:
@@ -76,6 +83,9 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="开局前准备：挑空白编成位、写编成，再开局")
     ap.add_argument("--mode", required=True, choices=["hajime", "nia", "hif"])
     ap.add_argument("--out", help="准备做了什么（json）")
+    ap.add_argument(
+        "--what", default="support,memory", help="准备哪几样（support / memory；开局命令里指定了编成号的那样不用管）"
+    )
     opts = ap.parse_args(args[:i])
     inner = args[i + 1 :]
     if not inner:
@@ -90,7 +100,8 @@ def main(argv: list[str] | None = None) -> int:
     if not plan:
         return _stop(f"没有开局编成方案（{path}）", 2)
     rec: dict = {"mode": mode, "picked": {}, "wrote": False}
-    missing = [w for w in ("support", "memory") if (plan.get(w) or {}).get("set") is None]
+    what = [w for w in ("support", "memory") if w in opts.what.split(",")]
+    missing = [w for w in what if (plan.get(w) or {}).get("set") is None]
     if missing:
         logger.info(
             "开局前准备：方案还没定%s编成号，先读%s的编成位", "、".join(LABEL[w] for w in missing), MODE_NAME[mode]
@@ -117,9 +128,18 @@ def main(argv: list[str] | None = None) -> int:
             path.write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
         logger.info("开局前准备：用空着的 %s", "、".join(f"{LABEL[w]}编成 {n} 号" for w, n in rec["picked"].items()))
     plan = fp.load(path) or plan
-    if fp.needs_write(plan, mode):
-        logger.info("开局前准备：把编成方案写进游戏")
-        rc = _write(mode)
+    todo = fp.unwritten(plan, mode, what) if plan.get("version") == fp.PLAN_VERSION else []
+    if todo:
+        if "memory" in todo:
+            from hiro.cli.home import hiro_home
+            from hiro.cli.registry import CliError
+
+            try:
+                _check_memory_freshness(path, hiro_home())
+            except CliError as e:
+                return _stop(f"{e.message}。{e.hint}", 5)
+        logger.info("开局前准备：把编成方案写进游戏（%s）", "、".join(LABEL[w] for w in todo))
+        rc = _write(mode, todo)
         if rc != 0:
             return _stop("写编成没成功，没有开局（原因见上面的日志）", rc)
         rec["wrote"] = True

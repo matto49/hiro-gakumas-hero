@@ -217,7 +217,19 @@ def _with_prepare(mode: str, build):
         inner = build(p, d)
         if not p.get("prepare") or (p.get("command") or "new") != "new":
             return inner
-        return [_PY, "-m", "hiro.runtime.prepare_start", "--mode", mode, "--out", str(d / "prepare.json"), "--", *inner]
+        what = ["--what", p["prepare_what"]] if p.get("prepare_what") else []
+        return [
+            _PY,
+            "-m",
+            "hiro.runtime.prepare_start",
+            "--mode",
+            mode,
+            *what,
+            "--out",
+            str(d / "prepare.json"),
+            "--",
+            *inner,
+        ]
 
     return argv
 
