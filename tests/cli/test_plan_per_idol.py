@@ -100,7 +100,7 @@ def test_written_plan_starts(run_cli, hiro_home, fake_build):
 def test_auto_plan_without_slot_numbers_says_which_slot(run_cli, hiro_home, fake_build):
     _inventory(run_cli)
     _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
-    assert env["error"]["code"] == "no_slot"
+    assert env["error"]["code"] == "plan_no_set"
     assert "--support-set" in env["error"]["hint"] and "--mode hajime" in env["error"]["hint"]
     assert (hiro_home / "plans" / "hajime" / f"{KOTONE}.json").is_file()  # 方案已经出好，只差编成位号
 
@@ -119,7 +119,7 @@ def test_plan_per_mode_does_not_leak_to_other_mode(run_cli, hiro_home, fake_buil
     code, env = run_cli("run", "start", "nia", "--idol", KOTONE)
     assert code == 3 and env["data"]["pending"]
     _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE)  # 初没有方案：自动出，编成位号不拿 N.I.A 的
-    assert env["error"]["code"] == "no_slot"
+    assert env["error"]["code"] == "plan_no_set"
 
 
 def test_partial_writes_merge_and_both_needed(hiro_home):
@@ -154,3 +154,12 @@ def test_current_plan_without_per_mode_copy_is_kept(hiro_home):
     # 有按模式的副本的就不再多收一份
     fp.save_plan(hiro_home, {"version": 2, "idol": {"idol_card_id": LUNA}}, "nia")
     assert not fp.plan_key_path(hiro_home, KOTONE, "_legacy").is_file()
+
+
+def test_auto_plan_with_one_set_given_only_asks_the_other(run_cli, hiro_home, fake_build):
+    """#87 + #88 合流：自动出了方案、开局只给了支援卡编成号，就只问回忆编成位。"""
+    _inventory(run_cli)
+    _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN, "--support-set", "3")
+    assert env["error"]["code"] == "plan_no_set"
+    assert "回忆" in env["error"]["message"] and "支援卡" not in env["error"]["message"]
+    assert "info formations" in env["error"]["hint"]

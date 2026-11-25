@@ -163,13 +163,13 @@ def _check_formation_plan(a: dict) -> None:
     # 显式指定了别的方案文件：照以前只核对偶像。指向当前方案的（paths.apply_to_process 补进进程环境的缺省值，
     # 常驻服务出过一次方案后就一直在）不算显式
     if env_plan and Path(env_plan).resolve() != paths.plan_path(home).resolve():
-        _check_plan_file(Path(env_plan), idol, kind)
+        _check_plan_file(Path(env_plan), idol, kind, given)
         return
     write_hint = f"写进游戏：hiro run start write-formation --scenario {kind}；写完再开局"
     found = fp.find_plan(home, idol, kind) if idol else None
     if found is None:
         if not idol:
-            _check_plan_file(paths.plan_path(home), idol, kind)
+            _check_plan_file(paths.plan_path(home), idol, kind, given)
             return
         from hiro.cli.cmd_plan import make_plan
         from hiro.cli.registry import CliError as _E
@@ -187,13 +187,8 @@ def _check_formation_plan(a: dict) -> None:
                 ) from None
             raise
         name = (plan.get("idol") or {}).get("name") or idol
-        if not (s_set and m_set):
-            raise CliError(
-                "no_slot",
-                f"已按社区攻略给「{name}」出了这个模式的开局编成方案，还不知道写进游戏第几号编成位",
-                f"指定编成位：hiro plan formation --idol {idol} --mode {kind} --support-set <支援卡编成号> --memory-set <回忆编成号>；"
-                f"{write_hint}。也可以用 --support-set / --memory-set 直接开游戏里已经编好的编成",
-            )
+        _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol, kind,
+                         lead=f"已按社区攻略给「{name}」出了这个模式的开局编成方案，")  # fmt: skip
         raise CliError(
             "plan_not_written",
             f"已按社区攻略给「{name}」出了这个模式的开局编成方案（支援卡编成 {s_set} 号、回忆编成 {m_set} 号），"
@@ -204,12 +199,7 @@ def _check_formation_plan(a: dict) -> None:
     if path != paths.plan_path(home):
         fp.activate(home, plan)  # 开局核对、写编成都读当前方案
     name = (plan.get("idol") or {}).get("name") or idol
-    if not ((plan.get("support") or {}).get("set") and (plan.get("memory") or {}).get("set")):
-        raise CliError(
-            "no_slot",
-            f"「{name}」的开局编成方案还没定写进第几号编成位",
-            f"hiro plan formation --idol {idol} --mode {kind} --support-set <支援卡编成号> --memory-set <回忆编成号>；{write_hint}",
-        )
+    _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol, kind, lead=f"「{name}」的")
     if fp.needs_write(plan, kind):
         raise CliError(
             "plan_not_written",
@@ -218,7 +208,7 @@ def _check_formation_plan(a: dict) -> None:
         )
 
 
-def _check_plan_file(path: Path, idol: str, kind: str) -> None:
+def _check_plan_file(path: Path, idol: str, kind: str, given: dict) -> None:
     """只看一个方案文件（HIRO_FORMATION_PLAN 指定的，或没给偶像时的当前方案）：有没有、偶像对不对。"""
     hint = (
         f"先给这位偶像出编成方案：hiro plan formation --idol {idol or '<偶像卡编号>'} --mode {kind}；"
@@ -235,10 +225,10 @@ def _check_plan_file(path: Path, idol: str, kind: str) -> None:
     if idol and want and idol != want:
         name = (plan.get("idol") or {}).get("name") or want
         raise CliError("plan_other_idol", f"现在的编成方案是给「{name}」出的，这局是 {idol}", hint)
-    _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol)
+    _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol, kind)
 
 
-def _check_plan_sets(plan: dict, what, idol: str = "") -> None:
+def _check_plan_sets(plan: dict, what, idol: str = "", kind: str = "", lead: str = "") -> None:
     """方案里要用的编成号（支援卡 / 回忆）没定时，在出待确认之前就说清楚（11-26 Mac：方案没带编成号，
     确认开局后才报「new 开局要编成号」）。"""
     from hiro.cli.registry import CliError
@@ -249,8 +239,8 @@ def _check_plan_sets(plan: dict, what, idol: str = "") -> None:
     names = "、".join({"support": "支援卡", "memory": "回忆"}[w] for w in missing)
     raise CliError(
         "plan_no_set",
-        f"编成方案还没定{names}存进游戏里的哪个编成位，开局时不知道选哪一套",
-        f"重新出方案时带上编成号：hiro plan formation --idol {idol or '<偶像卡编号>'} --support-set <号> --memory-set <号>"
+        f"{lead}编成方案还没定{names}存进游戏里的哪个编成位，开局时不知道选哪一套",
+        f"重新出方案时带上编成号：hiro plan formation --idol {idol or '<偶像卡编号>'}{f' --mode {kind}' if kind else ''} --support-set <号> --memory-set <号>"
         "（哪些编成位空着用 hiro info formations 看，没读过就先 hiro run start scan-formations）；"
         "或者开局时直接加 --support-set / --memory-set",
     )
