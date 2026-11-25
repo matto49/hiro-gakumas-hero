@@ -143,7 +143,10 @@ def read_consult(img: MatLike) -> dict:
             item = _card(img, x) if row == 0 else _drink(img, x)
             nums = _nums(texts_in(xr, PRICE_BAND[top]))
             sale = len(nums) >= 2 or any("SALE" in t.upper().replace(" ", "") for t in texts_in(xr, SALE_BAND[top]))
-            purchased = any("交換済" in t.replace(" ", "") for t in texts_in(xr, (top, top + CELL)))
+            # 白字模板或 OCR 任一认出（A16：Vision 新版把「交換済」读成「卒換済」，同轮间商店）
+            purchased = any("交換済" in t.replace(" ", "") for t in texts_in(xr, (top, top + CELL))) or _purchased_mark(
+                img, x, top
+            )
             price = nums[-1] if nums else None
             expect, floor = expected_price(item, sale), price_floor(item.get("kind"), sale)
             if ocr_engine() != "vision" and not purchased:

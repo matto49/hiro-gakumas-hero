@@ -90,10 +90,14 @@ def selected(img: np.ndarray, center) -> bool:
 
 
 def ocr_purchased(img: np.ndarray, center) -> bool:
-    """格子里有「交換済」（与 hiro.vision.shop.read_consult 同一判据，只读这一格）。"""
+    """格子里有「交換済」（与 hiro.vision.shop.read_consult 同一判据，只读这一格）：白字模板或 OCR 任一认出就算。
+    A16：macOS 27.2.1 的 Apple Vision 把「交換済」读成「卒換済」「燃戰K」，只靠 OCR 会把买过的当没买。"""
     from hiro.vision.ocr import ocr_boxes
+    from hiro.vision.shop import _purchased_mark
 
     x, y, c, _ = _cell(center)
+    if _purchased_mark(img, x, y):
+        return True
     return any("交換済" in t.replace(" ", "") for t, _, _ in ocr_boxes(img[y : y + c, x - 10 : x + c + 10], scale=2))
 
 
