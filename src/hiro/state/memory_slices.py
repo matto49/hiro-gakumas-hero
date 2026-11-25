@@ -19,3 +19,8 @@ def slices_for_plan(plan: str | None) -> list[str]:
     if plan is None:
         return list(SLICES)
     return [slice_key(plan, m) for m in PRODUCES] + [slice_key("common", m) for m in PRODUCES]
+
+
+# 游戏「ソート・フィルタ」弹窗里的复选框文字（按包含找；11-26 实机）
+PLAN_LABELS = {"sense": "センス", "logic": "ロジック", "anomaly": "アノマリー", "common": "共通"}
+PRODUCE_LABELS = {"hajime": "定期公演", "nia": "AUDITION", "hif": "FESTIVAL"}
