@@ -273,3 +273,47 @@ func TestAgentCallsPluginTool(t *testing.T) {
 		t.Error("插件工具不该走 hiro 命令行")
 	}
 }
+
+// 11-25 review：选偶像卡要做成可以点的卡片，不再让玩家打字回答编号
+func TestAgentChooseIdolEndsTurnWithChoiceCard(t *testing.T) {
+	h, _ := recordingHiro(t)
+	srv, reqs := fakeLLM(t,
+		`{"role":"assistant","content":"琴音有 2 张 SSR，你要哪一张？","tool_calls":[{"id":"c1","type":"function","function":{"name":"choose_idol","arguments":"{\"question\":\"要用哪张琴音？\",\"idols\":[\"i_card-a\",\"i_card-b\"]}"}}]}`)
+	r, err := newTestAgent(h, srv.URL).Ask(context.Background(), nil, "用琴音打一把N.I.A pro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(*reqs) != 1 {
+		t.Fatalf("出了选择卡就该停下等玩家点，请求了 %d 次", len(*reqs))
+	}
+	if len(r.Cards) != 1 || r.Cards[0]["type"] != "choice" || r.Cards[0]["kind"] != "idols" {
+		t.Fatalf("cards %v", r.Cards)
+	}
+	opts, _ := r.Cards[0]["options"].([]any)
+	if len(opts) != 2 || r.Cards[0]["question"] != "要用哪张琴音？" || r.Cards[0]["status"] != "waiting" {
+		t.Fatalf("选择卡 %v", r.Cards[0])
+	}
+	if !strings.Contains(r.Text, "哪一张") {
+		t.Errorf("text %q", r.Text)
+	}
+	defs, _ := (*reqs)[0]["tools"].([]any)
+	found := false
+	for _, d := range defs {
+		if f, _ := d.(map[string]any)["function"].(map[string]any); f["name"] == "choose_idol" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("没把 choose_idol 给模型")
+	}
+}
+
+func TestCLIChoiceLineBecomesCard(t *testing.T) {
+	cards, text := choiceCards("琴音有两张 SSR：\nHIRO_CHOICE: idols i_card-a i_card-b\n")
+	if len(cards) != 1 || cards[0]["type"] != "choice" || strings.Contains(text, "HIRO_CHOICE") {
+		t.Fatalf("cards %v text %q", cards, text)
+	}
+	if opts, _ := cards[0]["options"].([]any); len(opts) != 2 {
+		t.Errorf("options %v", cards[0]["options"])
+	}
+}

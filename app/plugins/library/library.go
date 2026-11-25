@@ -54,7 +54,8 @@ func New() *plugin.Plugin {
 		},
 		Chips: []plugin.Chip{{Label: "/扫描", Say: "/扫描"}, {Label: "/资料库", Say: "/资料库"}},
 		Cards: map[string]plugin.CardView{
-			"info": func(c *ui.Context, h plugin.Host, card plugin.Card) { s.infoCard(c, h, card) },
+			"info":   func(c *ui.Context, h plugin.Host, card plugin.Card) { s.infoCard(c, h, card) },
+			"choice": func(c *ui.Context, h plugin.Host, card plugin.Card) { choiceCard(c, h, card) },
 		},
 		Panel:    func(c *ui.Context, h plugin.Host, route string) { s.panel(c, h, route) },
 		Greeting: s.greeting,
@@ -124,6 +125,81 @@ func (s *state) infoCard(c *ui.Context, h plugin.Host, card plugin.Card) {
 			}
 		}
 	})
+}
+
+// choiceCard 是 agent 请玩家挑偶像卡的选择卡（11-25 review）：每项是卡面 + 卡名 + 稀有度 / 流派，点一下就以玩家身份回一句。
+func choiceCard(c *ui.Context, h plugin.Host, card plugin.Card) {
+	q, _ := card["question"].(string)
+	picked, _ := card["picked"].(string)
+	done := card["status"] == "picked"
+	kit.Card(c).MaxWidth(620).Children(func() {
+		ui.Text(c, or(q, "选一张偶像卡")).FontSize(kit.FSmall).FontWeight(600).TextColor(kit.Ink)
+		ui.Row(c).Gap(10).Wrap().Children(func() {
+			for _, it := range toItems(card["options"]) {
+				id := str(it, "id")
+				name, title, chara, rarity, plan, art := idolLabel(h, it)
+				sel := picked == id
+				b := ui.ButtonBase(c).Key("pick-"+id).Label("选"+name).Width(132).Padding(10).Radius(kit.R12).
+					Background(kit.CardBg).Border(kit.Hair, kit.Line).Disabled(done)
+				switch {
+				case sel:
+					b = b.Background(kit.BrandT).Border(1.5, kit.Brand)
+				case done:
+					b = b.Opacity(0.5)
+				case b.Hovered():
+					b = b.Background(kit.Surface2).Border(1, kit.Warn)
+				}
+				if b.Children(func() {
+					ui.Column(c).Gap(5).AlignItems(ui.Center).Children(func() {
+						kit.Thumb(c, art, 72, 72, 12)
+						ui.Text(c, chara).FontSize(12.5).FontWeight(600).TextColor(kit.Ink).MaxLines(1).Ellipsis("…")
+						if title != "" {
+							ui.Text(c, "【"+title+"】").FontSize(11).TextColor(kit.Ink2).MaxLines(2).Ellipsis("…")
+						}
+						ui.Row(c).Gap(6).Children(func() {
+							if rarity != "" {
+								ui.Text(c, rarity).FontSize(10.5).FontWeight(700).TextColor(rarityColor(rarity))
+							}
+							if plan != "" {
+								ui.Text(c, planName(plan)).FontSize(10.5).TextColor(kit.Ink3)
+							}
+						})
+					})
+				}).Clicked() && !done {
+					card["status"], card["picked"] = "picked", id
+					h.Ask(fmt.Sprintf("用%s（%s）", name, id))
+				}
+			}
+		})
+		if done {
+			kit.Note(c, "已选好，接着去开局。")
+		}
+	})
+}
+
+// idolLabel 是偶像卡的显示名：卡里带了就用卡里的，没带（只有编号）就按编号查资料库。
+func idolLabel(h plugin.Host, it map[string]any) (name, title, chara, rarity, plan, art string) {
+	id := str(it, "id")
+	name, title, chara, rarity, plan = str(it, "name"), str(it, "title"), str(it, "idol"), str(it, "rarity"), str(it, "plan")
+	if e := common.Shared.Get(h, id); e != nil {
+		art = common.Shared.Sprite(h, e.Asset)
+		if name == "" {
+			name = e.Name
+		}
+		if rarity == "" {
+			rarity = e.Rarity
+		}
+	}
+	if name == "" {
+		name = id
+	}
+	if chara == "" {
+		chara = name
+	}
+	if !strings.HasPrefix(name, "【") && title != "" {
+		name = "【" + title + "】" + chara
+	}
+	return
 }
 
 func or(s, d string) string {

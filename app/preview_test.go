@@ -140,6 +140,16 @@ func TestPreview(t *testing.T) {
 		}
 	}
 	save("1-confirm")
+	// 选偶像卡：agent 出的选择卡（11-25 review）
+	choiceMsg := &shell.Message{ID: "m2b", Role: "agent", Text: "手毬有两张 SSR，你要用哪一张？", Cards: []map[string]any{{"type": "choice", "kind": "idols", "question": "要用哪张手毬？", "status": "waiting",
+		"options": []any{map[string]any{"id": "i_card-skin-ttmr-3-0012", "name": "【Luna say maybe】月村手毬", "title": "Luna say maybe", "idol": "月村手毬", "rarity": "SSR", "plan": "sense"},
+			map[string]any{"id": "i_card-skin-ttmr-3-0099", "name": "【アイヴイ】月村手毬", "title": "アイヴイ", "idol": "月村手毬", "rarity": "SSR", "plan": "logic"}}}}}
+	keep := app.Current().Messages
+	app.Current().Messages = []*shell.Message{keep[0], choiceMsg}
+	settle()
+	save("1b-choice")
+	app.Current().Messages = keep
+	settle()
 	if err := tt.Click("开始"); err != nil {
 		t.Fatal(err)
 	}

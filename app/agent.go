@@ -80,7 +80,7 @@ const SystemPrompt = `你是「初星助手」，帮玩家玩《学园偶像大�
 
 玩家说「用某个偶像打一把某个模式」（例：「帮我用月村手毬打一把初」「拿广打 N.I.A」）时，照这个顺序，不要绕路：
 1. 认偶像：info_idols 用偶像名查玩家持有的卡（名字可能有错别字或简称，比如「手球」是手毬、「广」是篠澤広；查不到就去掉一个字再查）。
-   有几张时选 SSR；还有几张 SSR 就先问玩家要哪张，列出卡名，不要开局。一张都没有就告诉玩家。
+   有几张时选 SSR；还有几张 SSR 就调用 choose_idol（idols 填这几张的偶像卡编号），界面会给玩家一张能点的选择卡；不要用文字列表让玩家打字，也不要开局。一张都没有就告诉玩家。
 2. 定模式：「初」= hajime（难度缺省 regular），N.I.A = nia（缺省 pro），H.I.F = hif（缺省选拔），偶像之路 = tower，日常 = daily。玩家说了难度就照用。
 3. 直接 run_start：kind 和 --idol（偶像卡编号）。编成号、主属性不给，开局时会按编成方案自己核对。
    这一步不要调 plan_formation、不要写编成（write-formation）：那会改掉玩家已经存好的编成方案和游戏里的编成；玩家明确说要出方案 / 改编成时才做。
@@ -239,7 +239,7 @@ func (a *Agent) Ask(ctx context.Context, history []Turn, text string) (Reply, er
 		specs = append(specs, t.Spec)
 		ext[t.Spec.ToolName] = t
 	}
-	defs := toolDefs(specs)
+	defs := append(toolDefs(specs), chooseIdolDef)
 	byName := map[string]ToolSpec{}
 	for _, t := range a.Tools {
 		if t.Agent {
@@ -268,8 +268,21 @@ func (a *Agent) Ask(ctx context.Context, history []Turn, text string) (Reply, er
 		}
 		msgs = append(msgs, chatMessage{Role: "assistant", Content: m.Content, ToolCalls: m.ToolCalls})
 		var pendings []*Pending
+		chose := false
 		for _, c := range m.ToolCalls {
 			a.last = nil
+			if c.Function.Name == chooseIdolTool {
+				card, content := chooseIdolCard(c.Function.Arguments, cards)
+				msgs = append(msgs, chatMessage{Role: "tool", ToolCallID: c.ID, Content: content})
+				if card != nil {
+					cards = append(cards, card)
+					chose = true
+				}
+				if a.OnTool != nil {
+					a.OnTool(c.Function.Name, "等你选")
+				}
+				continue
+			}
 			var (
 				content string
 				card    map[string]any
@@ -291,6 +304,9 @@ func (a *Agent) Ask(ctx context.Context, history []Turn, text string) (Reply, er
 				pendings = append(pendings, pending)
 			}
 		}
+		if chose && len(pendings) == 0 {
+			return Reply{Text: strings.TrimSpace(m.Content), Cards: cards}, nil
+		}
 		if len(pendings) > 0 {
 			var b strings.Builder
 			if strings.TrimSpace(m.Content) != "" {
@@ -303,6 +319,53 @@ func (a *Agent) Ask(ctx context.Context, history []Turn, text string) (Reply, er
 		}
 	}
 	return Reply{Text: "这件事我绕了好几圈还没办完，换个说法再试一次？", Cards: cards}, nil
+}
+
+// choose_idol：让玩家在几张偶像卡里点选（11-25 review：原来是文字列表，玩家只能打字回答）。不经 hiro 命令行，
+// 只在对话里出一张选择卡；玩家点了，界面以玩家身份回一句「用【卡名】（编号）」，模型下一轮再开局。
+const chooseIdolTool = "choose_idol"
+
+var chooseIdolDef = toolDef{Type: "function", Function: toolDefFunc{Name: chooseIdolTool,
+	Description: "有几张偶像卡都合适、要玩家挑一张时用：界面给玩家一张能点的选择卡（卡面 + 卡名），玩家点了会回你一句。调用后这一轮就结束，等玩家选。",
+	Parameters: map[string]any{"type": "object", "required": []string{"idols"}, "properties": map[string]any{
+		"question": map[string]any{"type": "string", "description": "卡片上方的一句问话，例：要用哪张琴音？"},
+		"idols":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "候选偶像卡编号（info_idols 里的 id），2～8 张"},
+	}}}}
+
+// chooseIdolCard 把 choose_idol 的参数做成选择卡；候选的卡名、稀有度、流派从这一轮查过的偶像卡里补上（没查过的界面自己按编号查）。
+func chooseIdolCard(arguments string, cards []map[string]any) (map[string]any, string) {
+	var in struct {
+		Question string   `json:"question"`
+		Idols    []string `json:"idols"`
+	}
+	if json.Unmarshal([]byte(arguments), &in) != nil || len(in.Idols) == 0 {
+		return nil, `{"ok":false,"error":{"code":"bad_args","message":"idols 要给偶像卡编号列表"}}`
+	}
+	if len(in.Idols) > 8 {
+		in.Idols = in.Idols[:8]
+	}
+	known := map[string]map[string]any{}
+	for _, c := range cards {
+		if c["type"] != "info" || c["kind"] != "idols" {
+			continue
+		}
+		items, _ := c["items"].([]map[string]any)
+		for _, it := range items {
+			if id, _ := it["id"].(string); id != "" {
+				known[id] = it
+			}
+		}
+	}
+	opts := make([]any, 0, len(in.Idols))
+	for _, id := range in.Idols {
+		if it := known[id]; it != nil {
+			opts = append(opts, it)
+		} else {
+			opts = append(opts, map[string]any{"id": id})
+		}
+	}
+	return map[string]any{"type": "choice", "kind": "idols", "question": in.Question, "options": opts, "status": "waiting"},
+		`{"ok":true,"data":{"message":"已经给玩家出了选择卡，等玩家点选；这一轮到此为止"}}`
 }
 
 // ExtTool 是外部插件的一个工具。

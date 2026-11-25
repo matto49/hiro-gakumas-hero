@@ -20,10 +20,15 @@ import (
 // tidyCards 收拢一条回复的卡片。
 func tidyCards(cards []plugin.Card) []plugin.Card {
 	lastInfo := map[string]int{}
+	choice := map[string]bool{}
 	for i, c := range cards {
-		if c["type"] == "info" {
+		switch c["type"] {
+		case "info":
 			k, _ := c["kind"].(string)
 			lastInfo[k] = i
+		case "choice":
+			k, _ := c["kind"].(string)
+			choice[k] = true
 		}
 	}
 	var out []plugin.Card
@@ -32,7 +37,8 @@ func tidyCards(cards []plugin.Card) []plugin.Card {
 	for i, c := range cards {
 		switch c["type"] {
 		case "info":
-			if k, _ := c["kind"].(string); lastInfo[k] != i {
+			// 同种信息卡只留最后一张；已经有同种选择卡（卡面都在里面）时信息卡不要
+			if k, _ := c["kind"].(string); lastInfo[k] != i || choice[k] {
 				continue
 			}
 		case "confirm":

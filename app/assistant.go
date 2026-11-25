@@ -357,7 +357,10 @@ const cliRules = `
 要开局或扫描时，在回答最后单独写一行：
 HIRO_ACTION: run start <种类> [参数]
 例如 HIRO_ACTION: run start daily、HIRO_ACTION: run start hif --command new --mode qualify、HIRO_ACTION: run start tower --idol 篠澤広 --layers 1。
-程序会替你发起，并给玩家一张确认卡，玩家点了才开始。一次回答最多写一行。只回答玩家，不要改任何文件。`
+程序会替你发起，并给玩家一张确认卡，玩家点了才开始。一次回答最多写一行。
+有几张偶像卡都合适、要玩家挑一张时，不要写文字列表让玩家打字，在回答最后单独写一行：
+HIRO_CHOICE: idols <偶像卡编号> <偶像卡编号> …
+界面会给玩家一张能点的选择卡，玩家点了会回你一句。写了 HIRO_CHOICE 就不要再写 HIRO_ACTION。只回答玩家，不要改任何文件。`
 
 // cliAllowed 是命令行 agent 能跑的只读命令（Claude 的权限白名单）；cliDenied 明确拒绝（压过用户自己设置里更宽的规则）。
 var (
@@ -369,6 +372,28 @@ var (
 
 // actionLine 是 agent 请求开局的那一行。
 var actionLine = regexp.MustCompile(`(?m)^\s*HIRO_ACTION:\s*(.+?)\s*$`)
+
+// choiceLine 是 agent 请玩家挑偶像卡的那一行（HIRO_CHOICE: idols <编号> …）。
+var choiceLine = regexp.MustCompile(`(?m)^\s*HIRO_CHOICE:\s*idols\s+(.+?)\s*$`)
+
+// choiceCards 把回答里的 HIRO_CHOICE 行做成选择卡，并从回答里去掉这一行。
+func choiceCards(reply string) ([]map[string]any, string) {
+	var cards []map[string]any
+	if m := choiceLine.FindStringSubmatch(reply); m != nil {
+		ids := strings.Fields(m[1])
+		if len(ids) > 8 {
+			ids = ids[:8]
+		}
+		opts := make([]any, 0, len(ids))
+		for _, id := range ids {
+			opts = append(opts, map[string]any{"id": id})
+		}
+		if len(opts) > 0 {
+			cards = append(cards, map[string]any{"type": "choice", "kind": "idols", "options": opts, "status": "waiting"})
+		}
+	}
+	return cards, strings.TrimSpace(choiceLine.ReplaceAllString(reply, ""))
+}
 
 func (c CLIAgent) prompt(history []Turn, text string) string {
 	var b strings.Builder
@@ -490,9 +515,13 @@ func (c CLIAgent) Ask(ctx context.Context, history []Turn, text string) (Reply, 
 			reply = strings.TrimSpace(string(b))
 		}
 	}
+	// 回答里的 HIRO_CHOICE 行：做成选择卡（玩家挑偶像卡）；有它就不再发起开局
+	cards, reply := choiceCards(reply)
 	// 回答里的 HIRO_ACTION 行：只认 run start，由程序自己发起（拿到的是待确认），做成确认卡；行本身从回答里去掉
-	var cards []map[string]any
 	for _, m := range actionLine.FindAllStringSubmatch(reply, 2) {
+		if len(cards) > 0 {
+			break
+		}
 		args := strings.Fields(m[1])
 		if len(args) < 3 || args[0] != "run" || args[1] != "start" {
 			continue

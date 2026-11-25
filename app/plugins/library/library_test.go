@@ -83,3 +83,33 @@ func TestGreetingAndStarter(t *testing.T) {
 		t.Errorf("资料库引导卡 %+v", st)
 	}
 }
+
+func TestChoiceCardPicksIdol(t *testing.T) {
+	h, p := host(), New()
+	v := p.Cards["choice"]
+	if v == nil {
+		t.Fatal("资料库没认领 choice 卡")
+	}
+	card := plugin.Card{"type": "choice", "kind": "idols", "question": "要用哪张琴音？", "status": "waiting", "options": []any{
+		map[string]any{"id": "i_card-a", "name": "【世界一可愛い私】藤田ことね", "idol": "藤田ことね", "title": "世界一可愛い私", "rarity": "SSR", "plan": "logic"},
+		map[string]any{"id": "i_card-b", "name": "【Campus mode!!】藤田ことね", "idol": "藤田ことね", "title": "Campus mode!!", "rarity": "SSR", "plan": "logic"},
+	}}
+	tt := ui.NewTester(func(c *ui.Context) { v(c, h, card) }, 760, 400)
+	tt.Frame()
+	for _, s := range []string{"要用哪张琴音？", "世界一可愛い私", "Campus mode!!"} {
+		if !tt.HasText(s) {
+			t.Errorf("选择卡没有 %q：%q", s, tt.Texts())
+		}
+	}
+	if err := tt.Click("选【Campus mode!!】藤田ことね"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if len(h.Asked) != 1 || !strings.Contains(h.Asked[0], "i_card-b") || card["status"] != "picked" || card["picked"] != "i_card-b" {
+		t.Fatalf("点选后 asked=%v card=%v", h.Asked, card)
+	}
+	_ = tt.Click("选【世界一可愛い私】藤田ことね")
+	if len(h.Asked) != 1 {
+		t.Errorf("选过了不该再发：%v", h.Asked)
+	}
+}
