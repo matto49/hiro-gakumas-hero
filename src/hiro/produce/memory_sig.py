@@ -59,10 +59,22 @@ class KnownSet:
             )
 
     def take(self, entry: dict) -> bool:
-        pool = self._left.get(json.dumps(_head(entry), ensure_ascii=False))
+        return self._take(
+            json.dumps(_head(entry), ensure_ascii=False), Counter(ability_numbers(entry.get("abilities")))
+        )
+
+    def take_signature(self, sig: str) -> bool:
+        """同 take，按 signature() 的结果认（编成方案里只存了签名）。"""
+        try:
+            *head, nums = json.loads(sig)
+        except (TypeError, ValueError):
+            return False
+        return self._take(json.dumps(head, ensure_ascii=False), Counter(nums))
+
+    def _take(self, head: str, nums: Counter) -> bool:
+        pool = self._left.get(head)
         if not pool:
             return False
-        nums = Counter(ability_numbers(entry.get("abilities")))
         best = min(range(len(pool)), key=lambda i: _diff(pool[i], nums))
         if _diff(pool[best], nums) > 1:
             return False

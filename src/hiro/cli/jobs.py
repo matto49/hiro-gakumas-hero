@@ -429,6 +429,32 @@ KINDS: dict[str, Kind] = {
 }
 
 
+def _refresh_before_start(kind: Kind) -> Kind:
+    """开局前自动补扫回忆（设计 5.6，开关 HIRO_SCAN_BEFORE_START，缺省关）：开新一局时命令外面包 hiro.memory_refresh，
+    确认卡上写明。开关在调用时读（初星助手设置里改了不用重启服务）。续打（resume）不补扫。"""
+    from dataclasses import replace
+
+    def on(p: dict) -> bool:
+        from hiro.memory_refresh import enabled
+
+        return enabled() and (p.get("command") or "new") == "new" and bool(p.get("idol"))
+
+    def argv(p: dict, d: Path) -> list[str]:
+        orig = kind.argv(p, d)
+        if not on(p):
+            return orig
+        return [_PY, "-m", "hiro.memory_refresh", "--idol", p["idol"], "--", *orig]
+
+    def summary(p: dict) -> str:
+        return kind.summary(p) + ("（开局前会先补扫回忆，最多 3 分钟）" if on(p) else "")
+
+    return replace(kind, argv=argv, summary=summary)
+
+
+for _k in ("hif", "hajime", "nia"):
+    KINDS[_k] = _refresh_before_start(KINDS[_k])
+
+
 def jobs_dir(home: Path) -> Path:
     d = home / "jobs"
     d.mkdir(parents=True, exist_ok=True)

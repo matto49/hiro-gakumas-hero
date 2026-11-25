@@ -69,3 +69,17 @@ def test_import_saves_each_slice(tmp_path, monkeypatch):
     assert r["count"] == 1 and r["slices"] == 2
     cov = st.slice_coverage()
     assert set(cov) == {"sense:hif", "common:hif"} and cov["sense:hif"]["context"] == {"empty": True}
+
+
+def test_incremental_scan_that_reads_to_the_end_counts_as_full(tmp_path, monkeypatch):
+    """第一次扫一片时资料库是空的，增量补扫不会因为「连续已知」停下、一路读到底：算全读（D16 才认这一片）。"""
+    from hiro.cli import cmd_info
+
+    st = Store(tmp_path / "hiro.db")
+    monkeypatch.setattr(cmd_info, "open_store", lambda: st)
+    inv = {"slices": [{"key": "sense:hif", "mode": "incremental", "complete": True, "stopped": None, "entries": [{"card": {"card_id": "a"}}]},
+                      {"key": "common:hif", "mode": "incremental", "complete": True, "stopped": "known", "entries": []}]}  # fmt: skip
+    cmd_info.import_inventory("memories", inv, source="scan:x")
+    cov = st.slice_coverage()
+    assert cov["sense:hif"]["full_at"] and cov["sense:hif"]["mode"] == "full"
+    assert cov["common:hif"]["full_at"] is None and cov["common:hif"]["mode"] == "incremental"

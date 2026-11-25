@@ -158,3 +158,20 @@ def test_only_one_set_given_checks_the_other_in_plan(run_cli, hiro_home):
     _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE, "--support-set", "3")
     assert env["ok"] is False and env["error"]["code"] == "plan_no_set" and "回忆" in env["error"]["message"]
     assert "支援卡" not in env["error"]["message"]
+
+
+def test_write_freshness_uses_slice_scan_time_for_slice_plans(run_cli, hiro_home):
+    """设计 5.6 / D14：方案来自分片库存时，新鲜度看方案用到的那几片的扫描时间，不看旧的整表快照。
+    整表 11-23 扫的、之后打过一局；但方案用的片 11-24 18:00 刚补扫过 → 放行。"""
+    from hiro.cli.store import Store
+
+    _write_setup(hiro_home, mem_scanned="2026-11-23 11:22:48", plan_created="2026-11-24 18:05:00",
+                 produce_ended="2026-11-23 21:23:10")  # fmt: skip
+    plan = json.loads((hiro_home / "formation-plan.json").read_text(encoding="utf-8"))
+    plan["memory"]["chosen"] = [{"cell": [3, 0], "slice": "sense:hif"}]
+    (hiro_home / "formation-plan.json").write_text(json.dumps(plan), encoding="utf-8")
+    Store(hiro_home / "hiro.db").save_slice(
+        "sense:hif", [], mode="incremental", complete=True, scanned_at="2026-11-24 18:00:00"
+    )
+    code, env = run_cli("run", "start", "write-formation", "--scenario", "hajime")
+    assert code == 3 and env["data"]["pending"], env

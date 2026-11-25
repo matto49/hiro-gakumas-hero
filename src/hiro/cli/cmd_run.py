@@ -101,14 +101,27 @@ def _check_memory_freshness(plan_path: Path, home: Path) -> None:
     db = home / "hiro.db"
     if not db.is_file():
         return
-    history = Store(db).history("memories")
-    if not history:
-        return
-    scanned = history[0]["scanned_at"]
     try:
         plan = json.loads(plan_path.read_text(encoding="utf-8"))
-        scanned_ts = datetime.strptime(scanned, "%Y-%m-%d %H:%M:%S").timestamp()
     except (OSError, ValueError):
+        return
+    st = Store(db)
+    # 方案来自分片库存（设计 5.6 / D14）：看方案用到的那几片里最早的一次扫描，不看旧的整表快照
+    used = {c["slice"] for c in (plan.get("memory") or {}).get("chosen") or [] if c.get("slice")}
+    if used:
+        cov = st.slice_coverage()
+        times = [cov[k]["scanned_at"] for k in used if k in cov]
+        if len(times) < len(used):
+            return
+        scanned = min(times)
+    else:
+        history = st.history("memories")
+        if not history:
+            return
+        scanned = history[0]["scanned_at"]
+    try:
+        scanned_ts = datetime.strptime(scanned, "%Y-%m-%d %H:%M:%S").timestamp()
+    except ValueError:
         return
     idol = (plan.get("idol") or {}).get("idol_card_id") or "<偶像卡编号>"
     replan = f"重新出方案：hiro plan formation --idol {idol}；再写编成"
