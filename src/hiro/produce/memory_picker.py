@@ -258,6 +258,7 @@ class Picker:
     ):
         self.shoot, self.click, self.swipe, self.ocr, self.clock, self.sleep = shoot, click, swipe, ocr, clock, sleep
         self.calib_dir, self._n = calib_dir, 0
+        self.formation_may_have_changed = False  # 扫描中选择页关了（编成可能被改）：调用方收尾时保留现场
 
     def snap(self, img, tag: str) -> None:
         if self.calib_dir is None:
