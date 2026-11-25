@@ -363,16 +363,14 @@ def _write_json(path: Path, data: dict) -> None:
 
 
 def activate(root: Path, plan: dict) -> None:
-    """设为当前方案。当前方案原来是一份旧格式（没按模式存过）的别的偶像的方案时，先收进 plans/_legacy/ 免得丢。"""
+    """设为当前方案。当前方案原来是别的偶像的、又没有按模式存过的副本（旧格式，或不带 --mode 出的）时，
+    先收进 plans/_legacy/<偶像卡>.json 免得丢（_legacy 里已有同一张卡的旧文件就用这份更新的覆盖）。"""
     root = Path(root)
     cur = load(root / CURRENT)
-    if cur and cur.get("version") != PLAN_VERSION:
-        old = (cur.get("idol") or {}).get("idol_card_id")
-        if (
-            old
-            and old != (plan.get("idol") or {}).get("idol_card_id")
-            and not plan_key_path(root, old, "_legacy").is_file()
-        ):
+    old = ((cur or {}).get("idol") or {}).get("idol_card_id")
+    if cur and old and old != (plan.get("idol") or {}).get("idol_card_id"):
+        fam = cur.get("family")
+        if not fam or not plan_key_path(root, old, fam).is_file():
             _write_json(plan_key_path(root, old, "_legacy"), cur)
     _write_json(root / CURRENT, plan)
 
@@ -415,8 +413,9 @@ def inherited_sets(root: Path, fam: str) -> tuple[int | None, int | None]:
 
 
 def needs_write(plan: dict, fam: str) -> bool:
-    """新格式的方案还没写进这个模式的游戏编成位（旧方案按以前的做法：认为玩家自己写好了）。"""
-    return plan.get("version") == PLAN_VERSION and fam not in (plan.get("written") or {})
+    """新格式的方案还没把支援卡和回忆都写进这个模式的游戏编成位（旧方案按以前的做法：认为玩家自己写好了）。"""
+    done = set(((plan.get("written") or {}).get(fam) or {}).get("what") or ())
+    return plan.get("version") == PLAN_VERSION and not {"support", "memory"} <= done
 
 
 def mark_written(current: str | Path, fam: str, what) -> None:
@@ -426,7 +425,8 @@ def mark_written(current: str | Path, fam: str, what) -> None:
     if not plan:
         return
     w = dict(plan.get("written") or {})
-    w[fam] = {"what": list(what), "at": time.strftime("%Y-%m-%d %H:%M:%S"),
+    prev = set((w.get(fam) or {}).get("what") or ())  # 分次写（先支援卡、后回忆）：合并写过的部分
+    w[fam] = {"what": sorted(prev | set(what)), "at": time.strftime("%Y-%m-%d %H:%M:%S"),
               "support_set": (plan.get("support") or {}).get("set"), "memory_set": (plan.get("memory") or {}).get("set")}  # fmt: skip
     plan["written"] = w
     _write_json(current, plan)

@@ -51,7 +51,7 @@ def test_write_marks_plan_written(setup, monkeypatch):
     assert _run(["--mode", "hajime"], monkeypatch) == 0
     for p in (cur, per):
         w = json.loads(p.read_text(encoding="utf-8"))["written"]["hajime"]
-        assert w["what"] == ["support", "memory"] and w["support_set"] == 16
+        assert sorted(w["what"]) == ["memory", "support"] and w["support_set"] == 16
 
 
 def test_dry_run_marks_only_when_nothing_to_change(setup, monkeypatch):

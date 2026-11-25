@@ -94,7 +94,7 @@ def test_written_plan_starts(run_cli, hiro_home, fake_build):
     code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
     assert code == 3 and env["data"]["pending"], env
     per = json.loads((hiro_home / "plans" / "hajime" / f"{KOTONE}.json").read_text(encoding="utf-8"))
-    assert per["written"]["hajime"]["what"] == ["support", "memory"]
+    assert sorted(per["written"]["hajime"]["what"]) == ["memory", "support"]
 
 
 def test_auto_plan_without_slot_numbers_says_which_slot(run_cli, hiro_home, fake_build):
@@ -120,3 +120,37 @@ def test_plan_per_mode_does_not_leak_to_other_mode(run_cli, hiro_home, fake_buil
     assert code == 3 and env["data"]["pending"]
     _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE)  # 初没有方案：自动出，编成位号不拿 N.I.A 的
     assert env["error"]["code"] == "no_slot"
+
+
+def test_partial_writes_merge_and_both_needed(hiro_home):
+    """分两次写（只写支援卡、再只写回忆）：written 合并两次写过的部分；两样都写过才算写进游戏（CodeRabbit #87）。"""
+    from hiro.brain import formation_plan as fp
+
+    plan = {
+        "version": 2,
+        "family": "hajime",
+        "idol": {"idol_card_id": KOTONE},
+        "support": {"set": 3},
+        "memory": {"set": 4},
+    }
+    fp.save_plan(hiro_home, plan, "hajime")
+    cur = hiro_home / "formation-plan.json"
+    fp.mark_written(cur, "hajime", ("support",))
+    assert fp.needs_write(fp.load(cur), "hajime")
+    fp.mark_written(cur, "hajime", ("memory",))
+    p = fp.load(fp.plan_key_path(hiro_home, KOTONE, "hajime"))
+    assert sorted(p["written"]["hajime"]["what"]) == ["memory", "support"] and not fp.needs_write(p, "hajime")
+
+
+def test_current_plan_without_per_mode_copy_is_kept(hiro_home):
+    """当前方案是不带 --mode 出的（version 2、没有按模式的副本）：换别的偶像时先收进 _legacy，不直接覆盖（CodeRabbit #87）。"""
+    from hiro.brain import formation_plan as fp
+
+    hiro_home.mkdir(parents=True)
+    mine = {"version": 2, "idol": {"idol_card_id": LUNA}, "support": {"set": 1}, "memory": {"set": 2}}
+    (hiro_home / "formation-plan.json").write_text(json.dumps(mine), encoding="utf-8")
+    fp.save_plan(hiro_home, {"version": 2, "idol": {"idol_card_id": KOTONE}}, "hajime")
+    assert fp.load(fp.plan_key_path(hiro_home, LUNA, "_legacy"))["support"]["set"] == 1
+    # 有按模式的副本的就不再多收一份
+    fp.save_plan(hiro_home, {"version": 2, "idol": {"idol_card_id": LUNA}}, "nia")
+    assert not fp.plan_key_path(hiro_home, KOTONE, "_legacy").is_file()
