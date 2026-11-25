@@ -71,6 +71,8 @@ class Command:
     handler: Callable[..., Any] | None = None
     confirm_summary: Callable[[dict], str] | None = None  # ACT 命令：待确认卡片上写的一句话
     precheck: Callable[[dict], None] | None = None  # ACT 命令：出待确认之前先查（明显做不了就直接报错，不让用户白确认）
+    # ACT 命令：操作类别（read / daily / blank / write / overwrite / all），界面按权限档决定要不要确认
+    access: Callable[[dict], str] | None = None
     stdin: bool = False  # 从 stdin 读值（密码）；agent 不能调用
     agent: bool = True  # 是否给内置 agent 当工具
     extra: dict = field(default_factory=dict)

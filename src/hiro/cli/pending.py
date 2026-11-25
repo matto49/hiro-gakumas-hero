@@ -31,10 +31,18 @@ def _dir() -> Path:
     return d
 
 
-def create(command: str, args: dict, summary: str) -> dict:
+def create(command: str, args: dict, summary: str, access: str = "all") -> dict:
     pid = secrets.token_hex(6)
     t = _now()
-    rec = {"id": pid, "command": command, "args": args, "summary": summary, "created_at": t, "expires_at": t + TTL}
+    rec = {
+        "id": pid,
+        "command": command,
+        "args": args,
+        "summary": summary,
+        "access": access,
+        "created_at": t,
+        "expires_at": t + TTL,
+    }
     tmp = _dir() / f"{pid}.tmp"
     tmp.write_text(json.dumps(rec, ensure_ascii=False), encoding="utf-8")
     tmp.replace(_dir() / f"{pid}.json")
@@ -43,7 +51,7 @@ def create(command: str, args: dict, summary: str) -> dict:
 
 def public(rec: dict) -> dict:
     """给 agent / 界面看的待确认：带上参数（args），确认卡按种类和参数画（11-25 review：只有 command 时界面认不出种类）。"""
-    return {k: rec.get(k) for k in ("id", "command", "args", "summary", "expires_at")}
+    return {k: rec.get(k) for k in ("id", "command", "args", "access", "summary", "expires_at")}
 
 
 def take(pid: str) -> dict:

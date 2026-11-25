@@ -105,7 +105,8 @@ def run(argv: list[str]) -> tuple[int, dict]:
         from hiro.cli import pending
 
         summary = cmd.confirm_summary(args) if cmd.confirm_summary else f"执行 hiro {cmd.name}"
-        rec = pending.create(cmd.name, args, summary)
+        access = cmd.access(args) if cmd.access else "all"
+        rec = pending.create(cmd.name, args, summary, access)
         return PENDING_EXIT, {
             "ok": True,
             "data": {

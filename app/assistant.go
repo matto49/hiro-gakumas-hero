@@ -78,6 +78,9 @@ type Settings struct {
 	HasKeys map[string]bool `json:"has_keys,omitempty"`
 	// WizardDone：新手向导走完了（或跳过了），之后打开直接进主窗口。
 	WizardDone bool `json:"wizard_done,omitempty"`
+	// Permission：操作权限档（ask / read / readwrite / all，空 = read）；AllowAllConfirmed：第一次切到 all 时确认过（只弹一次）。
+	Permission        string `json:"permission,omitempty"`
+	AllowAllConfirmed bool   `json:"allow_all_confirmed,omitempty"`
 }
 
 // DefaultDeepSeek 是 DeepSeek 的缺省地址和模型。

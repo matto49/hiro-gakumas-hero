@@ -167,6 +167,43 @@ def _check_formation_plan(a: dict) -> None:
 EXAM_KINDS = ("hif", "hajime", "nia", "tower")  # 有考试、出牌靠算法的任务
 
 
+def run_access(a: dict) -> str:
+    """操作类别（11-25 review：权限档参考 dsh）：read 只看画面；daily 领日常（用户说不用确认）；
+    blank 写空白编成位（用户说不用确认）；write 改游戏（コミュ、竞赛编队）；overwrite 会覆盖已有编成；all 用掉培育次数 / 资源（开局、续打、初星課題）。"""
+    kind = a["kind"]
+    if a.get("command") == "resume" or kind in EXAM_KINDS or kind == "main-task":
+        return "all"
+    if kind.startswith("scan-") or kind in ("check-settings", "selftest"):
+        return "read"
+    if kind == "daily":
+        return "daily"
+    if kind in ("write-formation", "contest-unit") and a.get("dry_run"):
+        return "read"
+    if kind == "write-formation":
+        return "blank" if _formation_slots_blank(a) else "overwrite"
+    return "write"
+
+
+def _formation_slots_blank(a: dict) -> bool:
+    """要写的编成位（方案里的支援卡 / 回忆编成号）在最近一次读的编成位现状里都是空的。读不到、读的是别的模式都按不空算。"""
+    from hiro.cli import paths
+    from hiro.cli.home import hiro_home
+    from hiro.cli.store import open_store
+
+    try:
+        plan = json.loads(paths.plan_path(hiro_home()).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    mode = a.get("scenario") or "hif"
+    what = [w.strip() for w in (a.get("what") or "support,memory").split(",") if w.strip()]
+    want = {(w, (plan.get(w) or {}).get("set")) for w in what}
+    if any(n is None for _, n in want):
+        return False
+    _meta, rows = open_store().latest("formations")
+    filled = {(r.get("kind"), r.get("set")): r.get("filled") for r in rows if r.get("mode") == mode}
+    return all(filled.get(k) == 0 for k in want)
+
+
 def _summary(a: dict) -> str:
     kind = KINDS.get(a["kind"])
     text = kind.summary(_params(a)) if kind else f"开始任务 {a['kind']}"
@@ -252,6 +289,7 @@ def _first_reason(out: str) -> str:
     ),
     confirm_summary=_summary,
     precheck=_precheck,
+    access=run_access,
 )
 def _start(a: dict) -> dict:
     # 对局用哪个模型：跟着发起开局的这个进程的环境（桌面程序按模型设置传；终端里就是自己 shell 的 HIRO_LLM）

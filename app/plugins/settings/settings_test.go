@@ -145,3 +145,41 @@ type deferHost struct {
 }
 
 func (d *deferHost) Go(work func() func()) { *d.q = append(*d.q, work) }
+
+// 11-25 review：设置里选操作权限；第一次切到「允许所有行为」弹一次二次确认，之后不再弹
+func TestPermissionAllConfirmsOnce(t *testing.T) {
+	f := &fake{s: Settings{Provider: "deepseek", WizardDone: true}, secrets: map[string]string{}, ready: true}
+	p := New(f.deps()).Plugin()
+	h := plugintest.New(map[string]string{})
+	tt := ui.NewTester(func(c *ui.Context) { p.Panel(c, h, "") }, 760, 2400)
+	tt.Frame()
+	for _, s := range []string{"操作权限", "总是询问", "允许读操作", "允许读写操作", "允许所有行为"} {
+		if !tt.HasText(s) {
+			t.Fatalf("设置里没有 %q：%q", s, tt.Texts())
+		}
+	}
+	if err := tt.Click("允许所有行为"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if f.s.Permission == "all" || !tt.HasText("确定允许所有行为") {
+		t.Fatalf("第一次切到允许所有行为要先确认：perm=%q %q", f.s.Permission, tt.Texts())
+	}
+	if err := tt.Click("确定，允许所有行为"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if f.s.Permission != "all" || !f.s.AllowAllConfirmed {
+		t.Fatalf("确认后应保存：%+v", f.s)
+	}
+	_ = tt.Click("总是询问")
+	tt.Frame()
+	if f.s.Permission != "ask" {
+		t.Fatalf("切回总是询问：%+v", f.s)
+	}
+	_ = tt.Click("允许所有行为")
+	tt.Frame()
+	if f.s.Permission != "all" || tt.HasText("确定允许所有行为") {
+		t.Errorf("确认过一次，之后直接切：%+v", f.s)
+	}
+}

@@ -39,8 +39,14 @@ func buildApp(d appDeps) *shell.App {
 	reg := &plugin.Registry{}
 	mgr := &extplugin.Manager{Home: d.Home, Reg: reg}
 	cache := &settingsCache{a: d.Assistant}
+	var app *shell.App
 	sd := settingsDeps(d, cache)
 	sd.PluginsPanel = mgr.Panel
+	sd.OnWizardDone = func() { // R11：第一次用，自己扫一遍从没扫过的库存
+		if app != nil {
+			app.FirstScan()
+		}
+	}
 	set := settings.New(sd)
 	reg.Add(start.New())
 	reg.Add(plan.New())
@@ -54,7 +60,6 @@ func buildApp(d appDeps) *shell.App {
 		d.Web.hook(mgr.Dir)
 	}
 	a := d.Assistant
-	var app *shell.App
 	a.ExtTools = func() []ExtTool {
 		var out []ExtTool
 		for _, t := range mgr.AgentTools() {
@@ -80,8 +85,9 @@ func buildApp(d appDeps) *shell.App {
 			r, err := a.AskWith(ctx, h, text, extra, onTool)
 			return shell.Reply{Text: r.Text, Cards: jsonCards(r.Cards)}, err
 		},
-		HasModel: func() bool { return cache.hasModel() },
-		Gate:     set.Gate,
+		HasModel:   func() bool { return cache.hasModel() },
+		Gate:       set.Gate,
+		Permission: func() string { return cache.Get().Permission },
 	}, reg)
 	return app
 }

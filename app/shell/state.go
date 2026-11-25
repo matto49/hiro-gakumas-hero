@@ -42,6 +42,8 @@ type Deps struct {
 	HasModel func() bool
 	// Gate 画在主界面之前（第一次使用）：返回 true 表示它画了整个窗口。
 	Gate func(c *ui.Context, h plugin.Host) bool
+	// Permission 是用户选的操作权限档（PermAsk / PermRead / …）；nil 或空是「允许读操作」。
+	Permission func() string
 }
 
 // App 是主界面的全部状态。只在界面线程里改。
@@ -150,6 +152,9 @@ func (a *App) add(role, text string, cards []plugin.Card) *Message {
 	}
 	t.Messages = append(t.Messages, m)
 	t.UpdatedAt = m.At
+	for _, c := range cards {
+		a.autoStart(m, c)
+	}
 	// 最近用过的对话排到最前
 	for i, x := range a.threads {
 		if x == t && i > 0 {
@@ -342,5 +347,5 @@ func (s *snapHost) Job(id string) *plugin.JobView {
 }
 func (s *snapHost) LiveJob() string        { return s.live }
 func (s *snapHost) ChatJob(id string) bool { return s.chat[id] }
-func (s *snapHost) Home() string    { return s.a.d.Home }
-func (s *snapHost) Now() time.Time  { return s.a.d.Now() }
+func (s *snapHost) Home() string           { return s.a.d.Home }
+func (s *snapHost) Now() time.Time         { return s.a.d.Now() }

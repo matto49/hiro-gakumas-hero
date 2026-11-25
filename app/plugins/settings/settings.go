@@ -23,6 +23,17 @@ type Settings struct {
 	HasKey     bool            `json:"has_key"`
 	HasKeys    map[string]bool `json:"has_keys,omitempty"`
 	WizardDone bool            `json:"wizard_done,omitempty"`
+	// Permission 是操作权限档（ask / read / readwrite / all，空 = read）；AllowAllConfirmed 是第一次切到 all 时确认过。
+	Permission        string `json:"permission,omitempty"`
+	AllowAllConfirmed bool   `json:"allow_all_confirmed,omitempty"`
+}
+
+// permLevels 是「操作权限」的四档（11-25 review，参考 dsh）。
+var permLevels = []struct{ id, name, desc string }{
+	{"ask", "总是询问", "每件会动游戏的事都先出确认卡，你点了才做。"},
+	{"read", "允许读操作", "只看画面的（扫描、检查设置、对照编成）直接做；领日常、往空白编成位写编成也直接做。开局、改已有编成还是会问。"},
+	{"readwrite", "允许读写操作", "除了用掉培育次数的事（开局、接着打、初星課題），都直接做，包括改掉已有的编成。"},
+	{"all", "允许所有行为", "开局、接着打也直接开始，不再出确认卡。花ジュエル、放弃培育这些不管哪一档都不会做。"},
 }
 
 // Preset 是一家 API 服务商。
@@ -53,6 +64,8 @@ type Deps struct {
 	SetSecret  func(ctx context.Context, name, value string) hiroapi.Result
 	// OnModelChanged 在模型设置保存后调用（shell 重新决定能不能直接说话）。
 	OnModelChanged func()
+	// OnWizardDone 在第一次使用的向导走完时调用（shell 自己扫一遍从没扫过的库存，R11）。
+	OnWizardDone func()
 	// PluginsPanel 画「管理插件」页（外部插件，见 extplugin）。
 	PluginsPanel func(c *ui.Context, h plugin.Host)
 }
@@ -81,6 +94,8 @@ type S struct {
 	step      int
 	sound     bool
 	modelOK   bool
+	// confirmAll：第一次切到「允许所有行为」的二次确认弹窗开着
+	confirmAll bool
 
 	// 模型表单
 	formFor  string // 表单是按哪次读到的设置填的
@@ -304,7 +319,7 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 				case 4:
 					s.secretsSection(c, h)
 				case 5:
-					kit.Note(c, "先扫一遍支援卡和回忆，初星助手出编成方案时才知道你有什么。点了会在对话里出确认卡。")
+					kit.Note(c, "点「完成」后，初星助手会自己扫一遍还没扫过的支援卡、回忆和偶像卡（只看画面，不改东西），游戏停在首页就行。也可以现在单独点下面几项。")
 					for _, sc := range [][2]string{{"scan-supports", "扫描支援卡"}, {"scan-memories", "扫描回忆"}, {"scan-account", "读首页数值"}, {"check-settings", "检查游戏设置"}} {
 						if kit.Secondary(c, sc[1]).Clicked() {
 							h.RunArgs(sc[1], []string{"run", "start", sc[0]})
@@ -330,11 +345,76 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 						if s.d.OnModelChanged != nil {
 							s.d.OnModelChanged()
 						}
+						if s.d.OnWizardDone != nil {
+							s.d.OnWizardDone()
+						}
 					}
 				})
 			})
 		})
 	})
+}
+
+// permSection 是「操作权限」四档；第一次切到「允许所有行为」弹一次二次确认，确认过以后直接切。
+func (s *S) permSection(c *ui.Context) {
+	st := s.d.Settings()
+	cur := st.Permission
+	if cur == "" {
+		cur = "read"
+	}
+	set := func(id string) {
+		st := s.d.Settings()
+		st.Permission = id
+		if id == "all" {
+			st.AllowAllConfirmed = true
+		}
+		_ = s.d.Save(st, "")
+	}
+	for _, lv := range permLevels {
+		sel := lv.id == cur
+		b := ui.ButtonBase(c).Key("perm-"+lv.id).Label(lv.name).Justify(ui.Start).AlignItems(ui.Start).Gap(10).Padding(10, 12).
+			Radius(kit.R12).Border(kit.Hair, kit.Line)
+		if sel {
+			b = b.Background(kit.BrandT).Border(1.5, kit.Brand)
+		} else if b.Hovered() {
+			b = b.Background(kit.Surface2)
+		}
+		if b.Children(func() {
+			dot := ui.Box(c).Size(14, 14).Radius(7).Border(1.5, kit.Ink3).Shrink(0).Margin(2, 0, 0, 0)
+			if sel {
+				dot = dot.Border(4, kit.Brand)
+			}
+			_ = dot
+			ui.Column(c).Gap(3).Shrink(1).Children(func() {
+				ui.Text(c, lv.name).FontSize(kit.FSmall).FontWeight(600).TextColor(kit.Ink)
+				ui.Text(c, lv.desc).FontSize(kit.FNote).TextColor(kit.Ink3).Wrap()
+			})
+		}).Clicked() && !sel {
+			if lv.id == "all" && !st.AllowAllConfirmed {
+				s.confirmAll = true
+			} else {
+				set(lv.id)
+			}
+		}
+	}
+	if s.confirmAll {
+		ui.Modal(c, &s.confirmAll, func() {
+			ui.Column(c).Width(420).Gap(12).Padding(20).Radius(kit.R16).Background(kit.CardBg).Children(func() {
+				ui.Text(c, "确定允许所有行为？").FontSize(16).FontWeight(700).TextColor(kit.Ink)
+				kit.Note(c, "开局、接着打、初星課題都会直接开始，不再出确认卡，会用掉培育次数和 AP。花ジュエル、放弃培育这些不管哪一档都不会做。这个提示只出这一次，之后可以随时改回来。")
+				ui.Row(c).Gap(8).Children(func() {
+					ui.Spacer(c)
+					if kit.Secondary(c, "取消").Key("perm-all-cancel").Clicked() {
+						s.confirmAll = false
+					}
+					if kit.Primary(c, "确定，允许所有行为").Key("perm-all-ok").Clicked() {
+						s.confirmAll = false
+						set("all")
+					}
+				})
+			})
+		})
+	}
 }
 
 func (s *S) deviceLine(c *ui.Context) {
@@ -623,6 +703,8 @@ func (s *S) panel(c *ui.Context, h plugin.Host, route string) {
 	}
 	ui.Text(c, "模型").FontSize(15).FontWeight(650).TextColor(kit.Ink)
 	s.modelSection(c, h)
+	ui.Text(c, "操作权限").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
+	s.permSection(c)
 	ui.Text(c, "游戏连接").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
 	s.deviceLine(c)
 	if kit.Secondary(c, "试连").Key("probe").Disabled(s.probing || h.LiveJob() != "").Clicked() {

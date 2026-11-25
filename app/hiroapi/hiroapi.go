@@ -21,7 +21,8 @@ type CliError struct {
 type Pending struct {
 	ID        string         `json:"id"`
 	Command   string         `json:"command"`
-	Args      map[string]any `json:"args,omitempty"` // 命令的参数（run start 的 kind / idol / …），确认卡按它画
+	Args      map[string]any `json:"args,omitempty"`   // 命令的参数（run start 的 kind / idol / …），确认卡按它画
+	Access    string         `json:"access,omitempty"` // 操作类别（read / daily / blank / write / overwrite / all），按权限档决定要不要确认
 	Summary   string         `json:"summary"`
 	ExpiresAt float64        `json:"expires_at"`
 }
@@ -31,6 +32,9 @@ func (p Pending) Map() map[string]any {
 	m := map[string]any{"id": p.ID, "command": p.Command, "summary": p.Summary, "expires_at": p.ExpiresAt}
 	if len(p.Args) > 0 {
 		m["args"] = p.Args
+	}
+	if p.Access != "" {
+		m["access"] = p.Access
 	}
 	return m
 }
@@ -80,6 +84,7 @@ func PendingFromMap(m map[string]any) (Pending, bool) {
 	p.Command, _ = m["command"].(string)
 	p.Summary, _ = m["summary"].(string)
 	p.Args, _ = m["args"].(map[string]any)
+	p.Access, _ = m["access"].(string)
 	switch v := m["expires_at"].(type) {
 	case float64:
 		p.ExpiresAt = v

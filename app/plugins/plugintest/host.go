@@ -89,8 +89,8 @@ func (h *Host) LiveJob() string { return h.Live }
 
 // ChatJob 是 Chat 里记着的局。
 func (h *Host) ChatJob(id string) bool { return h.Chat[id] }
-func (h *Host) Home() string    { return h.HomeDir }
-func (h *Host) Now() time.Time  { return h.At }
+func (h *Host) Home() string           { return h.HomeDir }
+func (h *Host) Now() time.Time         { return h.At }
 
 var _ plugin.Host = (*Host)(nil)
 
