@@ -127,3 +127,12 @@ func TestFirstScanStartsUnscannedKinds(t *testing.T) {
 		t.Errorf("首次扫描卡 %+v", card)
 	}
 }
+
+// CodeRabbit #79：同一条回复里有选择卡（还没选偶像）时，确认卡不自动开始，哪怕是「允许所有行为」
+func TestNoAutoStartWhileChoosing(t *testing.T) {
+	choice := plugin.Card{"type": "choice", "kind": "idols", "status": "waiting", "options": []any{map[string]any{"id": "i_card-a"}}}
+	_, _, call, _ := permApp(t, PermAll, choice, ConfirmCard(accessPending("p1", "hajime", "all")))
+	if call.called("confirm p1") {
+		t.Error("还在选偶像时不该自动开局")
+	}
+}

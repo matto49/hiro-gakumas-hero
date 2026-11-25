@@ -152,8 +152,17 @@ func (a *App) add(role, text string, cards []plugin.Card) *Message {
 	}
 	t.Messages = append(t.Messages, m)
 	t.UpdatedAt = m.At
+	// 同一条回复里还有在等的选择卡（还没选偶像）时，确认卡不自动开始（CodeRabbit #79）
+	choosing := false
 	for _, c := range cards {
-		a.autoStart(m, c)
+		if c["type"] == "choice" && c["status"] == "waiting" {
+			choosing = true
+		}
+	}
+	for _, c := range cards {
+		if !choosing {
+			a.autoStart(m, c)
+		}
 	}
 	// 最近用过的对话排到最前
 	for i, x := range a.threads {

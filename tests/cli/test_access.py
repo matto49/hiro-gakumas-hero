@@ -72,3 +72,35 @@ def test_write_formation_unknown_slots_is_overwrite(hiro_home):
 def test_pending_carries_access(run_cli):
     _code, env = run_cli("run", "start", "scan-memories")
     assert env["data"]["pending"]["access"] == "read"
+
+
+def test_write_after_scan_makes_slots_stale(hiro_home):
+    """CodeRabbit #79：写过编成后，之前读的「空」不能再信（不然下一次写会被当成空白位、不确认就覆盖）。"""
+    from hiro.cli.jobs import jobs_dir
+    from hiro.cli.store import open_store
+
+    _plan(hiro_home)
+    rows = [
+        {"mode": "hajime", "kind": "support", "set": 2, "filled": 0, "cards": []},
+        {"mode": "hajime", "kind": "memory", "set": 1, "filled": 0, "cards": []},
+    ]
+    open_store().save_snapshot("formations", rows, "test", scanned_at="2026-11-25 10:00:00")
+    assert run_access({"kind": "write-formation", "scenario": "hajime"}) == "blank"
+    d = jobs_dir(hiro_home) / "20261125-110000-abcd"
+    d.mkdir(parents=True)
+    import time
+
+    started = time.mktime(time.strptime("2026-11-25 11:00:00", "%Y-%m-%d %H:%M:%S"))
+    (d / "job.json").write_text(
+        json.dumps({"kind": "write-formation", "params": {"scenario": "hajime"}, "started_at": started}),
+        encoding="utf-8",
+    )
+    assert run_access({"kind": "write-formation", "scenario": "hajime"}) == "overwrite"
+    # 只对照（dry-run）不算写过
+    (d / "job.json").write_text(
+        json.dumps(
+            {"kind": "write-formation", "params": {"scenario": "hajime", "dry_run": True}, "started_at": started}
+        ),
+        encoding="utf-8",
+    )
+    assert run_access({"kind": "write-formation", "scenario": "hajime"}) == "blank"

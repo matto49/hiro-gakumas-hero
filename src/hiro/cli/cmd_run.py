@@ -199,9 +199,33 @@ def _formation_slots_blank(a: dict) -> bool:
     want = {(w, (plan.get(w) or {}).get("set")) for w in what}
     if any(n is None for _, n in want):
         return False
-    _meta, rows = open_store().latest("formations")
+    meta, rows = open_store().latest("formations")
+    if meta is None or _wrote_formation_since(meta.get("scanned_at"), mode):
+        return False  # 读完以后写过编成：读到的「空」已经不准（CodeRabbit #79）
     filled = {(r.get("kind"), r.get("set")): r.get("filled") for r in rows if r.get("mode") == mode}
     return all(filled.get(k) == 0 for k in want)
+
+
+def _wrote_formation_since(scanned_at: str | None, mode: str) -> bool:
+    """编成位现状读完之后，有没有开过写这个模式编成的任务（对照不算；没跑完的也算，可能写了一半）。"""
+    from hiro.cli.home import hiro_home
+    from hiro.cli.jobs import jobs_dir
+
+    try:
+        t0 = time.mktime(time.strptime(scanned_at or "", "%Y-%m-%d %H:%M:%S"))
+    except ValueError:
+        return True
+    for f in jobs_dir(hiro_home()).glob("*/job.json"):
+        try:
+            j = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        p = j.get("params") or {}
+        if j.get("kind") != "write-formation" or p.get("dry_run") or (p.get("scenario") or "hif") != mode:
+            continue
+        if (j.get("started_at") or 0) >= t0:
+            return True
+    return False
 
 
 def _summary(a: dict) -> str:
