@@ -119,3 +119,47 @@ func TestRunCardShowsFailReason(t *testing.T) {
 		t.Errorf("对局卡没有出错原因：%q", tt.Texts())
 	}
 }
+
+// 11-25 review：没有动作的步骤不进流；一场考试合成一行；理由去掉内部用语
+func TestStreamMergesExamAndDropsEmpty(t *testing.T) {
+	h, p := liveHost(), New()
+	v := h.Job("j7")
+	ex := func(seq int, action, text string) plugin.JobEvent {
+		e := step(seq, "HIF_EXAM", "bench", text)
+		e.Action = action
+		return e
+	}
+	sel := step(2, "SELECT_CARD", "rule", "选卡 オトメゴコロ（攻略 hajime.style-review.card_pick.stack、加好印象）（牌组精简 [g8-PRO]）")
+	sel.Action = "ActivateEffect"
+	v.Events = []plugin.JobEvent{
+		step(1, "ALLOWANCE", "", ""),
+		sel,
+		ex(3, "PlayCard", "ExamGnrpa（画面读数）：目線の基本；终局分预测中位 92"),
+		ex(4, "UseDrink", "ExamGnrpa（画面读数）：饮料；终局分预测中位 900"),
+		ex(5, "PlayCard", "ExamGnrpa（画面读数）：手拍子+；终局分预测中位 10025"),
+		ex(6, "Skip", "ExamGnrpa（画面读数）：跳过；终局分预测中位 10025"),
+		step(7, "ACTION_SELECT", "rule", "上课程 Vi"),
+	}
+	view := p.Cards["run"]
+	tt := ui.NewTester(func(c *ui.Context) { view(c, h, plugin.Card{"type": "run", "jobId": "j7"}) }, 760, 800)
+	tt.Frame()
+	all := strings.Join(tt.Texts(), "\n")
+	for _, s := range []string{"选卡 オトメゴコロ（加好印象）（牌组精简）", "出了 2 张牌、1 瓶饮料", "预计终局 10025 分", "上课程 Vi"} {
+		if !strings.Contains(all, s) {
+			t.Errorf("流里没有 %q：%q", s, tt.Texts())
+		}
+	}
+	for _, s := range []string{"没写理由", "[g8-PRO]", "攻略 hajime", "ExamGnrpa", "目線の基本"} {
+		if strings.Contains(all, s) {
+			t.Errorf("流里不该有 %q：%q", s, tt.Texts())
+		}
+	}
+	// 点开考试那一行看逐回合
+	if err := tt.Click("展开这场考试"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if all := strings.Join(tt.Texts(), "\n"); !strings.Contains(all, "出 目線の基本 · 预计终局 92 分") {
+		t.Errorf("展开后没有逐回合：%q", tt.Texts())
+	}
+}

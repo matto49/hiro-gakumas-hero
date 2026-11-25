@@ -268,3 +268,33 @@ func Tool(name string) string {
 	}
 	return name
 }
+
+var (
+	reTag      = regexp.MustCompile(`\s*\[[^\[\]]*\]`)
+	reGuideKey = regexp.MustCompile(`攻略 [A-Za-z0-9_.\-]+、?`)
+	reAlgoHead = regexp.MustCompile(`^[A-Za-z]+（[^）]*）：`)
+	rePredict  = regexp.MustCompile(`；?\s*终局分预测中位\s*([\d,]+)`)
+)
+
+// Reason 把每一步的理由改成玩家看得懂的话（11-25 review）：去掉规则标签 [g8-PRO]、攻略键名、
+// 算法内部名「ExamGnrpa（画面读数）：」，「终局分预测中位 N」写成「预计终局 N 分」。
+func Reason(s string) string {
+	s = reTag.ReplaceAllString(s, "")
+	s = reGuideKey.ReplaceAllString(s, "")
+	algo := reAlgoHead.MatchString(s)
+	s = reAlgoHead.ReplaceAllString(s, "")
+	s = rePredict.ReplaceAllString(s, " · 预计终局 $1 分")
+	if algo && s != "" && !strings.HasPrefix(s, " · ") {
+		s = "出 " + s
+	}
+	s = strings.NewReplacer("（、", "（", "、）", "）", "（）", "", "；）", "）").Replace(s)
+	return strings.TrimSpace(s)
+}
+
+// Predict 是理由里的「终局分预测中位 N」（没有为空）。
+func Predict(s string) string {
+	if m := rePredict.FindStringSubmatch(s); m != nil {
+		return m[1]
+	}
+	return ""
+}

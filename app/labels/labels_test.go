@@ -63,3 +63,18 @@ func TestSourcePlugin(t *testing.T) {
 		t.Error("IsPluginSource")
 	}
 }
+
+// 11-25 review：理由里的规则标签、攻略键名、算法内部名不给玩家看
+func TestReasonDropsInternalTerms(t *testing.T) {
+	cases := map[string]string{
+		"选卡 オトメゴコロ（攻略 hajime.style-review.card_pick.stack、还缺的循环卡、加好印象）（牌组精简，用不上的卡不拿 [g8-PRO]；优先拿 [g8-試験]）": "选卡 オトメゴコロ（还缺的循环卡、加好印象）（牌组精简，用不上的卡不拿；优先拿）",
+		"ExamGnrpa（画面读数）：目線の基本；终局分预测中位 92": "出 目線の基本 · 预计终局 92 分",
+		"上课程 Vi（课程、授業优先 [g8-PRO]）":         "上课程 Vi（课程、授業优先）",
+		"": "",
+	}
+	for in, want := range cases {
+		if got := Reason(in); got != want {
+			t.Errorf("Reason(%q) = %q，要 %q", in, got, want)
+		}
+	}
+}
