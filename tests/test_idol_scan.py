@@ -115,7 +115,7 @@ def test_import_retries_memory_card_name(monkeypatch):
 
     monkeypatch.setattr(
         "hiro.vision.deck.card_from_name",
-        lambda t: (
+        lambda t, candidates=None, allow_prefix=False: (  # 入库时开着丢尾字兜底（终审 I8）
             {"card_id": "p_card-02-act-3_001", "name": "200%スマイル", "upgrade": 1} if t == "200％スマイル＋" else None
         ),
     )
