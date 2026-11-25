@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -113,8 +114,6 @@ def test_sprite_downloads_once_and_caches(run_cli, server, hiro_home):
 
 def test_sync_also_fetches_supports_and_lookup_gives_chinese_names(run_cli, server):
     """初星助手信息页用 catalog supports / lookup 配中文名和小图（同 Go 版 go/internal/catalog）。"""
-    code, env = run_cli("catalog", "supports")
-    assert env["ok"] is False and env["error"]["code"] == "catalog_missing"
     code, env = run_cli("catalog", "sync")
     assert code == 0 and env["data"]["counts"]["supports"] == 1
     code, env = run_cli("catalog", "supports")
@@ -141,9 +140,37 @@ def test_sprite_falls_back_to_webp(run_cli, server):
 
 def test_idol_name_prefers_chinese(run_cli, server, monkeypatch):
     """开局待确认卡片里的偶像卡名：界面默认中文，先用中文名；没同步资料库时原样给编号。"""
+    from hiro.cli import catalog
     from hiro.cli.catalog import idol_name
 
+    url = os.environ["HIRO_CATALOG_URL"]
+    monkeypatch.setenv("HIRO_CATALOG_URL", "http://127.0.0.1:9")  # 没同步、也下载不了：原样给编号
     assert idol_name("i_card-skin-shro-3-007") == "i_card-skin-shro-3-007"
+    monkeypatch.setenv("HIRO_CATALOG_URL", url)
+    monkeypatch.setattr(catalog, "_auto_sync_at", None)
     monkeypatch.setitem(CAT_ZH["idols"]["i_card-shro-3-007"], "name", "【Campus mode!!】筱泽广")
     run_cli("catalog", "sync")
     assert idol_name("i_card-skin-shro-3-007") == "【Campus mode!!】筱泽广"
+
+
+def test_missing_catalog_downloads_itself_once(run_cli, server, hiro_home):
+    """G1-F3（11-26 小白验收）：干净安装从没下载过资料库，卡名、卡面全退回编号。缺了就自动下载一次。"""
+    _code, env = run_cli("catalog", "lookup", "--ids", "p_card-01-ido-3_105", "--lang", "zh")
+    assert env["ok"] and env["data"]["items"]["p_card-01-ido-3_105"]["name"] == "尤里卡！"
+    assert (hiro_home / "catalog" / "supports.json").is_file()
+
+
+def test_missing_catalog_offline_fails_fast_and_waits_before_retry(run_cli, monkeypatch):
+    import time
+
+    from hiro.cli import catalog
+
+    calls = []
+    real = catalog._sync
+    monkeypatch.setattr(catalog, "_sync", lambda a, timeout=60: calls.append(timeout) or real(a, timeout=timeout))
+    t0 = time.monotonic()
+    for _ in range(3):
+        _code, env = run_cli("catalog", "search", "エウレカ")
+        assert env["ok"] is False and env["error"]["code"] == "catalog_missing"
+    assert calls == [catalog.AUTO_SYNC_TIMEOUT]  # 离线时只试一次，冷却期内不再去下载
+    assert time.monotonic() - t0 < 10

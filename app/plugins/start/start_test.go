@@ -236,3 +236,31 @@ func TestExplainItemsHaveIconsAndTips(t *testing.T) {
 		t.Errorf("回忆要有图标、中文名和效果说明：%+v", m)
 	}
 }
+
+// G1-F3（11-26 小白验收）：方案还没定编成号（开局前挑空白编成位）时，确认卡按方案画、写明开局前要做什么，
+// 不能写成「沿用游戏里当前选中的编成」（和上面那句「把编成方案写进去」说反了）。
+func TestExplainPlanWithoutSetWhenPreparing(t *testing.T) {
+	h, p := host(), New()
+	noSet := strings.Replace(strings.Replace(planJSON, `"set":2`, `"set":null`, 1), `"set":1`, `"set":null`, 1)
+	pd := hiroapi.Pending{Command: "run start", Plan: planSnap(t, noSet), Args: map[string]any{
+		"kind": "hajime", "idol": "i_card-skin-ttmr-3-0012", "prepare": true,
+		"prepare_note": "先读一遍「初」的编成位，挑空着的把编成方案写进去"}}
+	p.Explain(h, pd)
+	e, ok := p.Explain(h, pd)
+	if !ok {
+		t.Fatal("没认出")
+	}
+	rows := map[string]string{}
+	for _, r := range e.Rows {
+		rows[r[0]] = r[1]
+	}
+	if !strings.Contains(rows["编成"], "按编成方案") || strings.Contains(rows["编成"], "沿用游戏里") {
+		t.Errorf("编成行 %q", rows["编成"])
+	}
+	if !strings.Contains(rows["开局前"], "挑空着的") {
+		t.Errorf("开局前 %q", rows["开局前"])
+	}
+	if len(e.Groups) == 0 {
+		t.Error("应画出方案里的卡")
+	}
+}

@@ -294,12 +294,21 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 		case r.Flags["support-set"] != "" || r.Flags["memory-set"] != "":
 			e.Rows = append(e.Rows, [2]string{"编成", fmt.Sprintf("游戏里的支援卡 %s 号、回忆 %s 号", or(r.Flags["support-set"], "当前"), or(r.Flags["memory-set"], "当前"))})
 		default:
-			if pl := planOf(p); pl != nil && pl.Support.Set != nil {
+			pl := planOf(p)
+			switch {
+			case pl != nil && pl.Support.Set != nil:
 				e.Rows = append(e.Rows, [2]string{"编成", fmt.Sprintf("沿用编成方案（支援卡 %d 号、回忆 %s 号）", *pl.Support.Set, intOr(pl.Memory.Set))})
 				e.Groups = pl.groups(h, cat)
-			} else {
+			case pl != nil && r.Flags["prepare"] == "true":
+				// G1-F3（11-26）：方案还没定编成号，开局前在同一个任务里挑空着的编成位写进去；原来这里落到「沿用当前编成」，和上面那句说反了
+				e.Rows = append(e.Rows, [2]string{"编成", "按编成方案（编成号开局前挑空着的）"})
+				e.Groups = pl.groups(h, cat)
+			default:
 				e.Rows = append(e.Rows, [2]string{"编成", "沿用游戏里当前选中的编成"})
 			}
+		}
+		if note := r.Flags["prepare-note"]; note != "" && r.Flags["prepare"] == "true" {
+			e.Rows = append(e.Rows, [2]string{"开局前", note})
 		}
 		if a := r.Flags["main-attr"]; a != "" {
 			e.Rows = append(e.Rows, [2]string{"主属性", labels.Attr(a)})

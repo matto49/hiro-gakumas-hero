@@ -11,14 +11,18 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 from hiro.cli.home import ensure_home
 from hiro.cli.registry import Arg, CliError, Risk, command
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_URL = "https://gakumas.wiki"  # 初星攻略站（旧地址 hiro.matto.top/gkbench 会 301 过来）
 LANGS = ("ja", "zh")
@@ -46,10 +50,32 @@ def _fetch(url: str, timeout: float = 60) -> bytes:
         raise CliError("network", f"下载失败：{url}（{e}）", "检查网络；国内网络不通时稍后重试") from None
 
 
+AUTO_SYNC_TIMEOUT = 20.0  # 自动下载资料库时每个请求最多等多久（离线时别卡太久）
+AUTO_SYNC_RETRY_S = 600.0  # 自动下载失败后多久内不再试：离线时别让每次查资料库都去下载（常驻服务过一阵还会再试）
+_auto_sync_at: float | None = None
+
+
+def _ensure_synced(p: Path) -> None:
+    """资料库文件不在就自动下载一次（G1-F3，11-26 小白验收：干净安装从没下载过资料库，卡名、卡面、中文名全退回成编号，
+    确认卡上是 i_card-fktn-3-000；只有设置页的手动按钮会下载）。下载不成就照旧报 catalog_missing。"""
+    global _auto_sync_at
+    now = time.monotonic()
+    if p.is_file() or (_auto_sync_at is not None and now - _auto_sync_at < AUTO_SYNC_RETRY_S):
+        return
+    _auto_sync_at = now
+    try:
+        _sync({}, timeout=AUTO_SYNC_TIMEOUT)
+    except CliError as e:
+        logger.warning("自动下载资料库没成功：%s", e.message)
+
+
 def load(lang: str = "ja") -> dict:
     p = catalog_dir() / f"catalog.{lang}.json"
+    _ensure_synced(p)
     if not p.is_file():
-        raise CliError("catalog_missing", "资料库还没下载", "运行 hiro catalog sync")
+        raise CliError(
+            "catalog_missing", "资料库还没下载（自动下载也没成功）", "检查网络后重试，或运行 hiro catalog sync"
+        )
     return json.loads(p.read_text(encoding="utf-8"))
 
 
@@ -63,8 +89,11 @@ def _write_atomic(p: Path, data: bytes) -> None:
 def load_supports() -> dict:
     """本机的支援卡资料（catalog sync 下载的 supports.json）。"""
     p = catalog_dir() / "supports.json"
+    _ensure_synced(p)
     if not p.is_file():
-        raise CliError("catalog_missing", "支援卡资料还没下载", "运行 hiro catalog sync")
+        raise CliError(
+            "catalog_missing", "支援卡资料还没下载（自动下载也没成功）", "检查网络后重试，或运行 hiro catalog sync"
+        )
     try:
         o = json.loads(p.read_text(encoding="utf-8"))
     except ValueError:
@@ -155,13 +184,13 @@ def search(q: str, kind: str | None = None, lang: str = "ja") -> list[dict]:
 
 
 @command("catalog sync", Risk.READ, "下载 / 更新游戏资料库（日文和中文两份）。第一次用资料库前运行。")
-def _sync(a: dict) -> dict:
+def _sync(a: dict, timeout: float = 60) -> dict:
     d = catalog_dir()
     d.mkdir(parents=True, exist_ok=True)
     counts = {}
     for lang in LANGS:
         url = f"{base_url()}/api/catalog" + ("?lang=zh" if lang == "zh" else "")
-        raw = _fetch(url)
+        raw = _fetch(url, timeout)
         try:
             cat = json.loads(raw)
         except ValueError:
@@ -170,7 +199,7 @@ def _sync(a: dict) -> dict:
         if lang == "ja":
             counts = {k: len(cat.get(k) or {}) for k in KINDS}
     url = f"{base_url()}/api/supports"
-    raw = _fetch(url)
+    raw = _fetch(url, timeout)
     try:
         sup = json.loads(raw)
     except ValueError:
