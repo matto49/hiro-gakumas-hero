@@ -24,3 +24,23 @@ def slices_for_plan(plan: str | None) -> list[str]:
 # 游戏「ソート・フィルタ」弹窗里的复选框文字（按包含找；11-26 实机）
 PLAN_LABELS = {"sense": "センス", "logic": "ロジック", "anomaly": "アノマリー", "common": "共通"}
 PRODUCE_LABELS = {"hajime": "定期公演", "nia": "AUDITION", "hif": "FESTIVAL"}
+
+
+SWITCH = "HIRO_MEMORY_SLICES"
+
+
+def enabled() -> bool:
+    """「回忆按片扫描」开关（缺省关，#116 审查重要 5）：环境变量 HIRO_MEMORY_SLICES 设了以它为准；没设看初星助手设置
+    （HIRO_HOME/settings.json 的 memory_slices）。关着时扫描回忆照旧整表滚动扫、出方案照旧用整表快照。"""
+    import json
+    import os
+
+    v = os.environ.get(SWITCH)
+    if v is not None and v.strip():
+        return v.strip().lower() in ("1", "on", "true", "yes")
+    try:
+        from hiro.cli.home import hiro_home
+
+        return bool(json.loads((hiro_home() / "settings.json").read_text(encoding="utf-8")).get("memory_slices"))
+    except (OSError, ValueError, AttributeError):
+        return False

@@ -31,8 +31,22 @@ class PlanMemoryMissing(RuntimeError):
     pass
 
 
+class FormationMayHaveChanged(RuntimeError):
+    """补扫时回忆选择页意外关了（编成可能被改）：不能接着开局。"""
+
+
+FORMATION_CHANGED_EXIT = 5  # 同 hiro.memory_scan.FORMATION_CHANGED_EXIT
+
+
 def enabled() -> bool:
-    """开关：环境变量 HIRO_SCAN_BEFORE_START 设了以它为准；没设看初星助手设置（HIRO_HOME/settings.json 的 scan_before_start）。"""
+    """开关：环境变量 HIRO_SCAN_BEFORE_START 设了以它为准；没设看初星助手设置（HIRO_HOME/settings.json 的 scan_before_start）。
+    补扫是按片扫的，「回忆按片扫描」（hiro.state.memory_slices.enabled）也要开。"""
+    from hiro.state import memory_slices
+
+    return _switch_on() and memory_slices.enabled()
+
+
+def _switch_on() -> bool:
     v = os.environ.get(SWITCH)
     if v is not None and v.strip():
         return v.strip().lower() in ("1", "on", "true", "yes")
@@ -101,6 +115,8 @@ def _scan(keys: list[str], budget_s: float | None, out_dir: Path) -> dict:
         flush=True,
     )
     r = subprocess.run(argv, check=False)
+    if r.returncode == FORMATION_CHANGED_EXIT:
+        raise FormationMayHaveChanged("补扫回忆时选择页在扫描中关了，编成可能被改")
     if r.returncode != 0 or not out.is_file():
         print(f"补扫回忆没成功（退出码 {r.returncode}），用现有库存继续", flush=True)
         return {"pending": keys}
@@ -111,6 +127,30 @@ def _scan(keys: list[str], budget_s: float | None, out_dir: Path) -> dict:
         flush=True,
     )
     return inv
+
+
+def refresh_and_start(
+    style, cmd: list[str], *, store, scan, run, plan_path: Path, budget_s: float | None = BUDGET_S
+) -> int:
+    """补扫 → 核对方案的回忆 → 开局（run(cmd)）→ 打完补完没补完的片。补扫时编成可能被改就停、不开局（#116 审查重要 3）。"""
+    try:
+        r = ensure_fresh(style, store=store, run_scan=scan, budget_s=budget_s)
+    except FormationMayHaveChanged as e:
+        print(f"停下、不开局：{e}。请到游戏里核对编成", flush=True)
+        return FORMATION_CHANGED_EXIT
+    try:
+        check_plan_memories(plan_path, style, store=store)
+    except PlanMemoryMissing as e:
+        print(f"停下：{e}", flush=True)
+        return 2
+    rc = run(cmd)
+    if rc == 0 and r["pending"]:
+        print("这局打完了，补完开局前没补完的回忆片", flush=True)
+        try:
+            scan(r["pending"], None)
+        except FormationMayHaveChanged as e:
+            print(f"打完补扫时停下：{e}。请到游戏里核对编成", flush=True)
+    return rc
 
 
 def main() -> int:
@@ -135,18 +175,9 @@ def main() -> int:
     except Exception:  # noqa: BLE001  认不出流派：12 片都看
         style = None
     out_dir = Path(tempfile.mkdtemp(prefix="memory-refresh-", dir=home))
-    st = open_store()
-    r = ensure_fresh(style, store=st, run_scan=lambda keys, budget: _scan(keys, budget, out_dir), budget_s=a.budget_s)
-    try:
-        check_plan_memories(paths.plan_path(home), style, store=st)
-    except PlanMemoryMissing as e:
-        print(f"停下：{e}", flush=True)
-        return 2
-    rc = subprocess.run(cmd, check=False).returncode
-    if rc == 0 and r["pending"]:
-        print("这局打完了，补完开局前没补完的回忆片", flush=True)
-        _scan(r["pending"], None, out_dir)
-    return rc
+    return refresh_and_start(style, cmd, store=open_store(), scan=lambda keys, budget: _scan(keys, budget, out_dir),
+                             run=lambda c: subprocess.run(c, check=False).returncode, plan_path=paths.plan_path(home),
+                             budget_s=a.budget_s)  # fmt: skip
 
 
 if __name__ == "__main__":

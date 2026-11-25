@@ -209,4 +209,5 @@ def restore(p, state: dict) -> bool:
         p.click(*DIR_BTN)
         p.sleep(1.5)
     now = read_state(p)
-    return (not state.get("sort") or now["sort"] == state["sort"]) and (not want or now["dir"] == want)
+    # 扫描前没认出排序 / 方向：恢复不了原样，也确认不了，如实返回 False（#116 审查重要 4）
+    return bool(state.get("sort") and want and now["sort"] == state["sort"] and now["dir"] == want)

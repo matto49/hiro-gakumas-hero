@@ -83,6 +83,8 @@ type Settings struct {
 	AllowAllConfirmed bool   `json:"allow_all_confirmed,omitempty"`
 	// ScanBeforeStart：开局前自动补扫回忆（设计 5.6，缺省关；hiro.memory_refresh 读 settings.json 的 scan_before_start）。
 	ScanBeforeStart bool `json:"scan_before_start,omitempty"`
+	// MemorySlices：回忆按片扫描（筛选 + 入手排序、增量补扫、一键全收集、首次进入走一键全收集；缺省关，#116 审查重要 5）。
+	MemorySlices bool `json:"memory_slices,omitempty"`
 }
 
 // DefaultDeepSeek 是 DeepSeek 的缺省地址和模型。

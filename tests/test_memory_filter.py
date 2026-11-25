@@ -259,3 +259,16 @@ def test_empty_slice_raises_empty_slice():
     with pytest.raises(mf.EmptySlice):
         mf.apply_slice(p, "common:hif")
     assert p.popup  # 弹窗还开着，下一片接着设
+
+
+def test_restore_reports_false_when_original_state_unknown():
+    """#116 审查重要 4：扫描前没认出排序 / 升降序，就没法确认恢复了：返回 False（调用方提示去游戏里看一下），不能谎报恢复成功。"""
+    import numpy as np
+
+    p = FakePicker()
+    assert mf.restore(p, {"sort": None, "dir": "desc"}) is False
+    p = FakePicker()
+    assert mf.restore(p, {"sort": "プロデュースクリアランク", "dir": None}) is False
+    p = FakePicker()
+    assert mf.restore(p, {"sort": "プロデュースクリアランク", "dir": "desc"}) is True
+    del np

@@ -9,11 +9,16 @@
 import argparse
 import json
 import logging
+import sys
 import time
 from pathlib import Path
 
 from hiro.produce.memory_picker import SWIPE_DURATION, SWIPE_HOLD, Picker, explore, scan
 from hiro.tool_device import open_tool_device
+
+FORMATION_CHANGED_EXIT = (
+    5  # 选择页在扫描中关了（编成可能被改）：保留现场，以这个退出码告诉调用方别接着往下做（#116 审查重要 3）
+)
 
 
 def pick_empty_set(rows: list[dict], mode: str | None) -> tuple[str, int] | None:
@@ -122,7 +127,7 @@ def scan_slices(
     deadline = picker.clock() + budget_s if budget_s else None
     done: list[dict] = []
     pending = list(keys)
-    restored = False
+    restored = closed = False
     try:
         for key in keys:
             if deadline is not None and picker.clock() >= deadline:
@@ -150,6 +155,15 @@ def scan_slices(
             )
             rec = {"key": key, "mode": "full" if known is None else "incremental", "complete": bool(inv.get("complete")),
                    "entries": inv["entries"], "new": inv.get("new"), "stopped": inv.get("stopped")}  # fmt: skip
+            if inv.get("formation_may_have_changed") or getattr(picker, "formation_may_have_changed", False):
+                # 选择页在扫描中关了（多半点成了「決定」，编成可能被改）：立即停，什么都不再点，保留现场（#116 审查严重 1）
+                closed = True
+                picker.formation_may_have_changed = True
+                rec.update(complete=False, formation_may_have_changed=True)
+                done.append(rec)
+                if on_slice:
+                    on_slice(rec)
+                break
             bad = _plan_mismatch(key, inv["entries"], plan_of or _card_plan)
             if bad:  # 终审 C2：筛选点错了，读到的不是这一片：不入库、停下
                 rec["rejected"] = bad
@@ -162,17 +176,28 @@ def scan_slices(
             if bad or inv.get("stopped") == "budget":
                 break
     finally:
-        try:
-            restored = memory_filter.restore(picker, state)
-        except Exception as e:  # noqa: BLE001  恢复失败要写明，但不丢已经扫到的
-            logging.getLogger(__name__).warning("回忆列表的排序 / 筛选没能恢复：%s", e)
-        try:  # 恢复失败时弹窗可能还开着：先关弹窗，下面的キャンセル才是退出选择页（终审 I6）
-            memory_filter.close_popup(picker)
-        except Exception as e:  # noqa: BLE001
-            logging.getLogger(__name__).warning("关「ソート・フィルタ」弹窗失败：%s", e)
-        picker.cancel()
+        if not (closed or getattr(picker, "formation_may_have_changed", False)):
+            restored = _leave_picker(picker, state)
     return {"slices": done, "pending": pending, "restored": restored, "scanned_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "complete": not pending and all(s["complete"] for s in done)}  # fmt: skip
+            "formation_may_have_changed": closed, "filter_reset": not closed,
+            "complete": not closed and not pending and all(s["complete"] for s in done)}  # fmt: skip
+
+
+def _leave_picker(picker, state: dict) -> bool:
+    """恢复排序 / 方向、重置筛选，关弹窗，点キャンセル退出选择页；返回排序和方向是不是确认恢复了。"""
+    from hiro.produce import memory_filter
+
+    restored = False
+    try:
+        restored = memory_filter.restore(picker, state)
+    except Exception as e:  # noqa: BLE001  恢复失败要写明，但不丢已经扫到的
+        logging.getLogger(__name__).warning("回忆列表的排序 / 筛选没能恢复：%s", e)
+    try:  # 恢复失败时弹窗可能还开着：先关弹窗，下面的キャンセル才是退出选择页（终审 I6）
+        memory_filter.close_popup(picker)
+    except Exception as e:  # noqa: BLE001
+        logging.getLogger(__name__).warning("关「ソート・フィルタ」弹窗失败：%s", e)
+    picker.cancel()
+    return restored
 
 
 def main():
@@ -216,7 +241,8 @@ def main():
                 formation_menu.tool_device(d),
                 "memory",
                 ready=lambda img: picker_open(picker.ocr(img)),
-                use_set=lambda mode: pick_empty_set(rows, mode),
+                # 按片扫才切到空编成（读回忆本身的属性）；整表扫照旧从当前编成进（#116 审查重要 5：不改缺省行为）
+                use_set=(lambda mode: pick_empty_set(rows, mode)) if args.slices else None,
             )
         ctx = None
         if where is not None:
@@ -237,10 +263,16 @@ def main():
             known_for = _known_for if args.incremental else (lambda key: None)
             inv = scan_slices(picker, keys, Path(args.out).parent, known_for=known_for, budget_s=args.budget_s,
                               on_slice=slices_progress_writer(Path(args.out), ctx))  # fmt: skip
+            keep_scene = bool(inv.get("formation_may_have_changed"))
             if ctx is not None:
                 inv["context"] = ctx
-            if not inv.get("restored"):
-                print("注意：回忆列表的排序 / 筛选没能恢复，请在游戏里手动改回（选择页右下的排序按钮）", flush=True)
+            if not keep_scene:
+                # 筛选按「フィルタをリセット」回到默认（玩家原来自己设的筛选会被清掉）；排序 / 方向确认不了时也说清楚（#116 审查重要 4）
+                print("提示：回忆列表的筛选已重置为默认（扫描前自己设过筛选的，要在游戏里重新设）", flush=True)
+                if not inv.get("restored"):
+                    print(
+                        "注意：回忆列表的排序 / 升降序可能被改了，请到游戏里看一下（选择页右下的排序按钮）", flush=True
+                    )
             Path(args.out).write_text(json.dumps(inv, ensure_ascii=False, indent=1), encoding="utf-8")
             n = sum(len(x["entries"]) for x in inv["slices"])
             new = sum(x["new"] or 0 for x in inv["slices"])
@@ -263,7 +295,11 @@ def main():
             from hiro.runtime import nav
 
             nav.back_home(d)
+    if keep_scene:
+        print("选择页在扫描中关了，编成可能被改：停在原地，请到游戏里核对编成", flush=True)
+        return FORMATION_CHANGED_EXIT
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

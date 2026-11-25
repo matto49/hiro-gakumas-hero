@@ -551,7 +551,7 @@ func (s *state) settingsFix(c *ui.Context, h plugin.Host, items []map[string]any
 
 var scans = [][3]string{
 	{"scan-supports", "扫描支援卡", "翻一遍支援卡列表，记下等级和突破。"},
-	{"scan-memories", "补扫新回忆", "按流派 × 模式分 12 片，从最新的读起，碰到扫过的就停；第一次扫的片会全读。"},
+	{"scan-memories", "扫描回忆", "翻一遍回忆列表，记下技能卡、参数和能力；设置里开了「回忆按片扫描」时只补扫新回忆。"},
 	{"scan-idols", "扫描偶像卡", "记下持有的偶像卡。"},
 	{"scan-account", "读首页数值", "PLv、AP、ジュエル。"},
 	{"check-settings", "检查游戏设置", "快进、跳过演出那几项开没开。"},

@@ -85,9 +85,10 @@ func buildApp(d appDeps) *shell.App {
 			r, err := a.AskWith(ctx, h, text, extra, onTool)
 			return shell.Reply{Text: r.Text, Cards: jsonCards(r.Cards)}, err
 		},
-		HasModel:   func() bool { return cache.hasModel() },
-		Gate:       set.Gate,
-		Permission: func() string { return cache.Get().Permission },
+		HasModel:     func() bool { return cache.hasModel() },
+		Gate:         set.Gate,
+		Permission:   func() string { return cache.Get().Permission },
+		MemorySlices: func() bool { return cache.Get().MemorySlices },
 		SetPermission: func(level string) error {
 			s := cache.Get()
 			s.Permission = level

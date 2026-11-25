@@ -198,3 +198,24 @@ def test_empty_slice_recorded_as_full_zero_and_scan_continues(fakes, tmp_path, m
         "empty": True,
     }
     assert second["key"] == "sense:hif" and out["pending"] == [] and out["complete"]
+
+
+def test_picker_closed_mid_slice_stops_and_touches_nothing(fakes, tmp_path, monkeypatch):
+    """#116 审查严重 1：某一片扫描中选择页关了（scan 打上 formation_may_have_changed）：立即停，不设下一片、不恢复、不关弹窗、
+    不点キャンセル（保留现场给人核对），标记交给调用方。"""
+    from hiro.produce import memory_filter, memory_picker
+
+    monkeypatch.setattr(memory_filter, "close_popup", lambda pk: (pk.log.append("close_popup"), True)[1])
+
+    def closing_scan(pk, out, **kw):
+        pk.log.append("scan")
+        pk.formation_may_have_changed = True
+        return {"entries": [{"card": {"card_id": "x"}}], "complete": False, "new": 1, "stopped": None,
+                "formation_may_have_changed": True}  # fmt: skip
+
+    monkeypatch.setattr(memory_picker, "scan", closing_scan)
+    out = memory_scan.scan_slices(
+        fakes, ["sense:hif", "common:hif"], tmp_path, known_for=lambda k: None, plan_of=lambda c: None
+    )
+    assert fakes.log == ["read", "apply sense:hif", "scan"]
+    assert out["formation_may_have_changed"] is True and not out["complete"] and out["restored"] is False

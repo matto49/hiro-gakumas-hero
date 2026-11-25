@@ -90,6 +90,13 @@ def summarize(plan: dict) -> dict:
 MODES = ("hajime", "nia", "hif")
 
 
+def memory_inventory(st, style: str | None):
+    """出方案用的回忆库存：开了「回忆按片扫描」按流派取片（D16）；缺省（关）照旧用最新的整表扫描快照（#116 审查重要 5）。"""
+    from hiro.state import memory_slices
+
+    return st.memories_for_plan(style) if memory_slices.enabled() else st.latest_raw("memories")
+
+
 def _plan_style(fp, idol: str) -> str | None:
     """偶像卡的流派（sense / logic / anomaly），决定出方案要哪几片回忆（设计 D16）；认不出（主数据缺、编号不对）时 None = 12 片全要。"""
     from hiro.brain.guides import PLAN_OF
@@ -138,7 +145,7 @@ def make_plan(home, idol: str, fam: str | None, *, difficulty: str | None = None
     from hiro.brain import formation_plan as fp
     from hiro.state.catalog import CatalogUnavailable
 
-    sup, mem = st.latest_raw("supports"), st.memories_for_plan(_plan_style(fp, idol))
+    sup, mem = st.latest_raw("supports"), memory_inventory(st, _plan_style(fp, idol))
     if sup is None and mem is None:
         raise CliError(
             "no_inventory",

@@ -488,3 +488,52 @@ def test_plan_records_slice_and_signature():
     assert pos["cell"] == [3, 1] and pos["slice"] == "common:nia" and pos["signature"] == memory_sig.signature(raw)
     del raw["slice"]
     assert "slice" not in formation._inventory_position(raw)
+
+
+def test_fix_memory_picker_closed_skips_filter_restore(monkeypatch):
+    """#116 审查严重 2：找回忆途中选择页关了（PickerClosed，编成可能被改）：停下交给人，finally 不再开选择页恢复筛选。"""
+    from hiro.produce import memory_filter, memory_picker
+
+    mem = FakeMemory(["act-2_062", "men-3_012", "act-3_050", "men-1_035"])
+    log = []
+    monkeypatch.setattr(memory_filter, "read_state", lambda p: {"sort": "アイドル", "dir": "desc"})
+    monkeypatch.setattr(memory_filter, "apply_slice", lambda p, k: log.append("apply"))
+    monkeypatch.setattr(memory_filter, "restore", lambda p, st: (log.append("restore"), True)[1])
+    monkeypatch.setattr(memory_picker, "picker_open", lambda boxes: True)
+
+    def closed(picker, target, **kw):
+        raise memory_picker.PickerClosed("选择页不见了")
+
+    monkeypatch.setattr(fw, "pick_memory", closed)
+    plan = {"memory": {"chosen": [{"card_id": "p_card-02-act-2_062"}, {"card_id": "p_card-00-men-3_012"}, {"card_id": "p_card-02-act-3_050"},
+                                  {"card_id": "p_card-02-act-3_039", "cell": [2, 0], "key": "key20", "slice": "sense:hif"}]}}  # fmt: skip
+    dev = fw.Device(shoot=mem.shoot, click=mem.click, swipe=lambda *a: None, sleep=lambda s: None)
+    with pytest.raises(fw.FormationWriteError, match="选择页关了"):
+        fw.fix_memory(dev, plan, read_icons=mem.read_icons, make_picker=lambda: mem.picker(lambda r, c: "x"))
+    assert "restore" not in log
+
+
+def test_restore_filter_uses_open_picker_instead_of_tapping_tile(monkeypatch):
+    """严重 2 另一半：选择页还开着时（apply_slice 后判断方向出错），恢复不能再点回忆格的位置（落在格子区、可能被当成「決定」）。"""
+    from hiro.produce import memory_filter, memory_picker
+
+    clicks = []
+    monkeypatch.setattr(memory_picker, "picker_open", lambda boxes: True)
+    monkeypatch.setattr(memory_filter, "restore", lambda p, st: True)
+
+    class Pk:
+        def shoot(self):
+            return None
+
+        def ocr(self, img):
+            return []
+
+        def cancel(self):
+            clicks.append("cancel")
+            return True
+
+    dev = fw.Device(
+        shoot=lambda: None, click=lambda x, y: clicks.append((x, y)), swipe=lambda *a: None, sleep=lambda s: None
+    )
+    fw._restore_filter(dev, Pk, fw.STEP3_SLOTS[0], {"sort": "アイドル"})
+    assert clicks == ["cancel"]

@@ -157,6 +157,9 @@ var askConfirm = regexp.MustCompile(`要开始「[^」]*」吗？点下面的确
 // 一键全收集的 5 步（顺序同 hiro.collect_all.STEPS）；首次进入只做信息库里从没扫过的（设计 5.7）
 var collectKinds = []string{"account", "idols", "supports", "formations", "memories"}
 
+// firstScanKinds：「回忆按片扫描」关着（缺省）时首次进入逐项扫的三种（原来的做法）
+var firstScanKinds = [][2]string{{"supports", "scan-supports"}, {"memories", "scan-memories"}, {"idols", "scan-idols"}}
+
 // FirstScan（R11，11-25 review「首次进入的话，自动执行就好了」）：向导走完时，信息库里从没扫过的种类
 // 由初星助手自己发起一次一键全收集（collect-all --only，设计 5.7），扫过的不重扫；扫描是读操作，缺省权限下不用确认（「总是询问」时照样等用户点）。
 func (a *App) FirstScan() {
@@ -176,9 +179,28 @@ func (a *App) FirstScan() {
 			}
 		}
 		var cards, errs []plugin.Card
+		scanned := func(k string) bool {
+			v, ok := sum.Kinds[k]
+			return ok && v.ScannedAt != nil && *v.ScannedAt != ""
+		}
+		if a.d.MemorySlices == nil || !a.d.MemorySlices() { // 缺省：照旧逐项扫没扫过的三种（#116 审查重要 5）
+			for _, k := range firstScanKinds {
+				if scanned(k[0]) {
+					continue
+				}
+				r := call(a.ctx, []string{"run", "start", k[1]})
+				switch {
+				case r.Pending != nil:
+					cards = append(cards, ConfirmCard(*r.Pending))
+				case r.Error != nil:
+					errs = append(errs, plugin.Card{"type": "error", "error": map[string]any{"code": r.Error.Code,
+						"message": "没能开始扫描（" + k[1] + "）：" + r.Error.Message, "hint": r.Error.Hint}})
+				}
+			}
+		}
 		var missing []string
 		for _, k := range collectKinds {
-			if v, ok := sum.Kinds[k]; ok && v.ScannedAt != nil && *v.ScannedAt != "" {
+			if a.d.MemorySlices == nil || !a.d.MemorySlices() || scanned(k) {
 				continue
 			}
 			missing = append(missing, k)
@@ -197,9 +219,13 @@ func (a *App) FirstScan() {
 		if len(cards) == 0 {
 			return nil
 		}
+		msg := "第一次用：先扫一遍你的支援卡、回忆和偶像卡（只看画面，不改东西），出编成方案时才知道你有什么。"
+		if a.d.MemorySlices != nil && a.d.MemorySlices() {
+			msg = "第一次用：先把你的首页数值、偶像卡、支援卡、回忆和编成扫一遍（只看画面，不改东西），出编成方案时才知道你有什么。"
+		}
 		return func() {
 			t := a.ensureThread()
-			a.addTo(t, "agent", "第一次用：先把你的首页数值、偶像卡、支援卡、回忆和编成扫一遍（只看画面，不改东西），出编成方案时才知道你有什么。", cards)
+			a.addTo(t, "agent", msg, cards)
 			a.save(t)
 		}
 	})

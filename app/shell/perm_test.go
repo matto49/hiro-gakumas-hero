@@ -115,6 +115,7 @@ func TestFirstScanStartsUnscannedKinds(t *testing.T) {
 		"confirm p1": ok(`{"job":{"id":"j1","kind":"collect-all"}}`),
 	}}
 	a, run := newTestApp(newMem(), call, nil, viewReg())
+	a.d.MemorySlices = func() bool { return true } // 开了「回忆按片扫描」才走一键全收集（#116 审查重要 5）
 	a.FirstScan()
 	run.Drain()
 	if !call.called("run start collect-all --only idols,supports,formations") || !call.called("confirm p1") {
@@ -136,6 +137,7 @@ func TestFirstScanSkipsWhenAllScanned(t *testing.T) {
 		"info summary": ok(`{"kinds":{"account":{"scanned_at":"x"},"supports":{"scanned_at":"x"},"memories":{"scanned_at":"x"},"idols":{"scanned_at":"x"},"formations":{"scanned_at":"x"}}}`),
 	}}
 	a, run := newTestApp(newMem(), call, nil, viewReg())
+	a.d.MemorySlices = func() bool { return true }
 	a.FirstScan()
 	run.Drain()
 	for _, c := range call.calls {
@@ -201,6 +203,7 @@ func TestFirstScanReportsErrors(t *testing.T) {
 		"run start collect-all --only account,idols,supports,formations": {OK: false, Error: &hiroapi.CliError{Code: "service_down", Message: "游戏没连上", Hint: "到设置里试连"}},
 	}}
 	a, run := newTestApp(newMem(), call, nil, viewReg())
+	a.d.MemorySlices = func() bool { return true }
 	a.FirstScan()
 	run.Drain()
 	errs := 0
@@ -353,5 +356,27 @@ func TestAutoStartDropsAskSentence(t *testing.T) {
 	ms := b.Current().Messages
 	if !strings.Contains(ms[len(ms)-1].Text, "点下面的确认卡") {
 		t.Errorf("要确认的还应提示点确认卡：%q", ms[len(ms)-1].Text)
+	}
+}
+
+// #116 审查重要 5：「回忆按片扫描」开关缺省关：首次进入照旧逐项扫没扫过的支援卡 / 回忆 / 偶像卡，不发一键全收集
+func TestFirstScanDefaultKeepsOldThreeKinds(t *testing.T) {
+	p1, p2 := accessPending("p1", "scan-supports", "read"), accessPending("p2", "scan-idols", "read")
+	call := &fakeCall{resp: map[string]hiroapi.Result{
+		"info summary":            ok(`{"kinds":{"supports":{"scanned_at":null},"memories":{"scanned_at":"2026-11-18 20:00:00"},"idols":{"scanned_at":null}}}`),
+		"run start scan-supports": {OK: true, Pending: &p1},
+		"run start scan-idols":    {OK: true, Pending: &p2},
+		"confirm p1":              ok(`{"job":{"id":"j1","kind":"scan-supports"}}`),
+	}}
+	a, run := newTestApp(newMem(), call, nil, viewReg())
+	a.FirstScan()
+	run.Drain()
+	if call.called("run start scan-memories") || !call.called("run start scan-supports") || !call.called("run start scan-idols") {
+		t.Fatalf("缺省应逐项扫没扫过的：%v", call.calls)
+	}
+	for _, c := range call.calls {
+		if strings.Contains(strings.Join(c, " "), "collect-all") {
+			t.Errorf("缺省不该发一键全收集：%v", c)
+		}
 	}
 }

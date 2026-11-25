@@ -357,6 +357,7 @@ def fix_memory(dev: Device, plan: dict, *, read_icons, make_picker, slots=STEP3_
         raise FormationWriteError("方案里的回忆没有库存位置（旧版方案），请重扫回忆库存后重新生成方案")
     done = []
     filter_state = None  # 套过分片筛选时，进第一个选择页前的排序（写完恢复，D15）
+    closed = False  # 选择页意外关了（编成可能被改）：停下交给人，什么都不再点（#116 审查严重 2）
     try:
         for slot, key in moves:
             logger.info("编成修正：回忆第 %d 格 %s → %s", slot + 1, current[slot] or "认不出", key)
@@ -365,9 +366,15 @@ def fix_memory(dev: Device, plan: dict, *, read_icons, make_picker, slots=STEP3_
                 from hiro.produce import memory_filter
 
                 filter_state = memory_filter.read_state(picker)
-            _fix_slot(dev, picker, targets[key], slot, key, current, read_icons, done)
+            try:
+                _fix_slot(dev, picker, targets[key], slot, key, current, read_icons, done)
+            except FormationWriteError as e:
+                from hiro.produce.memory_picker import PickerClosed
+
+                closed = isinstance(e.__cause__, PickerClosed)
+                raise
     finally:
-        if filter_state is not None:
+        if filter_state is not None and not closed:
             _restore_filter(dev, make_picker, slots[0], filter_state)
     return done
 
@@ -390,8 +397,12 @@ def _restore_filter(dev: Device, make_picker, xy, state: dict) -> None:
     """写完编成后再开一次选择页，把排序改回去、筛选重置，点キャンセル（游戏的排序筛选退出后会保留，11-26 实机）。失败只记日志。"""
     try:
         from hiro.produce import memory_filter
+        from hiro.produce.memory_picker import picker_open
 
-        picker = _open_slot(dev, make_picker, xy)
+        picker = make_picker()
+        # 选择页还开着（套筛选后判断方向出错之类）：直接在上面恢复；不在了才点回忆格打开（点格子会落在格子区，#116 审查严重 2）
+        if not picker_open(picker.ocr(picker.shoot())):
+            picker = _open_slot(dev, make_picker, xy)
         if not memory_filter.restore(picker, state):
             logger.warning("回忆选择页的排序没能恢复成 %s", state.get("sort"))
         picker.cancel()

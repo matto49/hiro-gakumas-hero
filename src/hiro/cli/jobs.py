@@ -276,6 +276,21 @@ def _hif_summary(p: dict) -> str:
     return "开一局 H.I.F 选拔" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "") + _prepare_suffix(p)
 
 
+def _slices_on() -> bool:
+    from hiro.state.memory_slices import enabled
+
+    return enabled()
+
+
+def _memory_scan_argv(p: dict, d: Path) -> list[str]:
+    """回忆扫描的命令：「回忆按片扫描」开关关着（缺省）照旧整表滚动扫；开了按片（#116 审查重要 5）。"""
+    base = [_PY, "-m", "hiro.memory_scan", "scan", "--from-home"]
+    if not _slices_on():
+        return [*base, "--out", str(d / "out.json")]
+    return [*base, "--slices", p.get("slices") or "all", *([] if p.get("full") else ["--incremental"]),
+            *(["--budget-s", str(p["budget_s"])] if p.get("budget_s") else []), "--out", str(d / "out.json")]  # fmt: skip
+
+
 KINDS: dict[str, Kind] = {
     "selftest": Kind(
         "selftest",
@@ -433,21 +448,13 @@ KINDS: dict[str, Kind] = {
     ),
     "scan-memories": Kind(
         "scan-memories",
-        "扫描回忆（只读：在「メモリー選択」里按片（流派 × 模式，12 片）逐格读；缺省增量补扫新回忆，full=True 时全读）",
-        lambda p, d: [
-            _PY,
-            "-m",
-            "hiro.memory_scan",
-            "scan",
-            "--from-home",
-            "--slices",
-            p.get("slices") or "all",
-            *([] if p.get("full") else ["--incremental"]),
-            *(["--budget-s", str(p["budget_s"])] if p.get("budget_s") else []),
-            "--out",
-            str(d / "out.json"),
-        ],
-        lambda p: "全读回忆库存（只读，不改编成）" if p.get("full") else "补扫新回忆（只读，不改编成）",
+        "扫描回忆（只读：在「メモリー選択」里逐格读）。设置里开了「回忆按片扫描」时按片（流派 × 模式，12 片）读：缺省增量补扫新回忆，full=True 时全读",
+        lambda p, d: _memory_scan_argv(p, d),
+        lambda p: (
+            ("全读回忆库存" if p.get("full") else "补扫新回忆") + "（只读，不改编成）"
+            if _slices_on()
+            else "扫描回忆库存（只读，不改编成）"
+        ),
         output="memories",
         pausable=False,
     ),

@@ -98,6 +98,7 @@ def test_plan_formation_uses_slices_of_idol_plan(st, monkeypatch, run_cli, hiro_
     from hiro.cli import cmd_plan
 
     monkeypatch.setattr(cmd_plan, "open_store", lambda: st)
+    monkeypatch.setattr(msl, "enabled", lambda: True)  # 开了「回忆按片扫描」
     for k in msl.slices_for_plan("sense"):
         st.save_slice(k, [_e(k)], mode="full", complete=True)
     st.save_snapshot("supports", [], "scan:x", complete=True, raw={"items": []})
@@ -143,3 +144,29 @@ def test_slice_only_user_is_not_told_memories_never_scanned(st, monkeypatch):
     assert mem["scanned_at"] == "2026-11-26 06:00:00" and mem["count"] == 3 and mem["complete"] is False
     out = cmd_info._memories({"timing": None, "card": None})
     assert out["source"] == "slices" and out["total"] == 3 and out["complete"] is False and len(out["items"]) == 3
+
+
+def test_slices_switch_from_env_or_settings(monkeypatch, hiro_home):
+    import json as _json
+
+    monkeypatch.delenv("HIRO_MEMORY_SLICES", raising=False)
+    assert not msl.enabled()
+    hiro_home.mkdir(parents=True, exist_ok=True)
+    (hiro_home / "settings.json").write_text(_json.dumps({"memory_slices": True}), encoding="utf-8")
+    assert msl.enabled()
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "0")
+    assert not msl.enabled()
+
+
+def test_plan_uses_whole_list_when_slices_switch_off(st, monkeypatch):
+    """开关关着时出方案照旧用整表快照，即使资料库里有片数据。"""
+    from hiro.cli import cmd_plan
+
+    for k in msl.slices_for_plan("sense"):
+        st.save_slice(k, [_e(k)], mode="full", complete=True)
+    st.save_snapshot("memories", [{"x": 1}], "scan:old", complete=True, raw={"entries": [_e("old")], "complete": True})
+    monkeypatch.delenv("HIRO_MEMORY_SLICES", raising=False)
+    monkeypatch.setattr(msl, "enabled", lambda: False)
+    assert [e["card"]["card_id"] for e in cmd_plan.memory_inventory(st, "sense")["entries"]] == ["old"]
+    monkeypatch.setattr(msl, "enabled", lambda: True)
+    assert cmd_plan.memory_inventory(st, "sense")["source"] == "slices"

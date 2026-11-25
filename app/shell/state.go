@@ -44,6 +44,8 @@ type Deps struct {
 	Gate func(c *ui.Context, h plugin.Host) bool
 	// Permission 是用户选的操作权限档（PermAsk / PermRead / …）；nil 或空是「允许读操作」。
 	Permission func() string
+	// MemorySlices：设置里「回忆按片扫描」开了没有（缺省关；关着时首次进入照旧逐项扫三种，#116 审查重要 5）。nil = 关。
+	MemorySlices func() bool
 	// SetPermission 存新的档位（存成 all 时也记下「确认过」）；nil 时输入框里只显示、不能换。
 	SetPermission func(level string) error
 	// AllowAllConfirmed 是第一次切到「允许所有行为」时的二次确认做过没有（只弹一次）。

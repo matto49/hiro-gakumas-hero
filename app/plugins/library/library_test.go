@@ -171,7 +171,7 @@ func TestMemoryInfoCardShowsSliceCoverage(t *testing.T) {
 func TestScanPanelMemoryButtonIsIncremental(t *testing.T) {
 	h, p := host(), New()
 	tt := ui.NewTester(plugintest.PanelView(func(c *ui.Context) { p.Panel(c, h, "scan") }), 520, 800)
-	if err := plugintest.ClickButton(tt, "补扫新回忆"); err != nil {
+	if err := plugintest.ClickButton(tt, "扫描回忆"); err != nil {
 		t.Fatal(err)
 	}
 	if len(h.RunArgs_) != 1 || strings.Join(h.RunArgs_[0][1:], " ") != "run start scan-memories" {

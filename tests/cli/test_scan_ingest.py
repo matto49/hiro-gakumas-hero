@@ -56,11 +56,24 @@ def test_import_event_comes_before_done(hiro_home):
     assert types.index("imported") < types.index("done"), types
 
 
-def test_scan_memories_runs_incremental_slices_by_default(hiro_home):
-    """设计 5.8：「补扫新回忆」= 12 片都增量补扫；params full=True 时全读（一键全收集用）。"""
+def test_scan_memories_runs_incremental_slices_when_enabled(hiro_home, monkeypatch):
+    """设计 5.8：开了「回忆按片扫描」时「扫描回忆」= 12 片都增量补扫；params full=True 时全读（一键全收集用）。"""
     from hiro.cli.jobs import KINDS
+
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")
 
     argv = KINDS["scan-memories"].argv({}, hiro_home)
     assert "--slices" in argv and argv[argv.index("--slices") + 1] == "all" and "--incremental" in argv
     full = KINDS["scan-memories"].argv({"full": True}, hiro_home)
     assert "--incremental" not in full and "--slices" in full
+
+
+def test_scan_memories_default_is_old_whole_list_scan(hiro_home, monkeypatch):
+    """#116 审查重要 5：「回忆按片扫描」开关缺省关：scan-memories 照旧整表滚动扫描（不开筛选弹窗、不改排序）；开了才按片。"""
+    from hiro.cli.jobs import KINDS
+
+    monkeypatch.delenv("HIRO_MEMORY_SLICES", raising=False)
+    argv = KINDS["scan-memories"].argv({}, hiro_home)
+    assert "--slices" not in argv and "--incremental" not in argv and "--from-home" in argv
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")
+    assert "--slices" in KINDS["scan-memories"].argv({}, hiro_home)

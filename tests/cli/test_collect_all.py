@@ -32,7 +32,8 @@ def _fake(fail_at=None):
     return calls, imported, runner, importer
 
 
-def test_runs_five_steps_in_order_and_imports_each(tmp_path):
+def test_runs_five_steps_in_order_and_imports_each(tmp_path, monkeypatch):
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")  # 开了「回忆按片扫描」：回忆这一步 12 片全读
     calls, imported, runner, importer = _fake()
     assert collect_all.run(tmp_path, None, runner=runner, importer=importer) == 0
     # 编成在回忆前面（终审 I4）：第一次全收集时回忆扫描要靠编成快照挑空编成，才读得到回忆本身的属性
@@ -64,3 +65,11 @@ def test_collect_all_kind_is_read_only_job(tmp_path):
 def test_run_start_collect_all_passes_only(run_cli, hiro_home):
     code, env = run_cli("run", "start", "collect-all", "--only", "idols,memories")
     assert code == 3 and "只做 idols,memories" in env["data"]["pending"]["summary"]
+
+
+def test_memory_step_is_whole_list_scan_when_slices_off(tmp_path, monkeypatch):
+    """开关关着（缺省）：回忆这一步照旧整表滚动扫（#116 审查重要 5）。"""
+    monkeypatch.delenv("HIRO_MEMORY_SLICES", raising=False)
+    calls, _imported, runner, importer = _fake()
+    collect_all.run(tmp_path, ["memories"], runner=runner, importer=importer)
+    assert "--slices" not in calls[0] and "hiro.memory_scan" in calls[0]

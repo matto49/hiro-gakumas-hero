@@ -24,6 +24,7 @@ def test_switch_off_leaves_start_command_alone(monkeypatch, tmp_path):
 
 def test_switch_on_wraps_new_game_and_says_so(monkeypatch, tmp_path):
     monkeypatch.setenv("HIRO_SCAN_BEFORE_START", "1")
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")
     argv = KINDS["hajime"].argv({"idol": "i_card-x"}, tmp_path)
     assert argv[1:3] == ["-m", "hiro.memory_refresh"] and "--" in argv
     orig = argv[argv.index("--") + 1 :]
@@ -84,6 +85,10 @@ def test_switch_read_from_settings_when_env_unset(monkeypatch, hiro_home):
     assert not mr.enabled()
     hiro_home.mkdir(parents=True, exist_ok=True)
     (hiro_home / "settings.json").write_text(json.dumps({"scan_before_start": True}), encoding="utf-8")
+    assert not mr.enabled()  # 补扫是按片扫的：「回忆按片扫描」也要开（#116 审查重要 5）
+    (hiro_home / "settings.json").write_text(
+        json.dumps({"scan_before_start": True, "memory_slices": True}), encoding="utf-8"
+    )
     assert mr.enabled()
     monkeypatch.setenv("HIRO_SCAN_BEFORE_START", "0")
     assert not mr.enabled()
@@ -92,6 +97,34 @@ def test_switch_read_from_settings_when_env_unset(monkeypatch, hiro_home):
 def test_refresh_runs_before_prepare_start(monkeypatch, tmp_path):
     """G0（prepare_start：挑空白编成位、写编成）合入后两层都包在开局命令外面：先补扫回忆（库存新鲜）、再准备编成、再开局。"""
     monkeypatch.setenv("HIRO_SCAN_BEFORE_START", "1")
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")
     argv = KINDS["hajime"].argv({"idol": "i_card-x", "prepare": True}, tmp_path)
     mods = [argv[i + 1] for i, a in enumerate(argv) if a == "-m"]
     assert mods[:2] == ["hiro.memory_refresh", "hiro.runtime.prepare_start"]
+
+
+def test_scan_exit_formation_changed_stops_before_start(st, tmp_path):
+    """#116 审查重要 3：补扫时选择页意外关了（回忆扫描以 FORMATION_CHANGED_EXIT 退出）：不开局，退出码照传；普通失败继续开局。"""
+    ran = []
+
+    def scan(keys, budget):
+        raise mr.FormationMayHaveChanged("选择页在扫描中关了")
+
+    rc = mr.refresh_and_start("sense", ["game"], store=st, scan=scan, run=lambda cmd: ran.append(cmd) or 0,
+                              plan_path=tmp_path / "none.json")  # fmt: skip
+    assert rc == mr.FORMATION_CHANGED_EXIT and ran == []
+    rc = mr.refresh_and_start("sense", ["game"], store=st, scan=lambda k, b: {"pending": k}, run=lambda cmd: ran.append(cmd) or 0,
+                              plan_path=tmp_path / "none.json")  # fmt: skip
+    assert rc == 0 and ran[0] == ["game"]
+
+
+def test_scan_subprocess_exit_code_maps_to_formation_changed(monkeypatch, tmp_path):
+    import subprocess
+
+    from hiro import memory_scan
+
+    monkeypatch.setattr(
+        subprocess, "run", lambda *a, **k: subprocess.CompletedProcess(a, memory_scan.FORMATION_CHANGED_EXIT)
+    )
+    with pytest.raises(mr.FormationMayHaveChanged):
+        mr._scan(["sense:hif"], 180, tmp_path)
