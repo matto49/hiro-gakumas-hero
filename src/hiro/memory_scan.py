@@ -33,12 +33,21 @@ def _formation_rows() -> list[dict]:
         return []
 
 
-def _known_for(key: str):
-    """增量补扫用：资料库里这一片已有的回忆。"""
-    from hiro.cli.store import open_store
+def known_for_slice(store, key: str):
+    """增量补扫用的「资料库里已有的」：这一片完整读过、而且属性是本身的（从空编成进去读的）才给 KnownSet；
+    否则返回 None = 这一片全读（终审 I3：没读完的片增量会读到已知就停、永远补不全；I4：带偏移的旧读数签名对不上）。"""
     from hiro.produce.memory_sig import KnownSet
 
-    return KnownSet(open_store().slice_entries(key))
+    cov = store.slice_coverage().get(key) or {}
+    if not cov.get("full_at") or not (cov.get("context") or {}).get("empty"):
+        return None
+    return KnownSet(store.slice_entries(key))
+
+
+def _known_for(key: str):
+    from hiro.cli.store import open_store
+
+    return known_for_slice(open_store(), key)
 
 
 def _back_to_set(d, where: dict) -> None:
@@ -53,7 +62,49 @@ def _back_to_set(d, where: dict) -> None:
         logging.getLogger(__name__).warning("扫完没能切回编成 %s：%s", where["set"], e)
 
 
-def scan_slices(picker, keys: list[str], out_dir: Path, *, known_for, budget_s: float | None = None) -> dict:
+def slices_progress_writer(out: Path, context: dict | None):
+    """每扫完一片就把到目前为止的结果写进 out（partial=True）：后面的片出错 / 任务被停，扫完的片照样入库（终审 I2）。"""
+    done: list[dict] = []
+
+    def write(rec: dict) -> None:
+        done.append(rec)
+        inv = {"slices": done, "partial": True, "scanned_at": time.strftime("%Y-%m-%d %H:%M:%S")}
+        if context is not None:
+            inv["context"] = context
+        out.write_text(json.dumps(inv, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    return write
+
+
+_PLAN_CODES = {"sense": "ProducePlanType_Plan1", "logic": "ProducePlanType_Plan2", "anomaly": "ProducePlanType_Plan3",
+               "common": "ProducePlanType_Common"}  # fmt: skip
+
+
+def _card_plan(card_id: str) -> str | None:
+    try:
+        from hiro import master
+
+        c = master.card(card_id)
+    except Exception:  # noqa: BLE001  主数据不在：不核对
+        return None
+    return c.plan_type if c else None
+
+
+def _plan_mismatch(key: str, entries: list[dict], plan_of) -> str | None:
+    """这一片读到的技能卡流派核对（终审 C2）：筛选「プラン」只留一种，读到别的流派的卡说明筛选没设对。
+    卡名偶尔认错，容 1 格或一成以内。返回原因，没问题返回 None。"""
+    want = _PLAN_CODES[key.split(":")[0]]
+    plans = [plan_of(cid) for e in entries if (cid := (e.get("card") or {}).get("card_id"))]
+    plans = [p for p in plans if p]
+    wrong = sum(p != want for p in plans)
+    if wrong > 1 and wrong > len(plans) * 0.1:
+        return f"流派对不上（{wrong}/{len(plans)} 格不是 {want}），筛选可能没设对"
+    return None
+
+
+def scan_slices(
+    picker, keys: list[str], out_dir: Path, *, known_for, budget_s: float | None = None, plan_of=None, on_slice=None
+) -> dict:
     """在回忆选择页里逐片扫（设计 5.4）：记下原来的排序 → 每片设筛选（入手排序）→ 扫（不退出选择页）→ 最后恢复排序、重置筛选、
     点キャンセル。known_for(片) 给 KnownSet 时这一片增量补扫，给 None 时全读。budget_s 到了就停，没扫的片记在 pending。"""
     from hiro.produce import memory_filter, memory_picker
@@ -72,10 +123,18 @@ def scan_slices(picker, keys: list[str], out_dir: Path, *, known_for, budget_s: 
             inv = memory_picker.scan(
                 picker, out_dir / f"slice-{key.replace(':', '-')}.json", known=known, deadline=deadline, close=False
             )
-            done.append({"key": key, "mode": "full" if known is None else "incremental", "complete": bool(inv.get("complete")),
-                         "entries": inv["entries"], "new": inv.get("new"), "stopped": inv.get("stopped")})  # fmt: skip
-            pending.remove(key)
-            if inv.get("stopped") == "budget":
+            rec = {"key": key, "mode": "full" if known is None else "incremental", "complete": bool(inv.get("complete")),
+                   "entries": inv["entries"], "new": inv.get("new"), "stopped": inv.get("stopped")}  # fmt: skip
+            bad = _plan_mismatch(key, inv["entries"], plan_of or _card_plan)
+            if bad:  # 终审 C2：筛选点错了，读到的不是这一片：不入库、停下
+                rec["rejected"] = bad
+                logging.getLogger(__name__).warning("回忆片 %s：%s，不入库、停止扫描", key, bad)
+            done.append(rec)
+            if on_slice:
+                on_slice(rec)
+            if rec["complete"] and not bad:  # 没读完（预算到了）的片留在待补里（终审 I3）
+                pending.remove(key)
+            if bad or inv.get("stopped") == "budget":
                 break
     finally:
         try:
@@ -137,13 +196,19 @@ def main():
 
         keys = list(SLICES) if args.slices == "all" else [k.strip() for k in args.slices.split(",") if k.strip()]
         known_for = _known_for if args.incremental else (lambda key: None)
-        inv = scan_slices(picker, keys, Path(args.out).parent, known_for=known_for, budget_s=args.budget_s)
+        ctx = None
         if where is not None:
-            inv["context"] = {
+            ctx = {
                 "mode": where["mode"],
                 "formation_set": where["used"] or where["set"],
-                "empty": where["used"] is not None,
+                "empty": bool(where.get("empty")),
             }
+        inv = scan_slices(picker, keys, Path(args.out).parent, known_for=known_for, budget_s=args.budget_s,
+                          on_slice=slices_progress_writer(Path(args.out), ctx))  # fmt: skip
+        if ctx is not None:
+            inv["context"] = ctx
+        if not inv.get("restored"):
+            print("注意：回忆列表的排序 / 筛选没能恢复，请在游戏里手动改回（选择页右下的排序按钮）", flush=True)
         Path(args.out).write_text(json.dumps(inv, ensure_ascii=False, indent=1), encoding="utf-8")
         if where is not None:
             _back_to_set(d, where)
@@ -158,7 +223,7 @@ def main():
             inv["context"] = {
                 "mode": where["mode"],
                 "formation_set": where["used"] or where["set"],
-                "empty": where["used"] is not None,
+                "empty": bool(where.get("empty")),
             }
             Path(args.out).write_text(json.dumps(inv, ensure_ascii=False, indent=1), encoding="utf-8")
             _back_to_set(d, where)

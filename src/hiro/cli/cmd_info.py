@@ -117,7 +117,7 @@ NORMALIZE = {
 def import_inventory(kind: str, inv: dict, source: str) -> dict:
     if kind == "memories" and "slices" in inv:  # 按片扫的回忆（设计 5.1）：每片存进片表，不动整表快照
         st, read, added = open_store(), 0, 0
-        for sl in inv["slices"]:
+        for sl in [x for x in inv["slices"] if not x.get("rejected")]:  # 流派核对没过的片不入库（终审 C2）
             # 增量补扫一路读到列表底（没因为「连续已知」停下）= 整片都读了，算全读（第一次扫的片资料库是空的，就是这样）
             mode = "full" if sl["mode"] == "full" or (sl["complete"] and not sl.get("stopped")) else sl["mode"]
             r = st.save_slice(sl["key"], sl["entries"], mode=mode, complete=sl["complete"],
@@ -125,7 +125,7 @@ def import_inventory(kind: str, inv: dict, source: str) -> dict:
             read, added = read + r["read"], added + r["added"]
         return {
             "kind": kind,
-            "slices": len(inv["slices"]),
+            "slices": sum(not x.get("rejected") for x in inv["slices"]),
             "count": read,
             "added": added,
             "pending": inv.get("pending") or [],

@@ -345,20 +345,34 @@ def test_find_tolerates_hen_misread():
     assert _find(texts, "サポート編成", y_min=1040) == (70, 1080, 189, 1104)  # 不会认成「メモリー綿成」
 
 
-def test_open_memory_picker_from_empty_set_and_report_original(game):
+def test_open_memory_picker_from_empty_set_and_report_original(game, monkeypatch):
     """11-26 实机：回忆选择页顶栏 = 这份回忆 + 编成里其余 3 格。从全空的编成进去，读到的就是回忆本身的属性（设计 5.3）。
     返回进去前的编成号，扫完切回去。"""
     g, dev = game
     g.mode, g.tab, g.number = "hif", "memory", 20
+    # 终审 I4：不只信资料库的编成快照，切过去后现场看 4 格是不是都空
+    monkeypatch.setattr(fm, "read_memory_icons", lambda img: [{"empty": img["number"] == 19}] * 4)
     got = fm.open_picker(
         dev, "memory", ready=lambda img: img["where"] == "picker", use_set=lambda mode: 19 if mode == "hif" else None
     )
     assert g.where == "picker" and g.number == 19
-    assert got == {"mode": "hif", "set": 20, "used": 19}
+    assert got == {"mode": "hif", "set": 20, "used": 19, "empty": True}
 
 
-def test_open_memory_picker_without_empty_set_stays(game):
+def test_open_memory_picker_without_empty_set_stays(game, monkeypatch):
     g, dev = game
     g.mode, g.tab, g.number = "hif", "memory", 20
+    monkeypatch.setattr(fm, "read_memory_icons", lambda img: [{"empty": img["number"] == 19}] * 4)
     got = fm.open_picker(dev, "memory", ready=lambda img: img["where"] == "picker", use_set=lambda mode: None)
-    assert g.number == 20 and got == {"mode": "hif", "set": 20, "used": None}
+    assert g.number == 20 and got == {"mode": "hif", "set": 20, "used": None, "empty": False}
+
+
+def test_snapshot_says_empty_but_set_is_not(game, monkeypatch):
+    """快照说 19 号空，现场有回忆（快照之后被写过）：empty=False，属性带偏移，入库时不当作本身属性。"""
+    g, dev = game
+    g.mode, g.tab, g.number = "hif", "memory", 20
+    monkeypatch.setattr(
+        fm, "read_memory_icons", lambda img: [{"empty": True}, {"empty": False}, {"empty": True}, {"empty": True}]
+    )
+    got = fm.open_picker(dev, "memory", ready=lambda img: img["where"] == "picker", use_set=lambda mode: 19)
+    assert got["used"] == 19 and got["empty"] is False

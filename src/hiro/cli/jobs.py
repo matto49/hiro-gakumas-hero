@@ -350,7 +350,7 @@ KINDS: dict[str, Kind] = {
     ),
     "collect-all": Kind(
         "collect-all",
-        "一键全收集（只读）：首页数值 → 偶像卡 → 支援卡 → 回忆（12 片全读）→ 编成，每步跑完就入库；--only 只做其中几步",
+        "一键全收集（只读）：首页数值 → 偶像卡 → 支援卡 → 编成 → 回忆（12 片全读），每步跑完就入库；--only 只做其中几步",
         lambda p, d: [
             _PY,
             "-m",
@@ -360,7 +360,7 @@ KINDS: dict[str, Kind] = {
             *(["--only", p["only"]] if p.get("only") else []),
         ],
         lambda p: (
-            "一键全收集：首页数值 → 偶像卡 → 支援卡 → 回忆（12 片全读）→ 编成（只读，不改编成）"
+            "一键全收集：首页数值 → 偶像卡 → 支援卡 → 编成 → 回忆（12 片全读）（只读，不改编成）"
             + (f"（只做 {p['only']}）" if p.get("only") else "")
         ),
         pausable=False,

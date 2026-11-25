@@ -1,5 +1,7 @@
 """多片回忆扫描（设计 5.4 / D6 / D12）：选择页里逐片设筛选 → 扫 → 最后恢复筛选、退出；结果按片入库。"""
 
+import json
+
 from hiro import memory_scan
 from hiro.cli.store import Store
 
@@ -34,7 +36,7 @@ def fakes(monkeypatch):
         pk.log.append(f"scan {key} known={known is not None}")
         pk.t += 50
         stopped = "budget" if deadline is not None and pk.t >= deadline else None
-        return {"entries": [{"card": {"card_id": key}}], "complete": stopped is None, "new": 1, "stopped": stopped}
+        return {"entries": [{"card": {"card_id": key}}] * 2, "complete": stopped is None, "new": 1, "stopped": stopped}
 
     monkeypatch.setattr(memory_picker, "scan", fake_scan)
     return p
@@ -53,7 +55,8 @@ def test_incremental_and_budget_leave_rest_pending(fakes, tmp_path):
                                   known_for=lambda k: object(), budget_s=60)  # fmt: skip
     assert [s["key"] for s in out["slices"]] == ["sense:hif", "common:hif"]
     assert out["slices"][0]["mode"] == "incremental" and out["slices"][1]["complete"] is False
-    assert out["pending"] == ["sense:nia"] and not out["complete"]
+    # 预算到了没读完的 common:hif 也留在待补里（终审 I3）
+    assert out["pending"] == ["common:hif", "sense:nia"] and not out["complete"]
     assert fakes.log[-2:] == ["restore アイドル", "cancel"]
 
 
@@ -83,3 +86,77 @@ def test_incremental_scan_that_reads_to_the_end_counts_as_full(tmp_path, monkeyp
     cov = st.slice_coverage()
     assert cov["sense:hif"]["full_at"] and cov["sense:hif"]["mode"] == "full"
     assert cov["common:hif"]["full_at"] is None and cov["common:hif"]["mode"] == "incremental"
+
+
+def test_slice_rejected_when_card_plans_do_not_match(fakes, tmp_path):
+    """终审 C2：筛选点错了（比如重置后其实是全不勾）读到的就不是这一片：按技能卡的流派核对，对不上的超过 1 格且超过一成就
+    不入库、停下（照样恢复筛选、退出）。"""
+    plans = {"sense:hif": "ProducePlanType_Plan2", "common:hif": "ProducePlanType_Common"}  # sense 片里全是 ロジック 卡
+    out = memory_scan.scan_slices(fakes, ["sense:hif", "common:hif"], tmp_path, known_for=lambda k: None,
+                                  plan_of=lambda cid: plans.get(cid))  # fmt: skip
+    s = out["slices"][0]
+    assert s["key"] == "sense:hif" and s["rejected"] and not out["complete"]
+    assert out["pending"] == ["sense:hif", "common:hif"] and fakes.log[-2:] == ["restore アイドル", "cancel"]
+
+
+def test_import_skips_rejected_slice(tmp_path, monkeypatch):
+    from hiro.cli import cmd_info
+
+    st = Store(tmp_path / "hiro.db")
+    monkeypatch.setattr(cmd_info, "open_store", lambda: st)
+    inv = {
+        "slices": [
+            {
+                "key": "sense:hif",
+                "mode": "full",
+                "complete": True,
+                "rejected": "流派对不上",
+                "entries": [{"card": {"card_id": "a"}}],
+            }
+        ]
+    }
+    r = cmd_info.import_inventory("memories", inv, source="scan:x")
+    assert r["slices"] == 0 and st.slice_coverage() == {}
+
+
+def test_known_for_full_reads_unfinished_or_offset_slices(tmp_path):
+    """终审 I3 / I4：这一片还没完整读过（之前被预算打断），或者上次是带偏移读的（没从空编成进），增量补扫读不全 / 签名对不上：
+    这两种都全读；完整读过、属性是本身的才增量。"""
+    st = Store(tmp_path / "hiro.db")
+    st.save_slice("sense:hif", [{"card": {"card_id": "a"}}], mode="full", complete=True, context={"empty": True})
+    st.save_slice(
+        "logic:hif", [{"card": {"card_id": "b"}}], mode="incremental", complete=False, context={"empty": True}
+    )
+    st.save_slice("common:hif", [{"card": {"card_id": "c"}}], mode="full", complete=True, context={"empty": False})
+    assert memory_scan.known_for_slice(st, "sense:hif") is not None
+    assert memory_scan.known_for_slice(st, "logic:hif") is None
+    assert memory_scan.known_for_slice(st, "common:hif") is None
+    assert memory_scan.known_for_slice(st, "anomaly:hif") is None
+
+
+def test_finished_slices_handed_out_before_a_later_slice_fails(fakes, tmp_path, monkeypatch):
+    """终审 I2：第 2 片出错时，第 1 片已经交出去（main 每片落盘，任务失败也能入库），筛选照样恢复。"""
+    from hiro.produce import memory_filter
+
+    def apply(pk, k):
+        pk.log.append(f"apply {k}")
+        if k == "common:hif":
+            raise memory_filter.MemoryFilterError("弹窗没出来")
+
+    monkeypatch.setattr(memory_filter, "apply_slice", apply)
+    got = []
+    with pytest.raises(memory_filter.MemoryFilterError):
+        memory_scan.scan_slices(fakes, ["sense:hif", "common:hif"], tmp_path, known_for=lambda k: None,
+                                plan_of=lambda cid: None, on_slice=got.append)  # fmt: skip
+    assert [r["key"] for r in got] == ["sense:hif"] and fakes.log[-2:] == ["restore アイドル", "cancel"]
+
+
+def test_progress_writer_saves_after_each_slice(tmp_path):
+    out = tmp_path / "out.json"
+    w = memory_scan.slices_progress_writer(out, {"empty": True})
+    w({"key": "sense:hif", "entries": [], "complete": True})
+    first = json.loads(out.read_text(encoding="utf-8"))
+    w({"key": "common:hif", "entries": [], "complete": True})
+    second = json.loads(out.read_text(encoding="utf-8"))
+    assert [s["key"] for s in first["slices"]] == ["sense:hif"] and len(second["slices"]) == 2
+    assert second["context"] == {"empty": True} and second["partial"] is True

@@ -64,6 +64,11 @@ CREATE TABLE IF NOT EXISTS meta (
 """
 
 
+def _at_slot(e: dict, i: int) -> dict:
+    """回忆记录放到列表第 i 格（每行 3 格）。"""
+    return {**e, "slot": i, "cell": [i // 3, i % 3]}
+
+
 def now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -190,7 +195,8 @@ class Store:
         else:
             known = KnownSet(old)
             new = [dict(e, slice=slice_key) for e in entries if not known.take(e)]
-            added, keep = len(new), old + new
+            # 入手排序下新回忆在最上面，旧的整体往后挪：新的放前面、整片重算格子位置（终审 C1：写编成按行 / 列找）
+            added, keep = len(new), [_at_slot(e, i) for i, e in enumerate(new + old)]
         prev = self.slice_coverage().get(slice_key) or {}
         with self.db:
             self.db.execute("DELETE FROM memory_slices WHERE account=? AND slice=?", (acc, slice_key))

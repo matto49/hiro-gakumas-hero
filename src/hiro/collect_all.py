@@ -1,4 +1,4 @@
-"""一键全收集（资料库扫描设计 5.7 / D7 / D12）：按顺序做 5 步扫描，每步跑完就入库；某一步出错就停下，写明第几步。
+"""一键全收集（资料库扫描设计 5.7 / D7 / D12）：按顺序做 5 步扫描（首页数值 → 偶像卡 → 支援卡 → 编成 → 回忆），每步跑完就入库；某一步出错就停下，写明第几步。
 回忆这一步是 12 片逐片全读（不是增量）。只读：每一步都是现有的只读扫描任务（不点決定、不改编成）。
 
     python -m hiro.collect_all --dir <任务目录> [--only idols,memories]
@@ -17,8 +17,8 @@ STEPS = (
     ("account", "scan-account", "首页数值"),
     ("idols", "scan-idols", "偶像卡"),
     ("supports", "scan-supports", "支援卡"),
+    ("formations", "scan-formations", "编成"),  # 编成在回忆前：回忆扫描靠编成快照挑全空的编成（终审 I4）
     ("memories", "scan-memories", "回忆"),
-    ("formations", "scan-formations", "编成"),
 )
 KIND_NAMES = tuple(k for k, _, _ in STEPS)
 

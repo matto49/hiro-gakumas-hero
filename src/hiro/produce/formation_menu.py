@@ -396,7 +396,7 @@ def open_picker(
     点当前编成第 1 格。只点格子，不点「決定」；列表里由扫描自己读完点キャンセル。ready(截图) 判断列表开了没有。
     use_set(模式) 给了编成号时先翻到那个编成再点：回忆选择页顶栏 = 这份回忆 + 编成里其余 3 格（11-26 实机），
     从全空的编成进去读到的才是回忆本身的属性（设计 5.3）。返回 {mode, set: 进来时的编成号, used: 翻到的号或 None}，
-    扫完由调用方切回 set。"""
+    扫完由调用方切回 set。回忆页另带 empty：现场看 4 格都是空的（顶栏 = 回忆本身属性）。"""
     from hiro.produce.formation_writer import FormationWriteError, _settled_step2
 
     menu = Menu(dev)
@@ -408,6 +408,8 @@ def open_picker(
         menu.ensure_set(target)
         where["used"] = target
     if kind == "memory":
+        # 现场看 4 格是不是都空（终审 I4：快照可能过期）：都空时顶栏读到的才是回忆本身的属性
+        where["empty"] = all(t.get("empty") for t in read_memory_icons(dev.shoot()))
         slot = MEMORY_TILES[0]
     else:
         page = _settled_step2(dev, read_formation, view="formation")

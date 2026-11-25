@@ -109,3 +109,23 @@ def test_plan_formation_uses_slices_of_idol_plan(st, monkeypatch, run_cli, hiro_
     cmd_plan._formation({"idol": "i_card-x", "support_set": None, "memory_set": None, "main_attr": None,
                          "fixed_main": False, "mode": None, "out": None})  # fmt: skip
     assert got["memory_inventory"]["source"] == "slices" and len(got["memory_inventory"]["entries"]) == 6
+
+
+def _at(e, slot):
+    return {**e, "slot": slot, "cell": [slot // 3, slot % 3]}
+
+
+def test_incremental_puts_new_first_and_recomputes_positions(st):
+    """终审 C1：入手排序下新回忆排在最上面，旧回忆整体往后挪；增量入库要把新的放前面、整片重算格子位置，
+    否则写编成按旧的行 / 列找不到（新增数不是 3 的倍数时列也变了）。"""
+    st.save_slice(
+        "sense:hif", [_at(_e("a"), 0), _at(_e("b"), 1), _at(_e("c"), 2), _at(_e("d"), 3)], mode="full", complete=True
+    )
+    st.save_slice(
+        "sense:hif",
+        [_at(_e("n"), 0), _at(_e("a"), 1), _at(_e("b"), 2), _at(_e("c"), 3)],
+        mode="incremental",
+        complete=True,
+    )
+    got = [(e["card"]["card_id"], e["slot"], e["cell"]) for e in st.slice_entries("sense:hif")]
+    assert got == [("n", 0, [0, 0]), ("a", 1, [0, 1]), ("b", 2, [0, 2]), ("c", 3, [1, 0]), ("d", 4, [1, 1])]

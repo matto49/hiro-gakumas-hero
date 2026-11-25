@@ -74,7 +74,7 @@ func (a *App) autoStart(m *Message, card plugin.Card) {
 
 // firstScanKinds 是第一次用时要扫的库存（info summary 的类别 → run start 的种类）。
 // 一键全收集的 5 步（顺序同 hiro.collect_all.STEPS）；首次进入只做信息库里从没扫过的（设计 5.7）
-var collectKinds = []string{"account", "idols", "supports", "memories", "formations"}
+var collectKinds = []string{"account", "idols", "supports", "formations", "memories"}
 
 // FirstScan（R11，11-25 review「首次进入的话，自动执行就好了」）：向导走完时，信息库里从没扫过的种类
 // 由初星助手自己发起一次一键全收集（collect-all --only，设计 5.7），扫过的不重扫；扫描是读操作，缺省权限下不用确认（「总是询问」时照样等用户点）。

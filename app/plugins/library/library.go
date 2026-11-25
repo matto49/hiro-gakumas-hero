@@ -484,11 +484,11 @@ var scans = [][3]string{
 
 func (s *state) scanPanel(c *ui.Context, h plugin.Host) {
 	kit.Note(c, "扫描会操作游戏（只看画面、翻列表，不改东西）。点了会在对话里出确认卡。")
-	// 设计 5.7：一键全收集（首页数值 → 偶像卡 → 支援卡 → 回忆 12 片全读 → 编成），放在最上面
+	// 设计 5.7：一键全收集（首页数值 → 偶像卡 → 支援卡 → 编成 → 回忆 12 片全读），放在最上面
 	ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(8, 0).BorderColor(kit.Line).BorderWidth(0, 0, kit.Hair, 0).Children(func() {
 		ui.Column(c).Gap(2).Shrink(1).Children(func() {
 			ui.Text(c, "一键全收集").FontSize(kit.FSmall).FontWeight(600).TextColor(kit.Ink)
-			kit.Note(c, "首页数值、偶像卡、支援卡、回忆（全读）、编成按顺序扫一遍，约半小时；中途能停，扫完的照样入库。")
+			kit.Note(c, "首页数值、偶像卡、支援卡、编成、回忆（全读）按顺序扫一遍，约半小时；中途能停，扫完的照样入库。")
 		})
 		ui.Spacer(c)
 		if kit.Primary(c, "一键全收集").Key("scan-collect-all").Label("一键全收集").Clicked() {

@@ -35,8 +35,9 @@ def _fake(fail_at=None):
 def test_runs_five_steps_in_order_and_imports_each(tmp_path):
     calls, imported, runner, importer = _fake()
     assert collect_all.run(tmp_path, None, runner=runner, importer=importer) == 0
-    assert imported == ["account", "idols", "supports", "memories", "formations"]
-    mem = calls[3]
+    # 编成在回忆前面（终审 I4）：第一次全收集时回忆扫描要靠编成快照挑空编成，才读得到回忆本身的属性
+    assert imported == ["account", "idols", "supports", "formations", "memories"]
+    mem = calls[4]
     assert "--slices" in mem and "all" in mem and "--incremental" not in mem  # 回忆 12 片全读
 
 
