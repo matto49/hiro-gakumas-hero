@@ -409,14 +409,15 @@ def _fix_slot(dev: Device, picker, target: dict, slot: int, key: str, current: l
         raise FormationWriteError(
             f"回忆第 {slot + 1} 格：找方案里的回忆时选择页关了，这一格可能被换成了别的回忆：{e}"
         ) from e
-    img = None
+    img, reads = None, []
     for _ in range(10):
         img = dev.shoot()
         reads = read_icons(img)
         if any(r.get("known") for r in reads):
             break
         dev.sleep(0.5)
-    if not reads[slot].get("known") or reads[slot]["card"] != key:
+    got = reads[slot] if slot < len(reads) else {}
+    if not got.get("known") or got.get("card") != key:
         dev.snap(img, f"memory-verify-fail-{slot}")
-        raise FormationWriteError(f"回忆第 {slot + 1} 格改完认成 {reads[slot].get('card')}，不是 {key}")
+        raise FormationWriteError(f"回忆第 {slot + 1} 格改完认成 {got.get('card')}，不是 {key}")
     done.append({"slot": slot, "from": current[slot], "to": key})

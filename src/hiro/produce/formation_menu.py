@@ -440,7 +440,8 @@ def open_picker(
         where.update(used=t_set, used_mode=t_mode)
     if kind == "memory":
         # 现场看 4 格是不是都空（终审 I4：快照可能过期）：都空时顶栏读到的才是回忆本身的属性
-        where["empty"] = all(t.get("empty") for t in read_memory_icons(dev.shoot()))
+        # 只在调用方要进空编成（给了 use_set）时看：别的调用方用不上，也不该多截一张图
+        where["empty"] = use_set is not None and all(t.get("empty") for t in read_memory_icons(dev.shoot()))
         slot = MEMORY_TILES[0]
     else:
         page = _settled_step2(dev, read_formation, view="formation")

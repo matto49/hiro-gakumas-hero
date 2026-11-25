@@ -40,7 +40,7 @@ class EmptySlice(MemoryFilterError):
 
 
 def _boxes(p) -> list[tuple[str, tuple[int, int, int, int]]]:
-    return [(fold(t), tuple(int(v) for v in b)) for t, _, b in p.ocr(p.shoot())]
+    return [(fold(t), (int(b[0]), int(b[1]), int(b[2]), int(b[3]))) for t, _, b in p.ocr(p.shoot())]
 
 
 def _center(b) -> tuple[int, int]:
@@ -152,10 +152,8 @@ def sort_direction(img) -> str | None:
     只看图标左边箭头那一列的亮像素：尖那一头的亮像素多得多（实机 28 比 10）。"""
     if img is None:
         return None
-    import cv2
-
-    x1, y1, x2, y2 = DIR_ICON
-    g = cv2.cvtColor(img[y1:y2, x1:x2], cv2.COLOR_BGR2GRAY)[:, :22] > 200
+    x1, y1, _x2, y2 = DIR_ICON
+    g = img[y1:y2, x1 : x1 + 22].min(axis=2) > 200  # 白色像素（三个通道都亮）
     h = g.shape[0] // 2
     top, bottom = int(g[:h].sum()), int(g[h:].sum())
     if bottom >= 10 and bottom >= 2 * top:

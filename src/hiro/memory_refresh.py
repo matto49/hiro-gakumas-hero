@@ -130,7 +130,8 @@ def main() -> int:
         from hiro.brain.formation_plan import idol_info
         from hiro.brain.guides import PLAN_OF
 
-        style = PLAN_OF.get(idol_info(a.idol).get("plan"))
+        plan = idol_info(a.idol).get("plan")
+        style = PLAN_OF.get(plan) if plan else None
     except Exception:  # noqa: BLE001  认不出流派：12 片都看
         style = None
     out_dir = Path(tempfile.mkdtemp(prefix="memory-refresh-", dir=home))
