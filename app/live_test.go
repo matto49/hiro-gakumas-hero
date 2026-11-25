@@ -29,7 +29,7 @@ func TestLiveCLIAgent(t *testing.T) {
 	}
 }
 
-// 实测安装：HIRO_LIVE=bootstrap，HIRO_HOME 指向一个空目录；HIRO_REPO_URL / HIRO_REPO_REF 指向要装的源。
+// 实测安装：HIRO_LIVE=bootstrap，HIRO_HOME 指向一个空目录；HIRO_REPO_URL / HIRO_REPO_REF 指向要装的源（Ref 不设就按安装包版本下标签、没有就退回 main）。
 func TestLiveBootstrap(t *testing.T) {
 	if os.Getenv("HIRO_LIVE") != "bootstrap" {
 		t.Skip("设 HIRO_LIVE=bootstrap 才跑")
@@ -42,6 +42,12 @@ func TestLiveBootstrap(t *testing.T) {
 	}
 	for _, st := range steps {
 		t.Logf("==> %s %v", st.Title, st.Argv)
+		if st.Run != nil {
+			if err := st.Run(context.Background(), func(line string) { t.Log(line) }); err != nil {
+				t.Fatalf("%s: %v", st.Title, err)
+			}
+			continue
+		}
 		cmd := exec.Command(st.Argv[0], st.Argv[1:]...)
 		cmd.Dir, cmd.Env = st.Dir, append(os.Environ(), st.Env...)
 		cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
@@ -87,7 +93,7 @@ func TestLiveFixPath(t *testing.T) {
 		t.Skip("设 HIRO_LIVE=path 才跑")
 	}
 	fixPath()
-	for _, name := range []string{"claude", "codex", "git"} {
+	for _, name := range []string{"claude", "codex"} {
 		p, err := exec.LookPath(name)
 		t.Logf("%s → %s %v", name, p, err)
 		if err != nil {

@@ -75,7 +75,7 @@
 平台见下面「设备」：**作者实机验证过的有 macOS（Apple Silicon）+ PlayCover，和 Windows + MuMu 12**
 （MuMu 6.8，22 局 3 次本战夺冠）；Windows DMM 版实机开局跑通（见「设备」）；安卓设备 / 模拟器（ADB）、雷电走 `AdbDevice`，代码接好了、有离线测试，但没有实机打过一局。
 
-1. 装环境（一条命令，可重复跑，做过的步骤会跳过；需要 uv、git 和网络）：
+1. 装环境（一条命令，可重复跑，做过的步骤会跳过；需要 uv 和网络；脚本本身不要 git，下面用 git clone 只是拿源码的一种办法，下载 GitHub 的源码压缩包解压也行）：
    ```bash
    git clone https://github.com/matto49/hiro-gakumas-hero && cd hiro-gakumas-hero
    scripts/setup.sh      # .venv（Python 3.10）→ 安装 → OCR 模型 → 识别用的游戏原图 → 模拟器主数据 + 主数据库 → 自检

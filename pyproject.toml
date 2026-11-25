@@ -32,11 +32,11 @@ play = [
     "pyobjc-framework-Quartz; sys_platform == 'darwin'",
     "pyobjc-framework-Cocoa; sys_platform == 'darwin'",
 ]
-# 考试出牌用 gakumas-bench 的开源算法（缺省 UINet，hiro.bench_bridge）：都按固定提交装；没装时考试出牌退回社区规则
+# 考试出牌用 gakumas-bench 的开源算法（缺省 UINet，hiro.bench_bridge）：都按固定提交的 GitHub 归档装（不写 git+https，装的时候不需要 git）；没装时考试出牌退回社区规则
 # onnxruntime 不另外指定版本：play 组钉在 ~=1.14，UINet 原模型由 hiro.bench_bridge 转成 1.14 能读的写法（setup 时做）
 bench = [
-    "gkbench @ git+https://github.com/matto49/gakumas-bench@bcec19047068b51498459e812ca8577a5d16ddb8",
-    "gkms-uinet @ git+https://github.com/yuzeis/GKMSUINet@1201b841828d9874b604f7d48f7b00ddf3b71d95",
+    "gkbench @ https://github.com/matto49/gakumas-bench/archive/bcec19047068b51498459e812ca8577a5d16ddb8.tar.gz",
+    "gkms-uinet @ https://github.com/yuzeis/GKMSUINet/archive/1201b841828d9874b604f7d48f7b00ddf3b71d95.tar.gz",
     "onnxruntime",
 ]
 
