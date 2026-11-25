@@ -88,6 +88,15 @@ func buildApp(d appDeps) *shell.App {
 		HasModel:   func() bool { return cache.hasModel() },
 		Gate:       set.Gate,
 		Permission: func() string { return cache.Get().Permission },
+		SetPermission: func(level string) error {
+			s := cache.Get()
+			s.Permission = level
+			if level == shell.PermAll {
+				s.AllowAllConfirmed = true
+			}
+			return cache.Save(s, "")
+		},
+		AllowAllConfirmed: func() bool { return cache.Get().AllowAllConfirmed },
 	}, reg)
 	return app
 }

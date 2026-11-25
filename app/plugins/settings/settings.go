@@ -94,8 +94,6 @@ type S struct {
 	step      int
 	sound     bool
 	modelOK   bool
-	// confirmAll：第一次切到「允许所有行为」的二次确认弹窗开着
-	confirmAll bool
 
 	// 模型表单
 	formFor  string // 表单是按哪次读到的设置填的
@@ -355,66 +353,19 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 	})
 }
 
-// permSection 是「操作权限」四档；第一次切到「允许所有行为」弹一次二次确认，确认过以后直接切。
-func (s *S) permSection(c *ui.Context) {
-	st := s.d.Settings()
-	cur := st.Permission
+// permNote：操作权限在对话框左下角切换（11-25 review「这个设置，我们放进对话框里吧，ui 同 codex」），这里只写现在是哪一档。
+func (s *S) permNote(c *ui.Context) {
+	cur := s.d.Settings().Permission
 	if cur == "" {
 		cur = "read"
 	}
-	set := func(id string) {
-		st := s.d.Settings()
-		st.Permission = id
-		if id == "all" {
-			st.AllowAllConfirmed = true
-		}
-		_ = s.d.Save(st, "")
-	}
+	name := cur
 	for _, lv := range permLevels {
-		sel := lv.id == cur
-		b := ui.ButtonBase(c).Key("perm-"+lv.id).Label(lv.name).Justify(ui.Start).AlignItems(ui.Start).Gap(10).Padding(10, 12).
-			Radius(kit.R12).Border(kit.Hair, kit.Line)
-		if sel {
-			b = b.Background(kit.BrandT).Border(1.5, kit.Brand)
-		} else if b.Hovered() {
-			b = b.Background(kit.Surface2)
-		}
-		if b.Children(func() {
-			dot := ui.Box(c).Size(14, 14).Radius(7).Border(1.5, kit.Ink3).Shrink(0).Margin(2, 0, 0, 0)
-			if sel {
-				dot = dot.Border(4, kit.Brand)
-			}
-			_ = dot
-			ui.Column(c).Gap(3).Shrink(1).Children(func() {
-				ui.Text(c, lv.name).FontSize(kit.FSmall).FontWeight(600).TextColor(kit.Ink)
-				ui.Text(c, lv.desc).FontSize(kit.FNote).TextColor(kit.Ink3).Wrap()
-			})
-		}).Clicked() && !sel {
-			if lv.id == "all" && !st.AllowAllConfirmed {
-				s.confirmAll = true
-			} else {
-				set(lv.id)
-			}
+		if lv.id == cur {
+			name = lv.name
 		}
 	}
-	if s.confirmAll {
-		ui.Modal(c, &s.confirmAll, func() {
-			ui.Column(c).Width(420).Gap(12).Padding(20).Radius(kit.R16).Background(kit.CardBg).Children(func() {
-				ui.Text(c, "确定允许所有行为？").FontSize(16).FontWeight(700).TextColor(kit.Ink)
-				kit.Note(c, "开局、接着打、初星課題都会直接开始，不再出确认卡，会用掉培育次数和 AP。花ジュエル、放弃培育这些不管哪一档都不会做。这个提示只出这一次，之后可以随时改回来。")
-				ui.Row(c).Gap(8).Children(func() {
-					ui.Spacer(c)
-					if kit.Secondary(c, "取消").Key("perm-all-cancel").Clicked() {
-						s.confirmAll = false
-					}
-					if kit.Primary(c, "确定，允许所有行为").Key("perm-all-ok").Clicked() {
-						s.confirmAll = false
-						set("all")
-					}
-				})
-			})
-		})
-	}
+	kit.Note(c, "现在是「"+name+"」。在对话框左下角点它就能换，哪些事不用确认就直接做都写在那里。")
 }
 
 func (s *S) deviceLine(c *ui.Context) {
@@ -704,7 +655,7 @@ func (s *S) panel(c *ui.Context, h plugin.Host, route string) {
 	ui.Text(c, "模型").FontSize(15).FontWeight(650).TextColor(kit.Ink)
 	s.modelSection(c, h)
 	ui.Text(c, "操作权限").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
-	s.permSection(c)
+	s.permNote(c)
 	ui.Text(c, "游戏连接").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
 	s.deviceLine(c)
 	if kit.Secondary(c, "试连").Key("probe").Disabled(s.probing || h.LiveJob() != "").Clicked() {
