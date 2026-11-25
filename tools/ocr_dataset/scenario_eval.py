@@ -247,13 +247,20 @@ def score_buttons(buttons: list[dict], texts: list[tuple]) -> list[dict]:
         x1, y1, x2, y2 = b["box"]
         # 包含按钮文字的段里取最贴近的（最短）：「削除」不能落到说明句「…強化や削除ができます」上
         cands = [(t, box) for t, box in texts if norm(b["label"]) in norm(t)]
-        hit = min(cands, key=lambda tb: len(norm(tb[0]))) if cands else None
-        if hit is None:
+        if not cands:
             res, got = "没读", None
         else:
-            bx = hit[1]
-            cx, cy = (bx[0] + bx[2]) / 2, (bx[1] + bx[3]) / 2
-            res, got = ("对" if x1 <= cx <= x2 and y1 <= cy <= y2 else "错"), hit[0]
+            # 同名按钮有好几个（选行动页三个「授業」）：最短的那几段里任何一个落在框里就算对，不看 OCR 返回顺序
+            # （A16：macOS 27.2.1 的 Vision 换了返回顺序，同一帧从 3 对变成 3 错）
+            short = min(len(norm(t)) for t, _ in cands)
+            best = [(t, box) for t, box in cands if len(norm(t)) == short]
+
+            def inside(bx):
+                cx, cy = (bx[0] + bx[2]) / 2, (bx[1] + bx[3]) / 2
+                return x1 <= cx <= x2 and y1 <= cy <= y2
+
+            hit = next((tb for tb in best if inside(tb[1])), best[0])
+            res, got = ("对" if inside(hit[1]) else "错"), hit[0]
         rows.append({"path": f"button:{b['label']}", "want": b["label"], "got": got, "result": res})
     return rows
 

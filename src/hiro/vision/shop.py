@@ -97,6 +97,23 @@ def _drink(img: MatLike, x: int, y: int = DRINK_Y) -> dict:
             "confidence": round(score, 3), "margin": round(score - second, 3)}  # fmt: skip
 
 
+def _split_wide(boxes: list[tuple[str, tuple[int, int, int, int]]], width: int = CELL):
+    """比一格还宽、里面有空格的框按空格拆开，每段按它在字符串里的位置估横坐标，分回各自的格。
+    A16：macOS 27.2.1 的 Apple Vision 会把相邻两格的价格合成一个框（「®77 53p 70」横跨第 0、1 格，
+    中心落在第 0 格：第 0 格读成 70、第 1 格没读到；识别测试集核心集 dmm-maindmmt2-00108）。"""
+    out = []
+    for t, (bx1, by1, bx2, by2) in boxes:
+        if bx2 - bx1 <= width or " " not in t.strip():
+            out.append((t, (bx1, by1, bx2, by2)))
+            continue
+        n, span = len(t), bx2 - bx1
+        for m in re.finditer(r"\S+", t):
+            c = bx1 + span * (m.start() + m.end()) / 2 / n
+            w = span * (m.end() - m.start()) / n
+            out.append((m.group(), (int(c - w / 2), by1, int(c + w / 2), by2)))
+    return out
+
+
 def _nums(texts: list[str]) -> list[int]:
     return [int(n) for t in texts for n in re.findall(r"\d+", t.replace(",", ""))]
 
@@ -105,10 +122,12 @@ def read_consult(img: MatLike) -> dict:
     """→ {"shelf": [{index, kind, card_id | drink_id, name, upgrade, price, sale, purchased, center}], "services": {...}, "rerolls_left"}。"""
     x0, y0, x1, y1 = REGION
     # 不去空格：SALE 的「75 52」会被 Vision 读成一个框，去空格就成了 7552
-    boxes = [
-        (t, (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0))
-        for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)
-    ]
+    boxes = _split_wide(
+        [
+            (t, (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0))
+            for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)
+        ]
+    )
 
     def texts_in(xr, yr) -> list[str]:
         return [
@@ -231,10 +250,12 @@ def read_interval_shelf(img: MatLike) -> dict:
     """轮间货架 → {interval: {cards, changes, drinks, recover, upgrade, refresh, customize}, complete}。
     价格是画面实付价；读不到的项为 None。complete：货架上方的提示行可见（没有弹窗 / 动画盖住）。"""
     x0, y0, x1, y1 = INTERVAL_REGION
-    boxes = [
-        (t, (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0))
-        for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)
-    ]
+    boxes = _split_wide(
+        [
+            (t, (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0))
+            for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)
+        ]
+    )
 
     def texts_in(xr, yr) -> list[str]:
         return [
