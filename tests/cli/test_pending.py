@@ -33,6 +33,14 @@ def test_act_command_returns_pending_without_running(run_cli, act_cmd):
     assert CALLS == []
 
 
+def test_pending_carries_args(run_cli, act_cmd):
+    """确认卡要按种类和参数画（11-25 review：只拿到 command「run start」，所有确认卡都是兜底样式）。"""
+    _, env = run_cli("test", "poke", "--times", "4")
+    assert env["data"]["pending"]["args"] == {"times": 4}
+    _, env = run_cli("pending", "list")
+    assert env["data"]["pending"][0]["args"] == {"times": 4}
+
+
 def test_confirm_runs_once(run_cli, act_cmd):
     _, env = run_cli("test", "poke", "--times", "2")
     pid = env["data"]["pending"]["id"]

@@ -1780,3 +1780,19 @@ def test_not_executed_hook_pops_history_and_undoes(monkeypatch):
     _not_executed(adv, "play:0", "执行后画面未变化")  # 这一步没记历史（_appended 已清）：历史不动
     assert adv._history == [("o1", ["play", 0])] and undone == [1, 1]
     _not_executed(object(), "skip", "x")  # 没有钩子的插件：什么也不做
+
+
+def test_undo_before_begin_finished_does_not_crash(monkeypatch):
+    """11-23 Windows 初星助手「初」局：出牌主数据缺失，begin 在建 stats 之前就抛 ExamUnsupported；执行层随后回调
+    not_executed → undo_last，报 AttributeError: 'ExamGnrpa' object has no attribute 'stats'。stats 要在构造时就有。"""
+    import sys
+
+    from hiro.search import exam_algo as X
+    from hiro.search.exam_env import ExamUnsupported
+
+    monkeypatch.setitem(sys.modules, "gakumas_exam_rs", SimpleNamespace(search=object(), plan_many=object()))
+    algo = X.ExamGnrpa()
+    with pytest.raises(ExamUnsupported):
+        algo.begin(SimpleNamespace(loadout={}))  # 没有编成：在建 stats 之前就停
+    algo.undo_last()
+    assert algo.stats["undone"] == 1

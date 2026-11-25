@@ -1,13 +1,10 @@
-# 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
 """第二十局开局：读整副时一览晚于 6 秒才弹出，读牌放弃后一览留在画面上，KAA 把「Pアイテム」标签判成
-SELECT_PITEM → 决策「P 道具候选未识别」→ 停机。主循环快速判页先认牌组一览并点「閉じる」。"""
+SELECT_PITEM → 决策「P 道具候选未识别」→ 停机。快速判页先认牌组一览并点「閉じる」。"""
 
 from pathlib import Path
-from types import SimpleNamespace as NS
 
-import hiro  # noqa: F401
-from hiro.loop.controller import DECK_LIST_CLOSE, HiroController
 from hiro.vision.deck import is_deck_list
+from hiro.vision.quick import DECK_LIST_CLOSE, quick_page
 
 import cv2
 import pytest
@@ -25,11 +22,7 @@ def test_frame_is_deck_list():
 
 
 @pytest.mark.fixtures
-def test_quick_page_closes_hanging_deck_list(monkeypatch):
-    import kotonebot
-
-    clicks = []
-    monkeypatch.setattr(kotonebot, "device", NS(screenshot=_img, click=lambda *a: clicks.append(a)))
-    c = HiroController.__new__(HiroController)
-    assert c._quick_page() == "handled"
-    assert clicks == [DECK_LIST_CLOSE]
+def test_quick_page_closes_hanging_deck_list():
+    """快速判页先认牌组一览、点「閉じる」（原来测旧主循环 HiroController._quick_page，2026-11-24 改测 hiro.vision.quick）。"""
+    hit = quick_page(_img())
+    assert hit is not None and hit["page"] == "DECK_LIST" and hit["tap"] == DECK_LIST_CLOSE

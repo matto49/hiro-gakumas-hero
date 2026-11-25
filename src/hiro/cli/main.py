@@ -21,6 +21,8 @@ _MODULES: tuple[str, ...] = (
     "hiro.cli.secrets",
     "hiro.cli.cmd_doctor",
     "hiro.cli.cmd_plan",
+    "hiro.cli.cmd_usage",
+    "hiro.cli.cmd_plugins",
 )
 
 
@@ -103,11 +105,12 @@ def run(argv: list[str]) -> tuple[int, dict]:
         from hiro.cli import pending
 
         summary = cmd.confirm_summary(args) if cmd.confirm_summary else f"执行 hiro {cmd.name}"
-        rec = pending.create(cmd.name, args, summary)
+        access = cmd.access(args) if cmd.access else "all"
+        rec = pending.create(cmd.name, args, summary, access)
         return PENDING_EXIT, {
             "ok": True,
             "data": {
-                "pending": {k: rec[k] for k in ("id", "command", "summary", "expires_at")},
+                "pending": pending.public(rec),
                 "message": f"需要用户确认：{summary}。用户同意后运行 hiro confirm {rec['id']}；不要自己确认。",
             },
         }

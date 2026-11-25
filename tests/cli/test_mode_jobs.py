@@ -44,14 +44,25 @@ def test_nia_job_defaults_to_pro(hiro_home):
 
 
 def test_daily_items(hiro_home):
-    assert argv("daily", {"items": "presents,mission_reward"})[2:] == ["--only", "presents,mission_reward", "--own"]
+    assert argv("daily", {"items": "presents,mission_reward"})[2:] == ["--only", "presents,mission_reward"]
+    assert argv("daily", {"items": "assignment,contest"})[2:] == ["--only", "assignment,contest"]
     assert argv("daily", {"items": "contest"})[2:] == ["--only", "contest"]
     assert argv("daily", {})[2:] == []
 
 
 def test_run_start_accepts_new_params(run_cli):
     code, env = run_cli(
-        "run", "start", "hajime", "--idol", "i_card-skin-shro-3-007", "--difficulty", "master", "--support-set", "2"
+        "run",
+        "start",
+        "hajime",
+        "--idol",
+        "i_card-skin-shro-3-007",
+        "--difficulty",
+        "master",
+        "--support-set",
+        "2",
+        "--memory-set",
+        "1",
     )
     assert code == 3 and "MASTER" in env["data"]["pending"]["summary"].upper()
     code, env = run_cli("run", "start", "daily", "--items", "presents,nonsense")
@@ -79,3 +90,12 @@ def test_summary_uses_idol_card_name_from_catalog(hiro_home):
     for kind in ("hif", "hajime", "nia"):
         s = KINDS[kind].summary({"idol": "i_card-skin-shro-3-007"})
         assert "【Campus mode!!】篠澤広" in s and "i_card" not in s, s
+
+
+def test_final_rank_only_for_hajime():
+    a = argv("hajime", {"command": "new", "idol": "i_card-jsna-3-006", "difficulty": "pro", "final_rank": 1})
+    assert a[a.index("--final-rank") + 1] == "1"
+    assert "--final-rank" not in argv(
+        "nia", {"command": "new", "idol": "i_card-jsna-3-006", "difficulty": "pro", "final_rank": 1}
+    )
+    assert "--final-rank" not in argv("hajime", {"command": "new", "idol": "i_card-jsna-3-006", "difficulty": "pro"})

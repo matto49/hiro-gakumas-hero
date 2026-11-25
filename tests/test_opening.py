@@ -599,3 +599,40 @@ def test_start_skip_loop_does_not_tap_confirm_on_step4(monkeypatch):
     with pytest.raises(ResumeBlocked):
         opening.start(rt)
     assert (520, 1150) not in rt.raw_device.taps and rt.raw_device.taps.count((500, 1150)) >= 2
+
+
+def test_step1_idol_switch_dialog_keeps_chosen_card(monkeypatch):
+    """Mac 11-24 18:27（藤田ことね）：第 1 步点了「次へ」，游戏弹「プロデュースアイドル変更：新しく切り替え可能な
+    プロデュースアイドルを入手しています。切り替えますか？」，原来没处理，20 秒后停机。开局方案是按选中的这张卡出的，
+    点「切り替えない」保留它，再到第 2 步。"""
+    from hiro.vision.ocr import Box as OBox
+
+    _step1(monkeypatch, None)
+    s1 = frame({"Produce.TextStepIndicator1": (93, 49), "Produce.Step1.ButtonNext": (353, 1093)})
+    s1.selected = True
+    dlg = frame(
+        {}, [Text("×切り替えない", OBox(130, 1140, 330, 1180)), Text("✓切り替える", OBox(400, 1140, 620, 1180))]
+    )
+    dlg.__dict__.update(
+        has_dialog=True,
+        dialog={"kind": "other", "title": "プロデュースアイドル変更", "danger": False, "y": 590, "body": ""},
+    )
+    s2 = frame({"Produce.TextStepIndicator2": (1, 1)})
+    rt, _ = rig(monkeypatch, [s1], on_tap=lambda taps: [dlg] if len(taps) == 1 else [s2])
+    opening.step1(rt, "i_card-fktn-3-000")
+    assert rt.raw_device.taps == [(353, 1093), (230, 1160)]  # 次へ，然后是「切り替えない」，没点「切り替える」
+
+
+def test_idol_switch_dialog_title_on_real_frame():
+    """实机帧（Mac 11-24 18:28）：弹窗标题读得出「プロデュースアイドル変更」，按钮文字读得出「切り替えない」。"""
+    from hiro.vision.offline import load
+
+    import cv2
+
+    path = os.path.join(os.environ.get("HIRO_FIXTURES", os.path.join(os.path.dirname(__file__), "fixtures")),
+                        "opening/idol-switch-dialog-mac-20261124.jpg")  # fmt: skip
+    if not os.path.exists(path):
+        pytest.skip("需要实机截图 opening/idol-switch-dialog-mac-20261124.jpg")
+    f = Frame(load(cv2.imread(path)), 0.0)
+    assert f.has_dialog and opening.IDOL_SWITCH_TITLE in (f.dialog or {}).get("title", "")
+    assert opening._idol_switch_keep(f) is not None

@@ -49,7 +49,9 @@ def main() -> int:
     plan = json.loads(plan_path.read_text(encoding="utf-8"))
 
     d = open_tool_device()
-    calib_dir = Path("reports/live/calib") / f"{time.strftime('%Y%m%d-%H%M%S')}-编成菜单"
+    from hiro.imgio import calib_root
+
+    calib_dir = calib_root() / f"{time.strftime('%Y%m%d-%H%M%S')}-编成菜单"
     n = [0]
 
     def calib(img, tag):

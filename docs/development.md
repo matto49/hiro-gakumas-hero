@@ -27,7 +27,9 @@
   git config blame.ignoreRevsFile .git-blame-ignore-revs
   ```
 
-- 格式化之前开的分支合进来会有大量冲突：先在分支上 `ruff format .` 提交一次，再合并，冲突会少很多。
+- 全仓库格式化（24468ce）之前开的分支：**直接合 main，不要先在分支上整仓 `ruff format .`**。实测先整仓格式化再合，冲突会从两三个文件涨到七十多个（main 那边除了格式化还有 lint 自动修复和后续改动）。
+  合 main 后剩下的冲突，大多是同一处一边格式化了、一边改了内容：把共同祖先和本分支两边的版本先 `ruff format` 一下，再和 main 做三方合并（`git merge-file`），剩下的才是真冲突。
+  最后只对本分支改过的 `.py` 跑 `ruff check --fix` 和 `ruff format`，再按 CI 跑一遍检查。
 
 ## 类型检查（basedpyright）
 
@@ -47,6 +49,6 @@
 | `engine-wheels` | 引擎源码在 main 上变了 | 编四个平台的引擎 wheel 发 Release |
 
 - **actions 一律钉提交 SHA**，后面注释写版本，例如 `actions/checkout@fbc6…  # v5.1.0`。不要写 `@v5` 这种标签：标签能被改指向别的代码。
-- **Dependabot**（`.github/dependabot.yml`）每周提升级 PR：actions、pip、`app/` 的 bun 和 Go 依赖。同一生态的小版本合成一个 PR。`vendor/` 不管，跟着上游走。
+- **Dependabot**（`.github/dependabot.yml`）每周提升级 PR：actions、pip、`app/` 的 Go 依赖（桌面程序是纯 Go 的 mygo 原生 ui，没有 npm / bun 依赖）。同一生态的小版本合成一个 PR。`vendor/` 不管，跟着上游走。
 - **pip 缓存**：各工作流的 `setup-python` 按 `pyproject.toml` 缓存下载的包，依赖没变时装得快。
 - `pip-audit` 只查 `.[dev]` 和基础依赖；`play` / `bench` 里有 git 依赖和 KAA 子模块，CI 不装。

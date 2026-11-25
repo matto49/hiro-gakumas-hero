@@ -6,7 +6,11 @@ from hiro.contracts import Action, ActionKind
 from hiro.produce import drink_swap
 from tests.test_interval import Fake
 
+import pytest
 from test_shop_exec import frame
+
+# 经 test_shop_exec.frame 读私有截图样例（原来靠 test_interval 顶层 import kaa 整文件跳过）
+pytestmark = pytest.mark.fixtures
 
 
 def _new_checked(img):

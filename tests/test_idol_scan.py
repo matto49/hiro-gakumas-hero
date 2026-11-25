@@ -51,3 +51,73 @@ def test_swipe_stays_inside_the_grid_and_overlaps():
     in_filter_bar = 205 <= x1 <= 695 and 975 <= y1 <= 1025
     assert not in_filter_bar and m.GRID_TOP < y2 < y1 < m.GRID_BOTTOM
     assert (y1 - y2) * 1.5 < (m.ROW_Y[-1] - m.ROW_Y[0])
+
+
+def test_attach_ids_matches_fullwidth_punctuation(monkeypatch):
+    """主数据卡名是全角「！」（Yellow Big Bang！），OCR 读成半角「!」：全角半角统一后要对上。"""
+
+    class Cat:
+        def rows_merged(self, table):
+            if table == "Character":
+                return [{"id": "fktn", "lastName": "藤田", "firstName": "ことね"}]
+            return [{"id": "i_card-fktn-3-001", "name": "Yellow Big Bang！", "characterId": "fktn"},
+                    {"id": "i_card-fktn-3-006", "name": "White Night! White Wish!", "characterId": "fktn"}]  # fmt: skip
+
+    monkeypatch.setattr("hiro.state.context.catalog", lambda: Cat())
+    inv = {"idols": [{"title": "Yellow Big Bang!", "character": "藤田ことね"},
+                     {"title": "White Night! White Wish!", "character": "藤田ことね"}]}  # fmt: skip
+    got = m.attach_ids(inv)["idols"]
+    assert [c["idol_card_id"] for c in got] == ["i_card-fktn-3-001", "i_card-fktn-3-006"]
+
+
+class _IdolCat:
+    def rows_merged(self, table):
+        if table == "Character":
+            return [
+                {"id": "fktn", "lastName": "藤田", "firstName": "ことね"},
+                {"id": "ttmr", "lastName": "月村", "firstName": "手毬"},
+            ]
+        return [{"id": "i_card-fktn-2-000", "name": "カワイイ♡はじめました", "characterId": "fktn", "rarity": "IdolCardRarity_Sr"},
+                {"id": "i_card-ttmr-1-000", "name": "学園生活", "characterId": "ttmr", "rarity": "IdolCardRarity_R"}]  # fmt: skip
+
+
+def test_attach_ids_matches_heart_variants(monkeypatch):
+    """主数据「カワイイ♡はじめました」，OCR 读成实心「♥」。"""
+    monkeypatch.setattr("hiro.state.context.catalog", lambda: _IdolCat())
+    got = m.attach_ids({"idols": [{"title": "カワイイ♥はじめました", "character": "藤田ことね", "rarity": "SR"}]})[
+        "idols"
+    ]
+    assert got[0]["idol_card_id"] == "i_card-fktn-2-000"
+
+
+def test_attach_ids_fills_rarity_from_master(monkeypatch):
+    """稀有度 OCR 常读不到（R 卡的「学園生活」几乎全空）：对上 id 后按主数据补；读到了的不改。"""
+    monkeypatch.setattr("hiro.state.context.catalog", lambda: _IdolCat())
+    got = m.attach_ids({"idols": [{"title": "学園生活", "character": "月村手毬", "rarity": None},
+                                  {"title": "カワイイ♡はじめました", "character": "藤田ことね", "rarity": "SR"}]})["idols"]  # fmt: skip
+    assert [c["rarity"] for c in got] == ["R", "SR"]
+
+
+def test_import_reattaches_missing_idol_ids(monkeypatch):
+    """入库时再对一次主数据：旧扫描（id 空、稀有度空）重新导入就能补上，不用重扫。"""
+    from hiro.cli.cmd_info import normalize_idols
+
+    monkeypatch.setattr("hiro.state.context.catalog", lambda: _IdolCat())
+    rows = normalize_idols(
+        {"idols": [{"title": "学園生活", "character": "月村手毬", "rarity": None, "idol_card_id": None}]}
+    )
+    assert (rows[0]["id"], rows[0]["rarity"]) == ("i_card-ttmr-1-000", "R")
+
+
+def test_import_retries_memory_card_name(monkeypatch):
+    """回忆扫描时卡名没对上（card 为空、只有 card_text），入库时按卡名再对一次。"""
+    from hiro.cli.cmd_info import normalize_memories
+
+    monkeypatch.setattr(
+        "hiro.vision.deck.card_from_name",
+        lambda t: (
+            {"card_id": "p_card-02-act-3_001", "name": "200%スマイル", "upgrade": 1} if t == "200％スマイル＋" else None
+        ),
+    )
+    rows = normalize_memories({"entries": [{"card": None, "card_text": "200％スマイル＋", "stats": {}}]})
+    assert (rows[0]["card_id"], rows[0]["card"]) == ("p_card-02-act-3_001", "200%スマイル")

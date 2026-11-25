@@ -677,7 +677,7 @@ class Exam:
         self.remaining_actions -= 1
         self.log('play', card=card.card_id)
         cmds = []
-        self.increment_play_counts(card)
+        self.increment_play_counts(card, ctx)
         cmds += self.fire(self.card_play_enchants(card, ctx))
         cmds += difftrig.card_enchant_cmds(self, lambda c, tr, se: self.card_enchant_play_valid(tr, se, card, ctx), [card])
         repeats = 1 + self.use_play_count_buff(card)
@@ -731,7 +731,13 @@ class Exam:
 
     COUNT_PHASES = (PH['ExamPlayCountInterval'], PH['ExamPlayTurnCountInterval'], PH['ExamPlayCountIntervalAfter'])
 
-    def increment_play_counts(self, card):
+    # 带场面条件的出牌计数只计出牌开始（付费前）条件成立的那几次（#43，GKMS rev383 card_play_select HIF-97 / rev338）；
+    # 实机：「憧れ続けた輝き」好調 6、7 回合时打的好調卡不计数。ExamPlayTurnCountInterval 不看场面条件
+    FIELD_GATED_COUNT_PHASES = (PH['ExamPlayCountInterval'], PH['ExamPlayCountIntervalAfter'])
+
+    def increment_play_counts(self, card, ctx=None):
+        def counts(tr, p):
+            return p not in self.FIELD_GATED_COUNT_PHASES or triggers.field_status_valid(self, tr, ctx)
         for s in self.status.effects:
             if not isinstance(s, TriggerEffect):
                 continue
@@ -743,7 +749,8 @@ class Exam:
             if sid and not is_search_target(card, self.master.search(sid)):
                 continue
             for p in hit:
-                s.phase_count[p] = s.phase_count.get(p, 0) + 1
+                if counts(s.trigger, p):
+                    s.phase_count[p] = s.phase_count.get(p, 0) + 1
         # 卡附魔的出牌计数（检索为 Target 时要求打出的卡命中）
         def hit(c, tr):
             sid = tr.get('produceCardSearchId')
@@ -751,7 +758,8 @@ class Exam:
                 return True
             srch = self.master.search(sid)
             return srch.get('isSelf') and c is card or is_search_target(card, srch)
-        difftrig.inc_card_enchant_phase(self, self.COUNT_PHASES, hit)
+        for p in self.COUNT_PHASES:   # 逐阶段：每张卡的计数仍按 COUNT_PHASES 顺序记
+            difftrig.inc_card_enchant_phase(self, (p,), lambda c, tr, p=p: hit(c, tr) and counts(tr, p))
 
     def card_play_enchants(self, card, ctx):
         """出牌时附魔：ExamCardPlay（GetPhaseEffectList / GetCardPlayValidEffectList）与出牌计数（IsCardPlayValidTrigger：
@@ -778,10 +786,18 @@ class Exam:
     def card_play_after_enchants(self, card, ctx):
         out = []
         for s in list(self.status.effects):
-            if not isinstance(s, TriggerEffect) or not self._available(s):
+            if not isinstance(s, TriggerEffect):
                 continue
             tr = s.trigger
             phases = tr.get('phaseTypes') or []
+            # ExamPlayCountIntervalAfter：计数在出牌开始时判场面条件、这里在出牌后再判。只有这次出牌计了数（计数比上次判定时涨了）
+            # 才可能发动，没计数而卡牌效果让条件成立时不发动（#44）。每次判定都记下计数，用完次数暂不可用时也记
+            fresh = True
+            if PH['ExamPlayCountIntervalAfter'] in phases:
+                n = s.phase_count.get(PH['ExamPlayCountIntervalAfter'], 0)
+                fresh, s.after_seen_count = n != s.after_seen_count, n
+            if not self._available(s):
+                continue
             if not triggers.target_search_ok(self, tr, card):
                 continue
             if PH['ExamCardPlayAfter'] in phases:
@@ -790,7 +806,7 @@ class Exam:
             elif PH['ExamPlayCountIntervalAfter'] in phases:
                 n = s.phase_count.get(PH['ExamPlayCountIntervalAfter'], 0)
                 v = (tr.get('phaseValues') or [1])[0] or 1
-                if n >= 1 and n % v == 0 and triggers.trigger_field_valid(self, tr, ctx, target_cards=[card]):
+                if n >= 1 and n % v == 0 and fresh and triggers.trigger_field_valid(self, tr, ctx, target_cards=[card]):
                     out.append(s)
         return out
 

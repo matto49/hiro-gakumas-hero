@@ -96,6 +96,7 @@ def new_exam(save, master, seed, deck=None, items=None, start_enchants=None, ran
     for s in sc.effects:
         if keep_start_enchants and isinstance(s, TriggerEffect) and s.source.get('origin') and not s.source.get('item'):
             s.turn_count, s.phase_count, s.passing = 0, {}, False
+            s.after_seen_count = 0
             keep.append(s)
     sc.effects = keep
     for sid in skills or []:   # ProduceSkill（回忆 / 支援 / 偶像）里的考试附魔（produceEffectType 60）= SetUpExam 的开考附魔

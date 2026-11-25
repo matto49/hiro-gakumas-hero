@@ -145,9 +145,9 @@ class Rescuer:
             from hiro.brain.llm import from_spec
 
             try:
-                self._llm = from_spec(None, timeout=LLM_TIMEOUT)
+                self._llm = from_spec(None, source="rescue", timeout=LLM_TIMEOUT)
             except TypeError:  # mock 不收 timeout
-                self._llm = from_spec(None)
+                self._llm = from_spec(None, source="rescue")
         return self._llm
 
     def due(self, stuck_s: float, *, dialog: bool = False, img=None) -> bool:

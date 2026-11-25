@@ -114,7 +114,7 @@ def _status(s):
                      'limit_in_turn': s.limit_in_turn, 'limit_in_turn_remain': s.limit_in_turn_remain, 'enchant_id': s.enchant_id or '',
                      'origin_type': s.origin_type, 'source': {k: v for k, v in s.source.items() if v not in (None, '')},
                      'override_type': s.override_type, 'from_effect_ids': list(s.from_effect_ids), 'from_enchant': bool(s.from_enchant),
-                     'encore': bool(s.encore)}
+                     'encore': bool(s.encore), 'after_seen_count': s.after_seen_count}
     return d
 
 

@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+
+	"github.com/matto49/hiro-gakumas-hero/app/hiroapi"
 )
 
 // Hiro 调工具层的 hiro 命令行：界面和内置 agent 都只通过它干活（设计稿 §4）。
@@ -22,32 +24,15 @@ type Hiro struct {
 	mu  sync.Mutex
 }
 
-// CliError 是命令失败时信封里的 error：code 给程序判断，message / hint 是写给人看的白话。
-type CliError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Hint    string `json:"hint,omitempty"`
-}
-
-// Pending 是会动游戏的命令返回的待确认：用户点了确认卡才 confirm。
-type Pending struct {
-	ID        string  `json:"id"`
-	Command   string  `json:"command"`
-	Summary   string  `json:"summary"`
-	ExpiresAt float64 `json:"expires_at"`
-}
-
-// Result 是一次命令的结果：信封原样带回，再加上退出码和解析出的待确认。
-type Result struct {
-	OK      bool            `json:"ok"`
-	Data    json.RawMessage `json:"data,omitempty"`
-	Error   *CliError       `json:"error,omitempty"`
-	Pending *Pending        `json:"pending,omitempty"`
-	Exit    int             `json:"exit"`
-}
+// 信封类型在 hiroapi 包（界面子包也用）；这里留别名，老代码不用改。
+type (
+	CliError = hiroapi.CliError
+	Pending  = hiroapi.Pending
+	Result   = hiroapi.Result
+)
 
 // PendingExit 是待确认的退出码（hiro.cli.main.PENDING_EXIT）。
-const PendingExit = 3
+const PendingExit = hiroapi.PendingExit
 
 // ResolveHiroCommand 找 hiro 命令：HIRO_CLI（JSON 数组）> 程序自己装的环境（HIRO_HOME/src/.venv，见 bootstrap.go）> PATH 上的 hiro。
 func ResolveHiroCommand() []string {

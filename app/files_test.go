@@ -19,17 +19,22 @@ func TestHomeFilesServesOnlySpritesAndTraceFrames(t *testing.T) {
 	}
 	must(filepath.Join(home, "catalog", "sprites", "a.png"), "sprite")
 	must(filepath.Join(home, "work", "traces", "j1", "frames", "00001.jpg"), "frame")
+	must(filepath.Join(home, "jobs", "j2", "frames", "00081-195535-opening.jpg"), "job frame")
+	must(filepath.Join(home, "jobs", "j2", "events.jsonl"), "events")
 	must(filepath.Join(home, "hiro.db"), "db")
 	must(filepath.Join(home, "service.json"), "token")
 	h := homeFiles(home, nil)
 	cases := map[string]int{
-		"/sprites/a.png":              200,
-		"/traces/j1/frames/00001.jpg": 200,
-		"/hiro.db":                    404,
-		"/service.json":               404,
-		"/sprites/../service.json":    404,
-		"/traces/j1/../../../hiro.db": 404,
-		"/traces/j1/steps.jsonl":      404,
+		"/sprites/a.png":                           200,
+		"/traces/j1/frames/00001.jpg":              200,
+		"/hiro.db":                                 404,
+		"/service.json":                            404,
+		"/sprites/../service.json":                 404,
+		"/traces/j1/../../../hiro.db":              404,
+		"/traces/j1/steps.jsonl":                   404,
+		"/jobs/j2/frames/00081-195535-opening.jpg": 200, // 初 / N.I.A 的帧存在任务目录
+		"/jobs/j2/events.jsonl":                    404,
+		"/jobs/j2/frames/../events.jsonl":          404,
 	}
 	for path, want := range cases {
 		rec := httptest.NewRecorder()

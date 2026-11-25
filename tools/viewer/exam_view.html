@@ -387,7 +387,7 @@ const notesOf = (e, s) => NOTES.filter(n => sameStep(n, e, s));
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 1600); }
 
 function renderHeader() {
-  $("run").textContent = `${DATA.run} · 生成于 ${DATA.generated}`;
+  $("run").textContent = `${DATA.run} · 生成于 ${DATA.generated}` + (DATA.uses_hidden ? " · 用了隐藏信息（战绩单独统计）" : "");
   const e = exam();
   $("title").textContent = examName(e);
   const r = e.result || {};

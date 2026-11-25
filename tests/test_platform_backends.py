@@ -1,11 +1,10 @@
-"""设备后端与 OCR 后端：与 KAA 支持的平台对齐（HIRO_DEVICE / HIRO_OCR），以及非 macOS 下能导入。"""
+"""设备后端与 OCR 后端（HIRO_DEVICE / HIRO_OCR），以及非 macOS 下能导入。"""
 
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-from hiro import device
 from hiro.vision import ocr
 
 import numpy as np
@@ -15,56 +14,6 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 
 
 # ---------------------------------------------------------------- 设备后端
-def test_auto_on_mac_is_maatools():
-    assert device.resolve_backend("auto", platform="darwin") == "maatools"
-
-
-def test_original_playcover_quartz_is_no_longer_supported(monkeypatch):
-    monkeypatch.setenv("HIRO_DEVICE", "quartz")
-    with pytest.raises(ValueError, match="可选"):
-        device.requested_backend()
-
-
-def test_maatools_unreachable_says_hguandl_playcover(monkeypatch):
-    pytest.importorskip("kotonebot")
-    import socket
-
-    from hiro.devices import maatools
-
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()  # 没人在听的端口
-    monkeypatch.setattr(device, "MaaToolsImpl", lambda dev: maatools.MaaToolsImpl(dev, port))
-    with pytest.raises(RuntimeError, match="hguandl"):
-        device.connect("maatools")
-
-
-def test_auto_elsewhere_requires_explicit_device():
-    with pytest.raises(RuntimeError, match="HIRO_DEVICE"):
-        device.resolve_backend("auto", platform="win32")
-
-
-def test_explicit_backend_passes_through(monkeypatch):
-    for name in ("maatools", "adb", "mumu", "leidian", "dmm"):
-        monkeypatch.setenv("HIRO_DEVICE", name)
-        assert device.resolve_backend() == name
-
-
-def test_unknown_backend_is_rejected(monkeypatch):
-    monkeypatch.setenv("HIRO_DEVICE", "bluestacks")
-    with pytest.raises(ValueError, match="可选"):
-        device.requested_backend()
-
-
-def test_playcover_only_fallbacks(monkeypatch):
-    monkeypatch.setattr(device, "BACKEND", None)
-    monkeypatch.setenv("HIRO_DEVICE", "mumu")
-    assert device.is_playcover() is False
-    monkeypatch.setenv("HIRO_DEVICE", "maatools")
-    assert device.is_playcover() is True
-    monkeypatch.setattr(device, "BACKEND", "adb")  # connect 之后以实际后端为准
-    assert device.is_playcover() is False
 
 
 def test_landscape_guard_inactive_never_toggles_fullscreen():
@@ -77,65 +26,7 @@ def test_landscape_guard_inactive_never_toggles_fullscreen():
     assert g.in_live(black) is True  # 判断 LIVE 照常（调用方据此不按「认不出」停机）
 
 
-# ---------------------------------------------------------------- KAA 后端配置
-kaa_env = pytest.importorskip("hiro.kaa_env")
-
-
-@pytest.fixture
-def kaa_config():
-    pytest.importorskip("kaa.config.schema")
-    from kaa.config.schema import KaaConfig
-
-    return KaaConfig
-
-
-def test_playcover_keeps_kaa_default(kaa_config):
-    for name in ("auto", "maatools"):
-        assert kaa_env.kaa_backend(name) is None
-
-
-@pytest.mark.parametrize(
-    ("name", "platform", "kind", "shot"),
-    [
-        ("adb", "darwin", "custom", "adb"),
-        ("leidian", "win32", "leidian", "adb"),
-        ("mumu", "win32", "mumu12v5", "adb"),  # nemu_ipc 点击送不到应用显示（GKMS 第一–三局）
-        ("mumu", "darwin", "mumu12v5", "adb"),
-        ("dmm", "win32", "dmm", "windows_background"),
-    ],
-)
-def test_kaa_backend_defaults_pass_kaa_validation(kaa_config, name, platform, kind, shot):
-    from kaa.config.validation import validate_profile_config
-
-    b = kaa_env.kaa_backend(name, platform=platform)
-    assert (b.lifecycle.type, b.screenshot_impl) == (kind, shot)
-    cfg = kaa_config()
-    cfg.backend = b
-    assert [i.message for i in validate_profile_config(cfg) if i.severity == "error"] == []
-
-
-def test_kaa_backend_adb_address_and_instance(kaa_config):
-    b = kaa_env.kaa_backend("adb", adb="127.0.0.1:16384")
-    assert (b.connection.type, b.connection.ip, b.connection.port) == ("tcp", "127.0.0.1", 16384)
-    m = kaa_env.kaa_backend("mumu", instance="2", platform="win32")
-    assert m.connection.type == "auto" and m.lifecycle.instance_id == "2"
-    d = kaa_env.kaa_backend("mumu", platform="win32")
-    assert d.lifecycle.instance_id == "0"  # 单开缺省 0（KAA 不设会报错）
-    assert d.lifecycle.mumu_background_mode is True  # MuMu 6 不开后台模式，nemu_ipc 截到的是桌面
-    assert (
-        kaa_env.kaa_backend("mumu", platform="win32", screenshot="nemu_ipc").screenshot_impl == "nemu_ipc"
-    )  # 显式指定仍可用
-    assert kaa_env.kaa_backend("mumu", platform="win32", mumu_background=False).lifecycle.mumu_background_mode is False
-    with pytest.raises(ValueError, match="ip:port"):
-        kaa_env.kaa_backend("adb", adb="127.0.0.1")
-
-
-def test_bad_screenshot_combo_is_caught_by_kaa_validation(kaa_config):
-    from kaa.config.validation import validate_profile_config
-
-    cfg = kaa_config()
-    cfg.backend = kaa_env.kaa_backend("dmm", screenshot="adb")
-    assert any(i.severity == "error" for i in validate_profile_config(cfg))
+formation_env = pytest.importorskip("hiro.formation_env")
 
 
 # ---------------------------------------------------------------- OCR 后端
@@ -212,7 +103,7 @@ class Block:
         if name.split('.')[0] in ('AppKit', 'Quartz', 'Vision', 'Foundation', 'objc'):
             raise ImportError('blocked: ' + name)
 sys.meta_path.insert(0, Block())
-import hiro.vision.ocr as o, hiro.loop.landscape, hiro.device as d
+import hiro.vision.ocr as o, hiro.loop.landscape
 o._engine = None
 import os; os.environ.pop('HIRO_OCR', None)
 assert o.engine() == 'rapidocr', o.engine()
@@ -338,55 +229,6 @@ def test_r1_turn_weighted_gain_prefers_heavier_r1_attr():
     assert (
         C.r1_turn_weighted_gain(SimpleNamespace(**{**st.__dict__, "mode": "produce-007"}), {"Vo": 180}) is None
     )  # 选拔不算
-
-
-def test_emulator_swipe_keeps_duration():
-    """MuMu / adb 后端：带时长的滑动不再被 AdbImpl 丢掉时长（Windows 第二局换卡翻牌组每次都快速划）。"""
-    from hiro.device import _keep_swipe_duration
-
-    class Scaler:
-        def logic_to_physical(self, p):
-            return (p[0] * 1.5, p[1] * 1.5)
-
-    class NemuIpcImpl:
-        def __init__(self):
-            self.calls = []
-
-        def swipe(self, *a):
-            self.calls.append(a)
-
-    class Adb:
-        def __init__(self):
-            self.cmds = []
-
-        def shell(self, cmd):
-            self.cmds.append(cmd)
-
-    class AdbImpl:
-        def __init__(self):
-            self.adb = Adb()
-
-    class Dev:
-        def __init__(self, touch, commands):
-            self.scaler, self._touch, self._multitouch, self.commands = Scaler(), touch, None, commands
-            self.plain = []
-
-        def swipe(self, *a, **kw):
-            self.plain.append(a)
-
-    nemu, adb = NemuIpcImpl(), AdbImpl()
-    d = Dev(nemu, adb)
-    _keep_swipe_duration(d)
-    d.swipe(100, 200, 100, 400, duration=0.6)
-    assert nemu.calls == [(150, 300, 150, 600, 0.6)] and adb.adb.cmds == []
-    d.swipe(1, 2, 3, 4)  # 不带时长照旧
-    assert d.plain == [(1, 2, 3, 4, None)]
-
-    adb2 = AdbImpl()
-    d2 = Dev(adb2, adb2)
-    _keep_swipe_duration(d2)
-    d2.swipe(100, 200, 100, 400, duration=0.4)
-    assert adb2.adb.cmds == ["input touchscreen swipe 150 300 150 600 400"]
 
 
 def test_winocr_word_joining():
@@ -595,7 +437,7 @@ def test_r1_done_in_trace(tmp_path):
         {"observation": {"page": {"name": "HIF_FINALS_RANKING"}, "fields": {"kind": kind, "round_result": None}}}
     )
     (d / "steps.jsonl").write_text(page("standings") + "\n", encoding="utf-8")
-    st = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    st = hif.HifCore.__new__(hif.HifCore)
     st.s = NS(trace=NS(dir=str(d)))
     assert st._r1_done_in_trace() is False
     (d / "steps.jsonl").write_text(page("standings") + "\n" + page("round_result") + "\n", encoding="utf-8")

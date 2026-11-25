@@ -1,7 +1,9 @@
 """`hiro secret …`：账号密码（设计稿 §10）。
 
 - 值只由人填写：`hiro secret set <名>` 只从 stdin 读（桌面程序的设置页把输入框的值写进 stdin），不收命令行参数。
-- 存在系统的凭据库里：Mac 钥匙串（Security.framework）、Windows 凭据管理器（advapi32）。本机只另存名字清单。
+- 存在数据目录的 game-secrets.json（权限 0600，只有本人能读），和模型 Key（model-keys.json）同一个做法；
+  名字清单另存 secrets.json。不用系统钥匙串：开发版每次重新构建签名都变，钥匙串每次都弹授权框（用户 11-23 定）。
+  HIRO_SECRET_BACKEND=mac / win 仍可切回 Mac 钥匙串 / Windows 凭据管理器（旧版存过的值不会自动搬过来，要在设置页重填）。
 - 没有任何命令会打印值：list 只给名字；copy 把值带敏感标记写进剪贴板，45 秒后清空（期间用户又复制了别的就不清）。
   报错信息里也不带值。
 - HIRO_SECRET_BACKEND=memory：测试用的进程内后端。
@@ -9,12 +11,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import json
 import os
 import re
 import subprocess
 import sys
+import tempfile
 
 from hiro.cli.home import ensure_home
 from hiro.cli.registry import Arg, CliError, Risk, command
@@ -25,6 +29,79 @@ _NAME = re.compile(r"^[A-Za-z0-9_.@-]{1,64}$")
 
 
 # ============================================================================ 后端
+class FileBackend:
+    """数据目录里的 game-secrets.json（0600）。读改写在跨进程锁里做（设置页和命令行可能同时存）；
+    写入先写独立的临时文件再改名，中途失败不坏旧文件。"""
+
+    def _path(self):
+        return ensure_home() / "game-secrets.json"
+
+    @contextlib.contextmanager
+    def _locked(self):
+        lock = self._path().with_name("game-secrets.lock")
+        fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+
+                os.lseek(fd, 0, os.SEEK_SET)
+                while True:
+                    try:
+                        msvcrt.locking(fd, msvcrt.LK_LOCK, 1)  # 拿不到会自己重试 10 秒再报错
+                        break
+                    except OSError:
+                        continue
+            else:
+                import fcntl
+
+                fcntl.flock(fd, fcntl.LOCK_EX)
+            yield
+        finally:
+            os.close(fd)  # 关闭即释放锁
+
+    def _load(self) -> dict[str, str]:
+        path = self._path()
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except (OSError, ValueError):
+            raise CliError(
+                "secret_store",
+                "保存账号密码的文件读不出来",
+                f"先把 {path} 改名备份（里面可能还有能找回的内容），再到设置 → 账号密码里重新填写",
+            ) from None
+        return data if isinstance(data, dict) else {}
+
+    def _save(self, data: dict[str, str]) -> None:
+        path = self._path()
+        fd, tmp = tempfile.mkstemp(prefix=".game-secrets.", suffix=".tmp", dir=path.parent)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp)
+            raise
+
+    def set(self, name: str, value: str) -> None:
+        with self._locked():
+            data = self._load()
+            data[name] = value
+            self._save(data)
+
+    def get(self, name: str) -> str | None:
+        return self._load().get(name)
+
+    def delete(self, name: str) -> None:
+        with self._locked():
+            data = self._load()
+            if data.pop(name, None) is not None:
+                self._save(data)
+
+
 class MemoryBackend:
     store: dict[str, str] = {}  # noqa: RUF012
 
@@ -186,9 +263,9 @@ class WinCredentials:
 
 
 def backend():
-    kind = os.environ.get("HIRO_SECRET_BACKEND") or (
-        "mac" if sys.platform == "darwin" else "win" if sys.platform == "win32" else ""
-    )
+    kind = os.environ.get("HIRO_SECRET_BACKEND") or "file"
+    if kind == "file":
+        return FileBackend()
     if kind == "memory":
         return MemoryBackend()
     if kind == "mac":

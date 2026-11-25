@@ -30,16 +30,8 @@ class GameNotForeground(RuntimeError):
 
 
 def adb_shell(device=None):
-    """KAA 设备里的 adb shell（AdbImpl.adb.shell），没有返回 None。"""
-    if device is None:
-        from hiro import device as hdev
-
-        device = getattr(hdev, "DEVICE", None)  # hiro.device.connect() 建的设备
-    for name in ("_touch", "_multitouch", "commands", "_screenshot"):
-        part = getattr(device, name, None)
-        if type(part).__name__ == "AdbImpl" and getattr(part, "adb", None) is not None:
-            return part.adb.shell
-    return None
+    """设备的 adb shell：hiro.devices.adb.AdbDevice.shell；没给设备、或设备没有 shell（Mac / DMM）返回 None。"""
+    return getattr(device, "shell", None) if device is not None else None
 
 
 def focus_package(text: str) -> str | None:
@@ -80,9 +72,7 @@ WINDOW_TITLE = "gakumas"  # DMM 版游戏窗口标题（KAA 的 WindowQuery 用�
 
 
 def is_dmm() -> bool:
-    from hiro import device as hdev
-
-    return (getattr(hdev, "BACKEND", None) or os.environ.get("HIRO_DEVICE")) == "dmm"
+    return (os.environ.get("HIRO_DEVICE") or "").strip().lower() == "dmm"
 
 
 def dmm_window_alive(find=None) -> bool | None:
@@ -101,11 +91,11 @@ def dmm_window_alive(find=None) -> bool | None:
         return None
 
 
-def alive() -> bool | None:
-    """游戏还在不在：DMM 版看窗口，安卓后端看前台应用；不知道返回 None。"""
+def alive(device=None) -> bool | None:
+    """游戏还在不在：DMM 版看窗口，安卓后端看前台应用（device 要有 adb shell）；不知道返回 None。"""
     if is_dmm():
         return dmm_window_alive()
-    return foreground(adb_shell())
+    return foreground(adb_shell(device))
 
 
 def is_landscape(img) -> bool:

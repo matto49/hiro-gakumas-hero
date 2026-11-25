@@ -37,3 +37,10 @@ def test_same_is_whole_string():
     assert not same("プロデュース編成・スキルカード", "プロデュース編成")
     assert same("決定", "決定") and not same("決走", "決定")
     assert not same("プロデュース", "プロデュース編成")  # 首页按钮不能当成子菜单项
+
+
+def test_fold_chinese_glyph_ba():
+    """SIMD OCR 把「選抜試験」读成中文字形「選拔試験」（11-24）：4 个字的词不容错，靠字形归一。"""
+    from hiro.vision.textnorm import contains, same
+
+    assert same("選拔試験", "選抜試験") and contains("16位以上で選拔試験3突破", "選抜試験")

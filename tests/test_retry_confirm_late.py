@@ -3,7 +3,7 @@
 from types import SimpleNamespace as NS
 
 import hiro.produce.hif as hif
-from hiro.produce.hif import HiroHifStrategy
+from hiro.produce.hif import HifCore
 from hiro.vision.ocr import Box, Text
 
 
@@ -30,7 +30,7 @@ def test_late_confirm_dialog_is_pressed(monkeypatch):
     monkeypatch.setattr(hif, "device", NS(click=lambda *r: clicks.append(r), screenshot=lambda: None))
     monkeypatch.setattr(hif, "sleep", lambda s: clock.__setitem__("t", clock["t"] + s))
     monkeypatch.setattr(hif.time, "monotonic", lambda: clock["t"])
-    st = HiroHifStrategy.__new__(HiroHifStrategy)
+    st = HifCore.__new__(HifCore)
     st._retries_so_far = lambda label: 0
     st.s = NS(note=lambda *a: None)
     kind = st._click_retry("r2", b("再挑戦", 1160), [b("再挑戦", 1160), b("本日あと1回無料", 940)])

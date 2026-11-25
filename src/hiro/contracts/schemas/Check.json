@@ -46,5 +46,5 @@
   "version"
  ],
  "additionalProperties": false,
- "description": "Check(seq: int, field: str, predicted: Any = None, observed: Any = None, verdict: str = 'unpredicted', rule: str = 'prediction', action: str = 'accept', retries: int = 0, note: str | None = None, version: str = '1.2')"
+ "description": "Check(seq: int, field: str, predicted: Any = None, observed: Any = None, verdict: str = 'unpredicted', rule: str = 'prediction', action: str = 'accept', retries: int = 0, note: str | None = None, version: str = '1.3')"
 }

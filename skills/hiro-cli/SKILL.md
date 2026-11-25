@@ -73,6 +73,18 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 
 方案只存在本机；要写进游戏用下面的 `write-formation` 任务（先 `--dry-run` 看差在哪几格）。开局时程序按方案核对编成，对不上就停。
 
+## 模型用量与花费（只读，直接执行）
+
+对局里的决策、认不出画面时的兜底、对话助手，每次调用模型都记一笔（`HIRO_HOME/usage/`）。花费按 `prices.json` 估算（DeepSeek 分高峰 / 空闲时段），以服务商账单为准；Claude / Codex 订阅的调用不另收费，单列「折合 API 价」。
+
+| 命令 | 作用 |
+|---|---|
+| `hiro usage daily [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--breakdown]` | 按天汇总：次数、token（输入 / 输出 / 缓存读 / 缓存写）、花费（按币种）；`--breakdown` 再按模型拆 |
+| `hiro usage monthly [同上]` | 按月汇总 |
+| `hiro usage job <任务编号>` | 一局的用量：合计、按来源（决策 / 兜底）和模型拆、每次调用一行 |
+| `hiro usage chat [--thread <对话编号>]` | 对话助手的用量，按对话分组 |
+| `hiro usage recent [--limit N]` | 最近几局各花了多少（每局一行） |
+
 ## 开局和扫描（会动游戏：待确认）
 
 `hiro run start <种类> [参数]`，同一时间只能跑一个任务，已经有任务在跑会返回 `busy`。
@@ -83,7 +95,7 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | `hajime` | 同上（没有 `--mode`），另有 `--difficulty regular\|pro\|master` | 「初」培育。`new` 必须给 `--idol` |
 | `nia` | 同 `hajime`，`--difficulty pro\|master` | N.I.A 培育。认不出的页面会停下：请用户手动处理后 `--command resume` |
 | `tower` | `--idol <路线的偶像名>`、`--layers N`、`--no-llm` | 偶像之路 |
-| `daily` | `--items activity_funds,presents,assignment,contest,mission_reward,club_reward`（可选，缺省全部） | 日常：活動費、礼物、工作、竞赛、任务奖励、社团。只选前四项以外的（工作、竞赛）时走 KAA |
+| `daily` | `--items activity_funds,presents,assignment,contest,mission_reward,club_reward`（可选，缺省全部） | 日常：活動費、礼物、工作、竞赛、任务奖励、社团 |
 | `scan-account` | — | 读首页顶栏的 PLv / AP / ジュエル（只截一张图，不点；游戏要停在首页、没有弹窗） |
 | `scan-supports` | — | 扫描支援卡（只读，不改编成） |
 | `scan-idols` | — | 扫描偶像卡（只读：偶像一览里逐张点开读卡名，最后点「<<」退出，不点決定），结果进 `hiro info idols` |
@@ -95,6 +107,18 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | `selftest` | `--seconds N` | 自检，只打印几行，不碰游戏 |
 
 对局里用哪个模型，跟着发起开局（`hiro confirm`）那个进程的环境变量走：`HIRO_LLM`（如 `openai:deepseek-flash`、`claude:sonnet`、`codex`）、`OPENAI_BASE_URL`、`OPENAI_API_KEY`；`HIRO_LLM=off` 只用规则和算法。桌面程序按设置里的模型自动传，缺省是 DeepSeek，没填 Key 时是 off。
+
+培育 / 偶像之路的任务都可以加 `--plugins` 和 `--sources` 换用插件（只对这一局生效，覆盖 `HIRO_HOME/strategy.json`）：
+`--plugins produce.ACTION_SELECT=uinet,exam=gnrpa`（决策点=插件 id，`exam.<hif|hajime|nia|tower>` 按模式），`--sources hook`（数据来源插件）。
+配了却没装 / 不能用的插件，对应决策点用内置逻辑，任务照常开。
+
+## 插件（只读，直接执行）
+
+| 命令 | 返回 |
+|---|---|
+| `hiro plugins list` | 已装的插件（数据来源 / 育成 / 考试出牌）：id、版本、能接的页面、能不能用和原因；`HIRO_HOME/strategy.json` 每个决策点配了哪个插件、配置里的错误 |
+
+插件只能交数据和出主意：不能直接点击、不能绕过安全拦截。每一步记录是哪个插件定的（事件 `source` 是 `plugin:<id@版本>`），每局报告里有插件一节；用过插件给的隐藏信息（画面上看不到的）的对局会单独标出来。写插件见 `docs/plugins.md`。
 
 开局前先确认：游戏停在首页；没有别的设备上进行中的培育（那种情况开局确认页绝不按「開始する」，程序会停下来）。
 

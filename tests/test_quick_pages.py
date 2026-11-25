@@ -1,7 +1,6 @@
 """快速判页（协调 2026-11-02：每局 4–7 次「页面认不出超过 30 秒」）。帧取自第十五～十七局 trace，真值按截图目视。"""
 
 import glob
-import sys
 from pathlib import Path
 from types import SimpleNamespace as NS
 
@@ -93,28 +92,22 @@ def test_decision_pages_untouched():
     assert hits == []
 
 
-def test_controller_quick_tap(monkeypatch):
-    """主循环：点一下就过的页面直接点、记观测；P 道具页返回 SELECT_PITEM；认不出返回 None。"""
-    from hiro.loop.controller import HiroController
+def _rt():
+    taps = []
+    return NS(device=NS(tap=lambda x, y: taps.append((x, y))), _quick_wait=None), taps
 
-    img = cv2.imread(str(FIX / "quick/gift-q15-18.jpg"))
-    clicks, observed = [], []
-    monkeypatch.setitem(
-        sys.modules, "kotonebot", NS(device=NS(click=lambda *a: clicks.append(a), screenshot=lambda: img))
-    )
-    session = NS(
-        debug_recog=False,
-        state=NS(page=NS(name="ACTION_SELECT")),
-        observe=lambda **kw: observed.append(kw["scene"]),
-        record=lambda: None,
-    )
-    monkeypatch.setattr(HiroController, "session", session)
-    c = HiroController.__new__(HiroController)
-    assert c._quick_page() == "handled" and observed == ["GIFT"] and len(clicks) == 1
-    img = cv2.imread(str(FIX / "quick/pitem-custom-q16-286.jpg"))
-    assert c._quick_page() == "SELECT_PITEM"
-    img = cv2.imread(str(FIX / "scenes/00041-ACTION_SELECT.jpg"))
-    assert c._quick_page() is None
+
+def test_runtime_quick_tap(monkeypatch):
+    """新主循环（hiro.runtime.play._quick_tap，原 HiroController._quick_page）：点一下就过的页面直接点；
+    P 道具页交给 SELECT_PITEM；认不出返回 None。"""
+    from hiro.runtime import play
+
+    rt, taps = _rt()
+    q = quick_page(cv2.imread(str(FIX / "quick/gift-q15-18.jpg")))
+    assert q is not None and q["page"] == "GIFT" and play._quick_tap(rt, q, 0.0) and len(taps) == 1
+    q = quick_page(cv2.imread(str(FIX / "quick/pitem-custom-q16-286.jpg")))
+    assert q is not None and q.get("dispatch") == "SELECT_PITEM"
+    assert quick_page(cv2.imread(str(FIX / "scenes/00041-ACTION_SELECT.jpg"))) is None
 
 
 def test_battle_drinks_unknown_or_empty_slots_give_nothing(monkeypatch):
@@ -147,30 +140,18 @@ def test_exam_briefing_truth(rel, exam_no, pct):
     assert obs.fields["multiplier_pct"] == pct
 
 
-def test_controller_briefing_read_then_tap(monkeypatch):
-    """主循环：考前说明页演出中不读不点（等定格），停太久（QUICK_WAIT_TAP_S）才点 (12,12) 兜底；
-    定格帧先记 HIF_EXAM_BRIEFING 观测（带 multiplier_pct）再点「タップして次へ」。"""
-    import hiro.loop.controller as C
+def test_runtime_briefing_waits_then_taps():
+    """考前说明页演出中不点（等定格），停太久（QUICK_WAIT_TAP_S）才点 (12,12) 兜底；定格帧点「タップして次へ」。
+    原来测 HiroController._quick_page，2026-11-24 改测新主循环 hiro.runtime.play._quick_tap（倍率读数见 test_exam_briefing_truth）。"""
+    from hiro.runtime import play
 
-    frames = {"img": cv2.imread(str(FIX / "quick/exam-bonus-q17-121.jpg"))}
-    clicks, observed, now = [], [], [0.0]
-    monkeypatch.setitem(
-        sys.modules, "kotonebot", NS(device=NS(click=lambda *a: clicks.append(a), screenshot=lambda: frames["img"]))
-    )
-    monkeypatch.setattr(C.time, "sleep", lambda s: None)
-    monkeypatch.setattr(C.time, "monotonic", lambda: now[0])
-    session = NS(debug_recog=False, state=NS(page=NS(name="ACTION_SELECT")), record=lambda: None,
-                 observe=lambda **kw: observed.append((kw["scene"], (kw["fields"] or {}).get("multiplier_pct"))))  # fmt: skip
-    monkeypatch.setattr(C.HiroController, "session", session)
-    c = C.HiroController.__new__(C.HiroController)
-    assert c._quick_page() == "handled" and clicks == []
-    now[0] = C.QUICK_WAIT_TAP_S - 1
-    assert c._quick_page() == "handled" and clicks == []
-    now[0] = C.QUICK_WAIT_TAP_S + 0.1
-    assert c._quick_page() == "handled" and clicks == [(12, 12)]
-    frames["img"] = cv2.imread(str(FIX / "quick/briefing-tap-q17-123.jpg"))
-    assert c._quick_page() == "handled" and clicks[-1] == (365, 1200)
-    assert observed[-1] == ("HIF_EXAM_BRIEFING", {"Vo": 1413, "Da": 1467, "Vi": 860})
+    rt, taps = _rt()
+    q = quick_page(cv2.imread(str(FIX / "quick/exam-bonus-q17-121.jpg")))
+    assert q is not None and q.get("tap") is None
+    assert not play._quick_tap(rt, q, 0.0) and not play._quick_tap(rt, q, play.QUICK_WAIT_TAP_S - 1) and taps == []
+    assert play._quick_tap(rt, q, play.QUICK_WAIT_TAP_S + 0.1) and taps == [(12, 12)]
+    q = quick_page(cv2.imread(str(FIX / "quick/briefing-tap-q17-123.jpg")))
+    assert play._quick_tap(rt, q, play.QUICK_WAIT_TAP_S + 1) and taps[-1] == (365, 1200)
 
 
 @pytest.mark.parametrize(("rel", "page", "tap"), [("quick/gift-drink-gain-q18-21.jpg", "TRANSITION", None),  # 金色光效（第十八局 #21）

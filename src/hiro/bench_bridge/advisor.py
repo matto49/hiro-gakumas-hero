@@ -204,7 +204,38 @@ def exam_search_algo_spec(label: str = "") -> str:
         return EXAM_DEFAULT_ALGO
     if base.startswith("nia-") and nia_search_on():
         return EXAM_DEFAULT_ALGO
+    if base in hif_qualify_search_rounds():
+        return EXAM_DEFAULT_ALGO
     return ""
+
+
+# H.I.F 选拔考试（qualify-1/2/3）→ 主数据的场次（produce-007 的 AuditionMid1 / Mid2 / Final）
+HIF_QUALIFY_ROUNDS = {"qualify-1": "mid1", "qualify-2": "mid2", "qualify-3": "final"}
+
+
+def hif_qualify_search_rounds() -> set[str]:
+    """HIRO_EXAM_SEARCH_HIF：H.I.F 选拔考试也走 GNRPA（同初 / N.I.A：中转层按培育记账现拼编成，引擎按 battle config 开局）。缺省关；
+    final = 只有选拔第 3 场（用户 11-24：先只在最后一场试）；all = 三场都搜；也可以写场次号 1,3。本战 R1 / R2 不归它管（SearchAdvisor）。"""
+    v = (os.environ.get("HIRO_EXAM_SEARCH_HIF") or "").strip().lower()
+    if v in ("", "0", "off", "false", "no"):
+        return set()
+    if v == "all":
+        return set(HIF_QUALIFY_ROUNDS)
+    if v == "final":
+        return {"qualify-3"}
+    return {f"qualify-{n.strip()}" for n in v.split(",") if n.strip() in ("1", "2", "3")}
+
+
+def searched_label(label: str | None) -> bool:
+    """这一场走「现拼编成 + 搜索」的家族：初 / N.I.A，或开关打开的 H.I.F 选拔场次。"""
+    base = str(label or "").split("#", 1)[0].lower()
+    return base.startswith(("hajime", "nia")) or base in hif_qualify_search_rounds()
+
+
+def round_key(label: str | None) -> str:
+    """标签 → 主数据场次（audition_row 的 round_key）：hajime-final → final，nia-mid2#audition-3 → mid2，qualify-3 → final。"""
+    base = str(label or "").split("#", 1)[0].lower()
+    return HIF_QUALIFY_ROUNDS.get(base) or base.partition("-")[2]
 
 
 def nia_search_on() -> bool:
@@ -606,6 +637,11 @@ class BenchAdvisor:
         base = str(self.label or "").split("#", 1)[0].lower()
         if lo is None and base.startswith(("hajime-", "nia-")) and "-lesson" not in base:
             self._audition_defaults(idol, number)
+        elif lo is None and base in hif_qualify_search_rounds():
+            # H.I.F 的 idol 常是皮肤 id（--idol i_card-skin-…），主数据试镜行按偶像卡 id 查
+            card = self.profile.idol_id if self.profile is not None else idol
+            self.exam["idol"] = card
+            self._audition_defaults(card, None)
         if lo is not None:
             from hiro.bench_bridge.screen import exam_context, exam_fields
 
@@ -648,13 +684,13 @@ class BenchAdvisor:
         label = str(self.label or "").lower()
         if not enabled():
             return
-        if label.startswith(("hajime", "nia")):
+        if label.startswith(("hajime", "nia")) or searched_label(label):
             # 初 / N.I.A：搜索（ExamGnrpa 自己按 UIObs 对齐引擎局面，不要 screen_source 跟踪）。初的考试和课程缺省开，
             # N.I.A 缺省关、HIRO_EXAM_SEARCH_NIA 打开（exam_search_algo_spec）
             spec = exam_search_algo_spec(label)
             if not spec:
                 return
-            what = "初 / N.I.A"
+            what = "H.I.F 选拔" if label.split("#", 1)[0] in HIF_QUALIFY_ROUNDS else "初 / N.I.A"
         elif label.startswith("tower"):
             spec, what = tower_algo_spec(), "偶像之路"
         else:
@@ -687,7 +723,7 @@ class BenchAdvisor:
         from hiro.search.exam_env import ExamUnsupported, audition_row
 
         base = str(self.label or "").split("#", 1)[0].lower()
-        rnd = base.partition("-")[2]
+        rnd = round_key(self.label)
         idol, produce = self.exam.get("idol"), self.exam.get("produce")
         if not idol or not self.deck:
             logger.info("[%s] 拼不了编成（偶像 %s、牌组 %d 张）", self.label, idol, len(self.deck))
@@ -902,6 +938,10 @@ class BenchAdvisor:
             return None, "画面还没读到倍率"
         if len(seen) == 3:
             return seen, "画面三项都读到了"
+        if str(self.label or "").split("#", 1)[0].lower() in HIF_QUALIFY_ROUNDS:
+            # H.I.F 的倍率含回忆 / 亲爱度等加成，实读和粗算的比例三项差很多（11-19 选拔第 3 场：画面 [26000, 23000, 11610]、
+            # 粗算 [4990, 6390, 3150]，比例 5.2 / 3.6 / 3.7），按比例推会差 40%：要三项都读到（画面一般第一步就全有）
+            return None, f"H.I.F 倍率要三项都读到（现在 {sorted(seen)}）"
         if not all(calc.get(a) for a in ("Vo", "Da", "Vi")):
             return None, f"画面只读到 {sorted(seen)}、三属性没记账推不出其余"
         rs = sorted(seen[a] / calc[a] for a in seen)
@@ -920,8 +960,7 @@ class BenchAdvisor:
         from hiro.bench_bridge import tower as tw
         from hiro.search.exam_env import audition_row
 
-        base = str(self.label or "").split("#", 1)[0].lower()
-        rnd = base.partition("-")[2]
+        rnd = round_key(self.label)
         ps = (
             (getattr(getattr(self._session, "state", None), "produce", None) or {}) if self._session is not None else {}
         )
@@ -1087,11 +1126,7 @@ class BenchAdvisor:
                 origin,
                 json.dumps(obs, ensure_ascii=False, separators=(",", ":")),
             )
-            if (
-                self.exam_loadout is None
-                and not self._live_built
-                and str(self.label or "").lower().startswith(("hajime", "nia"))
-            ):
+            if self.exam_loadout is None and not self._live_built and searched_label(self.label):
                 self._live_wait = None
                 self.exam_loadout = self._live_exam_loadout(obs)
                 self._live_built = self._live_wait is None  # 在等倍率：下一步再拼
@@ -1162,7 +1197,7 @@ class BenchAdvisor:
         if action.legal_key() not in keys:
             return self._fallback(state, memory, previews, legal, f"{action.legal_key()} 不在 hiro 的合法动作里")
         self.stats["bench"] += 1
-        if str(self.label or "").lower().startswith(("hajime", "nia")):
+        if searched_label(self.label):
             self._history.append((copy.deepcopy(obs), list(act)))
             self._appended = True
         meta = dict(getattr(d, "meta", None) or {})

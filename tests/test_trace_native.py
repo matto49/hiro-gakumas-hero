@@ -71,9 +71,9 @@ def test_resume_segment_keeps_first_run_and_records_platform(tmp_path, monkeypat
 
 
 def test_platform_meta_resolves_auto_device_on_mac(monkeypatch):
-    import hiro.device as hdev
+    import hiro.devices.base as dbase
     from hiro.devices.base import platform_meta
 
     monkeypatch.delenv("HIRO_DEVICE", raising=False)
-    monkeypatch.setattr(hdev.sys, "platform", "darwin")
+    monkeypatch.setattr(dbase.sys, "platform", "darwin")
     assert platform_meta()["device"] == "maatools"

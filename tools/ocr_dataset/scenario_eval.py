@@ -372,7 +372,6 @@ def report_md(results: list[dict], title: str = "场景校验") -> str:
 
 def read_system(img_path, backend: str) -> dict:
     """真实系统原样读一帧：切 OCR 后端 → 判页（快速判页 + 完整判页链）→ 按判出的页 extract → 整帧文字（找按钮用）。"""
-    from hiro.context import ensure_offline_context
     from hiro.vision import hif, ocr
     from hiro.vision.classify import classify
     from hiro.vision.extract import extract
@@ -380,7 +379,6 @@ def read_system(img_path, backend: str) -> dict:
 
     import cv2
 
-    ensure_offline_context()
     if backend not in ocr.ENGINES or backend == "auto":
         raise ValueError(f"后端 {backend!r} 不认识")
     ocr._engine = backend

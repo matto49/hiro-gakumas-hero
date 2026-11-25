@@ -1,4 +1,4 @@
-# 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
+# 部分逻辑基于 KAA（kotones-auto-assistant，GPL-3.0）
 """相談商店执行器：execute_shop(action, page_fields) -> ExecutionResult。
 
 一步一个动作，由上层循环「decide → execute → 重新 observe」，直到 ShopEnd。画面与流程按选拔赛数据集

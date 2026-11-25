@@ -151,7 +151,7 @@ def watch_wait(*, items: Callable[[], tuple[int, int, Items]], sleep: Callable[[
 
 
 class LiveDriver:
-    """横屏 LIVE 的一拍：两套主循环（hiro.loop.controller、hiro.runtime）共用。"""
+    """横屏 LIVE 的一拍（hiro.runtime 用；原来也给 2026-11-24 删掉的旧主循环 hiro.loop.controller 用）。"""
 
     def __init__(self, env: Mapping[str, str] | None = None, clock: Callable[[], float] = time.monotonic, **wait_kw):
         self.env, self.clock, self.wait_kw = env, clock, wait_kw

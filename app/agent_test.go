@@ -215,3 +215,105 @@ echo '{"ok":true,"data":{"idol":{"name":"Campus mode!!"},"main_attr":"Da","suppo
 		t.Fatalf("plan %v", plan)
 	}
 }
+
+func TestAgentReportsToolsAndUsesContext(t *testing.T) {
+	h, _ := recordingHiro(t)
+	srv, reqs := fakeLLM(t,
+		`{"role":"assistant","content":"","tool_calls":[{"id":"c1","type":"function","function":{"name":"info_supports","arguments":"{\"rarity\":\"SSR\"}"}}]}`,
+		`{"role":"assistant","content":"有 1 张。"}`)
+	var tools []string
+	a := newTestAgent(h, srv.URL)
+	a.Extra = "## 现在的情况（11-24 01:30）\n### 账号\nPLv 52"
+	a.OnTool = func(name, summary string) { tools = append(tools, name+"|"+summary) }
+	if _, err := a.Ask(context.Background(), nil, "我的 SSR 支援卡"); err != nil {
+		t.Fatal(err)
+	}
+	if len(tools) != 1 || tools[0] != "info_supports|1 条" {
+		t.Errorf("工具进度 %q", tools)
+	}
+	msgs, _ := (*reqs)[0]["messages"].([]any)
+	sys, _ := msgs[0].(map[string]any)["content"].(string)
+	if !strings.Contains(sys, "PLv 52") || !strings.HasPrefix(sys, SystemPrompt) {
+		t.Errorf("系统提示词没接上下文：%q", sys[max(0, len(sys)-80):])
+	}
+}
+
+func TestCLIAgentPromptUsesContextInsteadOfStatus(t *testing.T) {
+	h, calls := recordingHiro(t)
+	c := CLIAgent{Kind: "claude", Hiro: h, Extra: "## 现在的情况\n学マス已连上"}
+	p := c.fullPrompt(context.Background(), nil, "你好")
+	if !strings.Contains(p, "学マス已连上") || !strings.Contains(p, "你好") {
+		t.Errorf("提示词 %q", p)
+	}
+	if got := calls(); len(got) != 0 {
+		t.Errorf("有上下文时不再单独查 run status：%v", got)
+	}
+}
+
+func TestAgentCallsPluginTool(t *testing.T) {
+	h, calls := recordingHiro(t)
+	srv, _ := fakeLLM(t,
+		`{"role":"assistant","content":"","tool_calls":[{"id":"c1","type":"function","function":{"name":"plugin_demo_echo","arguments":"{\"text\":\"你好\"}"}}]}`,
+		`{"role":"assistant","content":"插件说了你好。"}`)
+	a := newTestAgent(h, srv.URL)
+	var got map[string]any
+	a.Ext = []ExtTool{{Spec: ToolSpec{Name: "plugin demo echo", ToolName: "plugin_demo_echo", Help: "回声", Agent: true, Args: []ToolArg{{Name: "text", Type: "string", Required: true}}},
+		Run: func(_ context.Context, args map[string]any) Result {
+			got = args
+			return Result{OK: true, Data: json.RawMessage(`{"said":"你好"}`)}
+		}}}
+	r, err := a.Ask(context.Background(), nil, "让插件说你好")
+	if err != nil || r.Text != "插件说了你好。" {
+		t.Fatalf("%v %q", err, r.Text)
+	}
+	if got["text"] != "你好" {
+		t.Errorf("插件工具参数 %v", got)
+	}
+	if len(calls()) != 0 {
+		t.Error("插件工具不该走 hiro 命令行")
+	}
+}
+
+// 11-25 review：选偶像卡要做成可以点的卡片，不再让玩家打字回答编号
+func TestAgentChooseIdolEndsTurnWithChoiceCard(t *testing.T) {
+	h, _ := recordingHiro(t)
+	srv, reqs := fakeLLM(t,
+		`{"role":"assistant","content":"琴音有 2 张 SSR，你要哪一张？","tool_calls":[{"id":"c1","type":"function","function":{"name":"choose_idol","arguments":"{\"question\":\"要用哪张琴音？\",\"idols\":[\"i_card-a\",\"i_card-b\"]}"}}]}`)
+	r, err := newTestAgent(h, srv.URL).Ask(context.Background(), nil, "用琴音打一把N.I.A pro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(*reqs) != 1 {
+		t.Fatalf("出了选择卡就该停下等玩家点，请求了 %d 次", len(*reqs))
+	}
+	if len(r.Cards) != 1 || r.Cards[0]["type"] != "choice" || r.Cards[0]["kind"] != "idols" {
+		t.Fatalf("cards %v", r.Cards)
+	}
+	opts, _ := r.Cards[0]["options"].([]any)
+	if len(opts) != 2 || r.Cards[0]["question"] != "要用哪张琴音？" || r.Cards[0]["status"] != "waiting" {
+		t.Fatalf("选择卡 %v", r.Cards[0])
+	}
+	if !strings.Contains(r.Text, "哪一张") {
+		t.Errorf("text %q", r.Text)
+	}
+	defs, _ := (*reqs)[0]["tools"].([]any)
+	found := false
+	for _, d := range defs {
+		if f, _ := d.(map[string]any)["function"].(map[string]any); f["name"] == "choose_idol" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("没把 choose_idol 给模型")
+	}
+}
+
+func TestCLIChoiceLineBecomesCard(t *testing.T) {
+	cards, text := choiceCards("琴音有两张 SSR：\nHIRO_CHOICE: idols i_card-a i_card-b\n")
+	if len(cards) != 1 || cards[0]["type"] != "choice" || strings.Contains(text, "HIRO_CHOICE") {
+		t.Fatalf("cards %v text %q", cards, text)
+	}
+	if opts, _ := cards[0]["options"].([]any); len(opts) != 2 {
+		t.Errorf("options %v", cards[0]["options"])
+	}
+}

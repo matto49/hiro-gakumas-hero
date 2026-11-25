@@ -1,4 +1,4 @@
-# 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
+# 部分逻辑基于 KAA（kotones-auto-assistant，GPL-3.0）
 """把编成位改成方案（hiro.brain.formation_plan）：支援卡、回忆，就地修正对不上的格子。
 
 两个用处：开局第 2 步支援卡（HIRO_FORMATION_AUTOFIX=1 才启用，在 KAA 切到方案的编成号之后、点「次へ」之前）；
@@ -88,9 +88,9 @@ LIST_TOP_SWIPES = 6
 
 
 def _list_to_top(dev: Device, read_list) -> dict:
-    img = dev.shoot()
-    r = read_list(img)
+    img, r = _wait(dev, read_list, lambda r: True, tries=6, delay=0.5)  # 列表刚打开时可能还在过场，等几张再判
     if r is None:
+        dev.snap(img, "support-list-not-open")
         raise FormationWriteError("没打开支援卡选择列表")
     for _ in range(3):  # 回到第 1 页
         if (r.get("page") or 1) <= 1:
@@ -129,7 +129,11 @@ def pick_support(dev: Device, target: str, *, read_list) -> None:
                 dev.sleep(0.8)
                 img2 = dev.shoot()
                 r2 = read_list(img2)
-                hit = find_support_tile((r2 or {}).get("cards") or [], target)
+                if r2 is None:
+                    # 游戏点卡就直接放进编成格、关了列表（11-23 Mac 初）：不点 cancel / 決定，交给写完后的回读核对
+                    dev.snap(img2, f"support-picked-closed-{target}")
+                    return
+                hit = find_support_tile(r2.get("cards") or [], target)
                 if hit is None or not hit.get("selected"):
                     dev.snap(img2, f"support-pick-unconfirmed-{target}")
                     dev.click(*controls["cancel"])
@@ -172,18 +176,27 @@ def _settled_step2(dev: Device, read_formation, view: str = "step2"):
 
 
 SLOT_OPEN_TRIES = 3  # 点支援卡格没打开选择列表时再点几次（DMM 后台点击偶尔丢，11-21）
+SLOT_OPEN_TRANSIT_WAITS = 3  # 点完画面既不是列表也不是编成页（过场）时，不再点、再等几轮（每轮 6 张 × 0.5 s）
 
 
 def _open_support_list(dev: Device, center, read_formation, read_list, view: str) -> None:
-    """点支援卡格打开选择列表。没打开、而且画面还是编成页（点击丢了）才再点；已经不在编成页就不再点（免得点进列表里）。"""
+    """点支援卡格打开选择列表。没打开、而且画面还是编成页（点击丢了）才再点；
+    画面两样都认不出是还在过场（Mac 11-24 16:15：改完第 1 格点第 2 格时列表出来得慢，原来直接往下走、报没打开列表），
+    不再点、接着等；等够了还认不出，交给 pick_support 再判（读不到列表会报错停下）。"""
     for attempt in range(SLOT_OPEN_TRIES):
         dev.click(*center)
-        img, r = _wait(dev, read_list, lambda r: True, tries=6, delay=0.5)
-        if r is not None:
+        for _ in range(1 + SLOT_OPEN_TRANSIT_WAITS):
+            img, r = _wait(dev, read_list, lambda r: True, tries=6, delay=0.5)
+            if r is not None:
+                return
+            page = read_formation(img)
+            if page is not None:
+                break
+            logger.info("点支援卡格后画面还在过场，再等一会儿")
+        else:
             return
-        page = read_formation(img)
-        if page is None or page.get("view") != view:
-            return  # 不在编成页了：交给 pick_support 再判（读不到列表会报错停下）
+        if page.get("view") != view:
+            return  # 不在编成页了：交给 pick_support 再判
         logger.info("点支援卡格没打开选择列表，再点一次（第 %d 次）", attempt + 2)
 
 

@@ -1,4 +1,4 @@
-# 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
+# 部分逻辑基于 KAA（kotones-auto-assistant，GPL-3.0）
 """考试执行器：替代 KAA 的 do_cards。截图 → 等画面稳定 → 读局面（ExamStateSource 插件）→ 出招（ExamAdvisor 插件）→ 点击 → 核对画面变了。
 
 只放「和局面从哪来、怎么决策无关」的执行部分：帧（HUD / 手牌 / 饮料定位）、等稳（轻量签名 + 舞台空白推进）、弹窗处理（危险弹窗只点
@@ -17,6 +17,7 @@ import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any, cast
 
 from hiro import master
 from hiro.brain.battle import BattleBrain
@@ -24,7 +25,7 @@ from hiro.brain.cards import card_view, drink_view
 from hiro.brain.rules import Decision
 from hiro.brain.state import BattleState, ExamMemory
 from hiro.contracts import Action, ExecutionResult
-from hiro.contracts import Decision as DecisionContract  # noqa: F401
+from hiro.contracts import Decision as DecisionContract
 from hiro.devices.active import Loop, device, sleep
 from hiro.exec import schedule_probe
 from hiro.perception.lesson import _read_int
@@ -110,6 +111,7 @@ class Frame:
 
         self.img = img
         self.t = time.monotonic()  # 这帧截图的时刻（度量截图→点击）
+        self.wall_t = time.time()  # 同一时刻的本机时间（数据来源插件比时间用，hiro.defaults.exam_bridge）
         self.remaining = _hud_int(img, hif.BOX_TURNS, box("InProduce.InLesson.BoxRemainingTurns"))
         self.hp = _hud_int(img, hif.BOX_HP, box("InProduce.InLesson.BoxHp"))
         self.genki = _hud_int(img, hif.BOX_GENKI, box("InProduce.InLesson.BoxGenki"))
@@ -1157,6 +1159,103 @@ def _plugin(kind: str):
     return plugins.get(kind)
 
 
+def mode_of_exam(label: str | None, produce_mode: str | None = None) -> str:
+    """考试属于哪个模式（strategy.json 的 exam.<模式> 用）：偶像之路看标签；其余优先看培育 id 的模式族，再看标签前缀。"""
+    lab = label or ""
+    if lab.startswith("tower"):
+        return "tower"
+    from hiro.state import modes
+
+    fam = modes.family(produce_mode)
+    if fam:
+        return fam
+    for m in ("hajime", "nia"):
+        if lab.startswith(m):
+            return m
+    return "hif"
+
+
+_advisor_warned: set[str] = set()
+
+
+class GuardedAdvisor:
+    """strategy.json 选的出招插件外面包一层（spec 4.4 / 4.7）：插件抛异常、返回的不是 Decision、动作不在合法动作里时，
+    这一步交给原来的出招（fallback），并计入出错；校验通过才计 decided、标上插件 id@版本。"""
+
+    def __init__(self, plugin, fallback, label: str, point: str):
+        self.plugin, self.fallback, self.label, self.point = plugin, fallback, label, point
+
+    def on_round_start(self, round_no, context) -> None:
+        self._guard(lambda: self.plugin.on_round_start(round_no, context), "on_round_start")
+        if self.fallback is not None:
+            self.fallback.on_round_start(round_no, context)
+
+    def on_round_end(self, result) -> None:
+        self._guard(lambda: self.plugin.on_round_end(result), "on_round_end")
+        if self.fallback is not None:
+            self.fallback.on_round_end(result)
+
+    def not_executed(self, action, why: str) -> None:
+        for a in (self.plugin, self.fallback):
+            if (hook := getattr(a, "not_executed", None)) is not None:
+                self._guard(lambda hook=hook: hook(action, why), "not_executed")
+
+    def _guard(self, fn, what: str) -> None:
+        from hiro.plugin_record import RECORD
+
+        try:
+            fn()
+        except Exception as e:  # noqa: BLE001  插件的钩子出错不影响考试
+            RECORD.error(self.point, self.label, f"出招插件 {self.label} {what} 出错：{type(e).__name__}: {e}")
+
+    def decide(self, state, memory, previews, legal):
+        from hiro.contracts.decision import SOURCES
+        from hiro.plugin_record import RECORD
+
+        why = None
+        d = None
+        try:
+            d = self.plugin.decide(state, memory, previews, legal)
+            if not isinstance(d, DecisionContract):
+                why = f"返回的不是契约 Decision（{type(d).__name__}）"
+            elif not any(d.action == a for a in legal):
+                why = f"动作 {d.action.kind.value} {d.action.args} 不在合法动作里"
+        except Exception as e:  # noqa: BLE001
+            why = f"出错（{type(e).__name__}: {e}）"
+        if why is None and isinstance(d, DecisionContract):
+            if d.source not in SOURCES:
+                d.source = "plugin"
+            d.plugin = self.label
+            RECORD.decided(self.point, self.label)
+            return d
+        RECORD.error(self.point, self.label, f"出招插件 {self.label} {why}")
+        logger.warning("出招插件 %s %s，这一步交给原来的出招", self.label, why)
+        if self.fallback is None:
+            raise RuntimeError(f"出招插件 {self.label} {why}，也没有原来的出招可交")
+        d = self.fallback.decide(state, memory, previews, legal)
+        d.warnings.append(f"出招插件 {self.label} {why}，这一步交给原来的出招")
+        return d
+
+
+def pick_advisor(exam: str, produce_mode: str | None, *, given):
+    """strategy.json 给这个模式配了出招插件时用它；没配、没装、不能用时用 given（调用方传入的 / 原来的链）。"""
+    from hiro import plugins, strategy
+    from hiro.plugin_record import RECORD
+
+    pid = strategy.current().exam_for(mode_of_exam(exam, produce_mode))
+    if pid is None:
+        return given
+    adv = plugins.get_by_id("exam_advisor", pid)
+    if adv is None:
+        if pid not in _advisor_warned:
+            _advisor_warned.add(pid)
+            text = f"strategy.json 配了出招插件 {pid!r}，但它没装或不能用，考试用原来的出招"
+            logger.warning(text)
+            RECORD.warn(text)
+        return given
+    return adv
+
+
 def r1_deck_to_note(exam: str, session, context: dict) -> list | None:
     """R1 结束时要记进 finals_context 的牌组（轮间模拟合成 R2 开局用）：本场已经记过牌组就不覆盖（返回 None）——
     私有存档插件开考时从存档记的、续跑读回的都比培育记账准；没记过才用培育记账的牌组（state.produce.deck）兜底。"""
@@ -1258,6 +1357,22 @@ def run_exam(
     hiro.plugins 注册 / 默认的实现）。session 给出时每个决策点写一条 trace Step（观测 → 状态 → 决策 → 执行结果，带分阶段耗时）。"""
     source = source or _plugin("exam_state_source")
     advisor = advisor or _plugin("exam_advisor")
+    # 2026-11-25 插件架构：strategy.json 可按模式换出招插件、配数据来源（没配时下面两行什么都不改）
+    from hiro import plugins as _plugins
+    from hiro import strategy as _strategy
+
+    st = getattr(session, "state", None)
+    produce_mode = ((st.produce if st is not None else None) or {}).get("mode")
+    picked = pick_advisor(exam, produce_mode, given=advisor)
+    if picked is not advisor:  # 选了插件：出错 / 不合法时这一步交给原来的出招
+        # cast 成 Any：和原来无类型的插件一样，不让具体类型改变下游老代码的类型推导
+        advisor = cast(
+            Any, GuardedAdvisor(picked, advisor, _plugins.label(picked), f"exam.{mode_of_exam(exam, produce_mode)}")
+        )
+    if source is not None and _strategy.current().sources:
+        from hiro.defaults.exam_bridge import ObservationExamStateSource
+
+        source = ObservationExamStateSource(source)
     if source is None or advisor is None:
         raise RuntimeError("考试需要 ExamStateSource 与 ExamAdvisor 插件（hiro.plugins），一个都没拿到")
     memory = brain.new_memory(exam)
@@ -1385,6 +1500,22 @@ def run_exam(
                                                ocr_boxes=ops.ocr_boxes, is_exam=schedule_probe.back_in_exam, log=rec.log,
                                                note=session.note if session is not None else None, read_panel=read_schedule_panel,
                                                swipe=lambda *a: device.swipe(*a), total_turns=frame.remaining)  # fmt: skip
+                if (fixed := schedule_probe.exam_from_panel(exam, got.get("panel"))) is not None:
+                    # 面板写着这是第几场选拔，和标签不符：以面板为准，局面来源 / 出招重新开这一场（第 1 回合，还没出牌）
+                    logger.warning("[%s] 审查日程面板写的是 %s：改用 %s", exam, got["panel"].get("pass_text"), fixed)
+                    if session is not None:
+                        session.note(f"场次以审查日程面板为准：{exam} → {fixed}（{got['panel'].get('pass_text')}）")
+                        session.state.exam_session.label = fixed
+                    rec.log("exam_label_fixed", exam=exam, fixed=fixed, pass_text=got["panel"].get("pass_text"))
+                    SCHEDULE_PROBED.add(fixed)
+                    exam = fixed
+                    memory = brain.new_memory(exam)
+                    seed_max_hp(memory, session, rec, brain.profile)
+                    source.begin({"exam": exam, "profile": brain.profile, "target_score": target_score, "session": session,
+                                  "brain": brain, "rec": rec})  # fmt: skip
+                    advisor.on_round_start(round_no if round_no is not None else 1,
+                                           {"exam": exam, "idol": brain.profile.idol_id if brain.profile else None, "brain": brain,
+                                            "max_hp": getattr(memory, "max_hp", None), "deck": _round_deck(session), "session": session})  # fmt: skip
                 schedule_probe.apply_panel(got.get("panel"), session, memory)
                 animating = True
                 continue

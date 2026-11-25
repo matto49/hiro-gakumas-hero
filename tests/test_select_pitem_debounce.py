@@ -39,7 +39,7 @@ def test_hook_reobserve_settles_unlisted_predecessor(monkeypatch):
     state, bare, obs = _load()
     s = reduce(reduce(state, bare), obs)
     assert s.page.name == "STAR_GAIN" and not s.page_fields.get("pitems")  # 复现：第 2 帧还在防抖
-    for _ in range(2):  # 与 HiroHifStrategy.on_select_pitem 的重读循环一致
+    for _ in range(2):  # 与 HifCore.on_select_pitem 的重读循环一致
         if s.page.name == "SELECT_PITEM" and s.page_fields.get("pitems"):
             break
         s = reduce(s, obs)

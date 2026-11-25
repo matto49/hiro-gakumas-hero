@@ -476,6 +476,24 @@ DECISION_CONFIRMS = {
 DECLINE_CONFIRMS = {"相談開始確認": "shop"}
 
 
+def kenshu_guide(frame, rt) -> str | None:
+    """「研修案内」（练习课 FAILED 后あさり先生建议「プロデュースを一時中断し、研修を開始しますか？」）：点「キャンセル」继续培育。
+    11-25 账号 3 初 Vi 课没到目标值：框没有处理器，LLM 兜底不敢点，空等到 180 秒停机。只点キャンセル（決定 会中断培育去研修）。"""
+    if not frame.has_dialog:
+        return None
+    title = (frame.dialog or {}).get("title") or ""
+    if "研修案内" not in title and not any("研修を開始しますか" in t.text for t in frame.texts):
+        return None
+    if _recently(rt, "kenshu_guide"):
+        return "研修案内：刚点过「キャンセル」，等框关"
+    btn = _cancel(frame)
+    if btn is None:
+        return None
+    rt.device.tap(*btn.rect.center)
+    _tapped(rt, "kenshu_guide")
+    return "研修案内：点「キャンセル」，不去研修、继续培育"
+
+
 def _decline(rt, option: str) -> None:
     """记进局面 produce.declined_options = {options, step}：reduce 在同一周的选行动页放进 page_fields，换周丢掉；选行动执行完清掉。"""
     session = getattr(rt, "session", None)
@@ -595,6 +613,7 @@ DEFAULT: tuple[Interrupt, ...] = (
     interval_end_confirm,
     drink_detail,
     rest_confirm,
+    kenshu_guide,
     decision_confirm,
     tap_next_dialog,
     live_resume,

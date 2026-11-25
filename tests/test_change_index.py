@@ -3,7 +3,6 @@
 
 from pathlib import Path
 
-from hiro.loop import kaa_patches as kp  # noqa: F401
 from hiro.produce import card_ops
 from hiro.vision.deck import read_card_dialog
 
@@ -104,9 +103,9 @@ def test_hif_hands_whole_deck_to_decision(monkeypatch):
     from types import SimpleNamespace as NS
 
     from hiro.contracts import GameState
-    from hiro.produce.hif import HiroHifStrategy
+    from hiro.produce.hif import HifCore
 
-    st = HiroHifStrategy.__new__(HiroHifStrategy)
+    st = HifCore.__new__(HifCore)
     notes, recovers = [], []
     st.s = NS(
         state=GameState(page_fields={"cards": _screens(_deck())[0]}),

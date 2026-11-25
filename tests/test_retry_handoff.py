@@ -58,3 +58,18 @@ def test_short_other_blip_is_not_leaving(tmp_path):
     """点再挑戦后的确认框只停几秒、随后进考试：不算离开。"""
     r = Rig(tmp_path, ["result"] * 2 + ["other"] * 3 + ["exam"] * 5 + ["result"])
     assert r.run() == "auto"
+
+
+def test_mid_exam_unrecognized_frames_do_not_end_handoff(tmp_path):
+    """11-24 mao3：你打到一半，考试画面有 30 秒认不成考试（选中卡的放大图、移动框、你点开的审查日程面板）→ 不能判你打完了、抢过去自己打。"""
+    screens = ["result"] * 3 + ["exam"] * 20 + ["other"] * 15 + ["exam"] * 20 + ["result"]
+    r = Rig(tmp_path, screens)
+    assert r.run() == "auto"  # 打完回到结算页（又没过）：照常再给 60 秒，最后交回程序
+    assert r.t >= (3 + 20 + 15 + 20) * rh.POLL_S + 60
+
+
+def test_played_then_left_needs_longer(tmp_path):
+    """打过之后离开（过线进了下一页）：要离开 AWAY_PLAYED_S 才交回。"""
+    r = Rig(tmp_path, ["result"] * 2 + ["exam"] * 10 + ["other"])
+    assert r.run() == "user"
+    assert r.t >= (2 + 10) * rh.POLL_S + rh.AWAY_PLAYED_S

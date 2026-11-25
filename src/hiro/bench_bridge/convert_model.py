@@ -1,6 +1,6 @@
 """UINet onnx（IR 10 / opset 20）→ onnxruntime 1.14 能读的版本（IR 8 / opset 18）：Gelu 拆成 0.5·x·(1+erf(x/√2))。
 
-KAA（ksaa）把 onnxruntime 钉在 ~=1.14.0，读不了 IR 10 / opset 20 的原模型；网络本身不变，只换写法。
+可选组 play 把 onnxruntime 钉在 ~=1.14.0（原来是 KAA 钉的），读不了 IR 10 / opset 20 的原模型；网络本身不变，只换写法。
 2026-11-12 用 400 个真实 UIObs 核对：原模型（onnxruntime 1.31）与本转换（1.14）动作 400/400 相同，概率最大差 6e-7。
 独立脚本，只依赖 onnx / numpy，在隔离环境里跑，不装进 hiro 的环境：
     uv run --isolated --no-project --with onnx --with numpy python convert_model.py 原模型.onnx 输出.onnx

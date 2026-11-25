@@ -240,32 +240,6 @@ class _Box:
         )()
 
 
-def _controller(monkeypatch, boxes, replies, *, exam=False):
-    import time as _time
-
-    from hiro.loop.controller import HiroController
-
-    import kotonebot
-
-    f = _Fake([(b.text, 1.0, (b.rect.x1, b.rect.y1, b.rect.x2, b.rect.y2)) for b in boxes])
-    monkeypatch.setattr(
-        kotonebot, "device", type("D", (), {"screenshot": staticmethod(f.shoot), "click": staticmethod(f.click)})
-    )
-    monkeypatch.setattr(HiroController, "session", None)
-    monkeypatch.setattr(HiroController, "_is_hif_exam", staticmethod(lambda: exam))
-    t = [1000.0]
-    monkeypatch.setattr(_time, "monotonic", lambda: t[0])
-    r = Rescuer(MockLLM(replies=list(replies)), ocr=f.ocr, shoot=f.shoot, click=f.click, sleep=f.sleeps.append, clock=lambda: t[0],
-                out_dir=None, enabled=True)  # fmt: skip
-    monkeypatch.setattr(HiroController, "_rescuer", r)
-    monkeypatch.setattr(rescue, "LLM_UNKNOWN", True)
-    c = HiroController.__new__(HiroController)
-    c._boxes, c._texts = boxes, [b.text for b in boxes]
-    stopped = []
-    c.strategy = type("S", (), {"_stop": lambda self, page, why: stopped.append((page, why))})()
-    return c, f, t, stopped
-
-
 @pytest.mark.parametrize("button", ["除去する", "削除する", "タイトルへ", "H.I.F本戦へ"])
 def test_target_danger_buttons(button):
     """删卡 / 回标题 / 开局按钮：目标框禁点（画面上有这些字但不点它们时不受影响）。"""

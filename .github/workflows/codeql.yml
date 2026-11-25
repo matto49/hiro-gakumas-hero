@@ -1,5 +1,5 @@
 name: codeql
-# 代码安全扫描：Python、桌面程序的 TS / JS、工作流本身。结果在 Security → Code scanning。
+# 代码安全扫描：Python、桌面程序（app/，Go）、工作流本身。结果在 Security → Code scanning。
 on:
   push:
     branches: [main]
@@ -19,13 +19,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [python, javascript-typescript, actions]
+        include:
+          - language: python
+            build-mode: none
+          - language: actions
+            build-mode: none
+          - language: go           # 桌面程序 app/（mygo 原生界面，纯 Go）
+            build-mode: autobuild
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5  # v7.1.0
+        with:
+          go-version-file: app/go.mod
+          cache-dependency-path: app/go.sum
       - uses: github/codeql-action/init@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea  # v4.39.4
         with:
           languages: ${{ matrix.language }}
-          build-mode: none     # 三种语言都不用编译
+          build-mode: ${{ matrix.build-mode }}
           config: |
             paths-ignore:
               - vendor

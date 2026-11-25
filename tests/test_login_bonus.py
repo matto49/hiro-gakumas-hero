@@ -10,7 +10,7 @@ from pathlib import Path
 from pathlib import Path as _P
 from types import SimpleNamespace as NS
 
-from hiro.loop.resume import REWARD_TAP, reward_tap
+from hiro.loop.resume_rules import REWARD_TAP, reward_tap
 from hiro.produce.ops import ocr_boxes
 
 import cv2

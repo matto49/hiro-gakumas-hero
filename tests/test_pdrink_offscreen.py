@@ -44,7 +44,7 @@ def _strategy(monkeypatch, state, decide, results):
         recover=lambda *a, **k: None,
         note=lambda *a: None,
     )
-    strat = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    strat = hif.HifCore.__new__(hif.HifCore)
     strat.s, strat.deciders = sess, NS(decide=lambda page, st: decide(sess.state))
 
     def stop(page, why, **k):

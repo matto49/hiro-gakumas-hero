@@ -246,3 +246,15 @@ def test_resume_unknown_with_to_title_text_does_not_tap_close(monkeypatch):
     with pytest.raises(ResumeBlocked):
         finish.resume_produce(rt, timeout=20)
     assert rt.raw_device.taps == []
+
+
+def test_finish_taps_end_button_read_with_arrow(monkeypatch):
+    """11-25 账号 3 初结算总览页（最終試験 1位 / プロデュース評価 B）：按钮带箭头图标，OCR 读成「→完了する」，
+    END_BUTTON_TEXTS 精确比对不上，一直点空白 180 秒超时停机。"""
+    pages = [
+        frame({}, [T("最終試験", 200, 1025), T("プロデュース評価", 525, 1025), T("→完了する", 360, 1160)]),
+        frame(HOME),
+    ]
+    rt, _ = rig(monkeypatch, [pages[0]], on_tap=lambda taps: [pages[len(taps)]])
+    assert finish.finish_produce_end(rt)
+    assert rt.raw_device.taps == [(360, 1160)]

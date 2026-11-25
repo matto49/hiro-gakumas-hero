@@ -1,4 +1,4 @@
-# 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
+# 部分逻辑基于 KAA（kotones-auto-assistant，GPL-3.0）
 """三选一「カード除去」（KAA 没有这个操作）：决策给 ExcludeCard{pick_index}。
 
 三选一弹窗（实机帧 tests/fixtures/select_card）：候选卡中心 (220/360/500, 880)，底部中间「受け取る」，

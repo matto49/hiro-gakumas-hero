@@ -18,6 +18,7 @@ from __future__ import annotations
 import os
 import re
 from functools import lru_cache
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -50,17 +51,25 @@ def _lab(img: MatLike) -> np.ndarray:
 
 @lru_cache(maxsize=1)
 def _render_index() -> tuple[list[str], list[str], np.ndarray, np.ndarray] | None:
-    """(素材名, 卡键, Lab 特征 N×P×3, 参与比对的像素掩码)。cache/card_icons.npz 不存在时 None。"""
-    from hiro.vision.card_icon_render import CACHE, overlay_mask
+    """(素材名, 卡键, Lab 特征 N×P×3, 参与比对的像素掩码)。cache/card_icons.npz 缺了 / 过期了现建；素材不齐建不了时 None。"""
+    from hiro.vision import card_icon_render
+    from hiro.vision.card_icon_render import overlay_mask
 
-    path = CACHE
-    if not path.exists():
+    path = card_icon_render.ensure(card_icon_render.CACHE)
+    if path is None:
         return None
     data = np.load(path, allow_pickle=False)
     names = [str(n) for n in data["names"]]
     mask = overlay_mask(ICON)
     feats = np.stack([_lab(im)[mask] for im in data["imgs"]])
     return names, [card_key(n) or n for n in names], feats, mask
+
+
+def _art_stamp(folder: str) -> str:
+    """插画索引缓存的指纹：png 数 + 最新修改时间 + 总大小（覆盖已有卡面也会重建）+ 特征尺寸。"""
+    from hiro.vision.card_icon_render import png_stamp
+
+    return f"{png_stamp(Path(folder), skip='_mid-')}-{SIZE_ART}"
 
 
 @lru_cache(maxsize=1)
@@ -73,7 +82,7 @@ def _art_index() -> tuple[list[str], list[str], np.ndarray]:
         return [], [], np.zeros((0, SIZE_ART * SIZE_ART, 3), np.float32)
     folder = str(root)
     files = sorted(n for n in os.listdir(folder) if n.endswith(".png") and "_mid-" not in n)
-    stamp = f"{len(files)}-{int(os.path.getmtime(folder))}-{SIZE_ART}"
+    stamp = _art_stamp(folder)
     if os.path.exists(ART_CACHE):
         data = np.load(ART_CACHE, allow_pickle=False)
         if str(data["stamp"]) == stamp:

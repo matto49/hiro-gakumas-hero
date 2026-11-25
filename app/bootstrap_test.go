@@ -116,7 +116,7 @@ func TestFreeBytesReadsTheRealDisk(t *testing.T) {
 }
 
 func TestHalfFinishedInstallIsNotReady(t *testing.T) {
-	// setup.sh 第 2 步就建好了 .venv：没有「装完」标记就还要再跑 setup
+	// setup.sh 第 1 步就建好了 .venv：没有「装完」标记就还要再跑 setup
 	steps, _ := PlanBootstrap(bootEnv("darwin", "/r/bin/uv", "path:git", "/h/src/.git", "/h/src/.venv/bin/python"))
 	if ids(steps) != "setup" {
 		t.Fatalf("steps %s", ids(steps))

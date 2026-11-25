@@ -16,27 +16,36 @@ hiro = "hiro.cli.main:main"
 [project.optional-dependencies]
 # 开发：测试、代码检查、格式化、类型检查、提交前钩子（版本钉住，CI 和本机一致）
 dev = ["pytest", "pytest-cov", "ruff==0.17.6", "basedpyright==1.40.2", "pre-commit"]
-# 实机游玩：操作层 / 识别层基于 KAA（kotones-auto-assistant，GPL-3.0），以 git 子模块 vendor/kaa 固定版本引入
-play = ["ksaa", "pyyaml", "ddddocr==1.6.1", "faiss-cpu>=1.14.3"]  # ddddocr：HUD 数字的退路读法（hiro.vision.digits）  # faiss：卡面图库（hiro.vision.card_db）  # pyyaml：只在构建模拟器主数据时用（vendor/gakumas-player/scripts/fetch_master.py）
+# 实机游玩：截图 / 点击 / 识别要的依赖（部分流程与识别逻辑基于 KAA（kotones-auto-assistant，GPL-3.0），已移植进 hiro，不再装 KAA）
+# rapidocr_onnxruntime：RapidOCR 后端（Windows 缺省的退路）；onnxruntime / numpy 版本沿用原来 KAA 钉的（Windows 上新版 onnxruntime 有 DLL 加载问题，numpy 2 和老扩展不兼容）
+# ddddocr：HUD 数字的退路读法（hiro.vision.digits）；faiss：卡面图库（hiro.vision.card_db）；pillow：字体模板渲染
+# pyyaml：只在构建模拟器主数据时用（vendor/gakumas-player/scripts/fetch_master.py）；pyobjc：macOS 上的 Apple Vision OCR、截图 / 点击、窗口查询
+play = [
+    "rapidocr_onnxruntime~=1.4",
+    "onnxruntime~=1.14.0",
+    "numpy<2.0",
+    "ddddocr==1.6.1",
+    "faiss-cpu>=1.14.3",
+    "pillow",
+    "pyyaml",
+    "pyobjc-framework-Vision; sys_platform == 'darwin'",
+    "pyobjc-framework-Quartz; sys_platform == 'darwin'",
+    "pyobjc-framework-Cocoa; sys_platform == 'darwin'",
+]
 # 考试出牌用 gakumas-bench 的开源算法（缺省 UINet，hiro.bench_bridge）：都按固定提交装；没装时考试出牌退回社区规则
-# onnxruntime 不另外指定版本：KAA 钉在 ~=1.14，UINet 原模型由 hiro.bench_bridge 转成 1.14 能读的写法（setup 时做）
+# onnxruntime 不另外指定版本：play 组钉在 ~=1.14，UINet 原模型由 hiro.bench_bridge 转成 1.14 能读的写法（setup 时做）
 bench = [
     "gkbench @ git+https://github.com/matto49/gakumas-bench@bcec19047068b51498459e812ca8577a5d16ddb8",
     "gkms-uinet @ git+https://github.com/yuzeis/GKMSUINet@1201b841828d9874b604f7d48f7b00ddf3b71d95",
     "onnxruntime",
 ]
-# 实验：DMM 版用 MaaFramework（LGPL-3.0）截图 / 点击（HIRO_DMM_DRIVER=maafw，缺省不用），见 hiro/device_maafw.py
-dmm-maa = ["maafw>=5.14"]
-
-[tool.uv.sources]
-ksaa = { path = "vendor/kaa", editable = true }
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-# 识别层的界面文字小模板与实测数据、默认实现的日程表（都不是游戏原始素材）
-hiro = ["vision/*.json", "vision/templates/*.png", "defaults/*.json"]
+# 识别层的界面文字小模板与实测数据、默认实现的日程表、模型价格表（都不是游戏原始素材）
+hiro = ["vision/*.json", "vision/templates/*.png", "defaults/*.json", "usage/*.json"]
 
 [tool.ruff]
 line-length = 120
@@ -56,12 +65,12 @@ ignore = [
     "B905",    # zip 加 strict=True 会改运行时行为（长度不一致直接抛错），不批量改
     "RUF005",  # 列表拼接写法，纯风格
 ]
-# 「没用到的导入」不自动删：有的是给别处转出口（kaa_patches.FormationMismatch），有的靠导入的副作用（hiro 兼容层、hiro.sim 引擎路径）
+# 「没用到的导入」不自动删：有的是给别处转出口，有的靠导入的副作用（hiro 兼容层、hiro.sim 引擎路径）
 unfixable = ["F401"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["hiro"]
-# hiro 排在第三方包前面：`import hiro`（兼容层）要先于 kaa / kotonebot，`import hiro.sim`（引擎路径）要先于 gakumas_exam 等
+# hiro 排在第三方包前面：`import hiro.sim`（引擎路径）要先于 gakumas_exam 等
 section-order = ["future", "standard-library", "first-party", "third-party", "local-folder"]
 
 

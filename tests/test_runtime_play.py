@@ -6,6 +6,7 @@ from hiro.runtime import play, scenes
 from hiro.vision.ocr import Box, Text
 
 import numpy as np
+import pytest
 
 
 def T(text, x, y):
@@ -75,15 +76,15 @@ def test_advance_only_bursts_on_safe_pages(monkeypatch):
     assert len(calls) == 2
 
 
-def test_run_hif_own_branch_skips_kaa_init(monkeypatch, tmp_path):
+def test_run_hif_always_runs_new_runtime_without_kaa(monkeypatch, tmp_path):
+    """run_hif 只剩新主循环（KAA 主循环 2026-11-24 删了）：HIRO_RUNTIME=kaa 也照样走 hiro.runtime.play，且不 import KAA。"""
     import sys
 
     import hiro.run_hif as rh
 
-    monkeypatch.setenv("HIRO_RUNTIME", "own")
+    monkeypatch.setenv("HIRO_RUNTIME", "kaa")
     monkeypatch.chdir(tmp_path)
     called = {}
-    monkeypatch.setattr(rh, "init_kaa", lambda *a, **k: called.setdefault("init_kaa", True))
     monkeypatch.setattr("hiro.runtime.play.run", lambda args, session: called.setdefault("play", args.command) and 0)
     monkeypatch.setattr(
         rh.manifest_mod, "collect", lambda: NS(problems=[], to_dict=dict, exam_state_source="x", exam_advisor="y")
@@ -92,11 +93,12 @@ def test_run_hif_own_branch_skips_kaa_init(monkeypatch, tmp_path):
     monkeypatch.setattr(sys, "argv", ["run_hif", "resume", "--mode", "main", "--trace", "t-own"])
     assert rh.main() == 0
     assert called == {"play": "resume", "report": "t-own"}
+    assert not hasattr(rh, "init_kaa") and not hasattr(rh, "HiroController")
 
 
 def _run_with(monkeypatch, new_effects, run_effects, command="new"):
     """play.run 的外壳：设备 / Runtime / 开局 / 续跑 / 主循环都换成替身，按给定顺序抛 DateChanged 或正常返回。"""
-    from hiro import kaa_env
+    from hiro import formation_env
     from hiro.devices import active
     from hiro.loop.date_change import DateChanged
     from hiro.runtime import finish, opening
@@ -111,9 +113,9 @@ def _run_with(monkeypatch, new_effects, run_effects, command="new"):
 
         return f
 
-    monkeypatch.setattr(kaa_env, "apply_formation_plan", lambda idol: None)
-    monkeypatch.setattr(kaa_env, "SUPPORT_SET", 4)
-    monkeypatch.setattr(kaa_env, "MEMORY_SET", 5)
+    monkeypatch.setattr(formation_env, "apply_formation_plan", lambda idol: None)
+    monkeypatch.setattr(formation_env, "SUPPORT_SET", 4)
+    monkeypatch.setattr(formation_env, "MEMORY_SET", 5)
     monkeypatch.setattr(
         "hiro.devices.open_device", lambda: NS(connect=lambda: None, close=lambda: calls.append("close"))
     )
@@ -172,7 +174,6 @@ def test_session_classify_uses_runtime_device_under_own(monkeypatch):
 
     rt, seen = FakeRt(), []
     monkeypatch.setattr(scene, "classify_scene", lambda img: seen.append(img.shape) or NS(name="LIVE", area="produce"))
-    monkeypatch.setattr(active, "_kb", lambda: (_ for _ in ()).throw(AssertionError("不该走 kotonebot")))
     active.use(rt)
     try:
         r = scene.classify_current()
@@ -199,3 +200,45 @@ def test_produce_end_pages_hand_off_to_finish_and_stop(monkeypatch):
     assert play.advance(rt2, frame([T("次へ", 360, 1160)]), NS(name="unknown")) is False and not getattr(
         rt2, "finished", False
     )
+
+
+def _segment(monkeypatch, new_effects, run_effects, *, resume_only=False):
+    """play.segment_with_date_changes（初 / N.I.A 的开局 + 主循环外壳）：按顺序抛 DateChanged 或正常返回。"""
+    from hiro.loop.date_change import DateChanged
+
+    calls = []
+
+    def effect(seq, name):
+        def f():
+            calls.append(name)
+            if seq and seq.pop(0) == "date":
+                raise DateChanged("日付変更")
+
+        return f
+
+    monkeypatch.setattr(play, "recover_date_change", lambda rt, session: calls.append("recover"))
+    play.segment_with_date_changes(
+        NS(), NS(), new=None if resume_only else effect(list(new_effects), "new"),
+        resume=lambda: calls.append("resume"), play_until=effect(list(run_effects), "run"),
+    )  # fmt: skip
+    return calls
+
+
+def test_segment_date_change_before_opening_reopens(monkeypatch):
+    """11-25 账号 3：开「初」时正赶上日本时间 5 点日切换，开局前的结算收尾就抛 DateChanged，hajime.run 没接、整个 traceback 退出。"""
+    assert _segment(monkeypatch, ["date", "ok"], ["ok"]) == ["new", "recover", "new", "run"]
+
+
+def test_segment_date_change_during_play_resumes(monkeypatch):
+    assert _segment(monkeypatch, ["ok"], ["date", "ok"]) == ["new", "run", "recover", "resume", "run"]
+
+
+def test_segment_resume_command(monkeypatch):
+    assert _segment(monkeypatch, [], ["ok"], resume_only=True) == ["resume", "run"]
+
+
+def test_segment_too_many_date_changes_stops(monkeypatch):
+    from hiro.loop.errors import ResumeBlocked
+
+    with pytest.raises(ResumeBlocked, match="日切换"):
+        _segment(monkeypatch, ["date"] * 5, ["ok"])

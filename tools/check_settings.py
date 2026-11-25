@@ -113,7 +113,7 @@ def check(save_dir: Path | None = None) -> dict[str, str | None]:
     import cv2
 
     def ocr_boxes(img):
-        return _ocr(img, scale=1.5)  # 和 hiro.produce.ops.ocr_boxes 一样（那个模块要 import kotonebot）
+        return _ocr(img, scale=1.5)  # 和 hiro.produce.ops.ocr_boxes 一样（这里不导入操作层，启动快）
 
     d = open_tool_device()
     found: dict[str, str | None] = dict.fromkeys(WANT)

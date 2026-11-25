@@ -42,7 +42,7 @@ type BootEnv struct {
 // needFree 是装环境要的磁盘空间（Python、依赖、游戏数据、下载缓存；2026-11-17 实测装到一半已占 2.5 GB）。
 const needFree = 6 << 30
 
-// installedMarker 是安装脚本整个跑完后写的标记：setup.sh 第 2 步就建好了 .venv，只看 .venv 会把装了一半当成装好了。
+// installedMarker 是安装脚本整个跑完后写的标记：setup.sh 第 1 步就建好了 .venv，只看 .venv 会把装了一半当成装好了。
 const installedMarker = ".hiro-installed"
 
 const (
@@ -173,6 +173,11 @@ func (b *Bootstrap) Status(ctx context.Context) BootStatus {
 
 // Run 一步步装，每行输出经 ch 送给网页。装好后让 Hiro 改用新装的 Python。
 func (b *Bootstrap) Run(ctx context.Context, ch *mygo.Channel[Progress]) error {
+	return b.RunLines(ctx, func(p Progress) { _ = ch.Send(p) })
+}
+
+// RunLines 同 Run，每行输出交给 send（原生界面用）。
+func (b *Bootstrap) RunLines(ctx context.Context, send func(Progress)) error {
 	if !b.mu.TryLock() {
 		return errors.New("已经在安装了")
 	}
@@ -185,7 +190,7 @@ func (b *Bootstrap) Run(ctx context.Context, ch *mygo.Channel[Progress]) error {
 		return errors.New(perr.Message + "。" + perr.Hint)
 	}
 	for _, st := range steps {
-		_ = ch.Send(Progress{Step: st.ID, Line: "==> " + st.Title})
+		send(Progress{Step: st.ID, Line: "==> " + st.Title})
 		cmd := exec.CommandContext(ctx, st.Argv[0], st.Argv[1:]...)
 		cmd.Dir = st.Dir
 		cmd.Env = append(os.Environ(), st.Env...)
@@ -201,7 +206,7 @@ func (b *Bootstrap) Run(ctx context.Context, ch *mygo.Channel[Progress]) error {
 		sc := bufio.NewScanner(out)
 		sc.Buffer(make([]byte, 64*1024), 1<<20)
 		for sc.Scan() {
-			_ = ch.Send(Progress{Step: st.ID, Line: sc.Text()})
+			send(Progress{Step: st.ID, Line: sc.Text()})
 		}
 		if err := cmd.Wait(); err != nil {
 			return errors.New(st.Title + "失败：" + err.Error() + "（看上面的输出；网络问题可以稍后重试）")

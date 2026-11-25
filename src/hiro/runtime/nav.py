@@ -31,16 +31,29 @@ def tower_back(f):
     return next((t for t in f.texts if TOWER_BACK in t.text.replace(" ", "") and t.rect.center.y > 1000), None)
 
 
+DARK_TOOLBAR_HOME = ("Common.ButtonToolbarHome", 0.75, (0, 1140, 200, 140))
+# 竞赛「ユニット編成」这类深色工具栏（深底白图标）：同一模板只有 0.79（默认线 0.8），只在左下角放宽到 0.75
+# （11-25 账号 3：goto_home 60 秒回不去；51 张培育中帧在这个区域 0.75 下没有误命中）
+
+
+def home_button(f):
+    """这一帧能点回首页的按钮（ui_templates.Match）；没有 None。先按 HOME_BUTTONS 默认阈值，再试深色工具栏。"""
+    for name in HOME_BUTTONS:
+        if (m := find(f, name)) is not None:
+            return m
+    name, threshold, region = DARK_TOOLBAR_HOME
+    return find(f, name, threshold=threshold, region=region)
+
+
 def goto_home(rt, timeout: float = HOME_TIMEOUT):
     """回首页：点首页 / 工具栏首页 / ✕，直到认出首页（同 KAA goto_home）；偶像之路结果页先点「一覧に戻る」。返回首页那一帧。"""
 
     def step(f):
         if at_home(f):
             return f
-        for name in HOME_BUTTONS:
-            if (m := find(f, name)) is not None:
-                tap_match(rt, m)
-                return None
+        if (m := home_button(f)) is not None:
+            tap_match(rt, m)
+            return None
         if (b := tower_back(f)) is not None:
             rt.device.tap(*b.rect.center)
         return None

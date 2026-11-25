@@ -17,7 +17,7 @@
 
    写出 `conf/formation-plan.json` 和给人看的 `reports/live/formation-plan.md`。`--main-attr` 指定默认主属性，`--fixed-main` 不比较逆练。
 3. 在游戏里按报告把卡存进支援卡编成 20、メモリー編成 20（别覆盖自己常用的编成）。
-4. 开局照常跑 `python tools/play_game.py --idol …`（不用再设编成号）。`hiro.kaa_env` 读到方案，并且方案里的偶像和 `--idol` 一致时：
+4. 开局照常跑 `python tools/play_game.py --idol …`（不用再设编成号）。`hiro.formation_env` 读到方案，并且方案里的偶像和 `--idol` 一致时：
    - 支援卡、回忆改用方案里的编成号；回忆带的卡（`HIRO_MEMORY_CARDS` 没设时）交给决策器，算作已经拿到；
    - 没给 `--main-attr` 时用方案里的主属性；租借格把两页租借列表看完，每张按「加上它之后整个编成的价值」打分（`support_select.rental_scorer`，
      和选自己 5 张同一套估价），租价值最高的（没有方案时仍是「主属性、等级最高，碰到满级立刻租」）；

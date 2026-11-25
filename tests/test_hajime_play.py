@@ -233,3 +233,28 @@ def test_idle_measured_from_handler_return():
     rt.step()
     clock.sleep(3.0)
     assert rt.step().kind == "stay"  # 原来这里抛 ResumeBlocked「TRANSITION 页 300s 没有任何操作」
+
+
+def test_oikomi_vision_drops_teki():
+    """11-25 账号 3（macOS 27 Vision）：「ボーカルを重点的に」读成「ボーカルを重点に」、「ダンスを重点に」，三条只认出一条，
+    整页没有选项，决策 Wait 三次停机。实机帧 hajime-action-oikomi-vision27.png。"""
+    f = _action("hajime-action-oikomi-vision27.png")
+    assert _opts(f) == [("training", "Vo", None, True), ("training", "Da", None, True), ("training", "Vi", None, True)]
+    assert f["exam_next"] == "mid1"
+
+
+@pytest.mark.synthetic
+def test_oikomi_options_tolerate_missing_teki(monkeypatch):
+    """OCR 吞掉「的」：「〜を重点に」也算追い込み选项（合成：替换 OCR，图标区是空白，属性按文字认）。"""
+    from hiro.vision import action
+
+    import numpy as np
+
+    boxes = [
+        ("卓ボーカルを重点に", 0.9, (76, 81, 411, 118)),
+        ("①ダンスを重点に", 0.9, (73, 185, 380, 219)),
+        ("ビジュアルを重点的に", 0.9, (127, 287, 450, 319)),
+    ]  # fmt: skip  (OIKOMI_BAND 内的相对坐标)
+    monkeypatch.setattr(action, "ocr_boxes", lambda img, scale=1: boxes)
+    opts = action._oikomi_options(np.full((1280, 720, 3), 255, np.uint8))
+    assert [o.attr for o in opts] == ["vo", "da", "vi"]

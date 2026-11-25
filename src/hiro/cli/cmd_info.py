@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 
 from hiro.cli.registry import Arg, CliError, Risk, command
@@ -17,6 +18,8 @@ SCAN_HINT = {
     "game_settings": "还没检查游戏设置：运行 hiro run start check-settings",
     "formations": "还没读过编成位：游戏停在首页时运行 hiro run start scan-formations",
 }
+
+logger = logging.getLogger(__name__)
 
 
 def _rarity(raw) -> str | None:
@@ -45,7 +48,12 @@ def normalize_supports(inv: dict) -> list[dict]:
 
 
 def normalize_idols(inv: dict) -> list[dict]:
-    """偶像卡扫描（hiro.produce.idol_scan）→ 每张一行；idol_card_id 扫描时按主数据对上，对不上（新卡）留空。"""
+    """偶像卡扫描（hiro.produce.idol_scan）→ 每张一行；idol_card_id 扫描时按主数据对上。
+    有没对上的（旧扫描、当时主数据旧）入库时再对一次，顺带按主数据补稀有度；主数据里也没有的（新卡）留空。"""
+    if any(not c.get("idol_card_id") or not c.get("rarity") for c in inv.get("idols") or []):
+        from hiro.produce.idol_scan import attach_ids
+
+        inv = attach_ids({**inv, "idols": [dict(c) for c in inv["idols"]]})
     out = []
     for c in inv.get("idols") or []:
         title, chara = c.get("title") or "", c.get("character") or ""
@@ -65,6 +73,12 @@ def normalize_memories(inv: dict) -> list[dict]:
     out = []
     for e in inv.get("entries") or []:
         card = e.get("card") or {}
+        if not card.get("card_id") and e.get(
+            "card_text"
+        ):  # 扫描时卡名没对上：入库时按现在的规则再对一次（11-24「200％スマイル＋」）
+            from hiro.vision import deck
+
+            card = deck.card_from_name(e["card_text"]) or {}
         out.append(
             {
                 "card_id": card.get("card_id"),
@@ -86,8 +100,8 @@ def normalize_game_settings(inv: dict) -> list[dict]:
 
 
 def normalize_account(inv: dict) -> list[dict]:
-    """hiro.vision.home_values 的输出 → 一行。"""
-    return [{k: inv.get(k) for k in ("plv", "ap", "ap_max", "jewel")}]
+    """读首页数值（hiro.daily.account_scan）的输出 → 一行（プロデューサーID / 名字读不到时为 None）。"""
+    return [{k: inv.get(k) for k in ("plv", "ap", "ap_max", "jewel", "producer_id", "name")}]
 
 
 NORMALIZE = {
@@ -112,8 +126,15 @@ def import_inventory(kind: str, inv: dict, source: str) -> dict:
         from datetime import datetime
 
         scanned_at = datetime.fromtimestamp(inv["generated"]).strftime("%Y-%m-%d %H:%M:%S")
-    sid = open_store().save_snapshot(kind, rows, source=source, scanned_at=scanned_at, complete=complete, raw=inv)
-    return {"kind": kind, "snapshot": sid, "count": len(rows)}
+    st = open_store()
+    out: dict = {}
+    if kind == "account" and (pid := inv.get("producer_id")):
+        # 默认切换：读到哪个账号，信息库就切到哪个账号（之后的扫描记在它名下、查询只看它的）
+        if st.switch_account(pid):
+            logger.info("信息库切到账号 %s（%s）", pid, inv.get("name") or "?")
+        out["account"] = pid
+    sid = st.save_snapshot(kind, rows, source=source, scanned_at=scanned_at, complete=complete, raw=inv)
+    return {"kind": kind, "snapshot": sid, "count": len(rows), **out}
 
 
 def _listing(kind: str, keep=lambda r: True) -> dict:

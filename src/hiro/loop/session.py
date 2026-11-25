@@ -85,6 +85,9 @@ class Session:
         self._new_predictions: list = []
         self._recent_events: list = []  # 最近的事件（配对用）
         self.check_counts: Counter = Counter()  # verdict → 次数（一致率报告）
+        from hiro.plugin_record import RECORD
+
+        RECORD.bind(trace.dir)  # 2026-11-25 插件架构：插件使用记录写到这一段 trace 的 plugins.json
 
     # ---------------------------------------------------------------- 观测
     def observe(self, *, scene: str | None = None, area: str = "produce", img=None, fields: bool | dict = True,
@@ -95,8 +98,10 @@ class Session:
 
         t0 = self.clock()
         timings: dict[str, float] = {}
+        wall0 = time.time()  # 截图时刻（本机时间）：数据来源插件按它比新旧，不用识别做完的时间
         if img is None and (fields is not False or save_frame or scene is None):
             img = self.shoot()
+            wall0 = time.time()
             timings["capture"] = (self.clock() - t0) * 1000
         if scene is None:
             t1 = self.clock()
@@ -119,6 +124,8 @@ class Session:
         self.state = self._reduce_checked(obs)
         self.last = obs
         self._buffer.append(obs)
+        if fields is not False and source == "screen" and img is not None:
+            self._plugin_sources(obs, wall0)
         from hiro.loop.repeat_guard import state_sig
 
         self.guard.seen(
@@ -129,7 +136,25 @@ class Session:
             self.img = img
         return obs
 
-    def _reduce_checked(self, obs: Observation) -> GameState:
+    def _plugin_sources(self, screen_obs: Observation, frame_t: float) -> None:
+        """2026-11-25 插件架构：真截图之后问数据来源插件（hiro.loop.sources），它们的观测同样走互验和 reduce。"""
+        from hiro.loop.sources import read_sources
+        from hiro.loop.transitions import is_transient
+
+        if is_transient(screen_obs.page.name):
+            return
+        try:
+            extra, notes = read_sources(screen_obs.page.name, frame_t, self.state, screen_obs, screen_obs.seq)
+        except Exception as e:  # noqa: BLE001  数据来源不能拖垮主循环
+            self.notes.append(f"数据来源出错：{type(e).__name__}: {e}")
+            return
+        self.notes.extend(notes)
+        for o in extra:
+            # 不跑事件识别：获得弹窗等事件只由画面那份观测发一次（插件观测再发会把同一张卡多算）
+            self.state = self._reduce_checked(o, events=False)
+            self._buffer.append(o)
+
+    def _reduce_checked(self, obs: Observation, *, events: bool = True) -> GameState:
         """互验 → 去掉读错的读数 → reduce → 标字段状态（§5，hiro.loop.events.reduce_checked，离线回放同一函数）。"""
         from hiro.loop.events import reduce_checked, settle
 
@@ -147,7 +172,8 @@ class Session:
         self.predictions = settle(self.predictions, checks)
         self._checks.extend(checks)
         self.state = state
-        self._observed_events(obs)
+        if events:
+            self._observed_events(obs)
         return self.state
 
     def _observed_events(self, obs: Observation) -> None:
@@ -301,6 +327,10 @@ class Session:
             self._last_exec_t = step.t
         self.notes = []
         self.trace.write(step)
+        from hiro.plugin_record import RECORD
+
+        if RECORD.dirty:
+            RECORD.flush()
         self.steps += 1
         if repeated and obs.page.name != "HIF_EXAM":
             # 考试外没有「本回合禁用」：停机报警（考试里由 battle 本回合禁用该动作，见 run_exam）

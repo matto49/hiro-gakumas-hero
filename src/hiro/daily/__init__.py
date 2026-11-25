@@ -8,12 +8,12 @@
 再加两个日常专用的：说明框 / ジュエル框看守（common.Popup）和单项超时（common.Deadline）。点击都过危险点击拦截。
 模板是 KAA 的同一批（tools/assets/ui_from_kaa.py 搬来，在 assets/pack/ui）。
 
-已迁：presents、activity_funds、mission_reward、club_reward。assignment / contest 等新主循环再迁，现在仍走 KAA（tools/daily/run_daily.py）。
+KAA tasks/daily 里不花钱的 6 项都已迁：presents、activity_funds、assignment、contest、mission_reward、club_reward（2026-11-25 去 KAA 第 2 批迁完后两项）。
 """
 
 from __future__ import annotations
 
-from hiro.daily import activity_funds, club_reward, mission_reward, presents
+from hiro.daily import activity_funds, assignment, club_reward, contest, mission_reward, presents
 from hiro.daily.common import Deadline, Popup, TaskTimeout
 from hiro.runtime import UNKNOWN, Runtime
 from hiro.runtime.interrupts import DEFAULT
@@ -21,6 +21,8 @@ from hiro.runtime.interrupts import DEFAULT
 TASKS = {
     "activity_funds": activity_funds.run,
     "presents": presents.run,
+    "assignment": assignment.run,
+    "contest": contest.run,
     "mission_reward": mission_reward.run,
     "club_reward": club_reward.run,
 }

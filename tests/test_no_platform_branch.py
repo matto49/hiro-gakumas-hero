@@ -1,6 +1,6 @@
 """平台差异只在设备层 / 配置：决策层（brain）、策略层（produce / sim / state / defaults）、执行层（exec）不判断平台。
 
-允许判断平台的地方：hiro.device / hiro.compat / hiro.kaa_env / hiro.loop（主循环与 KAA 适配）/ hiro.vision.ocr（OCR 后端选择）/
+允许判断平台的地方：hiro.devices / hiro.compat / hiro.loop（游戏进程、日期切换等）/ hiro.vision.ocr（OCR 后端选择）/
 hiro.run_hif（入口）/ hiro.real_click，以及下面 ALLOW 里写明原因的几处。新加的平台差异放进设备层或配置
 （scripts/play.ps1、环境变量），决策 / 策略层只读配置。"""
 

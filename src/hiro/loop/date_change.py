@@ -2,8 +2,6 @@
 
 main13 本战（2026-11-02 04:00）：R1 结果页之后弹出这个框，hif.on_exam_entered 收尾的 `for _ in Loop()` 一直找到压在弹窗下面的
 「次へ」并点它（没反应），没有日志、没有超时，空转 5 分钟（kotonebot 的 Loop 不检查 timeout 参数）。
-- loop_callback()：挂到 kotonebot conf().loop.loop_callbacks，每个 KAA Loop 的每一轮都会调；按间隔 OCR 一次，认出日期切换就抛 DateChanged，
-  把卡在任何 Loop 里的流程打出来。
 - recover_to_home()：点「タイトルへ」→ 标题页点「TAP TO START」→ 登录奖励 / 公告一路点「閉じる」或空白处（出现购买 / ジュエル字样时不点空白，
   只认「閉じる / キャンセル」）→ 到首页。run_hif 收到 DateChanged 后调它，再从首页「プロデュース中」续跑同一 trace。
 """
@@ -166,35 +164,3 @@ def strip_boxes(img, ocr) -> list:
     if img is None or getattr(img, "ndim", 0) < 2 or img.shape[0] < y2 or img.shape[0] < img.shape[1]:
         return []  # 横屏（LIVE 1280x720）或截图异常：弹窗横条不存在，不检测（q14：LIVE 时空图 OCR 抛 cv2.error，主循环连崩 6 次退出）
     return [(t, c, (bx1, by1 + y1, bx2, by2 + y1)) for t, c, (bx1, by1, bx2, by2) in ocr(img[y1:y2])]
-
-
-def loop_callback(ocr: Callable, *, every: float = 5.0, clock: Callable[[], float] = time.monotonic):
-    """kotonebot Loop 全局回调：每 every 秒用这一轮的截图 OCR 一次（只看弹窗横条），认出日期切换就抛 DateChanged。"""
-    last = [-1e9]
-
-    def cb(loop) -> bool:
-        now = clock()
-        if now - last[0] < every or getattr(loop, "screenshot", None) is None:
-            return False
-        last[0] = now
-        try:
-            boxes = strip_boxes(loop.screenshot, ocr)
-        except Exception as e:  # noqa: BLE001  检测本身出错不能打断主流程
-            logger.warning("日期切换检测出错（%s），本轮跳过", e)
-            return False
-        if date_change_button(boxes) is not None:
-            kind = (
-                "データ更新" if any(any(k in _norm(t) for k in DATA_UPDATE_TITLES) for t, _, _ in boxes) else "日付変更"
-            )
-            logger.warning("日期切换 / 数据更新：在 KAA 循环里认出「%s」，打断当前流程", kind)
-            raise DateChanged(kind)
-        # 通信エラー（第二十二局轮间卡死 195s）：同一条带里认，リトライ就点；只能回标题就点閉じる并抛 CommErrorToTitle（同日期切换的回首页路）
-        from hiro.loop import comm_error
-
-        if comm_error.comm_error(boxes) is not None:
-            from hiro.devices.active import device
-
-            comm_error.handle(boxes, lambda x, y: device.click(x, y))
-        return False
-
-    return cb

@@ -6,7 +6,6 @@ from pathlib import Path
 from hiro.vision import quick
 
 import cv2
-import numpy as np
 import pytest
 
 FIX = Path(__file__).parent / "fixtures"
@@ -67,15 +66,3 @@ def test_recover_to_home_waits_on_event_purchase():
     ok = dc.recover_to_home(lambda: img, lambda x, y: clicks.append((x, y)), lambda im: [box("10回引く", 360, 1180)],
                             lambda im: False, clock=lambda: t["now"], sleep=lambda s: t.__setitem__("now", t["now"] + s), timeout=10)  # fmt: skip
     assert not ok and clicks == []
-
-
-def test_resume_skips_login_bonus_pages():
-    """续跑开局：两屏登录奖励，各点一次底部空白，第三屏不是奖励就停。"""
-    from hiro.loop.resume import skip_login_bonus
-
-    bonus = _img("quick/login-bonus-resume-dmm2-r4.jpg")
-    other = np.zeros((1280, 720, 3), np.uint8)
-    frames = iter([bonus, bonus, other])
-    clicks = []
-    assert skip_login_bonus(shoot=lambda: next(frames), click=lambda x, y: clicks.append((x, y)), sleep=lambda s: None)
-    assert clicks == [quick.LOGIN_BONUS_TAP] * 2

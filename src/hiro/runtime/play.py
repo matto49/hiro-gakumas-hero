@@ -1,7 +1,7 @@
-"""新主循环跑一局（HIRO_RUNTIME=own，去 KAA 第 6 步接线）：设备（hiro.devices）→ Runtime（自有判页 + HifCore 处理器 + 中断层）
+"""主循环跑一局（去 KAA 第 6 步接线；2026-11-24 起是唯一的主循环）：设备（hiro.devices）→ Runtime（自有判页 + HifCore 处理器 + 中断层）
 → 开局 / 续跑（hiro.runtime.opening / finish）→ rt.run 到培育结束。不 import KAA / kotonebot。
 
-run_hif 在 HIRO_RUNTIME=own 时调 run(args, session)；其余参数、trace、报告、退出码和旧主循环一样。
+run_hif 调 run(args, session)；参数、trace、报告、退出码沿用旧主循环的约定。
 没有处理器的页面交给 advance：剧情 SKIP → 横屏 LIVE 曲目页 → 一次性设置框 → 安全空白连点（hiro.loop.advance.burst，同旧主循环）。
 日切换（DateChanged）按旧主循环的做法回首页再续跑，一局最多 MAX_DATE_CHANGES 次。
 """
@@ -224,17 +224,41 @@ def recover_date_change(rt, session) -> None:
         raise ResumeBlocked("日切换后没回到首页，停机")
 
 
+def segment_with_date_changes(rt, session, *, new, resume, play_until) -> None:
+    """一段培育的外壳（初 / N.I.A 用；H.I.F 的 run 同样的规则）：new 开局（None = 续跑段）、resume 续跑、play_until 打到结束。
+    日切换（日本时间 5 点「日付変更」，只有「タイトルへ」）：回首页后，还没开成就重新开局，已经在培育里就续跑；最多 MAX_DATE_CHANGES 次。
+    11-25 账号 3：开「初」正赶上日切换，开局前的结算收尾抛 DateChanged，hajime.run 没接住，整段 traceback 退出。"""
+    from hiro.loop.date_change import DateChanged
+
+    started = new is None
+    for attempt in range(MAX_DATE_CHANGES + 1):
+        try:
+            if not started and new is not None:
+                new()
+                started = True
+            elif attempt or new is None:
+                resume()
+            play_until()
+            return
+        except DateChanged:
+            if attempt >= MAX_DATE_CHANGES:
+                raise ResumeBlocked(f"一段里日切换超过 {MAX_DATE_CHANGES} 次，停机") from None
+            logger.warning("日切换（第 %d 次，%s）：回首页后%s", attempt + 1, "已开局" if started else "还没开局",
+                           "续跑" if started else "重新开局")  # fmt: skip
+            recover_date_change(rt, session)
+
+
 def run(args, session) -> int:
     """跑一段：new = 开局后打到结束；resume = 续跑到结束。返回退出码（0 正常，3 停机交给人）。
     日切换在开局或打的过程中都可能出现：回首页后，开局没开成就重新开局，已经在培育里就续跑；一段最多 MAX_DATE_CHANGES 次。
     （开局已经点了开始、正在开场剧情时日切换：重新开局会被「本机有进行中的培育」拦住停机，交给人，不盲目破弃。）"""
-    from hiro import kaa_env
+    from hiro import formation_env
     from hiro.devices import active, open_device
     from hiro.loop.date_change import DateChanged
     from hiro.runtime import finish, opening
 
-    kaa_env.apply_formation_plan(args.idol)
-    if args.command == "new" and (kaa_env.SUPPORT_SET is None or kaa_env.MEMORY_SET is None):
+    formation_env.apply_formation_plan(args.idol)
+    if args.command == "new" and (formation_env.SUPPORT_SET is None or formation_env.MEMORY_SET is None):
         logger.error("new 开局要编成号：设 HIRO_SUPPORT_SET / HIRO_MEMORY_SET，或先生成开局编成方案")
         return 2
     device = open_device()
@@ -255,8 +279,8 @@ def run(args, session) -> int:
                         # 上一局停在结算页时先回首页；本战开局时已经在本战开始确认页就留着（new_produce 从这里接着核对，
                         # 原来点回首页，再从首页进本战走完整编成，Mac p15-main 11-17）
                         finish.finish_produce_end(rt, go_home=True)
-                    opening.new_produce(rt, args.mode, idol=args.idol, support_set=kaa_env.SUPPORT_SET, memory_set=kaa_env.MEMORY_SET,
-                                        plan=kaa_env.ACTIVE_PLAN, rental_attr=args.main_attr, main_attr=args.main_attr,
+                    opening.new_produce(rt, args.mode, idol=args.idol, support_set=formation_env.SUPPORT_SET, memory_set=formation_env.MEMORY_SET,
+                                        plan=formation_env.ACTIVE_PLAN, rental_attr=args.main_attr, main_attr=args.main_attr,
                                         expect_memory=tuple(v.strip() for v in args.expect_memory.split(",") if v.strip()))  # fmt: skip
                     started = True
                 elif attempt or args.command == "resume":

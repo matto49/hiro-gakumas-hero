@@ -1,0 +1,41 @@
+# CodeRabbit 设置（https://docs.coderabbit.ai/reference/configuration）
+language: zh-CN
+tone_instructions: "用简体中文，短句。先说用户会碰到的后果，再说改法。不确定的写「可能」，不要夸大严重程度。"
+
+reviews:
+  # quiet：只提最重要的问题（chill 是默认，assertive 更啰嗦）
+  profile: quiet
+  # 连续审了这么多次推送后自动暂停，免得一来一回停不下来（默认 5）
+  auto_review:
+    auto_pause_after_reviewed_commits: 3
+  tools:
+    # CI 的失败 GitHub 上已经能看到，不再转成评论（#50 的依赖漏洞那条就是重复的）
+    github-checks:
+      enabled: false
+  security_risk_instructions: |
+    这是装在玩家自己电脑上的桌面程序和命令行工具，不是联网服务：
+    - 唯一的服务是 hiro 后台进程，只监听 127.0.0.1，请求要带 HIRO_HOME/service.json 里的令牌（文件权限 600）。
+    - 外部插件是用户自己从本机文件夹装的普通程序，以用户本人的权限运行，没有沙箱，能做用户在终端里能做的任何事。
+      插件和网页面板之间的隔离只防误操作和插件互相读文件，不是安全边界；不要把「插件能直接调用 hiro」「同机进程能读用户文件」报成越权。
+    - 真正要守住的：会动游戏的操作必须经用户点确认；不能花ジュエル、不能放弃培育；密钥和账号密码不进日志、不进命令行参数。
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        评审口径：
+        - 优先报普通玩家正常使用就会碰到的问题：崩溃、数据丢失、误操作游戏、界面卡住、结果错。
+        - 需要特殊环境才触发的边界情况（插件起的子进程继承标准输出、两个超时之间的竞态、用户把数据目录选成插件来源这类），
+          最多标 Minor，一条评论说清楚就行，不要升级成 Major，也不要在后续推送里反复追问。
+        - 作者修了评论里描述的那个场景，就算这条已解决；剩下的新问题只有在影响普通玩家时才另开评论。
+        - 作者回复说明是设计取舍、并在文档或界面里写明了的，接受并结束这条讨论。
+        - 不评论代码风格和 import 顺序（ruff、basedpyright、tsc 会管）。
+    - path: "app/**"
+      instructions: |
+        桌面程序（初星助手，Go + mygo 原生 ui）。设计依据在 app/PRODUCT.md、app/DESIGN.md 和 docs/ryugi/specs/。
+        界面文案是写给不会编程的玩家看的：露出内部命令名、英文页面名、编号算问题。
+
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      - "AGENTS.md"
+      - "app/PRODUCT.md"
+      - "app/DESIGN.md"

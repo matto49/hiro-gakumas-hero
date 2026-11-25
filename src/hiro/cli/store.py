@@ -1,7 +1,12 @@
 """本机信息库（HIRO_HOME/hiro.db）：每次扫描存一份快照，查询取最新一份，旧的留着看变化。
 
 表：snapshots（一次扫描：类别、时间、来源、是否扫全）+ rows（这次扫到的每一条，JSON）。
-类别：account（PLv / AP / ジュエル，一行）、idols、supports、memories、affection。
+类别：account（PLv / AP / ジュエル / プロデューサーID，一行）、idols、supports、memories、affection。
+
+按账号分开（11-25：Mac 在两个游戏账号之间切换，切号后查到的还是上一个账号的库存）：每份快照记上当时的账号
+（プロデューサーID，snapshots.account），查询只看当前账号的。当前账号记在 meta 表，读首页数值读到新的
+プロデューサーID 时切过去（switch_account）。还没识别过账号时（current_account 为 None）照旧不分账号；
+识别过之后，旧的不带账号的快照不再采用（不知道是谁的，重扫）。
 """
 
 from __future__ import annotations
@@ -33,6 +38,10 @@ CREATE TABLE IF NOT EXISTS raw (
   snapshot_id INTEGER PRIMARY KEY REFERENCES snapshots(id),
   data TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
 """
 
 
@@ -45,6 +54,26 @@ class Store:
         path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path)
         self.db.executescript(_SCHEMA)
+        cols = {r[1] for r in self.db.execute("PRAGMA table_info(snapshots)")}
+        if "account" not in cols:  # 旧库：补列，原有快照的账号是 NULL（不知道是谁的）
+            with self.db:
+                self.db.execute("ALTER TABLE snapshots ADD COLUMN account TEXT")
+
+    def current_account(self) -> str | None:
+        row = self.db.execute("SELECT value FROM meta WHERE key='account'").fetchone()
+        return row[0] if row else None
+
+    def switch_account(self, producer_id: str) -> bool:
+        """当前账号切到 producer_id；返回是否真的换了账号。"""
+        changed = producer_id != self.current_account()
+        with self.db:
+            self.db.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('account', ?)", (producer_id,))
+        return changed
+
+    def _scope(self) -> tuple[str, tuple]:
+        """查询条件：识别过账号就只看它的快照；没识别过不限。"""
+        acc = self.current_account()
+        return ("", ()) if acc is None else (" AND account=?", (acc,))
 
     def save_snapshot(
         self,
@@ -61,8 +90,15 @@ class Store:
             raise ValueError(f"未知类别 {kind}")
         with self.db:
             cur = self.db.execute(
-                "INSERT INTO snapshots(kind, scanned_at, source, complete, count) VALUES (?,?,?,?,?)",
-                (kind, scanned_at or now(), source, None if complete is None else int(complete), len(rows)),
+                "INSERT INTO snapshots(kind, scanned_at, source, complete, count, account) VALUES (?,?,?,?,?,?)",
+                (
+                    kind,
+                    scanned_at or now(),
+                    source,
+                    None if complete is None else int(complete),
+                    len(rows),
+                    self.current_account(),
+                ),
             )
             sid = cur.lastrowid
             self.db.executemany(
@@ -86,9 +122,10 @@ class Store:
         }
 
     def latest(self, kind: str) -> tuple[dict | None, list[dict]]:
+        where, args = self._scope()
         row = self.db.execute(
-            "SELECT id, scanned_at, source, complete, count FROM snapshots WHERE kind=? ORDER BY id DESC LIMIT 1",
-            (kind,),
+            f"SELECT id, scanned_at, source, complete, count FROM snapshots WHERE kind=?{where} ORDER BY id DESC LIMIT 1",
+            (kind, *args),
         ).fetchone()
         if row is None:
             return None, []
@@ -100,9 +137,11 @@ class Store:
 
     def latest_raw(self, kind: str):
         """最新一次带原始输出的快照的原始输出；没有返回 None。"""
+        where, args = self._scope()
         row = self.db.execute(
-            "SELECT r.data FROM raw r JOIN snapshots s ON s.id = r.snapshot_id WHERE s.kind=? ORDER BY s.id DESC LIMIT 1",
-            (kind,),
+            "SELECT r.data FROM raw r JOIN snapshots s ON s.id = r.snapshot_id"
+            f" WHERE s.kind=?{where.replace('account', 's.account')} ORDER BY s.id DESC LIMIT 1",
+            (kind, *args),
         ).fetchone()
         return json.loads(row[0]) if row else None
 
@@ -110,7 +149,8 @@ class Store:
         return [
             self._meta(r)
             for r in self.db.execute(
-                "SELECT id, scanned_at, source, complete, count FROM snapshots WHERE kind=? ORDER BY id DESC", (kind,)
+                f"SELECT id, scanned_at, source, complete, count FROM snapshots WHERE kind=?{self._scope()[0]} ORDER BY id DESC",
+                (kind, *self._scope()[1]),
             )
         ]
 

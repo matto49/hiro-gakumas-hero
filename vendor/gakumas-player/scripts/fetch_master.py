@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_COMMIT = "d31baf6608ee4553091f28446f628cd3ad66ff01"
+DEFAULT_COMMIT = "edc305aac3ac0204806c96164ce36fb795ba81e1"
 REPO = "https://github.com/vertesan/gakumasu-diff"
 
 
@@ -86,7 +86,9 @@ def fetch(commit: str) -> Path:
 def main(argv: list[str]) -> int:
     commit = next((a for a in argv if not a.startswith("-")), DEFAULT_COMMIT)
     snap = ROOT / "data" / "master" / commit
-    if (snap / "catalog.sqlite").exists() and (ROOT / "data" / "master" / "current.json").exists() and "--force" not in argv:
+    current = ROOT / "data" / "master" / "current.json"
+    pointed = json.loads(current.read_text(encoding="utf-8")).get("commit") if current.exists() else None
+    if (snap / "catalog.sqlite").exists() and pointed == commit and "--force" not in argv:
         print(f"模拟器主数据已就绪：{snap / 'catalog.sqlite'}（--force 重建）")
         return 0
     fetch(commit)

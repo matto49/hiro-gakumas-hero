@@ -1,22 +1,28 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
-	"regexp"
 	"testing"
 )
 
-// 程序名只在一处定（AppName），打包配置、窗口标题、网页标题要和它一致。
+// 程序名只在一处定（AppName），打包配置（mygo.json）、窗口标题要和它一致；标识不随改名变。
 func TestAppNameIsConsistent(t *testing.T) {
 	if AppName != "初星助手" {
 		t.Fatalf("AppName = %q", AppName)
 	}
-	cfg, _ := os.ReadFile("mygo.config.ts")
-	if m := regexp.MustCompile(`name: "([^"]+)"`).FindSubmatch(cfg); m == nil || string(m[1]) != AppName {
-		t.Fatalf("mygo.config.ts name = %q", m)
+	b, err := os.ReadFile("mygo.json")
+	if err != nil {
+		t.Fatal(err)
 	}
-	html, _ := os.ReadFile("index.html")
-	if m := regexp.MustCompile(`<title>([^<]+)</title>`).FindSubmatch(html); m == nil || string(m[1]) != AppName {
-		t.Fatalf("index.html title = %q", m)
+	var cfg struct {
+		Name       string `json:"name"`
+		Identifier string `json:"identifier"`
+	}
+	if err := json.Unmarshal(b, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Name != AppName || cfg.Identifier != "top.matto.hiro-console" {
+		t.Fatalf("mygo.json name = %q identifier = %q", cfg.Name, cfg.Identifier)
 	}
 }

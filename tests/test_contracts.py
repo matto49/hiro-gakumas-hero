@@ -84,3 +84,45 @@ def test_dataset_samples_validate(tmp_path):
         assert Observation.from_json(obs.to_json()) == obs
         n += 1
     assert n == 400
+
+
+# ---- 契约 1.3（插件架构）
+
+
+def test_version_is_1_3():
+    from hiro.contracts import VERSION
+
+    assert VERSION == "1.3"
+
+
+def test_contracts_roundtrip_new_fields():
+    from hiro.contracts import Action, GameState, Observation, PageObs
+    from hiro.contracts.game_state import Source
+
+    d = Decision(Action(ActionKind.WAIT, {}), reason="x", source="plugin", plugin="uinet@0.1")
+    assert not d.problems()
+    assert Decision.from_dict(d.to_dict()).plugin == "uinet@0.1"
+    o = Observation(
+        1,
+        1.0,
+        PageObs("HIF_EXAM", "produce"),
+        fields={},
+        source="plugin",
+        trust="save",
+        by="hook@1",
+        hidden={"seed": 1},
+    )
+    assert not o.problems()
+    back = Observation.from_dict(o.to_dict())
+    assert (back.trust, back.by, back.hidden) == ("save", "hook@1", {"seed": 1})
+    g = GameState(hidden={"seed": 1}, sources={"produce.x": Source("save", 1, by="hook@1")})
+    assert GameState.from_dict(g.to_dict()).sources["produce.x"].by == "hook@1"
+
+
+def test_old_records_without_new_fields_still_load():
+    from hiro.contracts import Observation
+
+    o = Observation.from_dict({"seq": 1, "t": 1.0, "page": {"name": "X", "area": "produce"}, "version": "1.2"})
+    assert o.by is None and o.hidden == {} and o.trust is None
+    d = Decision.from_dict({"action": {"kind": "Wait", "args": {}}, "version": "1.2"})
+    assert d.plugin is None

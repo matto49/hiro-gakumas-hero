@@ -1,0 +1,22 @@
+{
+ "checked": "2026-11-25",
+ "note": "单价：每百万 token。只收能从官方价格页核对的模型；没收的模型花费显示「—」，不猜。改价时改 rates / peak 并更新 checked。",
+ "models": [
+  {
+   "provider": "deepseek",
+   "model": "deepseek-flash",
+   "currency": "CNY",
+   "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing",
+   "rates": {"input": 1.0, "cache_read": 0.02, "cache_write": 0.0, "output": 4.0},
+   "peak": {"tz": "Asia/Shanghai", "weekdays": [0, 1, 2, 3, 4], "hours": [[9, 12], [14, 18]], "multiplier": 2.0}
+  },
+  {
+   "provider": "deepseek",
+   "model": "deepseek-v4-pro",
+   "currency": "CNY",
+   "source": "https://api-docs.deepseek.com/zh-cn/quick_start/pricing",
+   "rates": {"input": 4.5, "cache_read": 0.15, "cache_write": 0.0, "output": 13.5},
+   "peak": {"tz": "Asia/Shanghai", "weekdays": [0, 1, 2, 3, 4], "hours": [[9, 12], [14, 18]], "multiplier": 2.0}
+  }
+ ]
+}

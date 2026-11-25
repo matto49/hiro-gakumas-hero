@@ -326,7 +326,7 @@ def _known(folder: Path, kind: str) -> list[np.ndarray]:
 
 # ---------------------------------------------------------------- 1. collect
 def _exam_filter():
-    """考试画面判定（hiro.vision.hif.is_hif_exam，要 KAA）；导入不了时不过滤，所有帧都当考试画面。"""
+    """考试画面判定（hiro.vision.hif.is_hif_exam，要可选组 play）；导入不了时不过滤，所有帧都当考试画面。"""
     try:
         from hiro.vision.hif import is_hif_exam
 
@@ -350,7 +350,7 @@ def _images(paths: list[str], exam_only: bool = True):
 def collect(
     paths: list[str], work: Path, out: Path | None = None, *, exam_only: bool = True
 ) -> dict[str, list[Cluster]]:
-    """exam_only：装了 KAA 时只取考试画面（录屏目录里混着别的画面也行）；没装 KAA 时不过滤。"""
+    """exam_only：装了可选组 play 时只取考试画面（录屏目录里混着别的画面也行）；没装时不过滤。"""
     status, pitem = [], []
     for f, img in _images(paths, exam_only):
         for k in range(MAX_SLOTS):
@@ -525,7 +525,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("collect", help="从截图裁图标、聚类、出预览")
     c.add_argument("paths", nargs="+")
-    c.add_argument("--all-frames", action="store_true", help="不按考试画面过滤（默认装了 KAA 时只取考试画面）")
+    c.add_argument("--all-frames", action="store_true", help="不按考试画面过滤（默认装了可选组 play 时只取考试画面）")
     lb = sub.add_parser("label", help="交给 LLM 标名字（也可以手改 labels.json）")
     lb.add_argument(
         "--llm", default=None, help="hiro.brain.llm 的 spec，如 claude:sonnet / openai:<model>；缺省读 HIRO_LLM"

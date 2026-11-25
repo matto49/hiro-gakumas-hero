@@ -271,6 +271,9 @@ class BattleState:
     piles: dict | None = (
         None  # 公开牌堆：{deck: [卡名], grave: [卡名], draw: 每回合抽牌数}（存档 / 模拟器来源；截图来源为 None）
     )
+    hidden: dict = field(
+        default_factory=dict
+    )  # 2026-11-25 插件架构：数据来源插件给的、画面上看不到的信息（牌库顺序、种子…）；用过的对局打 uses_hidden
 
     def gives_action(self, card: CardView) -> bool:
         """打出这张牌后行动数不减：自带使用数追加，或会触发固有道具（えいえいおー，HP≥50% 且有剩余次数）。"""

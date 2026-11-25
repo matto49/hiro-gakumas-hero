@@ -1,63 +1,10 @@
-# 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
-"""第十八局本战 R2：点「再挑戦」后画面从结果页直接回到同一场考试，KAA 记的上一页还是 EXAM，
-_dispatch 只在「上一页不是 EXAM」时进 on_exam_entered → 主循环空转（两次各卡 18 / 7 分钟）。
-策略置 exam_restarted 后，下一次看到考试页要重新进入 on_exam_entered，且只进一次。"""
+# 部分逻辑基于 KAA（kotones-auto-assistant，GPL-3.0）
+"""第十八局本战 R2 起的「再挑戦」相关：策略（HifCore）置 exam_restarted、本战重挑上限 / 差距门槛、计数来源。
+原来前 3 个测试测旧主循环 hiro.loop.controller 收到 exam_restarted 后重进 on_exam_entered，2026-11-24 随旧主循环删了。"""
 
 import hiro  # noqa: F401  兼容层（先于 kaa）
-from hiro.loop.controller import HiroController
 
 import pytest
-from kaa.tasks.produce.new.consts import Scene, SceneType
-
-
-class Strategy:
-    exam_restarted = False
-
-    def __init__(self):
-        self.entered = 0
-
-    def on_exam_entered(self, ctx):
-        self.entered += 1
-
-
-def _ctrl():
-    c = HiroController.__new__(HiroController)
-    c.strategy, c.page, c._last_scene = Strategy(), None, None
-    return c
-
-
-def _tick(c, scene):
-    c._rearm_exam(scene)
-    c._dispatch(scene, c._last_scene)
-    c._last_scene = scene
-
-
-def test_retry_reenters_same_exam_once():
-    c, exam = _ctrl(), Scene(SceneType.EXAM)
-    _tick(c, exam)
-    assert c.strategy.entered == 1
-    c.strategy.exam_restarted = True  # on_exam_entered 里点了再挑戦
-    _tick(c, exam)
-    assert c.strategy.entered == 2 and c.strategy.exam_restarted is False
-    _tick(c, exam)  # 同一场考试后续帧：不重复进入
-    assert c.strategy.entered == 2
-
-
-def test_without_flag_kaa_does_not_reenter():
-    """旧行为（复现 bug）：没有标志时连续 EXAM 只进一次。"""
-    c, exam = _ctrl(), Scene(SceneType.EXAM)
-    _tick(c, exam)
-    _tick(c, exam)
-    assert c.strategy.entered == 1
-
-
-def test_flag_waits_for_exam_page():
-    """再挑戦后先过一帧别的页面（转场）：标志保留到真正看到考试页。"""
-    c = _ctrl()
-    c.strategy.exam_restarted = True
-    c._last_scene = Scene(SceneType.EXAM)
-    c._rearm_exam(Scene(SceneType.UNKNOWN))
-    assert c.strategy.exam_restarted is True
 
 
 def test_strategy_sets_flag_on_finals_retry(monkeypatch):
@@ -66,7 +13,7 @@ def test_strategy_sets_flag_on_finals_retry(monkeypatch):
     import hiro.produce.hif as hif
     import hiro.vision.pages as pages
 
-    st = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    st = hif.HifCore.__new__(hif.HifCore)
     st.s = NS(note=lambda *a: None)
     st.rec = NS(log=lambda *a, **k: None)
     monkeypatch.setattr(
@@ -89,7 +36,7 @@ def test_declined_retry_not_reopened_on_same_page(monkeypatch):
     import hiro.produce.hif as hif
     import hiro.vision.pages as pages
 
-    st = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    st = hif.HifCore.__new__(hif.HifCore)
     st.s = NS(note=lambda *a: None)
     st.rec = NS(log=lambda *a, **k: None)
     page = {"kind": "final", "rank": 3, "outcome": "敗退", "score": 756342, "round_score": 158038}
@@ -122,7 +69,7 @@ def test_comm_error_after_retry_not_counted(monkeypatch):
 
     import hiro.produce.hif as hif
 
-    st = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    st = hif.HifCore.__new__(hif.HifCore)
     notes = []
     st.s = NS(note=notes.append, trace=NS(dir="/nonexistent/x"), notes=[])
     st._retries_so_far = lambda label: 0
@@ -152,7 +99,7 @@ def _finals_strategy(tmp_path, notes_by_seg):
                 f.write(json.dumps(n if isinstance(n, dict) else {"seq": 1, "notes": [n]}, ensure_ascii=False) + "\n")
     cur = tmp_path / "main-x-r9"
     cur.mkdir()
-    st = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    st = hif.HifCore.__new__(hif.HifCore)
     st.s = NS(note=lambda *a: None, notes=[], trace=NS(dir=str(cur)))
     st.scenario = "main"
     st.exam_count = 1
@@ -226,7 +173,7 @@ def _gap_strategy(monkeypatch, page):
     import hiro.vision.pages as pages
     from hiro.vision.ocr import Box, Text
 
-    st = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    st = hif.HifCore.__new__(hif.HifCore)
     notes, calls = [], []
     st.s = NS(note=notes.append)
     st.rec = NS(log=lambda *a, **k: None)

@@ -77,6 +77,12 @@
   "type": "SupportCardType_Dance",
   "rarity": "SupportCardRarity_R"
  },
+ "img_general_csprt-1-0013_thumb-landscape": {
+  "id": "s_card-1-0013",
+  "name": "お仕え前の準備運動",
+  "type": "SupportCardType_Visual",
+  "rarity": "SupportCardRarity_R"
+ },
  "img_general_csprt-2-0000_thumb-landscape": {
   "id": "s_card-2-0000",
   "name": "体当たりのラブコール",
@@ -419,6 +425,12 @@
   "type": "SupportCardType_Vocal",
   "rarity": "SupportCardRarity_Sr"
  },
+ "img_general_csprt-2-0057_thumb-landscape": {
+  "id": "s_card-2-0057",
+  "name": "威風堂々・お昼寝タイム",
+  "type": "SupportCardType_Visual",
+  "rarity": "SupportCardRarity_Sr"
+ },
  "img_general_csprt-2-0058_thumb-landscape": {
   "id": "s_card-2-0058",
   "name": "ちべたなひととき",
@@ -567,6 +579,12 @@
   "id": "s_card-2-0082",
   "name": "ふたりで衣装作り",
   "type": "SupportCardType_Dance",
+  "rarity": "SupportCardRarity_Sr"
+ },
+ "img_general_csprt-2-0084_thumb-landscape": {
+  "id": "s_card-2-0084",
+  "name": "どたばた、おそうじ",
+  "type": "SupportCardType_Visual",
   "rarity": "SupportCardRarity_Sr"
  },
  "img_general_csprt-3-0000_thumb-landscape": {
@@ -1245,6 +1263,30 @@
   "id": "s_card-3-0112",
   "name": "これがあのかぼちゃ……",
   "type": "SupportCardType_Visual",
+  "rarity": "SupportCardRarity_Ssr"
+ },
+ "img_general_csprt-3-0113_thumb-landscape": {
+  "id": "s_card-3-0113",
+  "name": "デ、デートのお誘い！？",
+  "type": "SupportCardType_Vocal",
+  "rarity": "SupportCardRarity_Ssr"
+ },
+ "img_general_csprt-3-0114_thumb-landscape": {
+  "id": "s_card-3-0114",
+  "name": "みんなも読んでみてっ！",
+  "type": "SupportCardType_Vocal",
+  "rarity": "SupportCardRarity_Ssr"
+ },
+ "img_general_csprt-3-0115_thumb-landscape": {
+  "id": "s_card-3-0115",
+  "name": "お嬢様、失礼いたします",
+  "type": "SupportCardType_Vocal",
+  "rarity": "SupportCardRarity_Ssr"
+ },
+ "img_general_csprt-3-0122_thumb-landscape": {
+  "id": "s_card-3-0122",
+  "name": "こんなお写真もありますわ",
+  "type": "SupportCardType_Vocal",
   "rarity": "SupportCardRarity_Ssr"
  }
 }

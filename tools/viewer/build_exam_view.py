@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import contextlib
 import io
 import json
 import re
@@ -247,7 +248,16 @@ def build(base: str, traces: Path) -> dict:
         e["final_score"] = (
             (e["result"] or {}).get("round_score") or (e["result"] or {}).get("score") or last.get("score")
         )
-    return {"run": base, "generated": time.strftime("%Y-%m-%d %H:%M"), "exams": [e for e in exams if e["steps"]]}
+    hidden = False  # 2026-11-25 插件架构：任一段用过数据来源插件给的隐藏信息就在标题上标出来
+    for seg in _segments(traces, base):
+        with contextlib.suppress(OSError, ValueError, AttributeError):
+            hidden = hidden or bool(json.loads((seg / "plugins.json").read_text(encoding="utf-8")).get("uses_hidden"))
+    return {
+        "run": base,
+        "generated": time.strftime("%Y-%m-%d %H:%M"),
+        "exams": [e for e in exams if e["steps"]],
+        "uses_hidden": hidden,
+    }
 
 
 def _turns(steps: list[dict]) -> list[dict]:

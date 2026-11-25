@@ -67,7 +67,6 @@ def diff(want, got, path: str = "") -> list[str]:
 
 def read(path: Path, page: str | None = None) -> dict:
     """一帧 → {quick, quick_fields, tap, scene, fields}。page：这一帧的真实页面（取字段用哪个提取器）；不给就用 scene。"""
-    from hiro.context import ensure_offline_context
     from hiro.vision.extract import extract
     from hiro.vision.offline import load
     from hiro.vision.quick import quick_page
@@ -75,7 +74,6 @@ def read(path: Path, page: str | None = None) -> dict:
 
     import cv2
 
-    ensure_offline_context()
     raw = cv2.imread(str(path))
     img = load(raw)
     q = quick_page(img) or {}

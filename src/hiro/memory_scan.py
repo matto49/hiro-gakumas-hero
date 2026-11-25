@@ -31,7 +31,9 @@ def main():
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s")
     d = open_tool_device()
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    calib = None if args.no_calib else Path(f"reports/live/calib/{stamp}-回忆扫描")
+    from hiro.imgio import calib_root
+
+    calib = None if args.no_calib else calib_root() / f"{stamp}-回忆扫描"
     # 慢滑、终点停住再抬起：列表不带惯性滚动，扫描靠行重叠核对不漏行（以前只在 MaaTools 上停，现在各设备一样）
     picker = Picker(d.screenshot, d.tap,
                     lambda x1, y1, x2, y2: d.swipe(x1, y1, x2, y2, duration=SWIPE_DURATION, hold=SWIPE_HOLD), calib_dir=calib)  # fmt: skip

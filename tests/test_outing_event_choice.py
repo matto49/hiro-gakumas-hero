@@ -20,7 +20,7 @@ def _core(monkeypatch, texts):
     monkeypatch.setattr(hif, "device", NS(screenshot=lambda: "img", click=lambda x, y: clicks.append((x, y))))
     monkeypatch.setattr(hif, "sleep", lambda s: None)
     monkeypatch.setattr(hif, "screen_texts", lambda img: texts)
-    core = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    core = hif.HifCore.__new__(hif.HifCore)
     core.s = NS(note=notes.append)
 
     def stop(page, why, **k):
@@ -70,7 +70,7 @@ def test_outing_stamina_max_real_frame_classified_and_button_read():
 
 
 def test_event_choice_goes_through_event_choice_decider(monkeypatch):
-    core = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    core = hif.HifCore.__new__(hif.HifCore)
     seen = {}
     core._event_options = lambda: ["a", "b"]
     core._event_page = lambda page, commit, n: seen.update(page=page, n=n)

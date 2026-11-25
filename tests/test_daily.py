@@ -23,6 +23,8 @@ from hiro.vision.ui_templates import Match, box, point
 import numpy as np
 import pytest
 
+pytestmark = pytest.mark.play_free  # hiro.daily 不要 OCR 等 play 组依赖也能导入
+
 HOME = {"Daily.ButtonHomeCurrent": (359, 1155)}
 
 
@@ -372,7 +374,7 @@ def test_scrollbar_reads_thumb():
 
 
 def test_registry_and_no_kaa_import():
-    assert set(TASKS) == {"activity_funds", "presents", "mission_reward", "club_reward"}
+    assert set(TASKS) == {"activity_funds", "presents", "assignment", "contest", "mission_reward", "club_reward"}
     code = (
         "import sys, hiro.daily;"
         "bad = sorted(m for m in sys.modules if m.split('.')[0] in ('kotonebot', 'kaa'));"
@@ -385,14 +387,16 @@ def test_registry_and_no_kaa_import():
     assert r.returncode == 0, r.stdout + r.stderr
 
 
-def test_run_daily_own_rejects_unmigrated_tasks():
+def test_run_daily_has_no_kaa_path():
+    """6 项都在 hiro.daily：run_daily 不再有 KAA 那条路（--own 只为兼容留着，不起作用），源码里不 import kaa / kotonebot。"""
     from pathlib import Path
 
     tool = Path(__file__).resolve().parents[1] / "tools/daily/run_daily.py"
-    r = subprocess.run(
-        [sys.executable, str(tool), "--own", "--only", "contest"], capture_output=True, text=True, check=False
-    )
-    assert r.returncode == 2 and "还没迁到 hiro.daily" in r.stderr
+    src = tool.read_text(encoding="utf-8")
+    assert "from kaa" not in src and "import kotonebot" not in src and "kaa_device" not in src
+    assert not (tool.parent / "kaa_device.py").exists()
+    r = subprocess.run([sys.executable, str(tool), "--only", "nope"], capture_output=True, text=True, check=False)
+    assert r.returncode == 2 and "没有这些项" in r.stderr
 
 
 def test_run_own_records_ok_timeout_and_error(monkeypatch, tmp_path):
@@ -429,3 +433,171 @@ def test_run_own_records_ok_timeout_and_error(monkeypatch, tmp_path):
     assert Path(by["activity_funds"]["timeout_shot"]).exists()
     assert not by["club_reward"]["ok"] and "ResumeBlocked" in by["club_reward"]["error"]
     assert all(Path(r["before"]).exists() and Path(r["after"]).exists() for r in summary)
+
+
+# ---------------------------------------------------------------- 匹配小工具（移植 kotonebot 的 colored / WhiteFilter / raw find）
+
+
+def test_hist_match_tells_colors_apart():
+    red = np.zeros((30, 30, 3), np.uint8)
+    red[:] = (40, 40, 220)
+    grey = np.full((30, 30, 3), 120, np.uint8)
+    assert common.hist_match(red, red.copy())
+    assert not common.hist_match(red, grey)
+
+
+def test_white_match_ignores_background_colour():
+    tpl = np.zeros((20, 20, 3), np.uint8)
+    tpl[5:15, 8:12] = 255  # 白色竖条（图标）
+    img = np.zeros((200, 200, 3), np.uint8)
+    img[:] = (200, 60, 30)  # 彩色底
+    img[105:115, 58:62] = 255
+    m = common.white_match(img, tpl, threshold=0.7)
+    assert m is not None and m.rect[:2] == (50, 100)
+    assert common.white_match(np.zeros((200, 200, 3), np.uint8), tpl, threshold=0.7) is None
+
+
+def test_same_image():
+    a = np.random.default_rng(0).integers(0, 255, (40, 120, 3), dtype=np.uint8)
+    b = a.copy()
+    assert common.same(a, b)
+    b[:, 60:] = 255 - b[:, 60:]
+    assert not common.same(a, b)
+
+
+# ---------------------------------------------------------------- 工作（assignment）、竞赛（contest）：移植 KAA tasks/daily
+
+
+def _patch_multi(monkeypatch, *, all_hits=None, scores=None):
+    """find_all / find_colored / find_white / same / 竞赛分数：按帧上登记的名字给结果（Rig 只替换了 nav.find）。"""
+    from hiro.daily import assignment, contest
+
+    def find_all(f, name):
+        pts = (all_hits or {}).get(name) if name in getattr(f, "seen", {}) else None
+        return [Match(Box(x, y, x + 1, y + 1), 0.9) for x, y in (pts or [])]
+
+    def by_name(f, name, **kw):
+        p = getattr(f, "seen", {}).get(name)
+        return None if p is None else Match(Box(p[0], p[1], p[0] + 1, p[1] + 1), 0.9)
+
+    monkeypatch.setattr(common, "find_all", find_all)
+    monkeypatch.setattr(common, "find_colored", by_name)
+    monkeypatch.setattr(common, "find_white", by_name)
+    monkeypatch.setattr(common, "same", lambda a, b, threshold=0.95: False)
+    monkeypatch.setattr(contest, "read_scores", lambda f: list(scores or [None, None, None]))
+    return assignment, contest
+
+
+ASSIGN_PAGE = {"Daily.IconTitleAssign": (40, 60), "Daily.IconAssignMiniLive": (180, 700),
+               "Daily.IconAssignOnlineLive": (540, 700), "Daily.ButtonAssignmentShortenTime": (360, 1100)}  # fmt: skip
+
+
+def test_assignment_nothing_to_do(monkeypatch):
+    assignment, _ = _patch_multi(monkeypatch)
+    rig = Rig(monkeypatch, [frame({**HOME, "Daily.ButtonAssignmentPartial": (130, 980)})])
+    assert assignment.run(rig.rt) == "工作不用处理" and rig.taps == []
+
+
+def test_assignment_claims_reward_then_reassigns_both(monkeypatch):
+    """首页工作入口有红点：点进去领奖励 → ミニライブ、ライブ配信各派一位好調偶像（12 小时）。时短按钮绝不点。"""
+    assignment, _ = _patch_multi(monkeypatch, all_hits={"Daily.IconAssignKouchou": [(400, 760), (200, 760)]})
+    entry, claim = (130, 980), (360, 1000)
+    mini, online = ASSIGN_PAGE["Daily.IconAssignMiniLive"], ASSIGN_PAGE["Daily.IconAssignOnlineLive"]
+    select, ok, h12, start = (360, 1180), (500, 1180), (560, 900), (360, 1150)
+    pick = frame({"Common.ButtonSelect": select, "Daily.IconAssignKouchou": (200, 760)})
+    hours = frame({"Common.ButtonConfirmNoIcon": ok, "Daily.Assignment.Button12Hours": h12})
+    done_mini = {k: v for k, v in ASSIGN_PAGE.items() if k != "Daily.IconAssignMiniLive"}
+    state = {"kind": "mini"}
+
+    def script(rig, act):
+        xy = act[1:3]
+        if xy == entry:
+            return [frame({"Common.ButtonCompletion": claim})]
+        if xy == claim:
+            return [frame(ASSIGN_PAGE)]
+        if xy in (mini, online):
+            state["kind"] = "mini" if xy == mini else "online"
+            return [pick]
+        if xy == select:
+            return [hours]
+        if xy == ok:
+            return [frame({"Common.ButtonStart": start})]
+        if xy == start:
+            return [frame(done_mini if state["kind"] == "mini" else {"Daily.IconTitleAssign": (40, 60),
+                                                                       "Daily.ButtonAssignmentShortenTime": (360, 1100)})]  # fmt: skip
+        if xy == HOME["Daily.ButtonHomeCurrent"]:
+            return None
+        return None
+
+    rig = Rig(monkeypatch, [frame({**HOME, "Daily.ButtonAssignmentPartial": entry}, red=True)], script)
+    out = assignment.run(rig.rt, home=False)
+    assert rig.taps[:2] == [entry, claim]
+    assert rig.taps[2:9] == [mini, (200, 760), select, h12, ok, start, online][:7]
+    assert online in rig.taps and rig.taps.count(select) == 2 and rig.taps.count(h12) == 2
+    assert ASSIGN_PAGE["Daily.ButtonAssignmentShortenTime"] not in rig.taps
+    assert "领了工作奖励" in out and "ミニライブ" in out and "ライブ配信" in out
+
+
+def test_contest_nothing_to_do(monkeypatch):
+    _, contest = _patch_multi(monkeypatch)
+    rig = Rig(monkeypatch, [frame({**HOME, "Common.ButtonContest": (480, 1140)})])
+    assert contest.run(rig.rt) == "竞赛不用打" and rig.taps == []
+
+
+def test_contest_picks_lowest_score_and_skips_through(monkeypatch):
+    _, contest = _patch_multi(
+        monkeypatch,
+        all_hits={"Daily.TextContestOverallStats": [(130, 1060), (130, 620), (130, 860)]},  # 乱序：按 y 排
+        scores=[500, 300, 400],
+    )
+    from hiro.vision.ui_templates import point
+
+    btn, cpoint = (480, 1140), tuple(point("Daily.PointContest"))
+    start, check, skip, end = (360, 1080), (250, 1005), (650, 80), (360, 1150)
+    rank = {"Daily.ButtonContestRanking": (600, 300), "Daily.TextContestOverallStats": (130, 620)}
+
+    def script(rig, act):
+        xy = act[1:3]
+        table = {btn: [frame({"Daily.TextRoadToIdol": (360, 200)})], cpoint: [frame(rank)],
+                 (130, 860): [frame({"Daily.ButtonContestStart": start})], start: [frame({"Common.CheckboxUnchecked": check})],
+                 check: [frame({"Daily.ButtonIconSkip": skip})], skip: [frame({"Common.ButtonEnd": end})],
+                 end: [frame({"Daily.Contest.TextUsedUp": (360, 880)})]}  # fmt: skip
+        return table.get(xy)
+
+    rig = Rig(monkeypatch, [frame({**HOME, "Common.ButtonContest": btn}, red=True)], script)
+    out = contest.run(rig.rt, home=False)
+    # 第 2 位（中间那行）300 分最低；点「開始」那拍后面同 KAA 还点一下空白处（12, 12）跳动画
+    assert rig.taps == [btn, cpoint, (130, 860), start, (12, 12), check, skip, end]
+    assert "打了 1 场" in out
+
+
+def test_contest_without_memory_set_skips(monkeypatch):
+    """回忆没编成：同 KAA when_no_set=skip，关掉提示框、不自动编成。"""
+    _, contest = _patch_multi(monkeypatch)
+    btn, cross, challenge = (480, 1140), (620, 400), (360, 760)
+    ongoing = {"Daily.TextRoadToIdol": (360, 200), "Daily.TextContestLastOngoing": (360, 500)}
+    from hiro.vision.ui_templates import point
+
+    cpoint = tuple(point("Daily.PointContest"))
+
+    def script(rig, act):
+        table = {btn: [frame(ongoing)], (360, 500): [frame(ongoing)],
+                 cpoint: [frame({"Daily.ButtonContestChallengeStart": (360, 1000), "Daily.ButtonContestStart": (360, 1000)})],
+                 (360, 1000): [frame({"Daily.TextContestNoMemory": (360, 640), "Common.IconButtonCross": cross,
+                                      "Daily.ButtonContestChallenge": challenge})]}  # fmt: skip
+        return table.get(act[1:3])
+
+    rig = Rig(monkeypatch, [frame({**HOME, "Common.ButtonContest": btn}, red=True)], script)
+    out = contest.run(rig.rt, home=False)
+    assert cross in rig.taps and "回忆没编成" in out
+    assert challenge not in rig.taps  # 不点「おまかせで挑戦」（不自动编成）
+
+
+def test_contest_scores_keep_ocr_blocks_apart(monkeypatch):
+    """一格 OCR 出两段数字（「40,000」「50,000」）时取较小的 40000，不拼成 4000050000（CodeRabbit）。"""
+    from hiro.daily import contest
+    from hiro.vision import ocr as ocr_mod
+
+    monkeypatch.setattr(ocr_mod, "ocr", lambda img: [("40,000", 0.9), ("50,000", 0.9)])
+    f = frame({})
+    assert contest.read_scores(f) == [40000, 40000, 40000]

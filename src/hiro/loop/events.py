@@ -386,7 +386,11 @@ def reduce_checked(state: GameState, obs: Observation, predictions: list[Predict
     """主循环与离线回放共用：互验 → 去掉读错 → reduce → 标字段状态。只对截图来源做互验；存档是真值。"""
     from hiro.loop.reduce import reduce
 
-    if obs.source not in ("screen", "replay", "dataset") or not obs.fields:
+    checked = obs.source in ("screen", "replay", "dataset") or (
+        obs.source == "plugin"
+        and obs.trust in ("screen", "infer")  # 插件声明和画面同档或更低：一样要互验；save 档和存档一样当真值
+    )
+    if not checked or not obs.fields:
         return reduce(state, obs), []
     checks = check(state, obs, predictions)
     return mark(reduce(state, gate(obs, checks, state)), checks), checks

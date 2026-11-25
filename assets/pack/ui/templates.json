@@ -1378,6 +1378,234 @@
     240,
     60
    ]
+  },
+  "Daily.IconTitleAssign": {
+   "file": "Daily.IconTitleAssign.png",
+   "slice_rect": [
+    11,
+    34,
+    49,
+    44
+   ],
+   "source": "KAA f7ef6d4f-dd78-457d-9b7f-c519f3563fe4_template.png",
+   "fixed": true
+  },
+  "Daily.IconAssignMiniLive": {
+   "file": "Daily.IconAssignMiniLive.png",
+   "slice_rect": [
+    96,
+    381,
+    171,
+    164
+   ],
+   "source": "KAA 40655be4-0d69-42cc-aabe-ca553d8f85e9_template.png",
+   "fixed": true
+  },
+  "Daily.IconAssignOnlineLive": {
+   "file": "Daily.IconAssignOnlineLive.png",
+   "slice_rect": [
+    442,
+    404,
+    176,
+    117
+   ],
+   "source": "KAA 2b3c398a-edb6-4510-9273-6b0e4bab3d27_template.png",
+   "fixed": true
+  },
+  "Common.ButtonSelect": {
+   "file": "Common.ButtonSelect.png",
+   "slice_rect": null,
+   "source": "KAA da3bfbc5-6160-4f1b-91fe-6ec63920dd97.png"
+  },
+  "Daily.IconAssignKouchou": {
+   "file": "Daily.IconAssignKouchou.png",
+   "slice_rect": [
+    34,
+    642,
+    34,
+    39
+   ],
+   "source": "KAA 0479c6ef-ad81-43ea-bd0a-a5f152d20cdd_template.png",
+   "region": [
+    9,
+    692,
+    704,
+    331
+   ]
+  },
+  "Daily.Assignment.Button4Hours": {
+   "file": "Daily.Assignment.Button4Hours.png",
+   "slice_rect": [
+    80,
+    901,
+    111,
+    59
+   ],
+   "source": "KAA f6f3eb70-25eb-4178-8c18-fddeb0cdb68c_template.png",
+   "fixed": true
+  },
+  "Daily.Assignment.Button8Hours": {
+   "file": "Daily.Assignment.Button8Hours.png",
+   "slice_rect": [
+    304,
+    902,
+    111,
+    59
+   ],
+   "source": "KAA 52aaaa2d-7529-41b2-aa61-6d4445b6a996_template.png",
+   "fixed": true
+  },
+  "Daily.Assignment.Button12Hours": {
+   "file": "Daily.Assignment.Button12Hours.png",
+   "slice_rect": [
+    513,
+    899,
+    138,
+    59
+   ],
+   "source": "KAA 31b24b9d-2d77-447e-a3b5-edece6e451a7_template.png",
+   "fixed": true
+  },
+  "Common.ButtonStart": {
+   "file": "Common.ButtonStart.png",
+   "slice_rect": null,
+   "source": "KAA 0afade01-df11-4f48-814c-0b379c2d152e.png"
+  },
+  "Daily.ButtonAssignmentShortenTime": {
+   "file": "Daily.ButtonAssignmentShortenTime.png",
+   "slice_rect": [
+    461,
+    1025,
+    121,
+    35
+   ],
+   "source": "KAA 1652f06a-5417-49ef-8949-4854772d9ab7_template.png"
+  },
+  "Daily.ButtonAssignmentPartial": {
+   "file": "Daily.ButtonAssignmentPartial.png",
+   "slice_rect": [
+    44,
+    677,
+    50,
+    14
+   ],
+   "source": "KAA 98c3720d-5976-47d3-9ae0-ef709c960284_template.png",
+   "fixed": true
+  },
+  "Common.ButtonCompletion": {
+   "file": "Common.ButtonCompletion.png",
+   "slice_rect": null,
+   "source": "KAA 70d99e72-9ed2-4215-975f-1d620dcddb50.png"
+  },
+  "Common.ButtonContest": {
+   "file": "Common.ButtonContest.png",
+   "slice_rect": [
+    460,
+    1114,
+    39,
+    47
+   ],
+   "source": "KAA 18682004-32b8-42c4-987c-c5651f30ac0f_template.png"
+  },
+  "Daily.TextRoadToIdol": {
+   "file": "Daily.TextRoadToIdol.png",
+   "slice_rect": [
+    84,
+    894,
+    120,
+    65
+   ],
+   "source": "KAA 4503db6b-7224-4b81-9971-e7cfa56e10f2_template.png"
+  },
+  "Daily.TextContestLastOngoing": {
+   "file": "Daily.TextContestLastOngoing.png",
+   "slice_rect": null,
+   "source": "KAA d39c4fd4-5ef3-4b2b-bd03-f27806388667.png"
+  },
+  "Daily.ButtonContestChallengeStart": {
+   "file": "Daily.ButtonContestChallengeStart.png",
+   "slice_rect": [
+    249,
+    1137,
+    200,
+    47
+   ],
+   "source": "KAA 5f0801a8-ec37-4553-89fe-e53f0200acc8_template.png",
+   "fixed": true
+  },
+  "Daily.ButtonContestRanking": {
+   "file": "Daily.ButtonContestRanking.png",
+   "slice_rect": [
+    66,
+    378,
+    108,
+    26
+   ],
+   "source": "KAA 563b7fc3-ba03-46ed-849c-18109ec428b2_template.png",
+   "fixed": true
+  },
+  "Daily.ButtonContestStart": {
+   "file": "Daily.ButtonContestStart.png",
+   "slice_rect": [
+    295,
+    1061,
+    130,
+    45
+   ],
+   "source": "KAA 5649db87-f32f-48c0-b9d8-1e8b6806450c_template.png",
+   "fixed": true
+  },
+  "Daily.TextContestNoMemory": {
+   "file": "Daily.TextContestNoMemory.png",
+   "slice_rect": null,
+   "source": "KAA 09ba7104-0402-4b60-9298-aecd1d49c332.png"
+  },
+  "Daily.ButtonContestChallenge": {
+   "file": "Daily.ButtonContestChallenge.png",
+   "slice_rect": null,
+   "source": "KAA 15e66ae0-5c96-4ac3-bb10-cfdc0d97e923.png"
+  },
+  "Daily.ButtonIconSkip": {
+   "file": "Daily.ButtonIconSkip.png",
+   "slice_rect": null,
+   "source": "KAA 73d2be7d-99ba-4b2f-8a67-79c946d3d5f7.png"
+  },
+  "Common.ButtonNextNoIcon": {
+   "file": "Common.ButtonNextNoIcon.png",
+   "slice_rect": null,
+   "source": "KAA 180d07bb-cb19-4ecb-a2a6-12165a7bc0db.png"
+  },
+  "Common.ButtonEnd": {
+   "file": "Common.ButtonEnd.png",
+   "slice_rect": null,
+   "source": "KAA 5fe0e89e-2284-48ae-b874-81f5cd2d1445.png"
+  },
+  "Daily.Contest.TextUsedUp": {
+   "file": "Daily.Contest.TextUsedUp.png",
+   "slice_rect": [
+    223,
+    862,
+    274,
+    45
+   ],
+   "source": "KAA f4535594-08e3-4b73-a405-12dcc03a1131_template.png",
+   "fixed": true
+  },
+  "Daily.TextContestOverallStats": {
+   "file": "Daily.TextContestOverallStats.png",
+   "slice_rect": [
+    77,
+    601,
+    110,
+    28
+   ],
+   "source": "KAA bbbade8f-b164-41d0-a980-49d592b40529_template.png",
+   "region": [
+    63,
+    581,
+    164,
+    473
+   ]
   }
  },
  "boxes": {
@@ -1458,6 +1686,36 @@
    528,
    108,
    605
+  ],
+  "Daily.Assignment.BoxCharName": [
+   311,
+   163,
+   707,
+   241
+  ],
+  "Daily.BoxHomeAssignment": [
+   33,
+   650,
+   107,
+   746
+  ],
+  "Daily.Contest.BoxScore1": [
+   64,
+   634,
+   260,
+   690
+  ],
+  "Daily.Contest.BoxScore2": [
+   64,
+   830,
+   260,
+   885
+  ],
+  "Daily.Contest.BoxScore3": [
+   69,
+   1028,
+   260,
+   1082
   ]
  },
  "points": {
@@ -1484,6 +1742,30 @@
   "Daily.MissonRewards.PointWeekly": [
    223,
    979
+  ],
+  "Daily.Assignment.PointIdol1": [
+   88,
+   784
+  ],
+  "Daily.Assignment.PointIdol2": [
+   245,
+   780
+  ],
+  "Daily.Assignment.PointIdol3": [
+   86,
+   943
+  ],
+  "Daily.Assignment.PointIdol4": [
+   242,
+   941
+  ],
+  "Daily.PointContest": [
+   492,
+   878
+  ],
+  "Daily.PointDissmissContestReward": [
+   604,
+   178
   ]
  }
 }

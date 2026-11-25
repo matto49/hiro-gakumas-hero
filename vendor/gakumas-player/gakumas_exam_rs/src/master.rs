@@ -516,6 +516,30 @@ impl Master {
         }
     }
 
+    /// 深拷贝：所有行重新分配，Arc 不和原来的共享。多线程搜索每个线程用自己的一份：
+    /// 共享 Arc 的引用计数是同一块缓存行，每次克隆局面 / 执行效果都原子加减，8 线程时每核推演数掉到 1/4（2026-11-24 实测）。
+    pub fn deep_copy(&self) -> Master {
+        fn fresh<T: Clone>(a: &Arc<T>) -> Arc<T> {
+            Arc::new((**a).clone())
+        }
+        Master {
+            commit: self.commit.clone(),
+            cards: self.cards.iter().map(|(k, v)| (*k, v.iter().map(|x| x.as_ref().map(fresh)).collect())).collect(),
+            effects: self.effects.iter().map(|(k, v)| (*k, fresh(v))).collect(),
+            triggers: self.triggers.iter().map(|(k, v)| (*k, fresh(v))).collect(),
+            searches: self.searches.iter().map(|(k, v)| (*k, fresh(v))).collect(),
+            exam_enchants: self.exam_enchants.clone(),
+            card_enchants: self.card_enchants.clone(),
+            grows: self.grows.clone(),
+            customize: self.customize.clone(),
+            drinks: self.drinks.clone(),
+            drink_effects: self.drink_effects.clone(),
+            settings: self.settings.iter().map(|(k, (a, b))| (*k, (fresh(a), fresh(b)))).collect(),
+            debuff_effect_types: self.debuff_effect_types.clone(),
+            debuff_status_classes: self.debuff_status_classes.clone(),
+        }
+    }
+
     pub fn card(&self, id: Sym, upgrade: i64) -> Option<&Arc<CardRow>> {
         if upgrade < 0 {
             return None;

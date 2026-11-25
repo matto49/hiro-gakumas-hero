@@ -1222,7 +1222,7 @@ impl Exam {
         self.playing = Some(card);
         self.remaining_actions -= 1;
         let mut cmds = vec![];
-        self.increment_play_counts(card);
+        self.increment_play_counts(card, ctx);
         let pe = self.card_play_enchants(card, ctx);
         cmds.extend(self.fire(&pe));
         let ev = [card];
@@ -1310,7 +1310,15 @@ impl Exam {
 
     const COUNT_PHASES: [i64; 3] = [ph::ExamPlayCountInterval, ph::ExamPlayTurnCountInterval, ph::ExamPlayCountIntervalAfter];
 
-    pub fn increment_play_counts(&mut self, card: CardId) {
+    /// 带场面条件的出牌计数只计出牌开始（付费前）条件成立的那几次（#43，GKMS rev383 card_play_select HIF-97 / rev338）；
+    /// ExamPlayTurnCountInterval 不看场面条件
+    const FIELD_GATED_COUNT_PHASES: [i64; 2] = [ph::ExamPlayCountInterval, ph::ExamPlayCountIntervalAfter];
+
+    fn play_count_counts(&mut self, tr: &TriggerRow, p: i64, ctx: Ctx) -> bool {
+        !Exam::FIELD_GATED_COUNT_PHASES.contains(&p) || self.field_status_valid(tr, Some(ctx))
+    }
+
+    pub fn increment_play_counts(&mut self, card: CardId, ctx: Ctx) {
         let m = self.m.clone();
         for i in 0..self.status.effects.len() {
             let hit: Vec<i64> = match &self.status.effects[i].trig {
@@ -1329,19 +1337,26 @@ impl Exam {
             if sid != NONE && !self.search_target(card, m.search(sid).map(|x| &**x)) {
                 continue;
             }
-            let t = self.status.effects[i].trig.as_mut().unwrap();
+            let tr = self.status.effects[i].trig.as_ref().unwrap().trigger.clone();
             for p in hit {
-                t.inc_phase(p);
+                if self.play_count_counts(&tr, p, ctx) {
+                    self.status.effects[i].trig.as_mut().unwrap().inc_phase(p);
+                }
             }
         }
-        self.inc_card_enchant_phase(&Exam::COUNT_PHASES, &mut |ex, c, tr| {
-            if tr.search == NONE {
-                return true;
-            }
-            let s = ex.m.search(tr.search).cloned();
-            let srch = s.as_deref();
-            (srch.map(|x| x.is_self).unwrap_or(false) && c == card) || ex.search_target(card, srch)
-        });
+        // 逐阶段：每张卡的计数仍按 COUNT_PHASES 顺序记
+        for p in Exam::COUNT_PHASES {
+            self.inc_card_enchant_phase(&[p], &mut |ex, c, tr| {
+                let hit = if tr.search == NONE {
+                    true
+                } else {
+                    let s = ex.m.search(tr.search).cloned();
+                    let srch = s.as_deref();
+                    (srch.map(|x| x.is_self).unwrap_or(false) && c == card) || ex.search_target(card, srch)
+                };
+                hit && ex.play_count_counts(tr, p, ctx)
+            });
+        }
     }
 
     pub fn card_play_enchants(&mut self, card: CardId, ctx: Ctx) -> Vec<i64> {
@@ -1364,6 +1379,20 @@ impl Exam {
     }
 
     pub fn card_play_after_enchants(&mut self, card: CardId, ctx: Ctx) -> Vec<i64> {
+        // ExamPlayCountIntervalAfter：计数在出牌开始时判场面条件、这里在出牌后再判。只有这次出牌计了数（计数比上次判定时涨了）
+        // 才可能发动，没计数而卡牌效果让条件成立时不发动（#44）。每次判定都记下计数，用完次数暂不可用时也记
+        let mut fresh: Vec<i64> = vec![];
+        for s in self.status.effects.iter_mut() {
+            if let Some(t) = s.trig.as_mut() {
+                if t.trigger.has_phase(ph::ExamPlayCountIntervalAfter) {
+                    let n = t.phase(ph::ExamPlayCountIntervalAfter);
+                    if n != t.after_seen_count {
+                        fresh.push(s.uid);
+                    }
+                    t.after_seen_count = n;
+                }
+            }
+        }
         self.enchants(&mut |ex, i| {
             let tr = ex.trig_of(i);
             if !ex.target_search_ok(&tr, card) {
@@ -1374,7 +1403,7 @@ impl Exam {
             } else if tr.has_phase(ph::ExamPlayCountIntervalAfter) {
                 let n = ex.status.effects[i].trig.as_ref().unwrap().phase(ph::ExamPlayCountIntervalAfter);
                 let v = tr.v0_or1();
-                n >= 1 && n % v == 0 && ex.trigger_field_valid(Some(&tr), Some(ctx), Some(&[card]))
+                n >= 1 && n % v == 0 && fresh.contains(&ex.status.effects[i].uid) && ex.trigger_field_valid(Some(&tr), Some(ctx), Some(&[card]))
             } else {
                 false
             }

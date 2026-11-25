@@ -49,8 +49,32 @@ def exam_rank(img: np.ndarray) -> dict | None:
     except Exception:  # noqa: BLE001  识别异常当没读到
         return None
     if r.get("rank") is None:
+        # 「不合格」页自己那行（4–6 位）常被底部按钮挡住、分数读不到，名次给不出（11-25 账号 3 プロ期中「6th」还读成「Oth」）：
+        # 左上写着「不合格」就是没过线，照样交给调用方走再挑戦，别返回 None 让主循环去点「次へ」
+        if _failed_header(img):
+            return {"rank": None, "score": None, "retry": r.get("retry"), "failed": True}
         return None
-    return {"rank": r["rank"], "score": r.get("score"), "retry": r.get("retry")}
+    out = {"rank": r["rank"], "score": r.get("score"), "retry": r.get("retry")}
+    if _failed_header(img):
+        out["failed"] = True
+    return out
+
+
+FAILED_HEADER = (20, 120, 260, 200)  # 名次页左上「不合格」
+
+
+def _failed_header(img: np.ndarray) -> bool:
+    from hiro.vision.ocr import ocr
+
+    x1, y1, x2, y2 = FAILED_HEADER
+    return any("不合格" in t for t, _ in ocr(img[y1:y2, x1:x2], scale=2))  # 小块不放大 Vision 读不出
+
+
+def result_passed(res: dict, need: int) -> bool:
+    """名次页读数过没过线：写着「不合格」就没过；否则名次进前 need。"""
+    if res.get("failed"):
+        return False
+    return res.get("rank") is not None and res["rank"] <= need
 
 
 LESSON_LEFT_BOX = (300, 125, 420, 172)  # 正中「CLEARまで / PERFECTまで」下面的数字（帧 00330：25 在 (359,146)）

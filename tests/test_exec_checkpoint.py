@@ -39,19 +39,12 @@ def test_exec_sleep_passes_runtime_checkpoint():
 
 
 def test_sleep_without_any_loop_is_plain_sleep(monkeypatch):
-    """两套主循环都没起（离线工具、测试）：kotonebot 上下文没初始化也不报错，退回 time.sleep。"""
+    """没接上新主循环（离线工具、测试）：sleep 退回 time.sleep。"""
     import time
 
     from hiro.devices import active
 
-    class ContextNotInitializedError(Exception):
-        pass
-
-    def kb_sleep(s):
-        raise ContextNotInitializedError("Forwarded object vars called before initialization.")
-
     slept = []
-    monkeypatch.setattr(active, "_kb", lambda: NS(sleep=kb_sleep))
     monkeypatch.setattr(time, "sleep", slept.append)
     active.use(None)
     active.sleep(0.01)

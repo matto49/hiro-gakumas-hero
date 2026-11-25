@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 from hiro.devices.active import sleep as _sleep
+from hiro.vision.textnorm import fold
 
 logger = logging.getLogger(__name__)
 
@@ -107,19 +108,25 @@ def scan(shoot, tap, swipe, ocr, sleep=_sleep, *, max_screens: int = MAX_SCREENS
 
 
 def attach_ids(inv: dict) -> dict:
-    """按主数据对上 idol_card_id：IdolCard.name == 卡名、角色姓名 == 读到的角色名（去空格）。对不上的留空，入库时再按资料库对。"""
+    """按主数据对上 idol_card_id：IdolCard.name == 卡名、角色姓名 == 读到的角色名，两边都 fold（去空格、全角半角统一）再比；
+    主数据取 game.db + 模拟器主数据里 game.db 没有的新卡。对上后稀有度没读到的按主数据补。
+    主数据有的卡名用全角标点（「Yellow Big Bang！」），OCR 读成半角「!」，不 fold 就对不上、卡面出不来（11-25）。对不上的留空，入库时再按资料库对。"""
     try:
         from hiro.state.context import catalog
 
         cat = catalog()
-        chars = {f"{r['lastName']}{r['firstName']}": r["id"] for r in cat.rows("Character")}
-        index = {(r["name"], r["characterId"]): r["id"] for r in cat.rows("IdolCard")}
+        chars = {fold(f"{r['lastName']}{r['firstName']}"): r["id"] for r in cat.rows_merged("Character")}
+        cards = cat.rows_merged("IdolCard")
+        index = {(fold(r["name"]), r["characterId"]): r["id"] for r in cards}
+        rarity = {r["id"]: str(r.get("rarity") or "").rsplit("_", 1)[-1].upper() or None for r in cards}
     except Exception as e:  # noqa: BLE001  主数据不在：只出原文
         logger.info("主数据不可用，idol_card_id 留空：%s", e)
         return inv
     for c in inv["idols"]:
-        cid = chars.get(c["character"])
-        c["idol_card_id"] = index.get((c["title"], cid)) if cid else None
+        cid = chars.get(fold(c["character"]))
+        c["idol_card_id"] = index.get((fold(c["title"]), cid)) if cid else None
+        if c["idol_card_id"] and not c.get("rarity"):  # 稀有度角标 OCR 常读不到（R 卡几乎全空）：按主数据补
+            c["rarity"] = rarity.get(c["idol_card_id"])
     return inv
 
 

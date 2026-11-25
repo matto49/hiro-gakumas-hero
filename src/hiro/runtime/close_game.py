@@ -11,7 +11,7 @@
 - 单段的 python -m hiro.run_hif 不关（初星助手等把选拔、本战拆成两个任务跑，DMM 关了以后程序拉不起来，本战就开不了局）；
   别的发起方（任务收尾、自己的脚本）要关就调 close_at_exit；
 - 未读剧情等人超时（hiro.runtime.unread_story）不看开关，直接按 HIRO_CLOSE_GAME 的目标关（没开时关模拟器）。
-不 import kotonebot / KAA：进程收尾时 KAA 上下文可能已经没了，这里只跑外部命令。
+只跑外部命令，不依赖游戏会话的上下文（进程收尾时它可能已经没了）。
 """
 
 from __future__ import annotations

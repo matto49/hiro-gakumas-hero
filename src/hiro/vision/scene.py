@@ -1,7 +1,7 @@
 """执行层（HifCore / Session.verify / resume）的判页入口：截一张当前画面分类，结果换回旧的 SceneResult 和旧页面名。
 
 判页本身已经是 hiro.vision.classify.classify_scene（纯函数、不依赖 KAA，和原来 KAA check_scene 那条链逐帧一致）。
-截图走 hiro.devices.active：旧主循环下转发 kotonebot，新主循环（HIRO_RUNTIME=own）下用 Runtime 的设备。
+截图走 hiro.devices.active（主循环 Runtime 的设备）。
 新主循环的逐拍判页直接用 classify.classify。
 """
 

@@ -87,7 +87,7 @@ def test_empty_deck_triggers_review_without_flag(monkeypatch):
     deck = [{"card_id": "c0", "upgrade": 0}]
     monkeypatch.setattr(dr, "review_deck", lambda **kw: calls.append(1) or {"deck": deck, "deck_size": 1, "problems": [], "opened": True,
                                                                            "closed": True, "page": {"deck": deck, "deck_size": 1, "complete": True}})  # fmt: skip
-    st = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    st = hif.HifCore.__new__(hif.HifCore)
     st.exam_count, st._reviewed_at_exam = 0, None
     st.s = NS(state=GameState(produce={"deck": []}), trace=NS(next_seq=lambda: 1), emit=lambda ev: None, note=lambda t: None,
               observe=lambda **kw: observed.append(kw))  # fmt: skip
@@ -95,7 +95,7 @@ def test_empty_deck_triggers_review_without_flag(monkeypatch):
     assert calls == [1] and observed and observed[0]["scene"] == "DECK_LIST" and observed[0]["fields"]["deck"] == deck
     st._maybe_review_deck()  # 同一考试段只读一次
     assert calls == [1]
-    st2 = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    st2 = hif.HifCore.__new__(hif.HifCore)
     st2.exam_count, st2._reviewed_at_exam = 0, None
     st2.s = NS(state=GameState(produce={"deck": deck}))
     st2._maybe_review_deck()  # 牌组已知、没开开关：不读
@@ -200,7 +200,7 @@ def _strategy(monkeypatch, deck, pending, calls, ok=True):
     page = {"deck": deck, "deck_size": len(deck), "complete": True}
     monkeypatch.setattr(dr, "review_deck", lambda **kw: calls.append(1) or {"deck": deck if ok else None, "deck_size": len(deck), "opened": True,
                                                                            "closed": True, "problems": [] if ok else ["读不全"], "page": page})  # fmt: skip
-    st = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    st = hif.HifCore.__new__(hif.HifCore)
     st.exam_count, st._reviewed_at_exam = 0, 0  # 这一考试段已经读过一次（开局那次）
     gs = GameState(produce={"deck": deck, "step": 3})
     gs.pending_review = ["produce.deck"] if pending else []
@@ -314,12 +314,12 @@ def test_empty_deck_failed_read_retried_next_visit(monkeypatch):
     calls = []
     st = _strategy(monkeypatch, [], False, calls, ok=False)
     st._reviewed_at_exam = None  # 开局 / 续跑：这一考试段还没读过
-    for _ in range(hif.HiroHifStrategy.EMPTY_REVIEW_TRIES + 2):
+    for _ in range(hif.HifCore.EMPTY_REVIEW_TRIES + 2):
         st._maybe_review_deck()
-    assert len(calls) == hif.HiroHifStrategy.EMPTY_REVIEW_TRIES  # 每次选行动都再试，到上限停
+    assert len(calls) == hif.HifCore.EMPTY_REVIEW_TRIES  # 每次选行动都再试，到上限停
     st.exam_count = 1  # 下一考试段重新计数
     st._maybe_review_deck()
-    assert len(calls) == hif.HiroHifStrategy.EMPTY_REVIEW_TRIES + 1
+    assert len(calls) == hif.HifCore.EMPTY_REVIEW_TRIES + 1
 
 
 def test_empty_deck_retry_succeeds_then_stops(monkeypatch):

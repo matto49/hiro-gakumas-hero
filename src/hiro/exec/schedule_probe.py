@@ -235,6 +235,18 @@ def _read_panels(img, read_panel, swipe, total_turns, shoot, sleep, log, exam, c
     return panels
 
 
+def exam_from_panel(exam: str | None, panel: dict | None) -> str | None:
+    """面板过线条件原文里的场次（「16位以上で選抜試験3突破」→ qualify-3）和标签不符时返回改正后的标签，否则 None。
+    只改 H.I.F 选拔（qualify-N）：11-24 mao4 第 2 场进场判成 lesson-1，之后计数错位，第 3 场标成 qualify-2，没开搜索。"""
+    text = str((panel or {}).get("pass_text") or "")
+    m = re.search(r"選[抜拔]試験\s*([1-3１-３])", text)
+    if not m or not str(exam or "").startswith(("qualify", "lesson")):
+        return None
+    n = int(m.group(1).translate(str.maketrans("１２３", "123")))
+    fixed = f"qualify-{n}"
+    return fixed if fixed != str(exam).split("#", 1)[0] else None
+
+
 def apply_panel(panel: dict | None, session, memory) -> None:
     """面板读数写进考试局面（来源 screen）：exam.turn_types（下标 0 = 第 1 回合，读不到的回合 None）、exam.attr_permil（三属性倍率，
     画面真值，8a3a1e7 的搜索用）、exam.pass_line {rank, score, stage（过线条件原文）}；倍率也记进本场考试记忆（ExamMemory.attr_permil）。"""

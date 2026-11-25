@@ -1,6 +1,11 @@
 //! gakumas_exam 的原生后端。规则参照实现是 Python 版 gakumas_exam（逐函数移植，对拍验证）；
 //! 这里只负责快：局面导入后，克隆 / 合法动作 / 推进 / 推演都在 Rust 里做。
 
+// 搜索每次推演都克隆整个 Exam（大量小块分配）。系统分配器（Windows HeapAlloc）多线程下抢锁：
+// 8 线程时每核推演数掉到单线程的 1/4，4 线程以后总量不涨（2026-11-24 实测）。换 mimalloc（每线程自己的堆）。
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 pub mod card;
 pub mod effects;
 pub mod enums;

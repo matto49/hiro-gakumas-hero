@@ -1,6 +1,6 @@
 """主动查看牌组（docs/state-events.md §6）：选行动页底栏的牌组按钮 → 「所持スキルカード」一览 → 读一屏（不全就滑到底再读、拼起来）→ 关闭。
 
-只在三种情况调用（hif.HiroHifStrategy._maybe_review_deck）：pending_review 含 produce.deck；每场考试之间第一次到选行动页；调试模式。
+只在三种情况调用（hif.HifCore._maybe_review_deck）：pending_review 含 produce.deck；每场考试之间第一次到选行动页；调试模式。
 读不全不下结论（返回 deck=None + problems），由调用方记 pending。所有点击都可注入，便于离线测试。"""
 
 from __future__ import annotations

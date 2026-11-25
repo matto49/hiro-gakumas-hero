@@ -60,6 +60,10 @@ def _is_submenu_item(t: str) -> bool:
     return same(t, "プロデュース編成")
 
 
+RETAP_AFTER = 3  # 点了以后这么多轮画面还没到下一步就补点
+RETAP_MAX = 3
+
+
 def _is_panel(t: str) -> bool:
     """面板按钮「プロデュース編成・スキルカード」。"""
     return contains(t, "プロデュース") and contains(t, "スキルカード")
@@ -192,7 +196,9 @@ class Menu:
         ):
             self.dev.snap(img, "menu-not-home")
             raise FormationWriteError("不在主页也不在プロデュース編成页：请先回主页再运行")
-        tapped_idol = tapped_panel = False
+        # 点了几次：点了几轮画面没变就补点，最多 RETAP_MAX 次（11-24 DMM 机器负载高时第一下没生效）
+        tapped_idol = tapped_panel = 0
+        idol_wait = panel_wait = 0
         for _ in range(WAIT_TRIES * 2):
             if (m := read_menu(img, texts)) is not None:
                 return m
@@ -201,13 +207,16 @@ class Menu:
             if item is not None:
                 self.dev.click(*_center(item))
                 return self.wait_menu(why="プロデュース編成页")[1]
-            if panel is not None and not tapped_panel:
+            if panel is not None and (not tapped_panel or (panel_wait >= RETAP_AFTER and tapped_panel < RETAP_MAX)):
                 self.dev.click(*_center(panel))  # 打开子菜单
-                tapped_panel = True
-            elif not tapped_idol and panel is None:
+                tapped_panel, panel_wait = tapped_panel + 1, 0
+            elif panel is None and (not tapped_idol or (idol_wait >= RETAP_AFTER and tapped_idol < RETAP_MAX)):
                 idol = _find(texts, "アイドル", y_min=1050)
                 self.dev.click(*(_center(idol) if idol else IDOL_TAB))
-                tapped_idol = True
+                tapped_idol, idol_wait = tapped_idol + 1, 0
+            else:
+                panel_wait += panel is not None
+                idol_wait += panel is None
             self.dev.sleep(WAIT_GAP)
             img, texts, m = self.look()
         self.dev.snap(img, "menu-no-produce-formation")

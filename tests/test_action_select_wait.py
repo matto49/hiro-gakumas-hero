@@ -5,7 +5,7 @@ from types import SimpleNamespace as NS
 
 import hiro.produce.hif as hif
 from hiro.contracts import Action, ActionKind, Decision, GameState
-from hiro.produce.hif import HiroHifStrategy, UnhandledPage
+from hiro.produce.hif import HifCore, UnhandledPage
 
 import pytest
 
@@ -15,7 +15,7 @@ WAIT = Decision(Action.ui(ActionKind.WAIT, why="决策器异常"), "ACTION_SELEC
 def _st(monkeypatch, decisions):
     monkeypatch.setattr(hif, "sleep", lambda s: None)
     monkeypatch.setattr(hif, "device", NS(screenshot=lambda: None))
-    st = HiroHifStrategy.__new__(HiroHifStrategy)
+    st = HifCore.__new__(HifCore)
     st.s = NS(state=GameState(), img=None, observe_complete=lambda *a, **k: NS(fields={}), observe=lambda **k: NS(fields={}),
               record=lambda *a, **k: None, recover=lambda *a: None, note=lambda *a: None)  # fmt: skip
     it = iter(decisions)
@@ -43,8 +43,6 @@ def test_wait_then_real_decision_after_reread(monkeypatch):
 
 def test_wait_persists_stops_not_kaa(monkeypatch):
     st, ctx, calls, committed = _st(monkeypatch, [WAIT] * 10)
-    handed = []
-    monkeypatch.setattr(hif.HifGrindStrategy, "on_action_select", lambda self, ctx: handed.append(1))
     with pytest.raises(UnhandledPage):
         st.on_action_select(ctx)
-    assert handed == [] and committed == [] and len(calls) == 1 + HiroHifStrategy.ACTION_WAIT_RETRIES
+    assert committed == [] and len(calls) == 1 + HifCore.ACTION_WAIT_RETRIES

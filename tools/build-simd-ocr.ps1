@@ -17,5 +17,6 @@ $env:NUGET_HTTP_CACHE_PATH = Join-Path $deps 'nuget-http'
 $env:NUGET_PLUGINS_CACHE_PATH = Join-Path $deps 'nuget-plugins'
 $env:NUGET_SCRATCH = Join-Path $deps 'nuget-scratch'
 $env:MSBUILDDISABLENODEREUSE = '1'
-& dotnet publish (Join-Path $PSScriptRoot 'simd-ocr\HiroSimdOcr.csproj') -c Release --self-contained false -o (Join-Path $deps 'simd-ocr') "-p:SimdPaddleRoot=$ocr" "-p:SimdOnnxRoot=$onnx\" '-p:IsAotCompatible=false' '-p:UseSharedCompilation=false' -m:1 --nologo
+# SimdOnnxRoot 结尾用 /：写成 \" 时 Windows 参数解析把反斜杠和引号当成转义的引号，路径带空格就把后面的参数都粘进路径（11-24）
+& dotnet publish (Join-Path $PSScriptRoot 'simd-ocr\HiroSimdOcr.csproj') -c Release --self-contained false -o (Join-Path $deps 'simd-ocr') "-p:SimdPaddleRoot=$ocr" "-p:SimdOnnxRoot=$onnx/" '-p:IsAotCompatible=false' '-p:UseSharedCompilation=false' -m:1 --nologo
 exit $LASTEXITCODE

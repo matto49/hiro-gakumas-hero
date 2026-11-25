@@ -34,6 +34,19 @@ def segments(traces: Path, base: str) -> list[Path]:
     return [s for s in segs if (s / "steps.jsonl").is_file()]
 
 
+def uses_hidden(traces: Path, base: str) -> bool:
+    """这个任务的任何一段用过数据来源插件给的隐藏信息（plugins.json 的 uses_hidden）。"""
+    import json
+
+    for seg in segments(traces, base):
+        try:
+            if json.loads((seg / "plugins.json").read_text(encoding="utf-8")).get("uses_hidden"):
+                return True
+        except (OSError, ValueError, AttributeError):
+            continue
+    return False
+
+
 def _viewer():
     from hiro.cli.paths import REPO
 

@@ -1,0 +1,25 @@
+{
+ "note": "开局时交给工具层的模型环境变量（Go Assistant.jobEnv 与 Python hiro.cli.llm_env.env_from_settings 共用这组用例；两边规则必须一致）。settings 写进 HIRO_HOME/settings.json，keys 写进 model-keys.json。",
+ "cases": [
+  {"name": "deepseek 缺省模型", "settings": {"provider": "deepseek"}, "keys": {"deepseek-api-key": "sk-1"},
+   "want": {"HIRO_LLM": "openai:deepseek-flash", "OPENAI_BASE_URL": "https://api.deepseek.com", "OPENAI_API_KEY": "sk-1"}},
+  {"name": "deepseek 旧模型名", "settings": {"provider": "deepseek", "model": "deepseek-chat"}, "keys": {"deepseek-api-key": "sk-1"},
+   "want": {"HIRO_LLM": "openai:deepseek-flash", "OPENAI_BASE_URL": "https://api.deepseek.com", "OPENAI_API_KEY": "sk-1"}},
+  {"name": "deepseek pro", "settings": {"provider": "deepseek", "model": "deepseek-v4-pro"}, "keys": {"deepseek-api-key": "sk-1"},
+   "want": {"HIRO_LLM": "openai:deepseek-v4-pro", "OPENAI_BASE_URL": "https://api.deepseek.com", "OPENAI_API_KEY": "sk-1"}},
+  {"name": "deepseek 自填地址", "settings": {"provider": "deepseek", "base_url": "https://ds.example.com/ "}, "keys": {"deepseek-api-key": "sk-1"},
+   "want": {"HIRO_LLM": "openai:deepseek-flash", "OPENAI_BASE_URL": "https://ds.example.com", "OPENAI_API_KEY": "sk-1"}},
+  {"name": "kimi", "settings": {"provider": "kimi", "model": "kimi-k2"}, "keys": {"kimi-api-key": "sk-2"},
+   "want": {"HIRO_LLM": "openai:kimi-k2", "OPENAI_BASE_URL": "https://api.moonshot.cn/v1", "OPENAI_API_KEY": "sk-2"}},
+  {"name": "自定义服务商", "settings": {"provider": "custom", "model": "m", "base_url": "http://127.0.0.1:8000/v1/"}, "keys": {"custom-api-key": "k"},
+   "want": {"HIRO_LLM": "openai:m", "OPENAI_BASE_URL": "http://127.0.0.1:8000/v1", "OPENAI_API_KEY": "k"}},
+  {"name": "kimi 没选模型", "settings": {"provider": "kimi"}, "keys": {"kimi-api-key": "sk-2"}, "want": {"HIRO_LLM": "off"}},
+  {"name": "deepseek 没填 Key", "settings": {"provider": "deepseek"}, "keys": {}, "want": {"HIRO_LLM": "off"}},
+  {"name": "Key 存的是别家", "settings": {"provider": "qwen", "model": "qwen-max"}, "keys": {"deepseek-api-key": "sk-1"}, "want": {"HIRO_LLM": "off"}},
+  {"name": "Claude", "settings": {"provider": "claude"}, "keys": {"deepseek-api-key": "sk-1"}, "want": {"HIRO_LLM": "claude:sonnet"}},
+  {"name": "Codex", "settings": {"provider": "codex"}, "keys": {}, "want": {"HIRO_LLM": "codex"}},
+  {"name": "不用模型", "settings": {"provider": "none"}, "keys": {"deepseek-api-key": "sk-1"}, "want": {"HIRO_LLM": "off"}},
+  {"name": "provider 空 = deepseek", "settings": {}, "keys": {"deepseek-api-key": "sk-1"},
+   "want": {"HIRO_LLM": "openai:deepseek-flash", "OPENAI_BASE_URL": "https://api.deepseek.com", "OPENAI_API_KEY": "sk-1"}}
+ ]
+}

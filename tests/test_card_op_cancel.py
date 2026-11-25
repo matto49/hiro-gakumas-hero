@@ -67,7 +67,7 @@ def _hook(monkeypatch, *, cancel_btn, decision):
         seen.setdefault("cancelable", []).append(state.page_fields.get("cancelable"))
         return decisions.pop(0) if len(decisions) > 1 else decisions[0]
 
-    h = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    h = hif.HifCore.__new__(hif.HifCore)
     h.s, h.deciders = s, NS(decide=decide)
     h._scan_change_deck = lambda *a, **k: False
 
@@ -76,7 +76,7 @@ def _hook(monkeypatch, *, cancel_btn, decision):
         raise RuntimeError(why)
 
     h._stop = stop
-    monkeypatch.setattr(hif.HiroHifStrategy, "op_failed", {})
+    monkeypatch.setattr(hif.HifCore, "op_failed", {})
     monkeypatch.setattr(hif, "sleep", lambda x: None)
     return h, clicks, stops, records, seen
 

@@ -1,4 +1,4 @@
-"""续跑和结算收尾的纯判据（不依赖 KAA）：旧主循环的 hiro.loop.resume 和新主循环的 hiro.runtime.finish 共用。"""
+"""续跑和结算收尾的纯判据（不依赖 KAA）：主循环的 hiro.runtime.finish 用（原来也给 2026-11-24 删掉的 hiro.loop.resume 用）。"""
 
 from __future__ import annotations
 

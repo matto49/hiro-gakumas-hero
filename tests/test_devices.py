@@ -1,16 +1,14 @@
-"""hiro.devices：设备统一接口的三个实现（MaaTools / MaaFramework Win32 / adb），全部用假设备测，不需要真机。"""
+"""hiro.devices：设备统一接口的三个实现（MaaTools / DMM Win32 / adb），全部用假设备测，不需要真机。DMM 的见 test_device_dmm_win32。"""
 
 import socket
 import struct
 import subprocess
 import sys
 import threading
-from enum import IntEnum
 
 from hiro.devices import Device, DeviceGone, DeviceUnavailable, open_device
 from hiro.devices.adb import AdbDevice, focus_package, parse_screencap
 from hiro.devices.base import LogicalScreen, check_aspect, logical_size
-from hiro.devices.maafw_win32 import MaaFwWin32Device
 from hiro.devices.maatools import MaaToolsDevice, MaaToolsImpl
 
 import numpy as np
@@ -207,165 +205,6 @@ def test_maatools_empty_frames_retry_then_black_then_gone(monkeypatch):
         dev.screenshot()
 
 
-def test_old_device_module_reexports_maatools_client():
-    pytest.importorskip("kotonebot")
-    import hiro.device as old
-
-    assert old.MaaToolsImpl is MaaToolsImpl and old.MAATOOLS_PORT == 1717
-
-
-# ---------------------------------------------------------------- MaaFramework Win32（假 maa）
-
-
-class S(IntEnum):
-    Null = 0
-    GDI = 1
-    FramePool = 2
-
-
-class I(IntEnum):  # noqa: E742
-    Null = 0
-    SendMessageWithWindowPos = 64
-
-
-class Job:
-    def __init__(self, ok=True, result=None):
-        self.succeeded, self.result = ok, result
-
-    def wait(self):
-        return self
-
-    def get(self):
-        return self.result
-
-
-class Win:
-    def __init__(self, hwnd, cls, name):
-        self.hwnd, self.class_name, self.window_name = hwnd, cls, name
-
-
-def fake_maa(image=None, windows=None, fail=0):
-    state = {"calls": [], "ctrls": 0, "fail": fail}
-
-    class Ctrl:
-        def __init__(self, hwnd, screencap_method, mouse_method, keyboard_method):
-            state["ctrls"] += 1
-            self.hwnd = hwnd
-
-        def set_screenshot_use_raw_size(self, on):
-            state["raw"] = on
-
-        def post_connection(self):
-            return Job()
-
-        def post_screencap(self):
-            if state["fail"]:
-                state["fail"] -= 1
-                return Job(ok=False)
-            return Job(result=bgr(541, 961) if image is None else image)
-
-        def post_click(self, x, y):
-            state["calls"].append(("click", x, y))
-            return Job()
-
-        def post_swipe(self, *a):
-            state["calls"].append(("swipe", *a))
-            return Job()
-
-        def post_touch_down(self, x, y):
-            state["calls"].append(("down", x, y))
-            return Job()
-
-        def post_touch_move(self, x, y):
-            state["calls"].append(("move", x, y))
-            return Job()
-
-        def post_touch_up(self):
-            state["calls"].append(("up",))
-            return Job()
-
-    class Toolkit:
-        wins = (
-            [Win(7, "Chrome_WidgetWin_1", "DMM GAME PLAYER"), Win(42, "UnityWndClass", "gakumas")]
-            if windows is None
-            else windows
-        )
-
-        @staticmethod
-        def init_option(path):
-            return True
-
-        @classmethod
-        def find_desktop_windows(cls):
-            return cls.wins
-
-    return (Ctrl, S, I, Toolkit), state
-
-
-def test_maafw_device_screenshot_tap_swipe(tmp_path, monkeypatch):
-    monkeypatch.setenv("HIRO_MAAFW_LOG", str(tmp_path))
-    api, st = fake_maa()
-    dev = MaaFwWin32Device(api=api)
-    dev.connect()
-    assert dev.name == "maafw-win32" and st["raw"] is True  # 框架给原生尺寸，缩放只在 LogicalScreen 做一次（同 KAA）
-    assert dev.screenshot().shape == (1280, 720, 3)  # 原生 541x961 拉伸到 720x1280
-    dev.tap(360, 1280)
-    assert st["calls"][-1] == ("click", 270, 960)  # 换回原生像素，夹在画面内
-    dev.swipe(100, 900, 100, 300, duration=0.2)
-    assert st["calls"][-1] == ("swipe", 75, 676, 75, 225, 200)
-    st["calls"].clear()
-    dev.swipe(100, 900, 100, 300, duration=0.05, hold=0.05)
-    kinds = [c[0] for c in st["calls"]]
-    assert kinds[0] == "down" and kinds[-1] == "up" and kinds.count("move") >= 3
-    assert st["calls"][-2] == ("move", 75, 225)
-    assert dev.alive()
-
-
-def test_maafw_device_retries_while_window_resizes(tmp_path, monkeypatch):
-    """横竖屏切换时窗口正在改尺寸（DMM 11-14 截到 540x572）：重截到比例对了再用；一直不对才报错。"""
-    from hiro.devices import base
-
-    monkeypatch.setenv("HIRO_MAAFW_LOG", str(tmp_path))
-    monkeypatch.setattr(base.time, "sleep", lambda s: None)
-    frames = iter([bgr(541, 961), bgr(540, 572), bgr(540, 572), bgr(961, 541)])
-    api, _st = fake_maa(image=None)
-    dev = MaaFwWin32Device(api=api)
-    monkeypatch.setattr(dev, "_grab", lambda: next(frames))
-    assert dev.screenshot().shape == (1280, 720, 3)
-    assert dev.screenshot().shape == (720, 1280, 3)  # 两张 540x572 跳过，用上切好的横屏
-    monkeypatch.setattr(dev, "_grab", lambda: bgr(540, 572))
-    monkeypatch.setattr(base, "RESIZE_SETTLE_S", 0.0)
-    with pytest.raises(DeviceUnavailable):
-        dev.screenshot()
-
-
-def test_maafw_device_reconnects_once_then_reports(tmp_path, monkeypatch):
-    monkeypatch.setenv("HIRO_MAAFW_LOG", str(tmp_path))
-    api, st = fake_maa(fail=1)
-    dev = MaaFwWin32Device(api=api)
-    dev._open()
-    dev.screenshot()  # 第一次失败、重连后成功
-    assert st["ctrls"] == 2
-    st["fail"] = 2
-    with pytest.raises(DeviceUnavailable):  # 窗口还在，动作失败两次
-        dev.screenshot()
-    api[3].wins = []
-    st["fail"] = 2
-    with pytest.raises(DeviceGone):  # 窗口没了
-        dev.screenshot()
-    assert not dev.alive()
-
-
-def test_maafw_device_connect_refuses_missing_window_and_black_frames(tmp_path, monkeypatch):
-    monkeypatch.setenv("HIRO_MAAFW_LOG", str(tmp_path))
-    api, _ = fake_maa(windows=[])
-    with pytest.raises(DeviceUnavailable):
-        MaaFwWin32Device(api=api).connect()
-    api, _ = fake_maa(image=np.zeros((1279, 720, 3), np.uint8))
-    with pytest.raises(DeviceUnavailable, match="全黑"):
-        MaaFwWin32Device(api=api).connect()
-
-
 # ---------------------------------------------------------------- adb（假 adb 命令）
 
 
@@ -452,7 +291,7 @@ def test_focus_package():
 
 def test_open_device_by_name(monkeypatch):
     assert open_device("maatools").name == "maatools"
-    assert open_device("dmm").name == "maafw-win32"
+    assert open_device("dmm").name == "dmm-win32"
     for n in ("adb", "mumu", "leidian"):
         assert open_device(n).name == "adb"
     with pytest.raises(ValueError):
@@ -463,8 +302,8 @@ def test_open_device_by_name(monkeypatch):
 
 def test_new_device_layer_does_not_import_kaa():
     code = (
-        "import sys, hiro.devices, hiro.devices.maatools, hiro.devices.adb, hiro.devices.maafw_win32;"
-        "bad = sorted(m for m in sys.modules if m.split('.')[0] in ('kotonebot', 'kaa'));"
+        "import sys, hiro.devices, hiro.devices.maatools, hiro.devices.adb, hiro.devices.dmm_win32;"
+        "bad = sorted(m for m in sys.modules if m.split('.')[0] in ('kotonebot', 'kaa', 'maa'));"
         "print(bad); sys.exit(1 if bad else 0)"
     )
     r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
@@ -489,7 +328,7 @@ def test_adb_shell_feeds_game_app_foreground():
 
 
 def test_settled_frame_shared_by_all_devices():
-    """重截挪进 base 三个设备共用（平台 bb66f22 原来只在 MaaFW 上）：比例对的第一张直接用，不对的在时限内重截。"""
+    """重截挪进 base 三个设备共用（平台 bb66f22 原来只在 DMM 上）：比例对的第一张直接用，不对的在时限内重截。"""
     from hiro.devices.base import settled_frame
 
     t = {"now": 0.0}
@@ -511,7 +350,7 @@ def test_settled_frame_shared_by_all_devices():
         settled_frame(lambda: bgr(540, 572), LogicalScreen(), settle_s=1.0, sleep=sleep, clock=lambda: t["now"])
 
 
-@pytest.mark.parametrize("module", ["maatools", "adb", "maafw_win32"])
+@pytest.mark.parametrize("module", ["maatools", "adb", "dmm_win32"])
 def test_every_device_screenshot_goes_through_settled_frame(module):
     import importlib
     import inspect

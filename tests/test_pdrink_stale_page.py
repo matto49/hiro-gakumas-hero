@@ -8,7 +8,7 @@ from hiro.contracts import Action, ActionKind, Decision, GameState
 
 import pytest
 
-pytestmark = [pytest.mark.kaa]
+pytestmark = [pytest.mark.play]
 
 
 def test_overflow_decider_waits_when_fields_are_from_another_page():
@@ -46,7 +46,7 @@ def _strategy(monkeypatch, pages, confirm_on_top=lambda img: False):
         record=lambda *a, **k: None,
         recover=lambda *a, **k: None,
     )
-    strat = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    strat = hif.HifCore.__new__(hif.HifCore)
     strat.s, strat.deciders = sess, Deciders()
     strat.on_pdrink_max_confirm = lambda ctx: confirms.append(1)
     monkeypatch.setattr(hif, "sleep", lambda s: None)
@@ -98,7 +98,7 @@ def _confirm_strategy(monkeypatch, on_top):
     sess = NS(
         state=GameState(), observe=lambda **k: NS(fields={}), record=lambda *a, **k: None, recover=lambda *a, **k: None
     )
-    strat = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    strat = hif.HifCore.__new__(hif.HifCore)
     strat.s, strat.deciders = sess, Deciders()
     strat._stop = lambda page, why, **k: stops.append(why)
     monkeypatch.setattr(hif, "sleep", lambda s: None)

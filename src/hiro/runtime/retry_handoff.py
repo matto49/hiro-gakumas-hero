@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 POLL_S = 2.0
 AWAY_S = 15.0  # 不在结算页也不在考试里持续这么久，才算你已经走开了结算页（点再挑戦后的确认框 / 读取画面不算）
+# 你已经在亲手打（看到过考试画面）之后：考试里也有认不成「考试中」的画面（选中卡牌的放大图、技能卡移动框、回合切换动画、
+# 你点开的审查日程面板），11-24 mao3 打到一半 15 秒没认出考试就判「你打完了」、程序抢过去自己打。打过之后要离开这么久才算完
+AWAY_PLAYED_S = 90.0
 PLAY_MAX_S = 45 * 60  # 亲手打一场考试最多等这么久
 
 
@@ -100,7 +103,7 @@ def wait(label: str, *, look: Callable[[], str], sleep: Callable[[float], None] 
                     break
                 continue
             away_since = now if away_since is None else away_since  # other：确认框 / 读取画面 / 你点了次へ
-            if now - away_since >= AWAY_S:
+            if now - away_since >= (AWAY_PLAYED_S if played else AWAY_S):
                 logger.warning(
                     "%s 画面已经离开结算页（%s），程序从当前画面接着走", label, "你打完了" if played else "你没再挑戦"
                 )

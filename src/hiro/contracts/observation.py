@@ -9,7 +9,7 @@ from typing import Any
 
 from hiro.contracts.base import VERSION, Contract
 
-SOURCES = ("screen", "save", "dataset", "replay")
+SOURCES = ("screen", "save", "dataset", "replay", "plugin")
 
 
 @dataclass
@@ -90,8 +90,11 @@ class Observation(Contract):
     fields: dict[str, Any] = field(default_factory=dict)
     field_meta: dict[str, FieldMeta] = field(default_factory=dict)
     screenshot: str | None = None  # 截图路径（相对 trace / 数据集目录）
-    source: str = "screen"  # screen / save / dataset / replay
+    source: str = "screen"  # screen / save / dataset / replay / plugin（1.3：数据来源插件）
     timings_ms: dict[str, float] = field(default_factory=dict)  # capture / classify / extract
+    by: str | None = None  # 1.3：source=plugin 时是「插件 id@版本」
+    trust: str | None = None  # 1.3：source=plugin 时插件声明的档位（save / screen / infer），reduce 当来源用
+    hidden: dict[str, Any] = field(default_factory=dict)  # 1.3：画面上看不到的字段（并进 GameState.hidden）
     version: str = VERSION
 
     def known(self) -> dict[str, Any]:

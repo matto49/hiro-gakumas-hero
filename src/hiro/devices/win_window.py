@@ -4,7 +4,7 @@
 
 窗口小了截图要放大，小字 OCR 和模板分数会掉（541x961 时「残りターン」0.50、牌组按钮 0.78，都在阈值以下）。
 游戏以管理员运行，改它的窗口尺寸要以管理员身份调用（UIPI）。尺寸按物理像素算（进程先设成按显示器 DPI 感知），
-和 MaaFwWin32Device 原生尺寸截图（screen.native）同一个口径。
+和 DmmWin32Device 原生尺寸截图（screen.native）同一个口径。
 
     python -m hiro.devices.win_window            # 看现在的客户区尺寸和按显示器算的目标
     python -m hiro.devices.win_window fit        # 调成目标尺寸（要管理员）
@@ -95,7 +95,7 @@ def center_pos(win_w: int, win_h: int, work: tuple[int, int, int, int]) -> tuple
 
 def center(title: str = WINDOW_TITLE) -> tuple[int, int] | None:
     """把游戏窗口挪到主显示器工作区正中并提到最前（尺寸不变），让人能看剧情（hiro.runtime.unread_story）。
-    DMM 后台点击会把窗口挪到点击点落在光标下的位置（hiro.loop.win_desktop），之后点击时会再挪回去，这里不用还原。
+    DMM 后台点击会把窗口挪到点击点落在光标下的位置（hiro.devices.dmm_win32），之后点击时会再挪回去，这里不用还原。
     要管理员（游戏以管理员运行）。找不到窗口返回 None。"""
     import ctypes
     from ctypes import wintypes

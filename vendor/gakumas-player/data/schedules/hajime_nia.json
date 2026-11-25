@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "master_commit": "d31baf6608ee4553091f28446f628cd3ad66ff01",
+  "master_commit": "edc305aac3ac0204806c96164ce36fb795ba81e1",
   "note": "初 / N.I.A 的周表。主数据没有日程表（服务器下发），这里只放有出处的部分；complete=false 的模式不能当完整日程用。kind 取值：study 授業、lesson 课程、oikomi 追い込みレッスン、activity 活動支給、consult 相談、outing お出かけ、mid 中間試験、final 最終試験；N.I.A 另有 self_lesson 自主レッスン、business 営業、guidance 特別指導、gift 差し入れ、shop 相談（N.I.A 叫法）、audition オーディション。斜线分隔表示这一周能选的几种。",
   "modes": {
     "produce-001": {

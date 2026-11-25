@@ -1,10 +1,9 @@
 """第三十三局：本地设置被重置后，开始确认页点「プロデュース開始」依次弹 4 个首次设置框（总控实机截图 tests/fixtures/first_run/）。
 - ボイス再生確認：「決定」左边的对勾被 OCR 读成「く決定」，以前按全等找「決定」找不到，不点（设置框会一直盖着）；
 - コミュ早送り設定 / 演出スキップ設定：skip_settings 照常处理；
-- サポートイベント設定：HiroController._first_run_settings 选「強化済みで獲得する」→「決定」（这一下就开始培育）。"""
+- サポートイベント設定：hiro.runtime.scenes.first_run_settings（原 HiroController._first_run_settings）选「強化済みで獲得する」→「決定」（这一下就开始培育）。"""
 
 import json
-import sys
 from pathlib import Path
 from types import SimpleNamespace as NS
 
@@ -68,24 +67,22 @@ def test_voice_dialog_clicks_option_then_ok():
 
 @pytest.mark.synthetic
 def test_support_event_dialog_real_frame(monkeypatch):
-    from hiro.loop.controller import HiroController
-
-    raw = _boxes("4-support-event")
-    assert ss.read(raw) is None  # 不归 skip_settings，归 _first_run_settings
+    from hiro.runtime import scenes
     from hiro.vision.ocr import Box, Text
 
+    import numpy as np
+
+    raw = _boxes("4-support-event")
+    assert ss.read(raw) is None  # 不归 skip_settings，归 first_run_settings
     boxes = [Text(t, Box(*b)) for t, _, b in raw]
-    clicks = []
-    monkeypatch.setitem(
-        sys.modules, "kotonebot", NS(device=NS(click=lambda *r: clicks.append(r), screenshot=lambda: None))
-    )
-    monkeypatch.setattr("hiro.loop.controller.screen_texts", lambda *a, **k: boxes)
-    monkeypatch.setattr("hiro.loop.controller.time.sleep", lambda s: None)
-    c = HiroController.__new__(HiroController)
-    c._texts = [b.text for b in boxes]
-    assert c._first_run_settings()
-    assert len(clicks) == 2 and abs(clicks[0][1] - 892) <= 20 and abs(clicks[1][1] - 1160) <= 30, (
-        clicks
+    taps = []
+    img = np.zeros((1280, 720, 3), np.uint8)
+    rt = NS(device=NS(tap=lambda x, y: taps.append((x, y))), screen=NS(shot=lambda: NS(img=img)),
+            sleep=lambda s: None, session=None)  # fmt: skip
+    monkeypatch.setattr(scenes, "screen_texts", lambda *a, **k: boxes)
+    assert scenes.first_run_settings(rt, NS(img=img, texts=boxes))
+    assert len(taps) == 2 and abs(taps[0][1] - 892) <= 20 and abs(taps[1][1] - 1160) <= 30, (
+        taps
     )  # 強化済み（不是未強化 y≈966）→ 決定
 
 

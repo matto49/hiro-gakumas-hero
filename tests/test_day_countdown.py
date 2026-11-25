@@ -33,14 +33,6 @@ def test_action_select_not_countdown():
         assert r is None or r["fields"].get("kind") != "day_countdown"
 
 
-def test_safe_blank_tap_is_used_for_countdown_wait():
-    from hiro.loop import controller as ctl
-
-    assert ctl.QUICK_WAIT_TAP_POS.get("day_countdown") == "safe" and ctl.QUICK_WAIT_TAP_BY_KIND["day_countdown"] <= 5
-    x, y = quick.SAFE_BLANK_TAP
-    assert x < 100 and 300 < y < 430  # 左侧中部：选行动页背景；ACQUIRE / STAR_GAIN 说明面板上沿约 y≈434
-
-
 def test_day_countdown_ocr_band(monkeypatch):
     import hiro.vision.ocr as ocrmod
 

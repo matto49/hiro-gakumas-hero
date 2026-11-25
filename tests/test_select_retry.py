@@ -6,7 +6,7 @@ from types import SimpleNamespace as NS
 import hiro.produce.hif as hif
 from hiro.contracts import Action, ActionKind, Decision, ExecutionResult, GameState
 from hiro.produce import ops
-from hiro.produce.hif import HiroHifStrategy, UnhandledPage
+from hiro.produce.hif import HifCore, UnhandledPage
 
 import pytest
 
@@ -39,7 +39,7 @@ class Session:
 def _run(monkeypatch, frames):
     monkeypatch.setattr(hif, "sleep", lambda s: None)
     monkeypatch.setattr(hif, "device", NS(screenshot=lambda: None))
-    st = HiroHifStrategy.__new__(HiroHifStrategy)
+    st = HifCore.__new__(HifCore)
     st.s = Session(frames)
     seen = []
 
@@ -74,7 +74,7 @@ def test_still_empty_after_retries_stops(monkeypatch):
     st, ctx, seen, committed = _run(monkeypatch, [{"candidates": []}])
     with pytest.raises(UnhandledPage):
         st.on_select_drink(ctx)
-    assert seen == [0] and st.s.n >= 1 + HiroHifStrategy.SELECT_RETRIES and committed == []
+    assert seen == [0] and st.s.n >= 1 + HifCore.SELECT_RETRIES and committed == []
     assert any(k == "missing_fields" for k, _ in st.s.recovers)
 
 
@@ -103,7 +103,7 @@ def test_obs_has_candidates_but_state_debouncing_retries(monkeypatch):
 def _pdrink(monkeypatch, decisions):
     monkeypatch.setattr(hif, "sleep", lambda s: None)
     monkeypatch.setattr(hif, "device", NS(screenshot=lambda: None))
-    st = HiroHifStrategy.__new__(HiroHifStrategy)
+    st = HifCore.__new__(HifCore)
     st.s = Session([{"held": [], "incoming": None}])
     it = iter(decisions)
     st.deciders = NS(decide=lambda page, state, **kw: next(it))

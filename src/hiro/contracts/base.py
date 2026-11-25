@@ -14,7 +14,7 @@ import typing
 from enum import Enum
 from typing import Any, ClassVar, get_args, get_origin, get_type_hints
 
-VERSION = "1.2"  # 契约版本：破坏性变更才升主版本；加字段升次版本
+VERSION = "1.3"  # 契约版本：破坏性变更才升主版本；加字段升次版本
 
 
 class SchemaError(ValueError):

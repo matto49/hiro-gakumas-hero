@@ -8,7 +8,6 @@ import json
 import time
 
 import hiro  # noqa: F401  兼容层
-from hiro.context import ensure_offline_context
 from hiro.perception.lesson import read_lesson
 
 import cv2
@@ -18,7 +17,6 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("images", nargs="+")
     args = parser.parse_args()
-    ensure_offline_context()
     for path in args.images:
         img = cv2.imread(path)
         if img is None:

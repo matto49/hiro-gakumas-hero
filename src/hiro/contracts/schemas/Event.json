@@ -58,5 +58,5 @@
   "version"
  ],
  "additionalProperties": false,
- "description": "Event(seq: int, kind: str, origin: str, args: dict[str, typing.Any] = <factory>, basis: str = 'observe_only', confirmed: bool | None = None, ref: dict[str, typing.Any] = <factory>, confidence: float | None = None, note: str | None = None, version: str = '1.2')"
+ "description": "Event(seq: int, kind: str, origin: str, args: dict[str, typing.Any] = <factory>, basis: str = 'observe_only', confirmed: bool | None = None, ref: dict[str, typing.Any] = <factory>, confidence: float | None = None, note: str | None = None, version: str = '1.3')"
 }

@@ -78,5 +78,5 @@
   "version"
  ],
  "additionalProperties": false,
- "description": "Prediction(seq: int, event_seq: int, fields: dict[str, hiro.contracts.events.Expect] = <factory>, due: str = 'any', expires_after: int | None = None, version: str = '1.2')"
+ "description": "Prediction(seq: int, event_seq: int, fields: dict[str, hiro.contracts.events.Expect] = <factory>, due: str = 'any', expires_after: int | None = None, version: str = '1.3')"
 }

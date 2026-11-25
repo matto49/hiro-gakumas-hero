@@ -10,6 +10,7 @@ KAA 的公开 game.db 跟版本有滞后：新卡查不到（2026-11-10：租借
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
 import threading
@@ -46,6 +47,19 @@ class Catalog:
 
     def rows(self, table: str) -> list[dict]:
         return [_decode(r) for r in self.db.execute(f'SELECT * FROM "{table}"')]
+
+    def rows_merged(self, table: str) -> list[dict]:
+        """整表：game.db 的行，再补上模拟器主数据里有、game.db 没有的 id（game.db 落后时的新卡 / 新角色）。同 id 以 game.db 为准。
+        只用于按 id 唯一的表（IdolCard、Character、SupportCard）；ProduceCard 这类一个 id 多行（强化档）的别用。"""
+        try:
+            rows = self.rows(table)
+        except sqlite3.OperationalError:  # 旧 game.db 没有这张表
+            rows = []
+        if (sim := _sim_catalog()) is not None:
+            seen = {r.get("id") for r in rows}
+            with contextlib.suppress(Exception):  # 模拟器主数据没有这张表
+                rows += [dict(r) for r in sim.rows(table) if r.get("id") not in seen]
+        return rows
 
     def by_id(self, table: str, key: str) -> list[dict]:
         try:

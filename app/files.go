@@ -14,12 +14,14 @@ import (
 //	/sprites/<asset>.png            资料库小图（catalog/sprites 里的 <asset>.png 或 .webp：攻略站上支援卡卡面、偶像卡是 webp；
 //	                                没有就让工具层下载）
 //	/traces/<任务>/frames/<n>.jpg    对局截图（work/traces）
+//	/jobs/<任务>/frames/<名>.jpg      初 / N.I.A 存在任务目录的画面（驾驶舱实时画面）
 //	/review/<任务>.html              复盘页（hiro run review 生成在 jobs/<任务>/review.html）
 //
-// 只认这两种路径；信息库、service.json（带令牌）等其他文件一律 404。
+// 只认这几种路径；信息库、service.json（带令牌）等其他文件一律 404。
 func homeFiles(home string, fetchSprite func(ctx context.Context, asset string) error) http.Handler {
 	sprite := regexp.MustCompile(`^/sprites/([A-Za-z0-9_.\-]+)\.png$`)
 	frame := regexp.MustCompile(`^/traces/([A-Za-z0-9_\-]+)/frames/([0-9]+\.jpg)$`)
+	jobFrame := regexp.MustCompile(`^/jobs/([A-Za-z0-9_\-]+)/frames/([0-9]+(?:-[A-Za-z0-9_\-]+)?\.jpg)$`)
 	review := regexp.MustCompile(`^/review/([A-Za-z0-9_\-]+)\.html$`)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		p := r.URL.Path
@@ -49,6 +51,13 @@ func homeFiles(home string, fetchSprite func(ctx context.Context, asset string) 
 		}
 		if m := frame.FindStringSubmatch(p); m != nil {
 			file := filepath.Join(home, "work", "traces", m[1], "frames", m[2])
+			if exists(file) {
+				http.ServeFile(w, r, file)
+				return
+			}
+		}
+		if m := jobFrame.FindStringSubmatch(p); m != nil {
+			file := filepath.Join(home, "jobs", m[1], "frames", m[2])
 			if exists(file) {
 				http.ServeFile(w, r, file)
 				return

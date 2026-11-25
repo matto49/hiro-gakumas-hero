@@ -37,6 +37,7 @@ DIALOG_Y = (760, 1240)  # 剧情框（含名字条）的 y 范围（720×1280）
 BAR_WORDS = ("ログ", "AUTO", "AUT0", "SKIP", "早送", "SKI")
 SAME_TEXT = 0.8  # 剧情框文字相似度达到这个算没变（OCR 同一帧读两次会差一两个字）
 LEFT_POLLS = 5  # 连续这么多次（约 15 秒）不在剧情页、也没有确认框，才算你已经看完 / 手动跳过
+LEFT_POLLS_SURE = 2  # 认出明确的游戏页面词（GAME_PAGE_WORDS）时：连续这么多次就算剧情结束（不用等 15 秒）
 # 剧情里也会插过场动画 / LIVE（没有剧情底栏、可能横屏，用户 11-21）：这时剧情自己在播，不算没人推进；
 # 但一直没有底栏超过这么久（比如你把界面隐藏了走开），照常计时
 PLAYING_MAX_S = 600.0
@@ -131,7 +132,10 @@ BAR_KEYS = ("ログ", "AUT", "SKI", "LOG", "跳过", "跳過", "自动", "自動
 GAME_PAGE_WORDS = ("レッスン", "ドリンク", "残りターン", "スキルカード", "次へ", "プロデュース", "アイテム", "おでかけ",
                    "お休み", "ホーム", "キャンセル", "パラメータ",
                    # 剧情结束直接进考试（11-20 DMM：第 2 回 選抜試験 的开场剧情 → Now loading → 考试开始页，没认出来，干等 60 秒关了游戏）
-                   "スター性", "ターン", "オーディション", "ステージ", "NOWLOADING", "LOADING")  # fmt: skip
+                   "スター性", "ターン", "オーディション", "ステージ", "NOWLOADING", "LOADING",
+                   # 游戏系统提示（11-24 mao3：剧情后进选拔第 3 场前的「思考の基本と視線の基本を削除しました」只有 8 个假名，
+                   # 被当成过场干等 23 秒）。剧情页有底栏，is_commu 先排除，剧情台词里的「わかりました」不会走到这里
+                   "削除しました", "獲得しました", "強化しました", "チェンジしました", "上昇した")  # fmt: skip
 KANA_MIN = 8  # 没命中上面的词时：假名至少这么多字、又没有简体中文专用字，也算日文原版页面
 SIMPLIFIED_ONLY = set(
     "的了们这个说吗么没时对还会为过让给现样着里么么吧呢该么点关开发东车门间问"
@@ -147,6 +151,12 @@ def is_commu(texts) -> bool:
     texts = _texts_only(texts)
     up = [t.upper() for t in texts]
     return any(w in t for t in texts for w in FF_WORDS) and any(k in t for t in up for k in BAR_KEYS)
+
+
+def has_game_word(texts) -> bool:
+    """画面上有明确的游戏页面词（GAME_PAGE_WORDS），不是只靠假名数量猜的。"""
+    up = [_norm(t).upper() for t in _texts_only(texts)]
+    return not is_commu(texts) and any(w in t for t in up for w in GAME_PAGE_WORDS)
 
 
 def is_game_page(texts) -> bool:
@@ -258,7 +268,7 @@ def handle(*, cancel: Callable[[], object], confirm: Callable[[], object], texts
     from hiro.loop.pause_flag import hold
 
     with hold():
-        last_change, away, last_text, playing_since = clock(), 0, None, None
+        last_change, away, sure, last_text, playing_since = clock(), 0, 0, None, None
         while True:
             sleep(POLL_S)
             if not path.exists():
@@ -273,8 +283,10 @@ def handle(*, cancel: Callable[[], object], confirm: Callable[[], object], texts
             if cur is not None:
                 portrait = getattr(cur, "portrait", True)
                 # 横屏（剧情里的 LIVE）不算回到游戏：字幕 / 曲目信息里也有假名
-                away = away + 1 if (portrait and is_game_page(cur) and not is_unread_dialog(cur)) else 0
-                if away >= LEFT_POLLS:
+                game = portrait and is_game_page(cur) and not is_unread_dialog(cur)
+                away = away + 1 if game else 0
+                sure = sure + 1 if (game and has_game_word(cur)) else 0
+                if away >= LEFT_POLLS or sure >= LEFT_POLLS_SURE:
                     path.unlink(missing_ok=True)
                     logger.warning("未读剧情：剧情页已经不在了（看完 / 手动跳过），继续")
                     return "left"

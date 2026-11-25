@@ -1,13 +1,14 @@
-"""AssetSource 的开源默认实现：KAA 公开数据 + 使用者自建目录。代码本身不下载游戏原始素材，不做客户端解包；识别用的素材包随仓库放在 assets/pack/。
+"""AssetSource 的开源默认实现：公开游戏图 + 主数据库 + 使用者自建目录。代码本身不下载游戏原始素材，不做客户端解包；识别用的素材包随仓库放在 assets/pack/。
 
 两个来源（都可以用环境变量改位置）：
 
-- KAA 公开数据（kaa-game-data 的发布包，KAA 运行时下载到 resources/game_data/）：
-  game.db（主数据）、skill_cards/（技能卡卡面）、drinks/（P 饮料图）。HIRO_KAA_GAME_DATA 改目录。
+- 公开游戏图（kaa-game-data b9577da 版的副本，本仓库 Release game-images-b9577da，tools/assets/game_images.py 下载到 resources/game_data/）：
+  skill_cards/（技能卡卡面）、idol_cards/（偶像卡）、drinks/（P 饮料图）。HIRO_KAA_GAME_DATA 改目录（名字沿用 KAA 时期的）。
+- 主数据库：hiro.state.master_db 从模拟器主数据生成（cache/master/game.db，HIRO_MASTER_DB 改位置）。
 - 使用者自建目录（从自己的截图 / 客户端取，不随仓库发布；效果图标 / P 道具图标用 tools/assets/capture_icons.py 从自己的考试截图生成）：
   HIRO_USER_ASSETS，默认 resources/user_assets/
-    cards/            技能卡卡面（有则优先于 KAA）
-    icons/<kind>/     图标：drink（P 饮料，有则优先于 KAA）、pitem（P 道具）、status（考试效果）；RGBA 或白底 RGB，可带 index.json（资源名 → 名称）
+    cards/            技能卡卡面（有则优先于公开卡面）
+    icons/<kind>/     图标：drink（P 饮料，有则优先于公开饮料图）、pitem（P 道具）、status（考试效果）；RGBA 或白底 RGB，可带 index.json（资源名 → 名称）
     font/             数字字体 Campus-Alphanumeric-SemiBold.ttf（HUD 读数字形比对；没有则走 ddddocr + Apple Vision 核对）
     layout.json       UI 布局（同 hiro.vision.layout 的结构；没有则用仓库里的实测框 layout_default.json）
     sprites/          界面 Sprite（页面签名 signatures.json 引用的文件名）
@@ -72,10 +73,13 @@ class PublicAssetSource:
         return best
 
     def card_art_dir(self) -> Path | None:
-        return self._fullest_dir(*(r / "cards" for r in self._roots()), self.kaa / "skill_cards")
+        """卡面图库：自建 / 素材包里文件最多的一个。素材包开着时不和公开卡图比文件数：公开卡图换新版后张数可能更多，
+        却少了素材包里的卡面变体（2026-11-25 试 kaa-game-data edc305a 版：2312 张 > 素材包 2290 张，认错过变体）；素材包关掉时公开卡图才参与比较。"""
+        public = () if self.bundled else (self.kaa / "skill_cards",)
+        return self._fullest_dir(*(r / "cards" for r in self._roots()), *public)
 
     def game_data(self, category: str) -> Path | None:
-        """KAA 公开数据里的原图目录：idol_cards（选偶像，hiro.vision.idols）/ skill_cards（卡面图库 hiro.vision.card_db、卡格缩略图）
+        """公开游戏图的原图目录：idol_cards（选偶像，hiro.vision.idols）/ skill_cards（卡面图库 hiro.vision.card_db、卡格缩略图）
         / drinks（饮料图标）。随仓库素材包里同类的图合成过底色，特征和原图不同，这几处要原图。"""
         return self._first_dir(self.kaa / category)
 
@@ -113,15 +117,19 @@ class PublicAssetSource:
 
     # ---------------------------------------------------------------- 主数据
     def master_db(self) -> sqlite3.Connection | None:
+        """主数据：从模拟器主数据（gakumasu-diff 固定提交）生成的库，和原来 KAA 公开数据的 game.db 同结构（hiro.state.master_db）。
+        模拟器主数据没构建、也没用 HIRO_MASTER_DB 指定时返回 None。"""
         if self._db is None:
-            p = self.kaa / "game.db"
-            if not p.is_file():
+            from hiro.state import master_db
+
+            p = master_db.ensure()
+            if p is None:
                 return None
             db = sqlite3.connect(f"file:{p.resolve()}?mode=ro", uri=True, check_same_thread=False)
             db.row_factory = sqlite3.Row
             if not db.execute("select 1 from sqlite_master where type='table' and name='ProduceCard'").fetchone():
                 db.close()
-                return None  # 空库（KAA 首次运行会建空文件）：当作没有主数据
+                return None
             self._db = db
         return self._db
 

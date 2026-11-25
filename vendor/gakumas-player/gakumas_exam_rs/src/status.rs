@@ -68,6 +68,8 @@ pub struct Trig {
     pub from_effect_ids: Vec<Sym>,
     pub from_enchant: bool,
     pub encore: bool,
+    /// ExamPlayCountIntervalAfter 上次出牌后判定时的计数：计数没涨（这次出牌没计数）就不发动（#44）
+    pub after_seen_count: i64,
 }
 
 impl Trig {
@@ -592,6 +594,7 @@ impl StatusCollection {
             from_effect_ids: vec![],
             from_enchant: false,
             encore: false,
+            after_seen_count: 0,
         }));
         s
     }

@@ -1,9 +1,10 @@
 """学マス不在前台（GKMS 第五局 06:45：内存吃紧时进程被杀，前台是 MuMu 安卓桌面）：认出来、按开关拉起、回首页续跑。"""
 
+from types import SimpleNamespace as NS
+
 from hiro.loop import game_app as ga
 
 import numpy as np
-import pytest
 
 LAUNCHER = "  mCurrentFocus=Window{f0866f8 u0 app.lawnchair/app.lawnchair.LawnchairLauncher}\n"
 GAME = "  mCurrentFocus=Window{66b76c5 u0 com.bandainamcoent.idolmaster_gakuen/com.google.firebase.MessagingUnityPlayerActivity}\n"
@@ -85,75 +86,6 @@ def test_recover_to_home_taps_no_boost():
     assert ok and clicks[0] == (240, 907)
 
 
-import importlib.util as _kiu  # noqa: E402
-
-NEED_KAA = pytest.mark.skipif(
-    _kiu.find_spec("kotonebot") is None or _kiu.find_spec("kaa") is None, reason="操作层：要装 KAA / kotonebot"
-)
-
-
-class _Session:
-    def __init__(self):
-        self.recovers = []
-
-    def recover(self, kind, note):
-        self.recovers.append((kind, note))
-
-
-@NEED_KAA
-def test_game_gone_switch_off_blocks_with_reason(monkeypatch):
-    from hiro import run_hif
-    from hiro.loop.resume import ResumeBlocked
-
-    monkeypatch.delenv("HIRO_RELAUNCH_GAME", raising=False)
-    monkeypatch.setattr(ga, "adb_shell", lambda device=None: lambda cmd: LAUNCHER)
-    with pytest.raises(ResumeBlocked, match="不在前台"):
-        run_hif._game_gone(_Session(), RuntimeError("cv2.error"))
-    monkeypatch.setattr(ga, "adb_shell", lambda device=None: lambda cmd: GAME)
-    assert run_hif._game_gone(_Session(), RuntimeError("x")) is False  # 游戏还在：照旧按普通崩溃重试
-    monkeypatch.setattr(ga, "adb_shell", lambda device=None: None)
-    assert run_hif._game_gone(_Session(), RuntimeError("x")) is False  # PlayCover 等没有 adb：不知道就不管
-
-
-@NEED_KAA
-def test_supervised_resume_relaunches_when_enabled(monkeypatch):
-    from hiro import run_hif
-    from hiro.loop import resume
-
-    monkeypatch.setenv("HIRO_RELAUNCH_GAME", "1")
-    state = {"focus": LAUNCHER, "runs": 0}
-    monkeypatch.setattr(ga, "adb_shell", lambda device=None: lambda cmd: state["focus"])
-
-    def relaunch(shell):
-        state["focus"] = GAME
-        return True
-
-    monkeypatch.setattr(ga, "relaunch", relaunch)
-    monkeypatch.setattr(run_hif, "_recover_date_change", lambda session, note=None: True)
-
-    def fake_run(*a, **k):
-        state["runs"] += 1
-        if state["runs"] == 1:
-            raise ga.GameNotForeground("桌面")
-
-    monkeypatch.setattr(resume, "run", fake_run)
-    s = _Session()
-    run_hif._supervised_resume("main", "idol", s, Strategy=object)
-    assert state["runs"] == 2 and s.recovers[0][0] == "crash_restart" and "拉起" in s.recovers[0][1]
-
-
-@NEED_KAA
-def test_controller_landscape_desktop_raises(monkeypatch):
-    from hiro.loop.controller import HiroController
-
-    monkeypatch.setattr(ga, "adb_shell", lambda device=None: lambda cmd: LAUNCHER)
-    with pytest.raises(ga.GameNotForeground):
-        HiroController._check_game_alive(np.zeros((900, 1600, 3), np.uint8))
-    HiroController._check_game_alive(np.zeros((1280, 720, 3), np.uint8))  # 竖屏：不查
-    monkeypatch.setattr(ga, "adb_shell", lambda device=None: lambda cmd: GAME)
-    HiroController._check_game_alive(np.zeros((720, 1280, 3), np.uint8))  # 横屏但学マス在前台：LIVE，不抛
-
-
 def test_dmm_window_alive(monkeypatch):
     assert ga.dmm_window_alive(lambda title: 0x1234) is True
     assert ga.dmm_window_alive(lambda title: 0) is False
@@ -165,11 +97,9 @@ def test_dmm_window_alive(monkeypatch):
 
 
 def test_alive_dispatches_by_backend(monkeypatch):
-    from hiro import device as hdev
-
-    monkeypatch.setattr(hdev, "BACKEND", "dmm", raising=False)
+    monkeypatch.setenv("HIRO_DEVICE", "dmm")
     monkeypatch.setattr(ga, "dmm_window_alive", lambda find=None: False)
     assert ga.is_dmm() and ga.alive() is False
-    monkeypatch.setattr(hdev, "BACKEND", "mumu", raising=False)
-    monkeypatch.setattr(ga, "adb_shell", lambda device=None: None)
-    assert not ga.is_dmm() and ga.alive() is None
+    monkeypatch.setenv("HIRO_DEVICE", "mumu")
+    assert not ga.is_dmm() and ga.alive() is None  # 没给 device（没有 adb shell）：不知道
+    assert ga.alive(NS(shell=lambda cmd: GAME)) is True

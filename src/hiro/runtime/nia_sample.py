@@ -43,6 +43,16 @@ STAGES = ("nia-mid1", "nia-mid2", "nia-final")
 
 
 # ---------------------------------------------------------------- 开局
+LOCKED_AFTER_TAPS = (
+    6  # 同一难度点了这么多次（约 13 秒）还在剧本页：难度多半还锁着，停下（以前点满 40 秒超时，看不出原因）
+)
+
+
+def _unlock_hint(f) -> str | None:
+    """剧本页上的解放条件说明（「初星課題40達成で解放」这类）；没有 None。"""
+    return next((t.text.replace(" ", "") for t in f.texts if "解放" in t.text), None)
+
+
 def choose_difficulty(
     rt, difficulty: str, timeout: float = opening.MODE_TIMEOUT, *, words: tuple[str, ...] | None = None
 ) -> None:
@@ -51,7 +61,7 @@ def choose_difficulty(
     from hiro.loop import ap_refill
 
     words = words or DIFFICULTY_WORDS[difficulty]
-    state = {"refilled": False}
+    state = {"refilled": False, "taps": 0, "hint": None}
 
     def step(f):
         if nav.find(f, "Produce.TextStepIndicator1") is not None:
@@ -65,14 +75,24 @@ def choose_difficulty(
                 raise ResumeBlocked(f"AP 不足，APドリンク 没补上：{r['error']}")
             state["refilled"] = True
             return None
+        if state["hint"] is None:
+            state["hint"] = _unlock_hint(f)  # 点锁住的难度只闪一两秒「初星課題40達成で解放」：哪一帧截到就记下
         lo, hi = DIFFICULTY_BAND
         btn = next(
             (t for t in f.texts if lo <= t.rect.center.y <= hi and any(w == t.text.replace(" ", "") for w in words)),
             None,
         )
         if btn is not None:
+            if state["taps"] >= LOCKED_AFTER_TAPS:
+                # 11-25 账号 3 初 プロ：按钮带锁，点了不进第 1 步。锁图标和按钮外圈都是白线，像素判据分不开，按点击次数停
+                hint = state["hint"] or _unlock_hint(f)
+                raise ResumeBlocked(
+                    f"难度「{btn.text}」点了 {state['taps']} 次还在剧本页，多半还没解放"
+                    + (f"：{hint}" if hint else "（按钮上有锁时看剧本页的解放条件）")
+                )
             logger.info("剧本页难度：点「%s」%s", btn.text, tuple(btn.rect.center))
             rt.device.tap(*btn.rect.center)
+            state["taps"] += 1
             rt.sleep(1.5)
         return None
 
@@ -339,7 +359,7 @@ def set_mode(session, mode: str) -> None:
 
 
 def run(args) -> int:
-    from hiro import kaa_env
+    from hiro import formation_env
     from hiro.brain import guides
     from hiro.contracts import TraceWriter
     from hiro.devices import active, open_device
@@ -352,9 +372,9 @@ def run(args) -> int:
     from hiro.vision.classify import classify
 
     guides.refresh_if_stale()  # 偶像卡攻略包：没有或超过 24 小时就下载，失败不阻塞（协调 11-20）
-    kaa_env.apply_formation_plan(args.idol)
-    support_set = args.support_set or kaa_env.SUPPORT_SET
-    memory_set = args.memory_set or kaa_env.MEMORY_SET
+    formation_env.apply_formation_plan(args.idol)
+    support_set = args.support_set or formation_env.SUPPORT_SET
+    memory_set = args.memory_set or formation_env.MEMORY_SET
     if args.command == "new" and (support_set is None or memory_set is None):
         logger.error("new 开局要编成号：--support-set / --memory-set，或开局编成方案")
         return 2
@@ -397,17 +417,25 @@ def run(args) -> int:
         sampler.save(f.img, PageHit("opening", "opening"))
         return f
 
-    try:
+    def start_new():
         rt.screen.shot = opening_shot
-        if args.command == "new":
-            finish.finish_produce_end(rt, go_home=True)
-            new_produce(rt, args.difficulty, idol=args.idol, support_set=support_set, memory_set=memory_set, plan=kaa_env.ACTIVE_PLAN,
-                        rental_attr=args.main_attr, main_attr=args.main_attr)  # fmt: skip
-        else:
-            finish.resume_produce(rt)
+        finish.finish_produce_end(rt, go_home=True)
+        new_produce(rt, args.difficulty, idol=args.idol, support_set=support_set, memory_set=memory_set, plan=formation_env.ACTIVE_PLAN,
+                    rental_attr=args.main_attr, main_attr=args.main_attr)  # fmt: skip
+
+    def resume():
+        rt.screen.shot = opening_shot
+        finish.resume_produce(rt)
+
+    def play_until():
         rt.screen.shot = raw_shot
         set_mode(session, mode)
         rt.run(until=lambda: getattr(rt, "finished", False))
+
+    try:
+        # 日切换（日本时间 5 点）：回首页后重新开局 / 续跑（同 H.I.F），不再整段 traceback 退出
+        play.segment_with_date_changes(rt, session, new=start_new if args.command == "new" else None, resume=resume,
+                                       play_until=play_until)  # fmt: skip
         return 0
     except ResumeBlocked as e:
         logger.error("%s", e)

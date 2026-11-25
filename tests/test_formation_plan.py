@@ -194,8 +194,8 @@ def test_build_without_inventories_reports_errors():
     fp.format_report(plan)
 
 
-def test_kaa_env_applies_plan(tmp_path, monkeypatch):
-    from hiro import kaa_env
+def test_formation_env_applies_plan(tmp_path, monkeypatch):
+    from hiro import formation_env
 
     for k, v in (
         ("SUPPORT_SET", None),
@@ -204,24 +204,24 @@ def test_kaa_env_applies_plan(tmp_path, monkeypatch):
         ("ACTIVE_PLAN", None),
         ("PLAN_MAIN_ATTR", None),
     ):
-        monkeypatch.setattr(kaa_env, k, v)  # 相当于没设 HIRO_SUPPORT_SET / HIRO_MEMORY_SET / HIRO_MEMORY_CARDS
+        monkeypatch.setattr(formation_env, k, v)  # 相当于没设 HIRO_SUPPORT_SET / HIRO_MEMORY_SET / HIRO_MEMORY_CARDS
     monkeypatch.delenv("HIRO_FORMATION_PLAN", raising=False)
     plan = _hiro_plan()
     path = tmp_path / "plan.json"
     fp.write(plan, path, None)
-    assert kaa_env.apply_formation_plan("i_card-skin-amao-1-001", str(path)) is None  # 别的偶像：不用
-    assert kaa_env.ACTIVE_PLAN is None and kaa_env.SUPPORT_SET is None
-    assert kaa_env.apply_formation_plan("i_card-skin-shro-3-007", str(path)) is not None
-    assert (kaa_env.SUPPORT_SET, kaa_env.MEMORY_SET) == (20, 20) and tuple(
+    assert formation_env.apply_formation_plan("i_card-skin-amao-1-001", str(path)) is None  # 别的偶像：不用
+    assert formation_env.ACTIVE_PLAN is None and formation_env.SUPPORT_SET is None
+    assert formation_env.apply_formation_plan("i_card-skin-shro-3-007", str(path)) is not None
+    assert (formation_env.SUPPORT_SET, formation_env.MEMORY_SET) == (20, 20) and tuple(
         plan["memory"]["cards"]
-    ) == kaa_env.MEMORY_CARDS
-    assert plan["main_attr"] == kaa_env.PLAN_MAIN_ATTR
-    monkeypatch.setattr(kaa_env, "SUPPORT_SET", 4)  # 环境变量写了编成号：以环境变量为准
-    kaa_env.apply_formation_plan(None, str(path))
-    assert kaa_env.SUPPORT_SET == 4
+    ) == formation_env.MEMORY_CARDS
+    assert plan["main_attr"] == formation_env.PLAN_MAIN_ATTR
+    monkeypatch.setattr(formation_env, "SUPPORT_SET", 4)  # 环境变量写了编成号：以环境变量为准
+    formation_env.apply_formation_plan(None, str(path))
+    assert formation_env.SUPPORT_SET == 4
     monkeypatch.setenv("HIRO_FORMATION_PLAN", "off")
-    assert kaa_env.apply_formation_plan(None, str(path)) is None and kaa_env.ACTIVE_PLAN is None
-    assert kaa_env.apply_formation_plan(None, str(tmp_path / "none.json")) is None
+    assert formation_env.apply_formation_plan(None, str(path)) is None and formation_env.ACTIVE_PLAN is None
+    assert formation_env.apply_formation_plan(None, str(tmp_path / "none.json")) is None
 
 
 # ---------------------------------------------------------------- 开局核对

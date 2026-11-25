@@ -114,7 +114,7 @@ def test_event_commit_uses_choice_centers_when_buttons_missing(monkeypatch):
     clicks = []
     monkeypatch.setattr(hif, "device", NS(click=lambda x, y: clicks.append((x, y)), screenshot=lambda: None))
     monkeypatch.setattr(hif, "sleep", lambda s: None)
-    core = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    core = hif.HifCore.__new__(hif.HifCore)
     choices = [{"index": i, "text": t, "center": [360, y], "disabled": i < 2}
                for i, (t, y) in enumerate((("1パーセント", 698), ("50パーセント", 799), ("100パーセント", 901)))]  # fmt: skip
     core.s = NS(

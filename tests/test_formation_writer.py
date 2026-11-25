@@ -287,19 +287,6 @@ def test_inventory_position_only_for_memory_scan_entries():
     )  # tools.memory_inventory：屏内行号，不用
 
 
-def test_autofix_switch_default_off(monkeypatch):
-    from hiro import kaa_env
-    from hiro.loop import kaa_patches
-
-    monkeypatch.setattr(kaa_env, "ACTIVE_PLAN", {"support": {"own": [{"support_card_id": "a"}]}})
-    monkeypatch.delenv("HIRO_FORMATION_AUTOFIX", raising=False)
-    assert kaa_patches._autofix_on() is False
-    monkeypatch.setenv("HIRO_FORMATION_AUTOFIX", "1")
-    assert kaa_patches._autofix_on() is True
-    monkeypatch.setattr(kaa_env, "ACTIVE_PLAN", None)
-    assert kaa_patches._autofix_on() is False
-
-
 def test_fix_support_waits_for_settled_slots():
     """刚翻到这个编成号时第 1 格还在动画里、读成认不出：等读数稳定后发现 5 格都对，不改任何格子（11-16 Mac 实机）。"""
     g = FakeGame(["a", "b", "c", "d", "e"], [[["p"]]])
@@ -414,3 +401,48 @@ def test_core_match_unread_timing_is_unknown():
     assert not fw._core_match(["p_card-00-men-3_005", 1, "start"], want)
     assert not fw._core_match(["p_card-00-men-3_005", 0, None], want)
     assert not fw._core_match([None, 1, "mid"], want) and not fw._core_match(None, want)
+
+
+def test_pick_support_list_closed_after_tap_is_not_an_error(monkeypatch):
+    """11-23 Mac 初 手毬：点了列表里的卡，游戏直接放进编成格、关了列表（不用按決定）。原来再读列表读不到选中就报错，
+    还在编成页上点了一次 cancel 的坐标。列表已经关了：不点 cancel、不按決定，交给写完后的回读核对。"""
+    clicks = []
+    shots = {"n": 0}
+    cards = [{"support_card_id": "s_card-3-0027", "center": (575, 730), "partial": False, "selected": False}]
+    controls = {"cancel": (130, 1180), "decide": (590, 1180), "next": (680, 700)}
+
+    def read_list(img):
+        return {"cards": cards, "controls": controls, "pages": 1} if img == "list" else None  # 点完以后列表没了
+
+    def shoot():
+        shots["n"] += 1
+        return "list" if shots["n"] == 1 else "formation"
+
+    monkeypatch.setattr(fw, "_list_to_top", lambda dev, rl: {"controls": controls, "pages": 1})
+    dev = fw.Device(shoot=shoot, click=lambda x, y: clicks.append((x, y)), swipe=lambda *a: None, sleep=lambda s: None)
+    fw.pick_support(dev, "s_card-3-0027", read_list=read_list)
+    assert clicks == [(575, 730)]  # 只点了卡；没点 cancel / 決定
+
+
+def test_fix_support_waits_while_list_is_still_opening():
+    """Mac 11-24 16:15（初星助手写编成）：第 1 格改完，点第 2 格后画面在过场（既不是编成页也不是列表），
+    原来直接往下走、读一次列表读不到就报「没打开支援卡选择列表」。过场时接着等，列表出来再选。"""
+    g = FakeGame(["a", "b", "x", "y", "e"], [[["c", "d"]]])
+    real_click, real_shoot = g.click, g.shoot
+    left = {"n": 0}
+
+    def click(x, y):
+        was = g.view
+        real_click(x, y)
+        if was == "step2" and g.view == "list":
+            left["n"] = 9  # 列表要过 9 张截图（约 4 秒）才出来，比原来等的 6 张长
+
+    def shoot():
+        if left["n"] > 0:
+            left["n"] -= 1
+            return "loading"
+        return real_shoot()
+
+    g.click, g.shoot = click, shoot
+    fw.fix_support(g.device(), _plan(["a", "b", "c", "d", "e"]), read_formation=g.read_formation, read_list=g.read_list)
+    assert g.slots == ["a", "b", "c", "d", "e"]

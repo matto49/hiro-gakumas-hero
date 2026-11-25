@@ -53,8 +53,9 @@ def reduce(state: GameState, obs: Observation) -> GameState:
     page = obs.page.name
     if is_transient(page):
         return s  # 转场 / 没认出：什么都不改
-    _reduce_page(s, obs)
-    _easy_key(s, obs)  # 获得演出常只停一两帧、页面还在防抖：看到就记，不等页面确认
+    if obs.source != "plugin":  # 1.3：页面只由画面决定，插件观测不加帧数、不推进防抖
+        _reduce_page(s, obs)
+        _easy_key(s, obs)  # 获得演出常只停一两帧、页面还在防抖：看到就记，不等页面确认
     if s.page.name != page:
         return s  # 还在防抖，不采用这帧的字段
     _reduce_fields(s, obs)
@@ -184,6 +185,12 @@ def _sync_exam_drinks(s: GameState, seq: int) -> None:
 def _reduce_fields(s: GameState, obs: Observation) -> None:
     section = SECTION.get(obs.page.name)
     origin = {"save": "save", "screen": "screen", "dataset": "screen", "replay": "screen"}.get(obs.source, "screen")
+    by = None
+    if obs.source == "plugin":  # 1.3：数据来源插件按自己声明的档位合并
+        origin = obs.trust if obs.trust in PRIORITY else "screen"
+        by = obs.by
+    if obs.hidden:
+        s.hidden.update(copy.deepcopy(obs.hidden))
     for key, value in obs.fields.items():
         if value is None:
             continue
@@ -193,7 +200,7 @@ def _reduce_fields(s: GameState, obs: Observation) -> None:
         if section is None and key in ANY_PAGE_PRODUCE and s.produce is not None:
             section_key = "produce"  # 相談等页面底栏的持有饮料：也写进 produce（识别 3804ac8）  # noqa: F841
             s.produce[key] = copy.deepcopy(value)
-            s.sources[f"produce.{key}"] = Source(origin, obs.seq)
+            s.sources[f"produce.{key}"] = Source(origin, obs.seq, by)
             s.page_fields[key] = value
             continue
         if key in PAGE_LOCAL or section is None:
@@ -209,7 +216,7 @@ def _reduce_fields(s: GameState, obs: Observation) -> None:
         if old is not None and old != value and old_src is not None and old_src.origin != origin:
             _note(s, f"seq {obs.seq}: {full} {old_src.origin}={old!r} vs {origin}={value!r}，采用 {origin}")
         target[key] = copy.deepcopy(value)
-        s.sources[full] = Source(origin, obs.seq)
+        s.sources[full] = Source(origin, obs.seq, by)
     if obs.page.name == "ACTION_SELECT":
         _hajime_nia_step(s, obs, origin)
         if (s.produce or {}).get("schedule"):

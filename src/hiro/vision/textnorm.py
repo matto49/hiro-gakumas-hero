@@ -17,7 +17,8 @@ from __future__ import annotations
 
 import unicodedata
 
-_FOLD = str.maketrans({"ヘ": "へ", "ベ": "べ", "ペ": "ぺ", "工": "エ"})
+# ♥ / ♡：主数据「カワイイ♡はじめました」，OCR 读成实心「♥」（11-23 偶像卡扫描）
+_FOLD = str.maketrans({"ヘ": "へ", "ベ": "べ", "ペ": "ぺ", "工": "エ", "拔": "抜", "♥": "♡"})
 
 
 def fold(text: str) -> str:

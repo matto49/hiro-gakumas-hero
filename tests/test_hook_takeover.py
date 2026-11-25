@@ -1,36 +1,13 @@
-# 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
-"""用户规则 3a / 3f：KAA 的每个策略钩子都由 HiroHifStrategy 自己接管；没接管 / 读不出 / 决策不合法时停下（UnhandledPage），不落到 KAA 默认的 commit(0)。"""
-
-import inspect
+"""用户规则 3a / 3f：每个页面由 HifCore 自己处理；读不出 / 决策不合法时停下（UnhandledPage），不退回默认选第一个（原来是 KAA 的 commit(0)）。
+「KAA 的每个策略钩子都被接管」那条测试随 KAA 策略类壳（去 KAA 第 3 批）删了。"""
 
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import Action, ActionKind, Decision, ExecutionResult, GameState
-from hiro.produce.hif import HiroHifStrategy, UnhandledPage
+from hiro.produce.hif import HifCore, UnhandledPage
 from hiro.vision.ocr import Box, Text
 
 import pytest
-
-
-def _kaa_hooks() -> set[str]:
-    from kaa.tasks.produce.new.strategies.base import ProduceStrategy
-    from kaa.tasks.produce.new.strategies.hif_grind import HifGrindStrategy
-
-    return {
-        n
-        for cls in (ProduceStrategy, HifGrindStrategy)
-        for n, _ in inspect.getmembers(cls, inspect.isfunction)
-        if n.startswith("on_")
-    }
-
-
-def test_every_kaa_hook_is_overridden():
-    from hiro.produce.hif import HifCore
-
-    missing = sorted(
-        h for h in _kaa_hooks() if getattr(HiroHifStrategy, h).__qualname__.split(".")[0] != HifCore.__name__
-    )
-    assert not missing, f"这些 KAA 钩子还会走 KAA 默认：{missing}"
 
 
 class StubSession:
@@ -55,7 +32,7 @@ class StubSession:
 
 
 def _strategy(fields=None):
-    st = HiroHifStrategy.__new__(HiroHifStrategy)
+    st = HifCore.__new__(HifCore)
     st.s = StubSession(fields)
     st.deciders = ProduceDeciders(CAMPUS_HIRO, None, change_controlled=True)
     st.CHANGE_OBSERVE_TRIES = 1
@@ -123,35 +100,6 @@ def test_practice_page_stops():
         _strategy().on_practice_entered(object())
 
 
-def test_unknown_screen_stops_after_limit(monkeypatch):
-    """画面持续认不出超过 UNKNOWN_STOP_AFTER：调 strategy._stop（停下报警），不无限空转。"""
-    import time as _time
-
-    from hiro.loop.controller import HiroController
-
-    from kaa.tasks.produce.new.consts import Scene, SceneType
-
-    c = HiroController.__new__(HiroController)
-    c._texts = ["?"]
-    stopped = []
-    c.strategy = type("S", (), {"_stop": lambda self, page, why: stopped.append(page)})()
-    monkeypatch.setattr(HiroController, "session", None)
-    import kotonebot
-
-    # _watch_unknown 先截一帧查游戏是否还活着：单独跑时 kotonebot 上下文没初始化，给 device 打桩
-    monkeypatch.setattr(kotonebot, "device", type("D", (), {"screenshot": lambda self: None})())
-    monkeypatch.setattr(HiroController, "_check_game_alive", lambda self, shot: None)
-    t = [1000.0]
-    monkeypatch.setattr(_time, "monotonic", lambda: t[0])
-    c._watch_unknown(Scene(SceneType.UNKNOWN))
-    t[0] += 60
-    c._watch_unknown(Scene(SceneType.UNKNOWN))
-    assert not stopped
-    t[0] += 200
-    c._watch_unknown(Scene(SceneType.UNKNOWN))
-    assert stopped == ["unknown"]
-
-
 def test_consult_opens_dialog_when_deck_unknown():
     """相談：决策因牌组未识别给 ShopEnd 时，先打开強化，再打开削除，都做过就照常离开（q10 第 12 天 440P 没花）。"""
     from hiro.contracts import Decision
@@ -187,7 +135,7 @@ def test_retry_cancels_when_jewel(monkeypatch):
     assert st._click_retry("r2", T("再挑戦"), []) is None
     n0 = len(clicks)  # 确认框在第一次点确认后关掉（点过确认、确认框没了才算完成）
     monkeypatch.setattr(hif, "screen_texts", lambda *a, **k: [] if len(clicks) > n0 + 1 else
-                                                                         [T("再挑戦券を1枚使用"), T(hif.HiroHifStrategy.RETRY_CONFIRM[0])])  # fmt: skip
+                                                                         [T("再挑戦券を1枚使用"), T(hif.HifCore.RETRY_CONFIRM[0])])  # fmt: skip
     assert st._click_retry("r2", T("再挑戦"), []) == "ticket"
 
 
@@ -219,7 +167,7 @@ def test_retry_confirm_reclicks_until_closed(monkeypatch):
     st = _strategy()
     st._retries_so_far = lambda label: 0
     assert st._click_retry("r2", T("再挑戦", 1000), []) in ("free", "ticket")
-    assert len(clicks) == 3 and t["now"] < hif.HiroHifStrategy.RETRY_CONFIRM_WAIT  # 再挑戦 + 決定 ×2，没等满 15s
+    assert len(clicks) == 3 and t["now"] < hif.HifCore.RETRY_CONFIRM_WAIT  # 再挑戦 + 決定 ×2，没等满 15s
 
 
 def test_retry_capped():
@@ -328,60 +276,6 @@ def test_study_visible_option_still_uses_kaa_commit(monkeypatch):
     st._act = lambda fn, action, **kw: (fn(), ExecutionResult(action=action, ok=True))[1]
     st._event_page("STUDY", kaa.append, 2)
     assert kaa == [1] and clicks == []
-
-
-def test_live_landscape_skips_page_checks(monkeypatch):
-    """第三十一局：横屏 LIVE 期间主循环不跑快速判页 / KAA 判页（KAA 拿竖屏 rect 裁 1280x720，每 2s 报错），记一次进展后等。"""
-    import time as _time
-
-    from hiro.loop.controller import HiroController
-    from hiro.loop.repeat_guard import Guard
-
-    import kotonebot
-    import numpy as np
-
-    live = np.zeros((720, 1280, 3), np.uint8)
-    live[200:500, 300:900] = 120
-    monkeypatch.setattr(kotonebot, "device", type("D", (), {"screenshot": staticmethod(lambda: live)}))
-    monkeypatch.setattr(_time, "sleep", lambda s: None)
-    touched = []
-    g = Guard()
-    g.touch = lambda: touched.append(1)
-    monkeypatch.setattr(HiroController, "session", type("S", (), {"guard": g})())
-    lg = type("L", (), {"tick": lambda self, img: False, "in_live": lambda self, img: True})()
-    monkeypatch.setattr(HiroController, "_landscape", lg)
-    c = HiroController.__new__(HiroController)
-    c._quick_page = lambda: (_ for _ in ()).throw(AssertionError("LIVE 中不该判页"))
-    c._update()
-    assert touched == [1]
-
-
-def test_live_tick_taps_start_and_warns_when_still(monkeypatch):
-    """横屏帧：每 2s OCR 一次，认到 TAP TO START 就点；同一画面 60s 不变报一次警。"""
-    import time as _time
-
-    import hiro.produce.ops as ops
-    from hiro.loop.controller import HiroController
-
-    import kotonebot
-    import numpy as np
-
-    t = [0.0]
-    clicks, notes = [], []
-    monkeypatch.setattr(_time, "monotonic", lambda: t[0])
-    monkeypatch.setattr(kotonebot, "device", type("D", (), {"click": staticmethod(lambda x, y: clicks.append((x, y)))}))
-    monkeypatch.setattr(ops, "ocr_boxes", lambda img: [("TAP TO START", 1.0, (551, 597, 731, 621))])
-    monkeypatch.setattr(HiroController, "session", type("S", (), {"note": lambda self, n: notes.append(n)})())
-    c = HiroController.__new__(HiroController)
-    img = np.full((720, 1280, 3), 80, np.uint8)
-    c._live_tick(img)
-    assert clicks == [(641, 609)]
-    t[0] = 1.0
-    c._live_tick(img)  # 不到 2s：不再 OCR
-    assert len(clicks) == 1
-    t[0] = 61.0
-    c._live_tick(img)
-    assert notes and "没变" in notes[0]
 
 
 def test_finals_retry_restarts_exam(monkeypatch):

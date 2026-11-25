@@ -27,9 +27,9 @@ def _seg(root, name, steps):
 def _strategy(tmp_path, cur):
     pytest.importorskip("kaa")
 
-    from hiro.produce.hif import HiroHifStrategy
+    from hiro.produce.hif import HifCore
 
-    h = HiroHifStrategy.__new__(HiroHifStrategy)
+    h = HifCore.__new__(HifCore)
     h.s = NS(trace=NS(dir=str(tmp_path / cur)))
     h.scenario = "qualify"
     return h
@@ -77,7 +77,7 @@ def test_label_takes_briefing_when_counter_lags(monkeypatch):
     import hiro.produce.hif as hif
     from hiro.contracts import GameState
 
-    s = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    s = hif.HifCore.__new__(hif.HifCore)
     s.scenario, s.exam_count = "qualify", 0  # 续跑后计数从头算
     st = GameState()
     st.exam_session.brief_exam_no = 2

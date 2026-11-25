@@ -1,4 +1,4 @@
-"""当前设备门面（hiro.devices.active）：缺省转发 kotonebot；use(rt) 后转发新主循环（带拦截的设备、检查点、tick_hooks）。"""
+"""当前设备门面（hiro.devices.active）：use(rt) 后转发主循环（带拦截的设备、检查点、tick_hooks）；没接上时用离线画面或报错。"""
 
 from types import SimpleNamespace as NS
 
@@ -11,25 +11,44 @@ import pytest
 def _reset():
     yield
     active.use(None)
+    active.show(None)
     active.tick_hooks.clear()
 
 
-@pytest.mark.kaa
-def test_default_forwards_to_kotonebot(monkeypatch):
-    import kotonebot
+def test_without_runtime_device_ops_raise_and_sleep_is_plain(monkeypatch):
+    """没接上新主循环（离线工具、测试）：设备操作报 NoActiveDevice（旧的 KAA 主循环删了，不再退回 kotonebot）；sleep 是 time.sleep。"""
+    import time
 
-    calls = []
-    fake = NS(screenshot=lambda: "img", click=lambda x, y: calls.append(("click", x, y)),
-              double_click=lambda x, y, interval=None: calls.append(("dbl", x, y, interval)), swipe=lambda *a, **k: calls.append(("swipe", a, k)))  # fmt: skip
-    monkeypatch.setattr(kotonebot, "device", fake)
-    monkeypatch.setattr(kotonebot, "sleep", lambda s: calls.append(("sleep", s)))
-    assert active.device.screenshot() == "img"
-    active.device.click(10.6, 20)
-    active.device.double_click(1, 2)
-    active.device.swipe(1, 2, 3, 4, 0.5)
+    import pytest
+
+    slept = []
+    monkeypatch.setattr(time, "sleep", slept.append)
+    monkeypatch.setattr(active, "_OFFLINE", None)
+    active.use(None)
+    with pytest.raises(active.NoActiveDevice):
+        active.device.screenshot()
+    with pytest.raises(active.NoActiveDevice):
+        active.device.click(1, 2)
     active.sleep(0.25)
-    assert calls == [("click", 10, 20), ("dbl", 1, 2, 0.4), ("swipe", (1, 2, 3, 4), {"duration": 0.5}), ("sleep", 0.25)]
-    assert not active.active()
+    assert slept == [0.25] and not active.active() and active.fallback_click() is None
+
+
+def test_offline_frame_is_screenshot_and_taps_do_nothing(monkeypatch):
+    """离线（hiro.vision.offline.load 喂过图、没接 Runtime）：截图返回喂的图（缩到 720x1280），点击 / 滑动不做事；接上 Runtime 后以 Runtime 为准。"""
+    from hiro.vision.offline import load
+
+    import numpy as np
+
+    monkeypatch.setattr(active, "_OFFLINE", None)
+    active.use(None)
+    img = load(np.zeros((1920, 1080, 3), np.uint8))
+    assert active.device.screenshot() is img and img.shape[:2] == (1280, 720)
+    active.device.click(1, 2)
+    active.device.swipe(1, 2, 3, 4)
+    rt = FakeRt()
+    active.use(rt)  # 接上 Runtime：不再用离线画面
+    active.device.click(5, 6)
+    assert active.device.screenshot() == "frame" and rt.taps == [(5, 6)]
 
 
 class FakeRt:

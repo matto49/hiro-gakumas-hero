@@ -3,28 +3,7 @@
 import sys
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-
-
-def test_load_strategy_default_and_env(monkeypatch):
-    from hiro import run_hif
-    from hiro.produce.hif import HiroHifStrategy
-
-    monkeypatch.delenv("HIRO_STRATEGY", raising=False)
-    assert run_hif.load_strategy() is HiroHifStrategy
-    monkeypatch.setenv("HIRO_STRATEGY", "hiro.produce.hif:HiroHifStrategy")
-    assert run_hif.load_strategy() is HiroHifStrategy
-
-
-def test_load_strategy_rejects_non_strategy():
-    from hiro import run_hif
-
-    with pytest.raises(TypeError):
-        run_hif.load_strategy("hiro.loop.session:Session")
-    with pytest.raises(ValueError):
-        run_hif.load_strategy("hiro.produce.hif")
 
 
 def test_protected_provider_overrides_knowledge(monkeypatch):

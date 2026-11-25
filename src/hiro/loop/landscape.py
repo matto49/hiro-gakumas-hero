@@ -147,6 +147,13 @@ class LandscapeGuard:
             return False
         self.prev_front = _front_app()
         ok = _click_menu(pid, ENTER)
+        if not ok and _click_menu(pid, EXIT):
+            # 「进入全屏幕」点不到但有「退出全屏幕」：窗口还停在上一段进程留下的全屏里（DeviceGone 停机后 resume，11-25 账号 3），
+            # 全屏里又黑了这么久 = LIVE 已经结束、游戏回竖屏：退出全屏（同「全屏中黑屏就退」）。以前每 2 秒点一次进入全屏、永远不退
+            logger.warning("横屏黑屏 %.0fs，但窗口已经在全屏里（上一段留下的）：退出全屏", self.BLACK_S)
+            self.fullscreen, self.black_since = False, None
+            self.prev_front = None
+            return True
         logger.warning("横屏 LIVE 黑屏 %.0fs：进入全屏让窗口重新布局（%s）", self.BLACK_S, "成功" if ok else "失败")
         if ok:
             self.fullscreen, self.entered_at, self.black_since = True, time.monotonic(), None

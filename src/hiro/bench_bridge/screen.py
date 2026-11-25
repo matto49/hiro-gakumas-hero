@@ -12,6 +12,7 @@ ScreenTracker 每场考试一个，每个决策点 observe() 一次：
 
 from __future__ import annotations
 
+import logging
 from collections import Counter
 from typing import Any
 
@@ -43,8 +44,36 @@ EFFECT_KIND = {
     "ProduceExamEffectType_ExamReviewMultiple": ("review_multiple", "pct"),
     "ProduceExamEffectType_ExamGimmickLessonDebuff": ("lesson_debuff", "value"),
 }
+logger = logging.getLogger(__name__)
 RESHUFFLE_AT = 2  # 山札剩这么多张以内时，抽到山札里没有的卡才当作洗牌（每回合抽 3 张，抽空才洗）
 UIOBS_KINDS = {k for k, _ in EFFECT_KIND.values()} | {"parameter_buff", "stance_lock", "extra_turn"}
+
+
+# 技能卡代价类型 → UIObs 状态种类（消耗这种状态的层数 / 回合，不够游戏不让打，但卡面不变灰：点了停在选中态）
+COST_KIND = {
+    "ExamCostType_ExamLessonBuff": "lesson_buff",  # 集中
+    "ExamCostType_ExamReview": "review",  # 好印象
+    "ExamCostType_ExamCardPlayAggressive": "aggressive",  # やる気
+    "ExamCostType_ExamFullPowerPoint": "full_power_point",  # 全力值
+    "ExamCostType_ExamParameterBuff": "parameter_buff",  # 好調（回合）
+}
+
+
+def cost_short(card_id: str, upgrade: int, have: dict) -> str | None:
+    """这张卡的状态代价够不够：画面读到了这种状态、层数又不够时返回原因；够 / 不是状态代价 / 没读到这种状态 → None（照旧当可打）。
+    11-24 mao3 选拔第 1 场末回合：立ち位置チェック+ 要集中 3、只有 2，UINet 选了它，点 3 次停在选中态才禁用。"""
+    try:
+        from hiro.state.context import catalog
+
+        row = catalog().card(card_id, upgrade)
+    except Exception:  # noqa: BLE001
+        return None
+    kind = COST_KIND.get(row.get("costType") or "")
+    need = int(row.get("costValue") or 0)
+    if not kind or need <= 0 or kind not in have:
+        return None
+    got = have[kind]
+    return f"要 {kind} {need}，只有 {got:g}" if got < need else None
 
 
 def _status_rows(state: Any) -> list:
@@ -382,9 +411,14 @@ def from_screen(state: Any, memory: Any, legal: list, tracker: ScreenTracker, ex
         elif kind in ("skip", "end"):
             lg.append(["end"])
     base = [h[1][1] for h in tracker.hand] if len(tracker.hand) == sum(1 for c in state.hand if c.card_id) else None
+    have = {k: v for k, v, _ in _status_rows(state)}
     hand = []
     for i, c in enumerate(x for x in state.hand if x.card_id):
         u = c.upgrade if c.upgrade is not None else (base[i] if base else 0)  # 画面读不到强化：用培育牌组里的
+        if c.slot in plays and (why := cost_short(c.card_id, int(u or 0), have)):
+            plays.discard(c.slot)
+            lg = [a for a in lg if a != ["play", c.slot]]
+            logger.info("出不了 %s：%s（画面上卡没变灰，按代价排除）", c.card_id, why)
         hand.append({"id": c.card_id, "u": int(u or 0), "p": int(c.slot in plays)})
     obs = {
         "v": SCHEMA,

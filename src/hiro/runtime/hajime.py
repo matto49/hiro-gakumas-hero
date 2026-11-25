@@ -34,6 +34,15 @@ DIFFICULTY_WORDS = {"regular": ("レギュラー", "REGULAR"), "pro": ("プロ",
 DEFAULT_OUT = Path(".temp") / "hajime-mac" / "frames"  # 相对仓库根目录（已被 .gitignore 挡住）
 LESSON_END_S = 2.0  # 练习课 HUD（CLEARまで / PERFECTまで）连续消失这么久算练习课结束（出牌动画不会盖住它）
 RESULT_WAIT_S = 12.0  # 考试打完后等结算名次页出来
+FINAL_LABEL = "hajime-final"
+
+
+def need_rank(label: str, pass_rank: int, final_rank: int | None) -> int:
+    """这场考试要到的名次：默认过线名次（初前 3）；--final-rank N 只收紧期末（初星課題「最終試験で1位」、
+    偶像亲爱度「プロ最終試験 1位」：没到就和落选一样用再挑戦，次数 / ジュエル 规则不变），不会放宽。"""
+    if label == FINAL_LABEL and final_rank:
+        return min(pass_rank, final_rank)
+    return pass_rank
 
 
 def new_produce(rt, difficulty: str, **prep) -> None:
@@ -346,8 +355,8 @@ def hajime_core(scenario_mode: str):
                         logger.warning("%s 打完 %.0fs 没等到结算名次页，交回主循环", label, timeout)
                         return False
                     active.sleep(0.5)
-            need = modes.mode(scenario_mode).pass_rank
-            passed = res["rank"] <= need
+            need = need_rank(label, modes.mode(scenario_mode).pass_rank, getattr(self, "final_rank", None))
+            passed = hv.result_passed(res, need)
             self.rec.log("exam_result", image=img, exam=label, result={**res, "passed": passed})
             self.s.observe(scene="HIF_EXAM_RESULT", img=img, fields={"score": res.get("score"), "rank": res["rank"], "passed": passed,
                                                                       "retry": res.get("retry")})  # fmt: skip
@@ -399,7 +408,7 @@ def hajime_main_attr(idol: str, mode: str, plan: dict | None) -> str | None:
 
 
 def run(args) -> int:
-    from hiro import kaa_env
+    from hiro import formation_env
     from hiro.brain import guides
     from hiro.contracts import TraceWriter
     from hiro.devices import active, open_device
@@ -413,15 +422,15 @@ def run(args) -> int:
     from hiro.vision.classify import PageHit, classify
 
     guides.refresh_if_stale()  # 偶像卡攻略包：没有或超过 24 小时就下载，失败不阻塞（协调 11-20）
-    kaa_env.apply_formation_plan(args.idol)
-    support_set = args.support_set or kaa_env.SUPPORT_SET
-    memory_set = args.memory_set or kaa_env.MEMORY_SET
+    formation_env.apply_formation_plan(args.idol)
+    support_set = args.support_set or formation_env.SUPPORT_SET
+    memory_set = args.memory_set or formation_env.MEMORY_SET
     if args.command == "new" and (support_set is None or memory_set is None):
         logger.error("new 开局要编成号：--support-set / --memory-set，或开局编成方案")
         return 2
     mode = MODES[args.difficulty]
     if args.main_attr is None:
-        args.main_attr = hajime_main_attr(args.idol, mode, kaa_env.ACTIVE_PLAN)
+        args.main_attr = hajime_main_attr(args.idol, mode, formation_env.ACTIVE_PLAN)
     from hiro.runtime.segments import trace_name
 
     session = Session(
@@ -434,6 +443,7 @@ def run(args) -> int:
         "llm_spec": args.llm,
         "main_attr": args.main_attr,
         "exams_done": 0,
+        "final_rank": args.final_rank,
     }.items():
         setattr(Core, k, v)
     core = Core(scenario="qualify", idol=args.idol)
@@ -454,17 +464,25 @@ def run(args) -> int:
         sampler.save(f.img, PageHit("opening", "opening"))
         return f
 
-    try:
+    def start_new():
         rt.screen.shot = opening_shot
-        if args.command == "new":
-            finish.finish_produce_end(rt, go_home=True)
-            new_produce(rt, args.difficulty, idol=args.idol, support_set=support_set, memory_set=memory_set, plan=kaa_env.ACTIVE_PLAN,
-                        rental_attr=args.main_attr, main_attr=args.main_attr)  # fmt: skip
-        else:
-            finish.resume_produce(rt)
+        finish.finish_produce_end(rt, go_home=True)
+        new_produce(rt, args.difficulty, idol=args.idol, support_set=support_set, memory_set=memory_set, plan=formation_env.ACTIVE_PLAN,
+                    rental_attr=args.main_attr, main_attr=args.main_attr)  # fmt: skip
+
+    def resume():
+        rt.screen.shot = opening_shot
+        finish.resume_produce(rt)
+
+    def play_until():
         rt.screen.shot = raw_shot
         set_mode(session, mode)
         rt.run(until=lambda: getattr(rt, "finished", False))
+
+    try:
+        # 日切换（日本时间 5 点）：回首页后重新开局 / 续跑（同 H.I.F），不再整段 traceback 退出
+        play.segment_with_date_changes(rt, session, new=start_new if args.command == "new" else None, resume=resume,
+                                       play_until=play_until)  # fmt: skip
         return 0
     except ResumeBlocked as e:
         logger.error("%s", e)
@@ -488,6 +506,9 @@ def main(argv=None) -> int:
     ap.add_argument("--support-set", type=int, default=None)
     ap.add_argument("--memory-set", type=int, default=None)
     ap.add_argument("--no-llm", action="store_true")
+    ap.add_argument(
+        "--final-rank", type=int, default=None, help="期末要到第几名，没到就用再挑戦（免费 / チケット，规则同落选）"
+    )
     ap.add_argument("--llm", default=os.environ.get("HIRO_LLM"))
     ap.add_argument("--trace", default=None)
     ap.add_argument("--out", default=str(DEFAULT_OUT), help="存帧目录")

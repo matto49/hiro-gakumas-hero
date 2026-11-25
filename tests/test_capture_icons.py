@@ -94,6 +94,9 @@ def master(tmp_path, monkeypatch):
     db.commit()
     db.close()
     monkeypatch.setenv("HIRO_KAA_GAME_DATA", str(d))
+    monkeypatch.setenv(
+        "HIRO_MASTER_DB", str(d / "game.db")
+    )  # 主数据库按 HIRO_MASTER_DB 读（不再从游戏图目录找 game.db）
     return d
 
 

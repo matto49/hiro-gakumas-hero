@@ -40,7 +40,7 @@ def _consult(monkeypatch, left_page, shelf=None):
     sess = NS(state=GameState(page_fields={"shelf": [{"index": 7, "price": 50}]}, produce={"produce_point": 305}),  # 沿用的旧货架
               observe_complete=lambda *a, **k: obs, observe=lambda **k: obs, left_page=left_page, record=lambda *a, **k: None,
               recover=lambda *a, **k: None)  # fmt: skip
-    h = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    h = hif.HifCore.__new__(hif.HifCore)
     h.s = sess
     h.deciders = NS(
         decide=lambda page, st: (
@@ -75,7 +75,7 @@ def test_interval_exits_when_screen_left(monkeypatch):
     executed, ended = [], []
     sess = NS(state=GameState(page_fields={"interval": {"shelf": []}}, produce={}), observe_complete=lambda *a, **k: obs,
               left_page=lambda scene, o, req: "HIF_EXAM", record=lambda *a, **k: None, recover=lambda *a, **k: None)  # fmt: skip
-    h = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    h = hif.HifCore.__new__(hif.HifCore)
     h.s, h.rec, h.profile = sess, NS(log=lambda *a, **k: None), NS()
     h.deciders = NS(decide=lambda *a, **k: pytest.fail("离开轮间后不该再决策"))
     h._deck_size = lambda: None

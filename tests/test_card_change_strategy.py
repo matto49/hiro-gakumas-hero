@@ -1,9 +1,9 @@
-"""HiroHifStrategy.on_skill_card_change：按决策的 card_id 换出；决策取消时传 cancel；阶段 1 候选未识别时换入第 0 张。"""
+"""HifCore.on_skill_card_change：按决策的 card_id 换出；决策取消时传 cancel；阶段 1 候选未识别时换入第 0 张。"""
 
 from hiro.brain.deciders import ProduceDeciders
 from hiro.brain.state import CAMPUS_HIRO
 from hiro.contracts import Action, ActionKind, ExecutionResult, GameState
-from hiro.produce.hif import HiroHifStrategy
+from hiro.produce.hif import HifCore
 
 import pytest
 
@@ -57,7 +57,7 @@ class StubCtx:
 
 
 def _strategy(fields):
-    st = HiroHifStrategy.__new__(HiroHifStrategy)
+    st = HifCore.__new__(HifCore)
     st.s = StubSession(fields)
     st.deciders = ProduceDeciders(CAMPUS_HIRO, None, change_controlled=True)
     return st

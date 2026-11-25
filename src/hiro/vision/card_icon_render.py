@@ -22,6 +22,7 @@
 
 from __future__ import annotations
 
+import logging
 from functools import cache, lru_cache  # noqa: F401
 from pathlib import Path
 
@@ -165,6 +166,7 @@ def overlay_mask(size: int) -> np.ndarray:
 SPRITES = ("bg_round_r12_24px", "card_frame", "card_gradation_ssr", "rarity_gradiant_ssr", "rarity_gradiant_sr", "rarity_gradiant_r",
            "rarity_gradiant_n", "card_category_mask_activeskill", "card_category_mask_mentalskill", "card_category_mask_trouble",
            "card_category_frame_activeskill", "card_category_frame_mentalskill", "card_category_frame_trouble")  # fmt: skip
+logger = logging.getLogger(__name__)
 CACHE = Path("cache") / "card_icons.npz"
 NAME_RARITY = {"0": "N", "1": "R", "2": "Sr", "3": "Ssr", "100": "Ssr"}
 NAME_CATEGORY = {"act": "ActiveSkill", "men": "MentalSkill"}
@@ -193,8 +195,51 @@ def _from_name(name: str) -> tuple[str, str] | None:
     return (NAME_RARITY.get(m.group(2), "R"), NAME_CATEGORY[m.group(1)]) if m else None
 
 
-def build(out: Path = CACHE) -> int:
-    """卡面目录的每张卡 → 渲染图标，存 out（names, imgs）。返回张数。"""
+def card_dir_stamp() -> str | None:
+    """卡面目录的指纹（文件数 + 目录修改时间）：素材包更新后渲染库要重建。没有卡面目录时 None。"""
+    from hiro.vision import assets
+
+    cards = assets.card_art_dir()
+    if cards is None:
+        return None
+    return png_stamp(Path(cards))
+
+
+def png_stamp(folder: Path, skip: str | None = None) -> str:
+    """目录里 png 的指纹：文件数 + 最新修改时间 + 总大小（同名覆盖时文件数和目录修改时间都不变，#59 CodeRabbit）。
+    skip：文件名含这段的不算（插画索引不收 _mid- 的）。"""
+    n = newest = size = 0
+    for p in folder.iterdir():
+        if p.suffix != ".png" or (skip and skip in p.name):
+            continue
+        st = p.stat()
+        n, newest, size = n + 1, max(newest, int(st.st_mtime)), size + st.st_size
+    return f"{n}-{newest}-{size}"
+
+
+def ensure(out: Path = CACHE) -> Path | None:
+    """渲染库在不在、是不是这一版素材的；缺了 / 过期了就用素材包现建（约 20 秒）。建不了（素材不齐）返回 None，调用方走插画退路。
+    11-25 账号 3：初星助手的工作目录里从来没有这个库（以前只能手动 build），回忆认卡一直走插画退路，写编成后核对认不出。
+    手动 build 的旧库没有 stamp 字段：照用，不重建。"""
+    stamp = card_dir_stamp()
+    if out.exists():
+        with np.load(out, allow_pickle=False) as data:
+            old = str(data["stamp"]) if "stamp" in data.files else None
+        if old is None or stamp is None or old == stamp:
+            return out
+    if stamp is None:
+        return None
+    try:
+        logger.info("回忆认卡：生成渲染库 %s（素材 %s）", out, stamp)
+        build(out, stamp=stamp)
+    except (SystemExit, OSError, ValueError) as e:
+        logger.warning("回忆认卡：渲染库建不了，走插画退路：%s", e)
+        return None
+    return out if out.exists() else None
+
+
+def build(out: Path = CACHE, stamp: str | None = None) -> int:
+    """卡面目录的每张卡 → 渲染图标，存 out（names, imgs[, stamp]）。返回张数。"""
     from hiro.vision import assets
 
     cards, sprites = assets.card_art_dir(), assets.sprites_dir()
@@ -219,7 +264,10 @@ def build(out: Path = CACHE) -> int:
         names.append(png.stem)
         imgs.append(render(cv2.imread(str(png)), rc[0], rc[1], sprites))
     out.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(out, names=np.array(names), imgs=np.stack(imgs))
+    if stamp is None:
+        np.savez_compressed(out, names=np.array(names), imgs=np.stack(imgs))
+    else:
+        np.savez_compressed(out, names=np.array(names), imgs=np.stack(imgs), stamp=np.array(stamp))
     return len(names)
 
 
@@ -228,4 +276,4 @@ if __name__ == "__main__":
 
     if sys.argv[1:] != ["build"]:
         raise SystemExit("用法：python -m hiro.vision.card_icon_render build")
-    print(f"card_icons：{build()} 张 → {CACHE}")
+    print(f"card_icons：{build(stamp=card_dir_stamp())} 张 → {CACHE}")

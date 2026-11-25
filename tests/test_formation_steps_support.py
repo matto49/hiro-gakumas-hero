@@ -45,22 +45,6 @@ def test_two_blank_reads_do_not_count_as_settled(monkeypatch, caplog):
     assert "核对通过" in caplog.text
 
 
-def test_kaa_check_support_waits_for_animation(monkeypatch):
-    """KAA 主循环的第 2 步核对要传 shoot / sleep（原来没传：只读翻号后的第一帧）。"""
-    import sys
-    import types
-
-    from hiro.loop import kaa_patches
-
-    seen = {}
-    monkeypatch.setattr(formation_steps, "check_support", lambda img, plan, set_no, **kw: seen.update(kw))
-    monkeypatch.setitem(
-        sys.modules, "kotonebot", types.SimpleNamespace(device=types.SimpleNamespace(screenshot=lambda: "img"))
-    )
-    kaa_patches._check_support("img")
-    assert callable(seen.get("shoot")) and callable(seen.get("sleep"))
-
-
 def test_step3_blank_reads_keep_waiting(monkeypatch):
     """第 3 步回忆图标：两次一格认不出不算停稳，等到认出来的那一帧。"""
     frames = iter(["blank", "blank", "blank", "full"])

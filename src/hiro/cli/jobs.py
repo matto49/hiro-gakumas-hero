@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import subprocess
 import sys
@@ -27,6 +28,28 @@ LIVE = ("running", "paused", "takeover")
 LLM_VARS = ("HIRO_LLM", "OPENAI_BASE_URL", "OPENAI_API_KEY", "HIRO_CODEX_BIN")
 STOP_GRACE = 10.0
 TRACE_POLL = 0.5
+FRAME_EVERY = 1.5  # 实时画面事件最多这么久一条（帧存得很密，不全进事件流）
+REASON_MAX = 160
+
+_LOG_PREFIX = re.compile(r"^\[\d{4}-\d\d-\d\d [\d:,.]+\]\s*\[([A-Z]+)\]\s*\[[^\]]*\]\s*")
+_SHOT_SUFFIX = re.compile(r"（截图在 [^）]*）\s*$")
+
+
+def failure_reason(lines: list[str]) -> str | None:
+    """任务出错时给人看的一句原因：最后一条「停下：…」，没有就最后一条 ERROR 日志（去掉时间 / 级别 / 模块前缀和本机截图路径）。
+    11-25 review：failed 事件只写「看上面的日志」，对话和对局卡里看不到原因。"""
+    stop = err = None
+    for line in lines:
+        t = line.strip()
+        if t.startswith("停下："):
+            stop = t[len("停下：") :]
+        elif (m := _LOG_PREFIX.match(t)) and m.group(1) in ("ERROR", "CRITICAL"):
+            err = t[m.end() :]
+    why = stop or err
+    if not why:
+        return None
+    why = _SHOT_SUFFIX.sub("", why).strip()
+    return why if len(why) <= REASON_MAX else why[: REASON_MAX - 1] + "…"
 
 
 def step_event(rec: dict, trace: Path) -> dict:
@@ -40,13 +63,31 @@ def step_event(rec: dict, trace: Path) -> dict:
         "page": ((obs.get("page") or {}).get("name")),
         "action": ((dec.get("action") or {}).get("kind")),
         "args": ((dec.get("action") or {}).get("args")),
-        "source": dec.get("source"),
+        "source": f"plugin:{dec['plugin']}" if dec.get("plugin") else dec.get("source"),
         "decider": dec.get("decider"),
         "warnings": dec.get("warnings") or [],
         "notes": rec.get("notes") or [],
         "frame": str(frame) if frame is not None and frame.is_file() else None,
         "text": dec.get("reason") or "",
     }
+
+
+def read_new_frames(index: Path, pos: int) -> tuple[int, dict | None]:
+    """帧索引 frames.jsonl 从 pos 往后读完整的行：返回 (新位置, 最后一条记录或 None)。半行留到下次。"""
+    if not index.is_file():
+        return pos, None
+    last = None
+    with index.open("rb") as f:
+        f.seek(pos)
+        for raw in f:
+            if not raw.endswith(b"\n"):
+                break
+            pos += len(raw)
+            try:
+                last = json.loads(raw)
+            except ValueError:
+                continue
+    return pos, last
 
 
 @dataclass(frozen=True)
@@ -61,7 +102,7 @@ class Kind:
 
 
 _PY = sys.executable
-HOME_READER = "hiro.vision.home_values"  # 首页顶栏读数（scan-account）
+ACCOUNT_SCAN = "hiro.daily.account_scan"  # 首页顶栏读数 + プロフィール的プロデューサーID（scan-account）
 
 _SELFTEST = r"""
 import json, os, sys, time
@@ -108,7 +149,6 @@ def _hif_argv(p: dict, d: Path) -> list[str]:
 
 
 DAILY_ITEMS = ("activity_funds", "presents", "assignment", "contest", "mission_reward", "club_reward")
-DAILY_OWN = ("activity_funds", "presents", "mission_reward", "club_reward")  # 已迁到 hiro.daily 的（不经 KAA）
 DAILY_LABEL = {
     "activity_funds": "活動費",
     "presents": "礼物",
@@ -126,8 +166,6 @@ def _daily_argv(p: dict, d: Path) -> list[str]:
     items = [i for i in (p.get("items") or "").split(",") if i]
     if items:
         argv += ["--only", ",".join(items)]
-        if all(i in DAILY_OWN for i in items):
-            argv.append("--own")
     return argv
 
 
@@ -163,6 +201,8 @@ def _produce_argv(module: str, default_level: str):
                 argv += [flag, str(p[key])]
         if p.get("no_llm"):
             argv.append("--no-llm")
+        if p.get("final_rank") and module.endswith(".hajime"):
+            argv += ["--final-rank", str(p["final_rank"])]  # 只有初支持：期末没到这个名次就用再挑戦
         return argv
 
     return build
@@ -273,11 +313,38 @@ KINDS: dict[str, Kind] = {
         lambda p: "调整 DMM 游戏窗口大小",
         pausable=False,
     ),
+    "main-task": Kind(
+        "main-task",
+        "初星課題：回主页关掉课题完成弹窗（奖励自动到账，记下完成了哪几步），再进课题页读 NEXT（编号、要求、进度）",
+        lambda p, d: [_PY, "-m", "hiro.daily.main_task", "--out", str(d / "out.json")],
+        lambda p: "看初星課題（关完成弹窗、读 NEXT）",
+        pausable=False,
+    ),
+    "story": Kind(
+        "story",
+        "看初星コミュ：N 章里没看过的话逐话再生并跳过（跳过也算看过），直到 --until 或遇到锁着的话",
+        lambda p, d: (
+            [_PY, "-m", "hiro.daily.story", "--out", str(d / "out.json"), "--chapter", str(p.get("chapter") or 1)]
+            + (["--until", str(p["until"])] if p.get("until") else [])
+        ),
+        lambda p: f"看初星コミュ {p.get('chapter') or 1}章" + (f"（到第 {p['until']} 话）" if p.get("until") else ""),
+        pausable=False,
+    ),
+    "contest-unit": Kind(
+        "contest-unit",
+        "竞赛编队：コンテスト → ユニット編成，用「おまかせ」按现有回忆重排，读出総合力合計（--dry-run 只读不重排）",
+        lambda p, d: (
+            [_PY, "-m", "hiro.daily.contest_unit", "--out", str(d / "out.json")]
+            + (["--read-only"] if p.get("dry_run") else [])
+        ),
+        lambda p: "看竞赛编队总合力" + ("（只读）" if p.get("dry_run") else "（おまかせ重排）"),
+        pausable=False,
+    ),
     "scan-account": Kind(
         "scan-account",
-        "读首页顶栏的 PLv、AP、ジュエル（只截一张图，不点）",
-        lambda p, d: [_PY, "-m", HOME_READER, "--live", "--out", str(d / "out.json")],
-        lambda p: "读首页的 PLv / AP / ジュエル（只截图，不点）",
+        "读首页顶栏的 PLv、AP、ジュエル，再进菜单的プロフィール读プロデューサーID（信息库按账号分开，读到新账号就切过去）",
+        lambda p, d: [_PY, "-m", ACCOUNT_SCAN, "--out", str(d / "out.json")],
+        lambda p: "读首页数值和プロデューサーID（会点开菜单的プロフィール）",
         output="account",
         pausable=False,
     ),
@@ -350,6 +417,10 @@ class Job:
     ):
         self.id = time.strftime("%Y%m%d-%H%M%S-") + secrets.token_hex(2)
         llm = {k: str(v) for k, v in (llm_env or {}).items() if k in LLM_VARS and v}
+        if not llm:  # 命令行 hiro confirm 开的（桌面程序会传）：按桌面设置推，和界面开局用同一个模型（设计稿 §5）
+            from hiro.cli.llm_env import env_from_settings
+
+            llm = env_from_settings(home)
         self._llm_off = llm.get("HIRO_LLM", "").lower() == "off"
         if self._llm_off:
             llm.pop("HIRO_LLM")
@@ -364,6 +435,7 @@ class Job:
         self.trace = self.work / "traces" / self.id  # hif / tower / selftest 用 --trace <任务编号>
         self.state = "running"
         self.started_at, self.ended_at, self.exit_code = time.time(), None, None
+        self.reason: str | None = None  # 出错原因（failed 时）
         self._lock = threading.Lock()
         self._seq = 0
         self._events = self.dir / "events.jsonl"
@@ -399,6 +471,7 @@ class Job:
             "started_at": self.started_at,
             "ended_at": self.ended_at,
             "exit_code": self.exit_code,
+            "reason": self.reason,
             "pause_flag": str(self.flag),
             "dir": str(self.dir),
             "pid": self.proc.pid if self.proc else None,
@@ -409,6 +482,36 @@ class Job:
         (self.dir / "job.json").write_text(json.dumps(self.describe(), ensure_ascii=False), encoding="utf-8")
 
     # ----------------------------------------------------------------- 进程
+    def _strategy_file(self) -> Path | None:
+        """2026-11-25 插件架构：HIRO_HOME/strategy.json + 本局 --plugins / --sources 合成一份放进任务目录；都没有时返回 None。"""
+        from hiro import strategy
+
+        base = strategy.read_file(self.work.parent / "strategy.json")
+        over = strategy.parse_overrides(self.params.get("plugins"), self.params.get("sources"))
+        if not base and len(over) == 1 and not over["_warnings"]:
+            return None
+        path = self.dir / "strategy.json"
+        path.write_text(json.dumps(strategy.merge(base, over), ensure_ascii=False, indent=1), encoding="utf-8")
+        return path
+
+    def strategy_warnings(self) -> None:
+        """开局时把插件配置的问题写进任务事件和日志（spec 4.2 / 4.7）：写错的键 / 页面、开局参数写错、配了但用不了的插件。"""
+        from hiro import plugins, strategy
+
+        base = strategy.read_file(self.work.parent / "strategy.json")
+        over = strategy.parse_overrides(self.params.get("plugins"), self.params.get("sources"))
+        cfg = strategy.from_dict(strategy.merge(base, over))
+        texts = list(cfg.warnings)
+        want = [("observation_source", i) for i in cfg.sources]
+        want += [("exam_advisor", i) for i in sorted({v for v in cfg.exam.values() if v != plugins.BUILTIN})]
+        want += [("produce_advisor", i) for i in sorted(set(cfg.produce.values()))]
+        for kind, pid in want:
+            if plugins.get_by_id(kind, pid) is None:
+                why = next((x.error for x in plugins.available(kind) if x.id == pid), None) or "没装"
+                texts.append(f"插件 {pid!r} 用不了（{why}），相关决策点用内置逻辑")
+        for t in texts:
+            self.emit("log", f"插件配置：{t}")
+
     def child_env(self) -> dict:
         env = os.environ.copy()
         from hiro.cli import paths
@@ -423,6 +526,11 @@ class Job:
         if self._llm_off:
             env.pop("HIRO_LLM", None)
         env.update({"HIRO_PAUSE_FLAG": str(self.flag), "PYTHONUNBUFFERED": "1", "PYTHONUTF8": "1"})
+        # 模型用量流水账（hiro.usage.ledger）：写到 HIRO_HOME/usage，每行带任务编号（设计稿 §1）
+        env.update({"HIRO_JOB_ID": self.id, "HIRO_HOME": str(self.work.parent)})
+        env.setdefault("HIRO_CALIB_DIR", str(self.dir / "calib"))  # 排查截图跟着任务走（hiro.imgio.calib_root）
+        if (sf := self._strategy_file()) is not None:
+            env["HIRO_STRATEGY_FILE"] = str(sf)
         src = str(REPO / "src")
         env["PYTHONPATH"] = src + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
         return env
@@ -436,6 +544,10 @@ class Job:
         ):  # 服务没有控制台；不加 CREATE_NO_WINDOW 会给每个任务弹一个黑窗口，用户一关这局就没了
             kw["creationflags"] = 0x00000200 | 0x08000000  # CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW
         self.emit("start", self.kind.summary(self.params), kind=self.kind.name)
+        try:
+            self.strategy_warnings()
+        except Exception as e:  # noqa: BLE001  配置检查出错不影响开局
+            self.emit("log", f"插件配置检查出错：{e}")
         self.proc = subprocess.Popen(
             argv,
             cwd=self.work,
@@ -450,6 +562,7 @@ class Job:
         )
         self._save()
         self._tail_pos = 0
+        self._frame_pos, self._frame_at, self._frame_pending = 0, 0.0, None
         self._tail_lock = threading.Lock()
         threading.Thread(target=self._pump, daemon=True).start()
         threading.Thread(target=self._tail_trace, daemon=True).start()
@@ -475,17 +588,36 @@ class Job:
                 ev = step_event(rec, self.trace)
                 self.emit("step", ev.pop("text"), **ev)
 
+    def _read_frames(self) -> None:
+        """初 / N.I.A 存在任务目录 frames/ 的画面：最新一张发成 frame 事件（驾驶舱的实时画面，开局三步也有）。"""
+        index = self.dir / "frames" / "frames.jsonl"
+        self._frame_pos, rec = read_new_frames(index, self._frame_pos)
+        if rec is not None and rec.get("file"):
+            self._frame_pending = rec
+        rec = self._frame_pending
+        if rec is None or time.time() - self._frame_at < FRAME_EVERY:
+            return
+        path = index.parent / rec["file"]
+        if path.is_file():
+            self.emit("frame", "", frame=str(path), page=rec.get("page"))
+            self._frame_at = time.time()
+        self._frame_pending = None
+
     def _tail_trace(self) -> None:
         while self.proc and self.proc.poll() is None:
             self._read_steps()
+            self._read_frames()
             time.sleep(TRACE_POLL)
 
     def _pump(self) -> None:
         assert self.proc and self.proc.stdout
+        tail: list[str] = []  # 出错原因从这里找（「停下：」/ ERROR 都在日志里）
         for line in self.proc.stdout:
             line = line.rstrip("\n")
             if line:
                 self.emit("log", line)
+                if line.startswith("停下：") or "[ERROR]" in line or "[CRITICAL]" in line:
+                    tail = [*tail[-19:], line]
         code = self.proc.wait()
         self._read_steps()  # 最后几步
         self.flag.unlink(missing_ok=True)
@@ -503,7 +635,9 @@ class Job:
             self.emit("done", "完成")
             self.state = "done"
         else:
-            self.emit("failed", f"任务出错退出（代码 {code}），看上面的日志", exit_code=code)
+            self.reason = failure_reason(tail)
+            text = f"出错停下：{self.reason}" if self.reason else f"任务出错退出（代码 {code}），看上面的日志"
+            self.emit("failed", text, exit_code=code, reason=self.reason)
             self.state = "failed"
         self._save()
 

@@ -49,7 +49,7 @@ pub fn signature(ex: &Exam) -> u64 {
             t.phase_count.hash(&mut h);
             (t.source.item, t.source.drink, t.source.card, t.source.origin, t.source.item_idol_origin).hash(&mut h);
             t.source.card_guid.as_deref().hash(&mut h);
-            (&t.from_effect_ids, t.from_enchant, t.encore).hash(&mut h);
+            (&t.from_effect_ids, t.from_enchant, t.encore, t.after_seen_count).hash(&mut h);
         }
         3u8.hash(&mut h);
     }

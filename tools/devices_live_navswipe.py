@@ -1,13 +1,13 @@
 """DMM 实机检查（接 devices_live_check.py，要管理员）：底部导航贴边点击（アイドル ↔ ホーム 3 次）+ 主页横幅滑动
 （停 0.3 秒再松手），每步存图、记画面变化。只能在游戏主页跑。用法：python tools/devices_live_navswipe.py <输出目录>
-2026-11-14 实测 3/3 导航、2/2 滑动通过（设备层-MaaFW驱动现状.md）。"""
+2026-11-14 用 MaaFramework 版实测 3/3 导航、2/2 滑动通过；2026-11-25 起设备换成自己调 Win32 的 DmmWin32Device。"""
 
 import json
 import sys
 import time
 from pathlib import Path
 
-from hiro.devices.maafw_win32 import MaaFwWin32Device
+from hiro.devices.dmm_win32 import DmmWin32Device
 
 import cv2
 import numpy as np
@@ -23,7 +23,7 @@ def diff(a, b, box=None):
     return round(float(np.abs(a.astype(np.int16) - b.astype(np.int16)).mean()), 2)
 
 
-dev = MaaFwWin32Device()
+dev = DmmWin32Device()
 dev.connect()
 rep = {"nav": [], "swipe": []}
 home = dev.screenshot()

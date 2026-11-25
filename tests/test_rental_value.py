@@ -344,3 +344,35 @@ def test_pick_once_finds_best_row_when_player_name_reads_differently(monkeypatch
     monkeypatch.setattr(rental, "_rows", lambda: {"rows": state["pass"][state["screen"]], "controls": {"decide": [497, 1157]},
                                                     "pager": {"page": 1, "pages": 1}})  # fmt: skip
     assert rental._pick_once("Da", set(), score) == best["support_card_id"]
+
+
+def test_pick_once_falls_back_to_highest_level_of_wanted_type(monkeypatch):
+    """社区推荐打分一张都打不上（11-23 Mac 初 手毬：两页 + 刷新两次都没有）：退回「对应类型、等级最高」的一张（用户 11-23 定）。
+    自己 5 张已经 4 张 Vo：对应类型 = 不是 Vo 的卡；Vo 卡等级再高也不租。"""
+    pytest.importorskip("kotonebot")
+    from hiro.produce import rental
+
+    def row(player, attr, level, y=600):
+        return {
+            "player": player,
+            "card": {"support_card_id": f"s-{player}", "level": level, "name": player, "attr": attr},
+            "center": [360, y],
+        }
+
+    rows = [row("vo60", "Vo", 60), row("da45", "Da", 45), row("vi50", "Vi", 50)]
+    lst = FakeRentalList(rental, rows, visible=3)
+    lst.install(monkeypatch)
+    monkeypatch.setattr(rental, "_to_top", lambda: None)
+    monkeypatch.setattr(rental, "RENTAL_REFRESHES", 0)
+    picked = rental._pick_once("Vo", set(), lambda r: None, refreshes=0, fallback=lambda attr: attr != "Vo")
+    assert picked == "vi50"
+
+
+def test_pick_once_without_fallback_still_gives_up(monkeypatch):
+    pytest.importorskip("kotonebot")
+    from hiro.produce import rental
+
+    lst = FakeRentalList(rental, [_named("p1", "x")], visible=1)
+    lst.install(monkeypatch)
+    monkeypatch.setattr(rental, "_to_top", lambda: None)
+    assert rental._pick_once("Vo", set(), lambda r: None, refreshes=0) is None

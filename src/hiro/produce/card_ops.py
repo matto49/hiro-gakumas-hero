@@ -519,6 +519,31 @@ def confirm_change_dialog(img, run=None) -> bool:
         return False
 
 
+SKIP_CONFIRM = ("選択せず次へ",)  # 强化 / 删卡页点「キャンセル」后的「スキップ確認：選択せずスキップしますか？」
+SKIP_CONFIRM_WAIT = 3.0
+RETAP_HINT = ("再タップで選択", "再タップ")  # 这种强化页第一下点卡只是预览，卡上出现这几个字，要再点一下才算选中
+
+
+def confirm_skip_after_cancel(*, shoot=None, click=None, sleep=_sleep, clock=time.monotonic, ocr=None) -> bool:
+    """点了强化 / 删卡页的「キャンセル」之后：游戏弹「スキップ確認：選択せずスキップしますか？」（対象選択画面に戻る /
+    選択せず次へ）时点「選択せず次へ」（= 不选、继续，正是取消的本意）。11-24 mao4：认不出这个框，回到选卡页再来，
+    同一页转了 25 分钟。没弹框（相談的删卡页取消就是回相談）返回 False。"""
+    from hiro.produce.ops import find_text
+
+    shoot = shoot or device.screenshot
+    click = click or (lambda x, y: device.click(x, y))
+    ocr = ocr or (lambda im: [(t.text, 1.0, tuple(int(v) for v in t.rect)) for t in screen_texts(im)])
+    end = clock() + SKIP_CONFIRM_WAIT
+    while clock() < end:
+        sleep(0.5)
+        b = find_text(ocr(shoot()), SKIP_CONFIRM)
+        if b is not None:
+            click(*b)
+            logger.info("取消后弹出「スキップ確認」：点「選択せず次へ」（不选，继续）")
+            return True
+    return False
+
+
 def _card_op(
     kind: str,
     card_id: str | None,
@@ -575,6 +600,7 @@ def _card_op(
             run.tap(find_text(run.ocr(img), ("キャンセル",), region=(0, 1100, 360, 1220)) or shop.CANCEL_TAP)
             run.snap(run.shoot(), "cancel")
             logger.warning("%s：%s，点「キャンセル」", label, why)
+            confirm_skip_after_cancel(shoot=run.shoot, click=run.tap, sleep=sleep, clock=clock, ocr=run.ocr)
         else:
             logger.warning("%s：%s；这一页没有取消键，不点任何卡，交回主循环", label, why)
         return False
@@ -661,6 +687,11 @@ def _card_op(
     if target is None:
         return give_up(f"卡格里没找到 {card_id}（牌组 {[c.get('name') for c in deck_cards]}）")
     run.tap(target["center"])
+    sleep(CARD_OP_PICK_SETTLE)
+    if find_text(run.ocr(run.shoot()), RETAP_HINT) is not None:
+        # 「再タップで選択」：第一下只是预览（11-24 mao4 强化 0/2 页：没再点，按钮一直 0/2，点了不动，判「页面没关」）
+        logger.info("%s：卡上是「再タップで選択」，再点一下「%s」选中", label, target.get("name"))
+        run.tap(target["center"])
 
     def picked(im):
         d = read_card_dialog(im, region)

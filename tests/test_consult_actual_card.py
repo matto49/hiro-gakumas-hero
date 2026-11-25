@@ -43,7 +43,7 @@ def test_on_consult_records_dialog_pick(monkeypatch):
     ledger = {"last": {"label": "删初始卡 アイコンタクトの基本", "cost": 100, "service": "delete"}}
     plan = iter([Decision(Action(ActionKind.SHOP_BUY, {"service": "delete", "card_index": 2}), "【删卡】删初始卡 アイコンタクトの基本（100P）。P 405", "rule", 0.9),
                  Decision(Action(ActionKind.SHOP_END), "结束", "rule", 0.9)])  # fmt: skip
-    h = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    h = hif.HifCore.__new__(hif.HifCore)
     h.s = sess
     h.deciders = NS(decide=lambda page, st: next(plan), _consult_state=ledger)
     h._consult_open_dialog = lambda d, done: d
@@ -51,7 +51,7 @@ def test_on_consult_records_dialog_pick(monkeypatch):
 
     def execute(action, *a, **k):
         if action.kind is ActionKind.SHOP_BUY:
-            hif.HiroHifStrategy.last_dialog_pick = ("remove", SLEEPY, 0, "眠気")
+            hif.HifCore.last_dialog_pick = ("remove", SLEEPY, 0, "眠気")
         return NS(ok=True, error=None)
 
     monkeypatch.setattr(hif, "sleep", lambda s: None)

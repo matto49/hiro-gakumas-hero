@@ -41,16 +41,22 @@ def find_on_page(img, skin_id: str) -> Box | None:
     want = card_key(skin_id)
     _x0, y0, _w, h = box("Produce.BoxIdolOverviewIdols").xywh
     bottom = y0 + h
+    best = None  # (距离, x, y, 高)：所有窗口里这张卡距离最小的（对得最齐的）
     for x in COLS:
         for y in range(y0 - 8, bottom - MIN_H, ROW_STEP):
             crop = img[y : min(y + CARD_H, bottom), x : x + CARD_W]
             if crop.shape[0] < MIN_H:
                 continue
             hit = idols.query(crop, threshold=MATCH_THRESHOLD)
-            if hit is not None and card_key(hit[0]) == want:
-                logger.info("偶像 %s 在 (%d, %d)，距离 %.1f", skin_id, x, y, hit[1])
-                return Box(x, y, x + CARD_W, y + crop.shape[0])
-    return None
+            if hit is not None and card_key(hit[0]) == want and (best is None or hit[1] < best[0]):
+                best = (hit[1], x, y, crop.shape[0])
+    if best is None:
+        return None
+    # 取最小的，不取第一个过线的：窗口一半盖着上一行时距离 10–12 也会过线，点它的中心就落到上一行别的卡上
+    # （11-25 账号 3：Our Chant 在第 2 行，y=704 的窗口 11.8 先过线，点成了第 1 行的花海咲季；对齐的 y=800 是 4.0）
+    d, x, y, hh = best
+    logger.info("偶像 %s 在 (%d, %d)，距离 %.1f", skin_id, x, y, d)
+    return Box(x, y, x + CARD_W, y + hh)
 
 
 def locate(skin_id: str, *, shoot: Callable, swipe: Callable, sleep: Callable[[float], None] = _sleep,

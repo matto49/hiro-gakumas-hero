@@ -6,7 +6,7 @@ from types import SimpleNamespace as NS
 import hiro.produce.drink_swap as ds
 import hiro.produce.hif as hif
 from hiro.contracts import Action, ActionKind, Decision, GameState
-from hiro.produce.hif import HiroHifStrategy, UnhandledPage
+from hiro.produce.hif import HifCore, UnhandledPage
 from hiro.vision.ocr import Box, Text
 
 import pytest
@@ -25,7 +25,7 @@ def _st(monkeypatch, source):
         "best_incoming",
         lambda cands, held, stage, cap: CANDS[1],
     )
-    st = HiroHifStrategy.__new__(HiroHifStrategy)
+    st = HifCore.__new__(HifCore)
     st.s = NS(state=GameState(page_fields={"candidates": CANDS, "held": HELD}), observe=lambda **k: NS(fields={}), record=lambda *a, **k: None,
               recover=lambda *a: None)  # fmt: skip
     d = Decision(

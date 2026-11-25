@@ -1,4 +1,4 @@
-"""本机 SIMD PaddleOCR 辅助进程（.NET 10，PP-OCRv6 medium）和 KotoneBot 的 OCR 适配。
+"""本机 SIMD PaddleOCR 辅助进程（.NET 10，PP-OCRv6 medium）。
 
 HIRO_OCR=simd 时用。辅助进程挂掉（自己崩溃、读超时被关掉）后，下一次识别会自动重新拉起，再试一次。"""
 
@@ -142,29 +142,3 @@ class SimdOcr:
 @cache
 def simd_engine() -> SimdOcr:
     return SimdOcr()
-
-
-@cache
-def install_kotonebot() -> None:
-    """KotoneBot 的 find / expect 和匹配逻辑不变，只把它的图像 OCR 换成 SIMD。"""
-    from kotonebot.backend.ocr import Ocr, OcrResult, OcrResultList, sanitize_text  # type: ignore[import-not-found]
-    from kotonebot.primitives.geometry import Rect  # type: ignore[import-not-found]
-
-    client = simd_engine()  # 后端不可用时在启动阶段就报错，不等到操作设备时
-
-    def simd_ocr(self, img, *, rect=None, pad=True, only_rec=False):
-        if rect is None:
-            x, y, crop = 0, 0, img
-        else:
-            x, y, w, h = rect.xywh
-            crop = img[y : y + h, x : x + w]
-        results = OcrResultList()
-        # KotoneBot 补 631px 边是给它的 RapidOCR 模型用的，这里不补
-        scale = 2 if rect is not None else 1
-        for text, confidence, (x1, y1, x2, y2) in client.read(crop, scale=scale, only_rec=only_rec):
-            absolute = Rect(x + x1, y + y1, x2 - x1, y2 - y1)
-            relative = absolute if only_rec else Rect(x1, y1, x2 - x1, y2 - y1)
-            results.append(OcrResult(sanitize_text(text), relative, confidence, absolute))
-        return results
-
-    Ocr.ocr = simd_ocr

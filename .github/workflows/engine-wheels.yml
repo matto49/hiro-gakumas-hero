@@ -88,6 +88,8 @@ jobs:
           TAG: ${{ needs.plan.outputs.tag }}
         run: |
           python3 scripts/engine_rs.py manifest dist
-          gh release create "$TAG" dist/*.whl dist/manifest.json --target "$GITHUB_SHA" \
+          # --latest=false：引擎包只给 setup 脚本按标签下载，不占仓库的「Latest」（那是初星助手桌面包的位置；
+          # gh 缺省把新 release 标成 Latest，11-23 engine-rs-c1de6d00dba7 就把 desktop-v0.1.0 顶掉了）
+          gh release create "$TAG" dist/*.whl dist/manifest.json --target "$GITHUB_SHA" --latest=false \
             --title "考试引擎 Rust 后端预编译包 $TAG" \
             --notes "vendor/gakumas-player/gakumas_exam_rs 源码哈希 ${TAG#engine-rs-} 的 abi3 wheel（Python ≥3.9）。scripts/setup.sh / setup.ps1 在没有 cargo 时自动下载、按 manifest.json 校验 sha256 后安装。"

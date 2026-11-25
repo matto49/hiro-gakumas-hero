@@ -135,7 +135,7 @@ def test_guard_rechecks_stale_frame_and_covers_real_tap():
 
 
 def test_guarded_device_mirrors_real_tap_and_hides_shell():
-    """real_tap 跟着底层设备有没有走（adb / maafw 没有）；shell（adb 能 input tap）不转发。"""
+    """real_tap 跟着底层设备有没有走（adb / dmm 没有）；shell（adb 能 input tap）不转发。"""
 
     class Adb:
         name = "adb"

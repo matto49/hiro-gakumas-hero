@@ -4,7 +4,7 @@
 
 每条后面标了出处，代号是：
 
-- 〔主〕：主数据。快照是 gakumasu-diff `d31baf6`，读取方式是 `vendor/gakumas-player` 的 `Catalog`。
+- 〔主〕：主数据。快照是 gakumasu-diff `edc305a`，读取方式是 `vendor/gakumas-player` 的 `Catalog`。
 - 〔社〕：社区攻略，后面跟原文代号（例如 g8-PRO、ww-初M），原文摘录和链接见文末。
 - 〔GK〕：GKMSProject（yuzeis）的实测。他们是对着服务器录到的整局数据核出来的，文件是 `GakumasCLI/produce/nia_produce.py`、`nia_route.py`。
 - 〔实〕：我们自己在 Mac 账号 2 上跑出来的（篠澤広 Campus mode!!，2026-11-17）。

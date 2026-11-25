@@ -6,7 +6,7 @@
 2. 按偶像卡定方案（プラン）、流派（memory_priority.profile_for_idol）和默认主属性，
    支援卡走 support_select.choose_main（三属性各组一次，ep02 逆练门槛），回忆走 formation.select_memories（流派表 + A/B 栏）。
 3. 写方案：选了哪几张、理由、次优方案差多少，以及要存进的编成号（--support-set / --memory-set，用户在游戏里把方案存进这两个编成位）。
-4. 开局：hiro.kaa_env 读到方案就用它的编成号和回忆卡；kaa_patches 在第 2 步核对支援卡、第 3 步核对回忆编成号，对不上就停（不开局）。
+4. 开局：hiro.formation_env 读到方案就用它的编成号和回忆卡；kaa_patches 在第 2 步核对支援卡、第 3 步核对回忆编成号，对不上就停（不开局）。
 
 租借格：库存里没有实机租借列表时，按「可租到的满级 SSR」（support_select.virtual_rentals：方案一致的全部 SSR，Lv60）
 当候选，和自己的卡一起评估 6 格（主属性 4 张 [ep08]、最多 1 张租借；协调 11-17）。开局第 2 步按编成价值从实际租借列表挑（rental.py）。
@@ -114,13 +114,25 @@ def build(idol: str, *, support_inventory: dict | None, memory_inventory: dict |
         if not has_rentals:  # 没有实机租借列表：按可租到的满级 SSR 估租借格，一起评估 6 格（协调 11-17）
             inv = dict(inv, rentals=ss.virtual_rentals())
         size, main_count = 6, 4
-        if fixed_main:
+        # 主属性来自攻略站（formation.main_attr 是前 100 名的统计，已经含成长率 / 审查基准）时不逆练：
+        # 11-24 標 麻央 攻略 Vo，按支援卡价值逆练成 Da（Da 卡价值高 309），但麻央成长率 Vo 22% / Vi 18% / Da 6%、
+        # 选拔审查基准 Vo 45% / Vi 30% / Da 25%，Da 是最差的主属性，选拔第 3 场只打到过线的 57%
+        guided = str(info.get("main_why") or "").startswith("攻略")
+        if fixed_main or guided:
             with ss.using(info["default_main"], info["plan"], main_count):
                 r = ss.choose(inv, size=size)
-            r = dict(r, main_attr_why=f"指定主属性 {info['default_main']}（不比较逆练）")
+            r = dict(
+                r,
+                main_attr_why=f"{'指定' if fixed_main else info['main_why']} 主属性 {info['default_main']}（不比较逆练）",
+            )
         else:
             r = ss.choose_main(
-                inv, plan=info["plan"], default_attr=info["default_main"], size=size, main_count=main_count
+                inv,
+                plan=info["plan"],
+                default_attr=info["default_main"],
+                size=size,
+                main_count=main_count,
+                growth=info.get("growth"),
             )
         if "error" in r:
             sup["error"] = r["error"]

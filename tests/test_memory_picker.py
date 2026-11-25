@@ -381,7 +381,9 @@ def test_purple_locked_rows_are_detected():
     if not path.exists():
         pytest.skip("需要实机截图 pages/memory-picker-purple-locked-rows.png")
     img = cv2.resize(cv2.imread(str(path)), (720, 1280))
-    assert mp.grid_rows(img) == [(676, 794), (814, 933)]  # 上面被详情栏截一半、下面压到浮动按钮的不算
+    rows = mp.grid_rows(img)  # 上面被详情栏截一半、下面压到浮动按钮的不算
+    # 11-25 起按「不是背景」的像素占比分行（浅色 / 锁格行、末行不满 3 格都要认出），行边沿可能差 2–3 像素
+    assert len(rows) == 2 and all(abs(a - b) <= 3 for r, e in zip(rows, [(676, 794), (814, 933)]) for a, b in zip(r, e))
     cells = mp.grid_cells(img)
     assert len(cells) == 6 and len({c["hash"] for c in cells}) == 6
 
@@ -559,3 +561,61 @@ def test_scan_logs_progress_every_few_pages(tmp_path, monkeypatch, caplog):
     caplog.set_level("INFO", logger=mp.logger.name)
     run_scan(tmp_path, ScrollList(), monkeypatch)
     assert any("回忆扫描：第 1 页" in r.getMessage() for r in caplog.records)
+
+
+def _pale_row_grid(dip_rows: tuple[int, ...]) -> "np.ndarray":
+    """合成回忆格区：3 行（y 586–704 / 723–842 / 861–979，行距同实机），行内饱和度 55；dip_rows 里的 y 行饱和度压到 30
+    （浅色卡面：白衣服 / 浅色照片的一条横线，账号 3 11-25 实机里一行被切成好几段）。"""
+    import numpy as np
+
+    hsv = np.zeros((1280, 720, 3), np.uint8)
+    hsv[:, :, 2] = 230
+    for y1, y2 in ((586, 704), (723, 842), (861, 979)):
+        for cx in mp.COL_X:
+            hsv[y1:y2, cx - mp.CELL_W // 2 + 4 : cx + mp.CELL_W // 2 - 4, 1] = 55
+            hsv[y1 + 20 : y1 + 40, cx - 40 : cx + 40, 0] = (cx // 4) % 180  # 每格不同色块：指纹各不相同
+            hsv[y1 + 20 : y1 + 40, cx - 40 : cx + 40, 1] = 200
+    for y in dip_rows:
+        hsv[y, :, 1] = 30
+    return cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+
+
+def test_pale_rows_with_thin_low_saturation_lines_are_whole_rows():
+    """浅色卡面行里有 1–5 像素的低饱和横线：不能当成行间空隙把一行切碎（真空隙约 19 像素）。11-25 账号 3 回忆扫描只认出 1 行、
+    翻 20 页后「对不上」中止。"""
+    img = _pale_row_grid((587, 588, 615, 616, 617, 618, 619, 767))
+    assert mp.grid_rows(img) == [(586, 704), (723, 842), (861, 979)]
+    assert len(mp.grid_cells(img)) == 9
+
+
+def test_pale_cells_are_not_taken_as_empty():
+    """浅色格整体饱和度只有 41–50（实机），空格是 0：空格阈值不能和行间空隙共用 40。"""
+    import numpy as np
+
+    img = _pale_row_grid(())
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    hsv[861:979, 250:687, 1] = 0  # 最后一行只有第 1 格
+    pale = cv2.cvtColor(hsv, cv2.COLOR_HSV2BGR)
+    pale_hsv = cv2.cvtColor(pale, cv2.COLOR_BGR2HSV)
+    pale_hsv[586:704, 35:250, 1] = np.minimum(pale_hsv[586:704, 35:250, 1], 36)  # 第 1 行第 1 格整体很淡
+    pale = cv2.cvtColor(pale_hsv, cv2.COLOR_HSV2BGR)
+    cells = mp.grid_cells(pale)
+    assert [(c["row"], c["col"]) for c in cells] == [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2), (2, 0)]
+
+
+def test_pale_rows_real_frame():
+    """11-25 账号 3 实机第一页：B+ / B 两行卡面偏淡，以前只认出最下面的 D 行。"""
+    import os
+
+    path = (
+        Path(os.environ.get("HIRO_FIXTURES", Path(__file__).parent / "fixtures"))
+        / "pages"
+        / "memory-picker-pale-rows.jpg"
+    )
+    if not path.exists():
+        pytest.skip("需要实机截图 pages/memory-picker-pale-rows.jpg")
+    img = cv2.imread(str(path))
+    rows = mp.grid_rows(img)
+    assert len(rows) == 3 and all(108 <= y2 - y1 <= 128 for y1, y2 in rows)
+    cells = mp.grid_cells(img)
+    assert len(cells) == 9 and len({c["hash"] for c in cells}) == 9

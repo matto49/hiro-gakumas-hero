@@ -35,14 +35,14 @@ def test_trace_writer_continues_existing_trace(tmp_path):
 def _strategy(tmp_path):
     pytest.importorskip("kaa")
     from hiro.loop.session import Session
-    from hiro.produce.hif import HiroHifStrategy
+    from hiro.produce.hif import HifCore
 
     d = tmp_path / "lead-main33"
     d.mkdir()
     shutil.copy(FIX, d / "steps.jsonl")
     tw = TraceWriter(root=tmp_path, name="lead-main33")
     s = Session(tw, shoot=lambda: None, classify=lambda: ("CONSULT", "produce"), extract=lambda scene, img: ({}, 0.0))
-    h = HiroHifStrategy.__new__(HiroHifStrategy)
+    h = HifCore.__new__(HifCore)
     h.s = s
     return h, tw
 
@@ -89,7 +89,7 @@ def test_consult_rereads_when_p_missing(monkeypatch):
     sess = NS(state=GameState(page_fields={"shelf": []}, produce={}), observe=observe, record=lambda *a, **k: None,
               observe_complete=lambda *a, **k: observe(scene="CONSULT"), left_page=lambda *a: None)  # fmt: skip
     seen = []
-    h = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    h = hif.HifCore.__new__(hif.HifCore)
     h.s = sess
     h.deciders = NS(
         decide=lambda page, st: (

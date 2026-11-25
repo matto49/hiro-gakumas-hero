@@ -1,8 +1,9 @@
-# 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
+# 部分逻辑基于 KAA（kotones-auto-assistant，GPL-3.0）
 """选拔里考试以外的提速（协调 2026-11-03，第二十一局选拔非考试 40 分钟）：
 - 三选一快速提交：点选项 → 等「受け取る」亮 → 点 → 等消失（KAA commit 固定 sleep，选卡执行中位 8.5s）；
 - 「受け取る」改底部条带局部 OCR（以前整帧 kotonebot OCR）；
 - 执行后核对：KAA commit 已返回时一离开原页面就算生效（选行动后课程动画全是过渡帧，每步空等到 8s 超时）；
+  （选行动提交去掉固定 sleep 是旧主循环的 KAA 补丁 kaa_patches.action_commit，2026-11-24 随旧主循环删了）
 - 差し入れ光效 1s 就点角落（以前等 15s）。"""
 
 from pathlib import Path
@@ -79,37 +80,12 @@ def test_verify_left_ok_returns_on_transient(tmp_path):
 
 
 def test_gift_effect_wait_short():
-    from hiro.loop import controller
+    from hiro.runtime import play
 
-    assert controller.QUICK_WAIT_TAP_BY_KIND["gift_effect"] <= 1.0 and controller.QUICK_WAIT_TAP_S == 15.0
-
-
-def test_action_commit_no_fixed_sleep(monkeypatch):
-    """选行动提交：点 3 下后直接等按钮消失，不再固定 sleep(2)；休息走 KAA 原版。"""
-    from types import SimpleNamespace as NS
-
-    import hiro.loop.kaa_patches as kp
-
-    from kaa.tasks.produce.new.consts import ProduceAction
-
-    slept, clicks, waited = [], [], []
-    monkeypatch.setattr(kp.time, "sleep", slept.append)
-    btn = NS(click=lambda: clicks.append(1), prefab="P")
-    ctx = NS(
-        fetch_available_actions=lambda: ([ProduceAction.OUTING], [btn]), controller=NS(wait_disappear=waited.append)
-    )
-    kp.action_commit(ctx, ProduceAction.OUTING)
-    assert clicks == [1, 1, 1] and waited == ["P"] and max(slept) < 1.0
-    orig = []
-    monkeypatch.setattr(kp, "_ORIG_ACTION_COMMIT", lambda self, a: orig.append(a))
-    rest = NS(
-        fetch_available_actions=lambda: ([ProduceAction.REST], [btn]), controller=NS(wait_disappear=waited.append)
-    )
-    kp.action_commit(rest, ProduceAction.REST)
-    assert orig == [ProduceAction.REST]
+    assert play.QUICK_WAIT_TAP_BY_KIND["gift_effect"] <= 1.0 and play.QUICK_WAIT_TAP_S == 15.0
 
 
-@pytest.mark.kaa
+@pytest.mark.play
 def test_select_drink_uses_fast_acquire(monkeypatch):
     from types import SimpleNamespace as NS
 
@@ -118,7 +94,7 @@ def test_select_drink_uses_fast_acquire(monkeypatch):
 
     got = []
     monkeypatch.setattr(ops, "fast_acquire", lambda c: got.append(c) or True)
-    st = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    st = hif.HifCore.__new__(hif.HifCore)
     st._drink_full_skip = lambda: False
     st._note_fallback = lambda *a: None
     st._confirm_acquire = lambda: 0

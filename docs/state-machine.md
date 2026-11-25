@@ -144,6 +144,9 @@ GameState 只在外面包一层：当前做什么、在哪个页面、字段来�
 
 ## 8. 主循环与 trace（hiro.loop，2026-10-31 实机版）
 
+> 2026-11-24：下面描述的 KAA 主循环（`HiroController`、`hiro.loop.resume`、`--allow-discard`、`_supervised_resume`）已经删了，
+> 主循环只剩 `hiro.runtime`（自有判页 + 处理器 + 中断层）。这一节留作历史记录；trace 格式没变。
+
 ```
 run_hif new|resume
   ├ new：上一局停在结算画面 → finish_produce_end() 点回首页；guard_new 拦「プロデュースデータの破棄」（--allow-discard 才放行）

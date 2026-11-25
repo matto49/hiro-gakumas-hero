@@ -1,6 +1,8 @@
 """日常任务共用：按钮亮没亮、颜色找点、滚动条、取一帧，以及两个日常专用中断（说明框 / ジュエル框看守、单项超时）。
 
 颜色找点和滚动条是 KAA 同名做法的移植（kotonebot.backend.color.find、kaa.game_ui.elements.scrollbar），不 import KAA / kotonebot。
+带颜色的模板匹配（hist_match / find_colored）、只看白色部分的匹配（white_match / find_white）、两张图一样不一样（same）
+移植自 kotonebot.backend.image 的 colored=True、kaa.game_ui.WhiteFilter 和 raw find。
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ from dataclasses import dataclass
 
 from hiro.daily_guard import classify_popup
 from hiro.vision.ocr import Box
-from hiro.vision.ui_templates import normalize, primary_button_enabled
+from hiro.vision.ui_templates import PACK, Match, normalize, primary_button_enabled, tpl
 
 import numpy as np
 
@@ -139,3 +141,83 @@ class Deadline:
         if self.clock() - self.t0 > self.seconds:
             raise TaskTimeout(f"超时 {self.seconds:.0f}s")
         return None
+
+
+# ---------------------------------------------------------------- 匹配小工具
+
+
+def find_all(f, name: str) -> list[Match]:
+    """模板在这一帧的所有命中（同 KAA find_all）。测试替身换这一个函数。"""
+    return tpl(name).find_all(f.img)
+
+
+def hist_match(roi: np.ndarray, template: np.ndarray, threshold: float = 0.9) -> bool:
+    """两张同尺寸 BGR 图颜色像不像：上中下三段各算 8x8x8 颜色直方图的相关系数，平均 ≥ threshold（同 kotonebot hist_match）。"""
+    import cv2
+
+    if roi.shape != template.shape:
+        return False
+    h = roi.shape[0] // 3
+    score = 0.0
+    for a, b in ((roi[:h], template[:h]), (roi[h : 2 * h], template[h : 2 * h]), (roi[2 * h :], template[2 * h :])):
+        ha = cv2.calcHist([a], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+        hb = cv2.calcHist([b], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+        cv2.normalize(ha, ha)
+        cv2.normalize(hb, hb)
+        score += cv2.compareHist(ha, hb, cv2.HISTCMP_CORREL)
+    return score / 3 >= threshold
+
+
+def template_bgr(name: str) -> np.ndarray:
+    """素材包里模板的彩色原图（ui_templates 只存灰度用的那份）。"""
+    import cv2
+
+    img = cv2.imread(str(PACK / tpl(name).file), cv2.IMREAD_COLOR)
+    if img is None:
+        raise FileNotFoundError(PACK / tpl(name).file)
+    return img
+
+
+def find_colored(f, name: str) -> Match | None:
+    """灰度命中里颜色也对的第一个（同 KAA .q(colored=True)：勾选框没勾 / 勾上了灰度几乎一样，只能看颜色）。"""
+    img, color = normalize(f.img), template_bgr(name)
+    for m in tpl(name).find_all(f.img):
+        x1, y1, x2, y2 = m.rect
+        if hist_match(img[y1:y2, x1:x2], color):
+            return m
+    return None
+
+
+WHITE_LOW, WHITE_HIGH = (0, 0, 200), (180, 30, 255)  # 同 KAA WhiteFilter（HSV）
+
+
+def white_match(img: np.ndarray, template: np.ndarray, *, threshold: float = 0.7) -> Match | None:
+    """只看白色部分匹配（图标是白色镂空、底色会变的按钮，如考试 / 竞赛的 SKIP）：画面和模板都先取 HSV 白色掩码再匹配。"""
+    from hiro.vision.ocr import Box as _Box
+
+    import cv2
+
+    def mask(x):
+        return cv2.inRange(cv2.cvtColor(x, cv2.COLOR_BGR2HSV), np.array(WHITE_LOW), np.array(WHITE_HIGH))
+
+    screen, t = mask(img), mask(template)
+    th, tw = t.shape[:2]
+    if screen.shape[0] < th or screen.shape[1] < tw or not t.any() or not screen.any():
+        return None
+    res = cv2.matchTemplate(screen, t, cv2.TM_CCOEFF_NORMED)
+    _, score, _, (x, y) = cv2.minMaxLoc(res)
+    return Match(_Box(x, y, x + tw, y + th), float(score)) if score >= threshold else None
+
+
+def find_white(f, name: str, *, threshold: float = 0.7) -> Match | None:
+    return white_match(normalize(f.img), template_bgr(name), threshold=threshold)
+
+
+def same(a: np.ndarray, b: np.ndarray, threshold: float = 0.95) -> bool:
+    """两张同尺寸图是不是同一张（灰度相关 ≥ threshold，同 kotonebot raw image.find(a, b)）。"""
+    import cv2
+
+    if a.shape != b.shape:
+        return False
+    ga, gb = cv2.cvtColor(a, cv2.COLOR_BGR2GRAY), cv2.cvtColor(b, cv2.COLOR_BGR2GRAY)
+    return float(cv2.matchTemplate(ga, gb, cv2.TM_CCOEFF_NORMED).max()) >= threshold

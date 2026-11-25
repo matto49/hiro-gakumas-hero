@@ -91,7 +91,7 @@ def read_memory() -> tuple[int, int, int] | None:
     from hiro.vision.ocr import ocr_boxes as _ocr
 
     def ocr_boxes(img):
-        return _ocr(img, scale=1.5)  # 和 hiro.produce.ops.ocr_boxes 一样（那个模块要 import kotonebot）
+        return _ocr(img, scale=1.5)  # 和 hiro.produce.ops.ocr_boxes 一样（这里不导入操作层，启动快）
 
     d = open_tool_device()  # 只截图，不点
     votes: list[tuple[int, int, int]] = []

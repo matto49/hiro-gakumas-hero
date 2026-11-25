@@ -1,4 +1,4 @@
-# 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
+# 部分逻辑基于 KAA（kotones-auto-assistant，GPL-3.0）
 """回忆（メモリー）选择页的点击路径与只读扫描：给总控在实机上跑，产出 reports/live/memory-inventory.json。
 
 画面（编成页点某一格回忆打开的选择页，720x1280；依据 reports/live/memory-formation/cand-*.jpg、memscan2-*.jpg）：
@@ -37,7 +37,11 @@ GRID_X = (35, 687)
 GRID_Y = (560, 1040)  # 回忆格区（上面是详情栏，下面是底栏），用来判断画面变没变
 ROW_BOTTOM_MAX = 995  # 完整行的下沿上限：再往下被浮在列表上的「編成詳細 / 筛选 / 排序」按钮（y≈1000–1060）挡住
 ROW_H = (108, 128)  # 完整行高（实测 117–120）
-GAP_SAT_MAX = 40  # 行间空隙的平均饱和度
+GAP_MIN_H = 8  # 空白带至少这么高才算行间空隙（真空隙约 19 像素）；更薄的是卡面里的浅色横线，不能把一行切碎
+FG_SAT_MIN, FG_VAL_MAX = 30, 180  # 分行用的「不是背景」像素：饱和度 ≥ 30 或亮度 ≤ 180
+ROW_PROBE_W = 120  # 分行时每列只量中间这么宽
+ROW_FG_MIN = 0.10  # 一条横线「不是背景」的占比 ≥ 这个算有内容（空隙实测 0.00，行内 ≥ 0.24）
+CELL_EMPTY_SAT = 15  # 格子平均饱和度低于这个算空格（空格约 0；浅色卡面整格只有 41–50，以前用的 40 太贴近）
 DETAIL_ROI = (40, 170, 640, 340)  # 详情栏 (x, y, w, h)：换选中回忆 / 换页时这里变
 STATS_ROI = (100, 30, 600, 90)
 PAGE_PREV, PAGE_NEXT = (230, 530), (485, 530)
@@ -77,14 +81,32 @@ def picker_open(boxes) -> bool:
 
 
 def grid_rows(img: np.ndarray) -> list[tuple[int, int]]:
-    """可见的完整回忆行 [(y1, y2)]：按横向饱和度找行间空隙，取高度够的段。"""
-    sat = cv2.cvtColor(img[:, GRID_X[0] : GRID_X[1]], cv2.COLOR_BGR2HSV)[:, :, 1].mean(1)
+    """可见的完整回忆行 [(y1, y2)]：按每条横线「不是背景」的像素占比找行间空隙，取高度够的段。"""
+    hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    # 「不是背景」的像素：有颜色或偏暗。行间空隙是近白的底，占比≈0；浅色 / 薄荷绿锁格的平均饱和度只有 26–39，按平均饱和度分不开
+    # （11-25 账号 3：B+ / F 行被当成空隙切碎，只认出 1 行，翻 20 页后「对不上」中止）
+    fg = (hsv[:, :, 1] >= FG_SAT_MIN) | (hsv[:, :, 2] <= FG_VAL_MAX)
+    # 每列只看中间 ROW_PROBE_W 像素（选中格的橙色角框横臂 40 像素伸进空隙，量不到中间），3 列取最大（末行只有 1–2 格也认得出）
+    frac = np.max([fg[:, cx - ROW_PROBE_W // 2 : cx + ROW_PROBE_W // 2].mean(1) for cx in COL_X], axis=0)
+    filled = [bool(frac[y] >= ROW_FG_MIN) for y in range(GRID_Y[0], GRID_Y[1])]
+    # 夹在两段有内容之间、不到 GAP_MIN_H 高的空白带是卡面里的浅色横线，不是行间空隙：填平
+    i = 0
+    while i < len(filled):
+        if filled[i]:
+            i += 1
+            continue
+        j = i
+        while j < len(filled) and not filled[j]:
+            j += 1
+        if i > 0 and j < len(filled) and j - i < GAP_MIN_H:
+            filled[i:j] = [True] * (j - i)
+        i = j
     rows, start = [], None
-    for y in range(GRID_Y[0], GRID_Y[1]):
-        filled = sat[y] >= GAP_SAT_MAX
-        if filled and start is None:
+    for off, f in enumerate(filled):
+        y = GRID_Y[0] + off
+        if f and start is None:
             start = y
-        elif not filled and start is not None:
+        elif not f and start is not None:
             # 顶部被详情栏截断的半行、底部被浮动按钮挡住的行（2026-11-01 第二次扫描：最后一行被挡、对不上下一页）都不要
             if ROW_H[0] <= y - start <= ROW_H[1] and start > GRID_Y[0] and y <= ROW_BOTTOM_MAX:
                 rows.append((start, y))
@@ -99,7 +121,7 @@ def grid_cells(img: np.ndarray) -> list[dict]:
         for c, cx in enumerate(COL_X):
             x1 = cx - CELL_W // 2
             crop = img[y1:y2, x1 : x1 + CELL_W]
-            if float(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)[:, :, 1].mean()) < GAP_SAT_MAX:
+            if float(cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)[:, :, 1].mean()) < CELL_EMPTY_SAT:
                 continue  # 最后一行不满 3 格
             # 去掉外沿 8 像素（选中时的橙色框）再算指纹，选中与否不影响
             small = cv2.resize(cv2.cvtColor(crop[8:-8, 8:-8], cv2.COLOR_BGR2GRAY), (48, 24))

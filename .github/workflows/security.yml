@@ -21,7 +21,7 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: pyproject.toml
-      # 查基础依赖 + dev。play / bench 里有 git 依赖和 KAA 子模块，CI 不装，不在这里查
+      # 查基础依赖 + dev。play / bench 组 CI 不装（bench 有 git 依赖），不在这里查
       - name: 装依赖到独立环境
         run: |
           python -m venv env

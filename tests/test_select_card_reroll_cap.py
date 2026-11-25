@@ -28,12 +28,12 @@ def test_reroll_blocked_redecides(monkeypatch):
     opts = [NS(rect=NS(center=NS(x=150 + 200 * i, y=700)), card=None) for i in range(3)]
     monkeypatch.setattr("hiro.vision.card_select.select_card_options", lambda img: opts)
     monkeypatch.setattr("hiro.vision.card_select.recommended_index", lambda img, options: None)
-    h = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    h = hif.HifCore.__new__(hif.HifCore)
     h.s = NS(state=state, observe=lambda **k: NS(fields={}), record=lambda *a, **k: None)
     h.deciders = NS(decide=decide)
     h.rec = NS(log=lambda *a, **k: None)
     h._note_fallback = lambda *a: None
-    h._rerolls_this_page = hif.HiroHifStrategy.MAX_REROLLS_PER_PAGE  # 本页已到上限
+    h._rerolls_this_page = hif.HifCore.MAX_REROLLS_PER_PAGE  # 本页已到上限
     h._act = lambda commit, action, **k: acted.append(action) or NS(ok=True)
     monkeypatch.setattr(hif, "device", NS(screenshot=lambda: None))
     monkeypatch.setattr("hiro.vision.extract.extract", lambda page, img: ({"options": cands}, 0.0))
@@ -54,7 +54,7 @@ def test_select_card_rereads_until_recognized(monkeypatch):
         return {"options": [{"slot": i, "card_id": c} for i, c in enumerate(next(reads))]}, 0.0
 
     opts = [NS(rect=NS(center=NS(x=150 + 200 * i, y=700)), card=None) for i in range(3)]
-    h = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    h = hif.HifCore.__new__(hif.HifCore)
     h.s = NS(state=GameState(page_fields={"candidates": [{"card_id": "a"}]}), observe=lambda **k: observed.append(k["fields"]) or NS(fields={}),
              record=lambda *a, **k: None)  # fmt: skip
     h.deciders = NS(decide=lambda *a, **k: Decision(Action.activate_effect(0), "拿", "rule", 0.9))

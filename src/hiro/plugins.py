@@ -16,6 +16,7 @@ import importlib
 import os
 import sqlite3
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from importlib.metadata import entry_points
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
@@ -117,8 +118,52 @@ class ExamAdvisor(Protocol):
     def on_round_end(self, result: dict[str, Any] | None) -> None: ...
 
 
-KINDS: dict[str, tuple[type, str, str]] = {
-    # 种类 → (接口, 环境变量, 默认实现 "模块:类")
+@runtime_checkable
+class ProduceAdvisor(Protocol):
+    """育成某几个决策点（页面）怎么选（2026-11-25 插件架构 spec 4.5）。按 id 选用，见 hiro.strategy。"""
+
+    id: str
+    version: str
+    contracts: str  # 认的契约主版本，如 "1"
+    pages: frozenset[str]  # 能接哪些页面（ProduceDeciders.decide 分派表里的页面名）
+
+    def begin(self, context: dict[str, Any]) -> None: ...
+
+    def decide(self, page: str, state: Any, *, n_options: int | None, kw: dict[str, Any]) -> Decision | None:
+        """返回 None = 这一步不管，交回内置决策器。"""
+
+    def end(self, result: dict[str, Any] | None) -> None: ...
+
+
+@dataclass
+class SourceRead:
+    """数据来源插件一次读到的东西（spec 4.3）。t 是跑 hiro 那台机器的本机时间（epoch 秒）。"""
+
+    t: float
+    fields: dict[str, Any]  # 画面上看得到的字段，键必须登记在 FIELD_CATALOG[page]
+    meta: dict[str, Any] = field(default_factory=dict)  # 字段 → FieldMeta
+    hidden: dict[str, Any] = field(default_factory=dict)  # 画面上看不到的（牌库顺序、种子、事件结果…）
+
+
+@runtime_checkable
+class ObservationSource(Protocol):
+    """不看画面的数据来源（hook 采集站、存档…）：按页面给字段，和画面识别走同一个 reduce（spec 4.3）。"""
+
+    id: str
+    version: str
+    contracts: str
+    trust: str  # save / screen / infer：和画面冲突时谁赢
+    pages: frozenset[str] | None  # 能给哪些页面的数据；None = 全部
+
+    def start(self, context: dict[str, Any]) -> None: ...
+
+    def read(self, page: str, frame_t: float, state: Any) -> SourceRead | None: ...
+
+    def stop(self) -> None: ...
+
+
+KINDS: dict[str, tuple[type, str, str | None]] = {
+    # 种类 → (接口, 环境变量, 默认实现 "模块:类"；None = 没有默认，用内置逻辑)
     "asset_source": (AssetSource, "HIRO_ASSET_SOURCE", "hiro.defaults.assets:PublicAssetSource"),
     "exam_state_source": (ExamStateSource, "HIRO_EXAM_STATE_SOURCE", "hiro.defaults.exam_state:ScreenExamStateSource"),
     "exam_advisor": (
@@ -126,17 +171,45 @@ KINDS: dict[str, tuple[type, str, str]] = {
         "HIRO_EXAM_ADVISOR",
         "hiro.search.advisor:SearchAdvisor",
     ),  # 任务 ②：搜索不了退回 bench 中转层
+    "observation_source": (ObservationSource, "HIRO_OBSERVATION_SOURCE", None),
+    "produce_advisor": (ProduceAdvisor, "HIRO_PRODUCE_ADVISOR", None),
 }
+BUILTIN = "builtin"  # 内置实现的 id，保留不给插件用
+GROUP = "hiro_gakumas.plugins"
 _registered: dict[str, Callable[[], Any]] = {}
+_registered_ids: dict[tuple[str, str], Callable[[], Any]] = {}
 _cache: dict[str, Any] = {}
+_cache_ids: dict[tuple[str, str], Any] = {}
+_errors: dict[tuple[str, str], str] = {}
 
 
-def register(kind: str, factory: Callable[[], Any]) -> None:
-    """代码里直接指定实现（优先级最高）。factory 可以是类本身。"""
+@dataclass
+class PluginInfo:
+    """一个已装插件的情况（hiro plugins list、自检用）。"""
+
+    id: str
+    kind: str
+    origin: str  # register / entry_point
+    ok: bool
+    version: str | None = None
+    error: str | None = None
+    pages: list[str] | None = None
+    trust: str | None = None
+
+
+def register(kind: str, factory: Callable[[], Any], id: str | None = None) -> None:
+    """代码里直接指定实现（优先级最高）。factory 可以是类本身。给 id 时按 id 另存一份（同一种可以有多个）。"""
     if kind not in KINDS:
         raise KeyError(f"未知插件种类：{kind}（可选 {sorted(KINDS)}）")
-    _registered[kind] = factory
-    _cache.pop(kind, None)
+    if id is None:
+        _registered[kind] = factory
+        _cache.pop(kind, None)
+        return
+    if id == BUILTIN:
+        raise ValueError(f"插件 id {BUILTIN!r} 保留给内置实现")
+    _registered_ids[(kind, id)] = factory
+    _cache_ids.pop((kind, id), None)
+    _errors.pop((kind, id), None)
 
 
 def _load(spec: str) -> Callable[[], Any]:
@@ -146,9 +219,109 @@ def _load(spec: str) -> Callable[[], Any]:
     return getattr(importlib.import_module(mod), attr)
 
 
+def _eps():
+    try:
+        return list(entry_points(group=GROUP))
+    except Exception:  # noqa: BLE001  入口点元数据坏了不拖垮主循环
+        return []
+
+
 def _from_entry_point(kind: str) -> Callable[[], Any] | None:
-    eps = [ep for ep in entry_points(group="hiro_gakumas.plugins") if ep.name == kind]
+    eps = [ep for ep in _eps() if ep.name == kind]
     return eps[0].load() if eps else None
+
+
+def _id_entry_points(kind: str) -> dict[str, Any]:
+    return {ep.name[len(kind) + 1 :]: ep for ep in _eps() if ep.name.startswith(kind + ".")}
+
+
+def _contract_problem(obj: Any) -> str | None:
+    """插件声明的契约主版本和现在的对不上时返回原因；没声明（老插件）不查。"""
+    want = getattr(obj, "contracts", None)
+    if want is None:
+        return None
+    from hiro.contracts import VERSION
+
+    have = VERSION.split(".")[0]
+    if str(want).split(".")[0] != have:
+        return f"契约主版本不符：插件认 {want}，现在是 {VERSION}"
+    return None
+
+
+def _check(kind: str, obj: Any) -> str | None:
+    proto = KINDS[kind][0]
+    if not isinstance(obj, proto):
+        missing = [m for m in dir(proto) if not m.startswith("_") and not hasattr(obj, m)]
+        return f"{kind} 实现 {type(obj).__name__} 缺少：{missing}"
+    return _contract_problem(obj)
+
+
+def label(obj: Any) -> str:
+    """插件在 trace / 报告里的名字：id@版本。"""
+    return f"{getattr(obj, 'id', type(obj).__name__)}@{getattr(obj, 'version', '?')}"
+
+
+def get_by_id(kind: str, id: str) -> Any | None:
+    """按 id 取插件实例（进程内单例）。builtin、没装、加载失败、契约不符都返回 None，原因见 available()。"""
+    if kind not in KINDS:
+        raise KeyError(f"未知插件种类：{kind}")
+    if id == BUILTIN:
+        return None
+    key = (kind, id)
+    if key in _cache_ids:
+        return _cache_ids[key]
+    if key in _errors:
+        return None
+    factory = _registered_ids.get(key)
+    if factory is None:
+        ep = _id_entry_points(kind).get(id)
+        if ep is None:
+            return None
+        try:
+            factory = ep.load()
+        except Exception as e:  # noqa: BLE001  装坏的插件只记原因
+            _errors[key] = f"加载失败：{type(e).__name__}: {e}"
+            return None
+    try:
+        obj = factory()
+    except Exception as e:  # noqa: BLE001
+        _errors[key] = f"创建失败：{type(e).__name__}: {e}"
+        return None
+    why = _check(kind, obj)
+    if why is not None:
+        _errors[key] = why
+        return None
+    _cache_ids[key] = obj
+    return obj
+
+
+def available(kind: str) -> list[PluginInfo]:
+    """这一种已装的、带 id 的插件（代码注册 + 入口点 <kind>.<id>），各自能不能用。"""
+    if kind not in KINDS:
+        raise KeyError(f"未知插件种类：{kind}")
+    ids: dict[str, str] = {}
+    for k, i in _registered_ids:
+        if k == kind:
+            ids[i] = "register"
+    for i in _id_entry_points(kind):
+        ids.setdefault(i, "entry_point")
+    out = []
+    for i, origin in sorted(ids.items()):
+        obj = get_by_id(kind, i)
+        pages = getattr(obj, "pages", None)
+        out.append(
+            PluginInfo(
+                id=i,
+                kind=kind,
+                origin=origin,
+                ok=obj is not None,
+                version=getattr(obj, "version", None),
+                error=None if obj is not None else _errors.get((kind, i), "没装"),
+                pages=sorted(pages) if pages else None,
+                trust=getattr(obj, "trust", None),
+            )
+        )
+    return out
 
 
 def source(kind: str) -> str:
@@ -166,7 +339,7 @@ def source(kind: str) -> str:
 
 
 def get(kind: str) -> Any:
-    """取某种插件的实例（进程内单例）。实例要满足对应 Protocol，否则报错。"""
+    """取某种插件的实例（进程内单例）。实例要满足对应 Protocol，否则报错。没有默认实现的种类什么都没配时返回 None。"""
     if kind in _cache:
         return _cache[kind]
     proto, env, default = KINDS[kind]
@@ -176,6 +349,8 @@ def get(kind: str) -> Any:
     if factory is None:
         factory = _from_entry_point(kind)
     if factory is None:
+        if default is None:
+            return None
         factory = _load(default)
     obj = factory()
     if not isinstance(obj, proto):
@@ -189,3 +364,6 @@ def reset() -> None:
     """测试用：清掉注册和缓存。"""
     _registered.clear()
     _cache.clear()
+    _registered_ids.clear()
+    _cache_ids.clear()
+    _errors.clear()

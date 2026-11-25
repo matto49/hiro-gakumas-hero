@@ -185,6 +185,7 @@ fn status_from_json(v: &Value) -> Status {
             from_effect_ids: gvs(t, "from_effect_ids"),
             from_enchant: gb(t, "from_enchant"),
             encore: gb(t, "encore"),
+            after_seen_count: gi(t, "after_seen_count"),
         })),
     };
     Status {
@@ -217,7 +218,7 @@ fn status_to_json(st: &Status) -> Value {
             "turn_count": t.turn_count, "phase_count": pairs(&t.phase_count), "limit_count": t.limit_count, "limit_in_turn": t.limit_in_turn,
             "limit_in_turn_remain": t.limit_in_turn_remain, "enchant_id": s(t.enchant_id), "origin_type": t.origin_type,
             "source": source_to_json(&t.source), "override_type": t.override_type, "from_effect_ids": ss(&t.from_effect_ids),
-            "from_enchant": t.from_enchant, "encore": t.encore,
+            "from_enchant": t.from_enchant, "encore": t.encore, "after_seen_count": t.after_seen_count,
         }),
     };
     json!({"cls": class_name(st.cls), "uid": st.uid, "turn": st.turn, "limited": st.limited, "passing": st.passing, "value": st.value,

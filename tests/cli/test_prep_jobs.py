@@ -48,10 +48,10 @@ def test_scan_account_job_and_ingest(run_cli, tmp_path):
     import json
 
     k = KINDS["scan-account"]
-    from hiro.cli.jobs import HOME_READER
+    from hiro.cli.jobs import ACCOUNT_SCAN
 
-    assert HOME_READER.endswith("home_values")
-    assert k.argv({}, tmp_path)[1:] == ["-m", HOME_READER, "--live", "--out", str(tmp_path / "out.json")]
+    assert ACCOUNT_SCAN == "hiro.daily.account_scan"  # 首页数值 + プロフィール的プロデューサーID（11-25 起）
+    assert k.argv({}, tmp_path)[1:] == ["-m", ACCOUNT_SCAN, "--out", str(tmp_path / "out.json")]
     assert k.output == "account" and k.pausable is False
     p = tmp_path / "a.json"
     p.write_text(
@@ -60,5 +60,12 @@ def test_scan_account_job_and_ingest(run_cli, tmp_path):
     )
     run_cli("info", "import", "--kind", "account", str(p))
     _, env = run_cli("info", "summary")
-    assert env["data"]["account"] == {"plv": 65, "ap": 85, "ap_max": 100, "jewel": 15220}
+    assert env["data"]["account"] == {
+        "plv": 65,
+        "ap": 85,
+        "ap_max": 100,
+        "jewel": 15220,
+        "producer_id": None,
+        "name": None,
+    }
     assert env["data"]["kinds"]["account"]["scanned_at"] == "2026-11-17 18:00:00"

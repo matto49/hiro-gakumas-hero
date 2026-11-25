@@ -173,7 +173,8 @@ def _cost_by_heart(img: MatLike, cx: int, ty: int, read: int | None) -> int | No
     return int(m.group(1)) if m else None
 
 
-OIKOMI = re.compile(r"(ボーカル|ダンス|ビジュアル)を重点的")
+# 「的」可省：macOS 27 的 Vision 常把「ボーカルを重点的に」读成「ボーカルを重点に」（11-25 账号 3，三条只认出一条、决策 Wait 停机）
+OIKOMI = re.compile(r"(ボーカル|ダンス|ビジュアル)を重点")
 OIKOMI_ATTR = {"ボーカル": "vo", "ダンス": "da", "ビジュアル": "vi"}
 OIKOMI_BAND = (600, 1000)  # 追い込み三选一「〜を重点的に」的 y 范围（初 Mac 11-17：约 y 700 / 800 / 902）
 OIKOMI_ICON_X = (55, 115)  # 选项条左边的属性图标

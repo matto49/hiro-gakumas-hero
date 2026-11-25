@@ -48,7 +48,7 @@ def test_effect_choices_not_dialogue(rel):
 
 
 def _core(monkeypatch, decision, fields):
-    core = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    core = hif.HifCore.__new__(hif.HifCore)
     state = NS(page_fields=fields)
     recorded = []
     core.s = NS(

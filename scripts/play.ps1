@@ -13,14 +13,15 @@
 #   -SupportSet / -MemorySet  支援卡 / 回忆编成号（缺省 4 / 5，见 AGENTS.md「开局编成」）
 #   -Device      HIRO_DEVICE（缺省 mumu；也可 adb / leidian / dmm）。dmm = DMM 版：游戏以管理员身份运行，
 #                本脚本会自己申请管理员权限（弹一次 UAC）后在新窗口里开局；先关掉 localify 一类改界面文字的插件
-#   -Runtime     kaa（缺省，KAA 主循环）/ own（新主循环 hiro.runtime，不用 KAA；-Device dmm 时设备走 MaaFramework，要先装 maafw）
+#   主循环只有 hiro.runtime（不用 KAA；-Device dmm 时设备走 hiro.devices.dmm_win32，自己调 Win32）。原来的 -Runtime kaa 和 -AllowDiscard
+#   2026-11-24 随 KAA 主循环删了：别的端末有进行中的培育时开局一律停下（退出码 3），破不破弃由你在游戏里自己定
 #   -Llm         HIRO_LLM（缺省 codex；用 Claude Code 写 claude:sonnet）
 #   -Proxy       给 LLM 调用设 HTTPS_PROXY / HTTP_PROXY（国内网络通常要）
-#   -Relaunch    游戏被杀 / 闪退时自己拉起、回首页续跑（HIRO_RELAUNCH_GAME=1；缺省关，关着时讲清原因停下）
+#   -Relaunch    游戏被杀 / 闪退时自己拉起（HIRO_RELAUNCH_GAME=1）。只在旧 KAA 主循环里接过，2026-11-24 删掉后暂时不起作用：
+#                新主循环认出游戏没了会停下，重开游戏后 resume 续跑
 #   -NoSim       关掉模拟器（轮间 / 饮料 / 相談按模拟、考试预演），只按社区规则；内存紧时用
 #   -Wait        前台等跑完再返回（缺省后台起进程，立刻返回 PID）
 #   -NoSettingsCheck  跳过开局前的设置检查（tools/check_settings.py；它只在首页做，不在首页会自己跳过）
-#   -AllowDiscard  开局时其他端末有进行中的培育就破弃它（run_hif --allow-discard；不可撤回，只在确认不要那局时加）
 #   暂停：缺省设 HIRO_PAUSE_FLAG=%LOCALAPPDATA%\hiro\pause.flag（已设就用已设的）；建这个文件就停在下一个检查点，删掉继续
 #   -ScheduleProbe  每场考试第 1 回合出牌前点开审查日程一次、存帧、关掉（HIRO_EXAM_SCHEDULE_PROBE=1，测试局用；关不掉会停机）
 #   -RunHifArgs  原样交给 run_hif 的其他参数，一个字符串，如 -RunHifArgs "--no-llm"
@@ -36,11 +37,11 @@
 #   -LiveTimeout watch 时曲目页多少秒没人点开始就关游戏（缺省 60；HIRO_LIVE_TIMEOUT_S）
 #
 # 为什么是这些缺省（Windows 实测，2026-11-07–09，22 局 3 次夺冠）：
-#   HIRO_SCREENSHOT=adb：Windows + MuMu 6 用 nemu_ipc 时截图正常但点击送不到游戏（kaa_env 缺省已是 adb，这里写明）。
+#   HIRO_SCREENSHOT=adb：Windows + MuMu 6 用 nemu_ipc 时截图正常但点击送不到游戏（formation_env 缺省已是 adb，这里写明）。
 #   HIRO_SIM_WORKERS=1：模拟器每个 worker 约 600 MB；16 GB 内存的机器多开时 MuMu 会被系统杀掉。
 #   HIRO_EXAM_SIM_ROUNDS=r2：R1 开考试预演会早兑现（win20 R1 只得 8.2 万），只在 R2 开。
 #   HIRO_EXAM_PLAYBOOK / HIRO_R1_TURN_PROXY：考试按攻略打法、R1 回合属性替身，三局夺冠都开着。
-#   内存吃紧时 MuMu 会杀游戏：加 -Relaunch 让程序自己拉起。
+#   内存吃紧时 MuMu 会杀游戏：程序会停下，重开游戏后 resume 续跑。
 param(
     [Parameter(Mandatory = $true)][string]$Idol,
     [ValidateSet("Vo", "Da", "Vi")][string]$MainAttr = "Da",
@@ -50,7 +51,6 @@ param(
     [string]$SupportSet = "4",
     [string]$MemorySet = "5",
     [ValidateSet("mumu", "adb", "leidian", "dmm")][string]$Device = "mumu",
-    [ValidateSet("kaa", "own")][string]$Runtime = "kaa",
     [string]$Llm = "codex",
     [string]$Proxy = "",
     [switch]$Relaunch,
@@ -58,7 +58,6 @@ param(
     [switch]$Wait,
     [switch]$NoSettingsCheck,
     [switch]$ScheduleProbe,
-    [switch]$AllowDiscard,
     [string]$RunHifArgs = "",
     [ValidateRange(0, 3)][int]$RetryMax = 3,
     [switch]$RetryHandoff,
@@ -79,6 +78,10 @@ if ($Device -eq "dmm" -and -not ([Security.Principal.WindowsPrincipal][Security.
         else { $pass += @("-$($kv.Key)", "`"$($kv.Value)`"") }
     }
     Write-Host "DMM 版要管理员权限：在弹出的 UAC 里点「是」，开局在新窗口里进行"
+    if ($Wait) {  # 前台等：把提权进程的退出码交回调用方（3 = 别的端末有进行中的培育，停下了）
+        $p = Start-Process powershell -Verb RunAs -ArgumentList $pass -PassThru -Wait
+        exit $p.ExitCode
+    }
     Start-Process powershell -Verb RunAs -ArgumentList $pass
     exit 0
 }
@@ -90,12 +93,11 @@ if (-not (Test-Path $Py)) { throw "没有 .venv：先跑 scripts\setup.ps1" }
 
 $env:PYTHONPATH = "src"; $env:PYTHONUTF8 = "1"; $env:PYTHONIOENCODING = "utf-8"
 $env:HIRO_DEVICE = $Device
-$env:HIRO_RUNTIME = $Runtime  # own = 新主循环（hiro.runtime）；以参数传而不是外面设环境变量：DMM 提权重开（RunAs）带不过环境变量
 if ($Device -eq "mumu" -and -not $env:HIRO_SCREENSHOT) { $env:HIRO_SCREENSHOT = "adb" }
 # DMM 版截图很快（PrintWindow 约 0.19s），考试稳帧 3 次读数不到 1 秒，会在两段动画之间判稳、回合没切完就决策：要求一致读数持续 1.5s
 if ($Device -eq "dmm" -and -not $env:HIRO_SETTLE_MIN_S) { $env:HIRO_SETTLE_MIN_S = "1.5" }
 # DMM 窗口（用户 11-14）：游戏客户区按显示器自适应，9:16，高 = 工作区高 - 外框高，上限 1080x1920，下限 540x960。
-# -Runtime own 开局时由 hiro.runtime.play.fit_dmm_window 核对、不对就调（要管理员，本脚本已提权）；HIRO_DMM_FIT=0 关掉
+# 开局时由 hiro.runtime.play.fit_dmm_window 核对、不对就调（要管理员，本脚本已提权）；HIRO_DMM_FIT=0 关掉
 if ($Device -eq "dmm") {
     & "$Py" -m hiro.devices.win_window 2>&1 | Write-Host
 }
@@ -140,7 +142,6 @@ if ($Memory) { $argv += @("--memory", $Memory) }
 if ($Tag) { $argv += @("--tag", $Tag) }
 if ($NoSettingsCheck) { $argv += "--no-settings-check" }
 $extra = @()
-if ($AllowDiscard) { $extra += "--allow-discard" }
 if ($RunHifArgs) { $extra += ($RunHifArgs -split "\s+" | Where-Object { $_ }) }
 if ($extra) { $argv += @("--") + $extra }
 

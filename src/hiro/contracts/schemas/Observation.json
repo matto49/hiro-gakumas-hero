@@ -92,6 +92,22 @@
     "type": "number"
    }
   },
+  "by": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "trust": {
+   "type": [
+    "string",
+    "null"
+   ]
+  },
+  "hidden": {
+   "type": "object",
+   "additionalProperties": {}
+  },
   "version": {
    "type": "string"
   }
@@ -105,6 +121,9 @@
   "screenshot",
   "source",
   "timings_ms",
+  "by",
+  "trust",
+  "hidden",
   "version"
  ],
  "additionalProperties": false,

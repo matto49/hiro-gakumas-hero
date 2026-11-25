@@ -1,4 +1,4 @@
-# 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
+# 部分逻辑基于 KAA（kotones-auto-assistant，GPL-3.0）
 """开局第 2 步租借格（用户 2026-11-02：不用おまかせ，租借格由我们挑）。
 
 挑法：
@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from hiro.devices.active import device
 from hiro.devices.active import sleep as _sleep
@@ -168,16 +169,31 @@ def scored_best(rows: list[dict], scorer, exclude: set | None = None) -> tuple[d
     return (best[1], best[0][0]) if best else None
 
 
+def fallback_scorer(ok):
+    """退路打分：类型对（ok(attr)）的卡按等级、突破排，其他不要。"""
+
+    def score(row: dict) -> float | None:
+        c = row.get("card") or {}
+        if not c.get("level") or not ok(c.get("attr")):
+            return None
+        return float((c.get("level") or 0) * 10 + (c.get("breaks") or 0))
+
+    return score
+
+
+# 社区推荐一张都没有时退回「对应类型等级最高」（用户 11-23 定，默认开）；HIRO_RENTAL_FALLBACK=0 关掉，照旧停下
+FALLBACK_ON = os.environ.get("HIRO_RENTAL_FALLBACK", "1") != "0"
+
 SEEK_MAX_SWIPES = 40  # 回去找那一行：往上 + 往下一共最多滑这么多次
 RENTAL_REFRESHES = 2  # 两页都没有合适的卡时最多刷新租借列表几次（刷新免费）
 
 
-def pick_rental(attr: str = WANT_ATTR, tries: int = 3, scorer=None) -> bool:
+def pick_rental(attr: str = WANT_ATTR, tries: int = 3, scorer=None, fallback=None) -> bool:
     """挑一张；决定后租借格标「プラン不一致」就记下卡名、重开列表换下一张（第十七局：勾选没生效，租到了别的方案的卡）。
     scorer：按编成价值打分（有方案时）；None = 主属性、等级最高。"""
     exclude: set = set()
     for _ in range(tries):
-        name = _pick_once(attr, exclude, scorer)
+        name = _pick_once(attr, exclude, scorer, fallback=fallback)
         if name is None:
             return False
         if not rental_mismatch():
@@ -224,9 +240,10 @@ def _seek(match, scorer=None, exclude=None, max_swipes: int = SEEK_MAX_SWIPES):
     return None, lst, seen_best, seen_players
 
 
-def _pick_once(attr: str, exclude: set, scorer=None, refreshes: int = RENTAL_REFRESHES) -> str | None:
+def _pick_once(attr: str, exclude: set, scorer=None, refreshes: int = RENTAL_REFRESHES, fallback=None) -> str | None:
     """两页都从顶滑到底，记下最好的一张（页、滑动次数、玩家名），回去点它。返回选中的卡名。
-    没有 scorer 时遇到满级（Lv60）主属性卡立刻选；有 scorer 时要看完全部再挑价值最高的。"""
+    没有 scorer 时遇到满级（Lv60）主属性卡立刻选；有 scorer 时要看完全部再挑价值最高的。
+    fallback(attr) → bool：社区推荐打分一张都打不上时（刷新也用完），退回租这种类型里等级最高的一张（用户 11-23 定）；None = 不退，取消。"""
     device.click(*RENTAL_SLOT)
     _sleep(2.5)
     _ensure_plan_fit()
@@ -300,10 +317,14 @@ def _pick_once(attr: str, exclude: set, scorer=None, refreshes: int = RENTAL_REF
             if [r.get("player") for r in _rows()["rows"]] != before:
                 device.click(*(ctrl.get("cancel") or (220, 1157)))
                 _sleep(1.5)
-                return _pick_once(attr, exclude, scorer, refreshes - 1)
+                return _pick_once(attr, exclude, scorer, refreshes - 1, fallback)
             logger.warning("租借：点了刷新列表没变（可能在冷却），不再刷新")
-        logger.warning("租借：两页都没读到%s，取消", f" {attr} 卡" if scorer is None else "能补成 4-2 的卡")
         device.click(*(ctrl.get("cancel") or (220, 1157)))
+        if scorer is not None and fallback is not None and FALLBACK_ON:
+            logger.warning("租借：两页都没读到能补成 4-2 的卡（社区推荐打分全打不上），退回租对应类型里等级最高的一张")
+            _sleep(1.5)
+            return _pick_once(attr, exclude, fallback_scorer(fallback), 0, None)
+        logger.warning("租借：两页都没读到%s，取消", f" {attr} 卡" if scorer is None else "能补成 4-2 的卡")
         return None
     _, _, _, page, screen, player, sig = best
     if pages > 1:

@@ -443,7 +443,7 @@ def using(main_attr: str | None = None, plan: str | None = None, main_count: int
 
 
 def choose_main(inventory: dict, *, plan: str | None = None, default_attr: str | None = None, size: int = 6,
-                main_count: int | None = None, min_gain: float = REVERSE_MIN_GAIN) -> dict:  # fmt: skip
+                main_count: int | None = None, min_gain: float = REVERSE_MIN_GAIN, growth: dict | None = None) -> dict:  # fmt: skip
     """三个属性各当一次主属性组编成，按 ep02 的逆练门槛选主属性。返回 choose 的结果，另带
     main_attr_candidates（各属性的价值 / 凑不出的原因）与 main_attr_why。default_attr 不给时取价值最高的。"""
     results = {}
@@ -458,6 +458,15 @@ def choose_main(inventory: dict, *, plan: str | None = None, default_attr: str |
     if default_attr in ok and best != default_attr and ok[best]["value"] - ok[default_attr]["value"] < min_gain:
         pick, why = default_attr, (f"不逆练：{best} 当主属性只高 {ok[best]['value'] - ok[default_attr]['value']}，"
                                    f"不到门槛 {min_gain:g} [ep02]")  # fmt: skip
+    elif (
+        default_attr in ok
+        and best != default_attr
+        and growth
+        and (growth.get(best) or 0) < (growth.get(default_attr) or 0)
+    ):
+        # 偶像成长率比默认主属性低的属性不逆练：支援卡价值只算卡给的数值，成长率在课程 / 考试奖励上全程乘进去（11-24 麻央 Da 6% vs Vo 22%）
+        pick, why = default_attr, (f"不逆练：{best} 支援卡价值高 {ok[best]['value'] - ok[default_attr]['value']}，"
+                                   f"但偶像 {best} 成长率 {growth.get(best)} < {default_attr} {growth.get(default_attr)}")  # fmt: skip
     elif default_attr in ok and best != default_attr:
         pick, why = (
             best,

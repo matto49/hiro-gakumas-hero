@@ -1,4 +1,4 @@
-# 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
+# 部分逻辑基于 KAA（kotones-auto-assistant，GPL-3.0）
 """「特別指導」（技能卡定制）执行。KAA 的 ProduceAction 里没有这一项，选行动页识别给的是 options 里 option="special_guidance"
 的中心（第三局 r10 第 19 天：(442, 1009)，与「相談」并排）。
 

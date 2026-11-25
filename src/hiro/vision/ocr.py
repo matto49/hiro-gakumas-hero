@@ -10,7 +10,7 @@
 - ppocr5：rapidocr 包里的 PaddleOCR PP-OCRv5（中日英一个模型，onnxruntime），比 KAA 自带的 RapidOCR 模型新；
   Mac / Windows 结果一致。中日混合模型会把部分汉字认成简体（强化、交换済），按 _SIMPLIFIED 换回日文写法。
 
-- simd：本机 SIMD PaddleOCR PP-OCRv6 medium（.NET 10 辅助进程，GPU 走 Vulkan / Metal），同时供 Hiro 与 KAA 使用（安装见 docs/assets.md）。
+- simd：本机 SIMD PaddleOCR PP-OCRv6 medium（.NET 10 辅助进程，GPU 走 Vulkan / Metal），供 Hiro 使用（安装见 docs/assets.md）。
   Windows 上装好了就是缺省：识别测试集（11-24）上准确率和 Apple Vision 差不到 1 个点，比 RapidOCR CPU 快 5–6 倍。
 
 HIRO_OCR=auto（缺省：macOS 且能导入 Vision → vision；Windows 装好了 SIMD → simd；否则 rapidocr）/ vision / rapidocr / winocr / ppocr5 / simd。
@@ -117,19 +117,14 @@ _rapid: dict = {}
 
 
 def _rapid_model(tag: str) -> Path:
-    """识别模型路径：RAPID_DIR（cache/rapidocr）里有就用；没有就用已安装的 kaa 包里随带的同名文件
-    （只按路径找数据文件，不 import kaa）。PaddleOCR PP-OCRv3 日文 / 英文模型，ModelScope 上没有 v3 的公开地址。"""
-    import importlib.util
-
-    name = RAPID_MODELS[tag]
-    own = RAPID_DIR / name
+    """识别模型路径（RAPID_DIR = cache/rapidocr）。PaddleOCR PP-OCRv3 日文 / 英文模型，原来随 KAA 带，
+    去 KAA 后托管在本仓库 GitHub Release，由 tools/assets/rapid_models.py 下载（安装脚本会调）。"""
+    own = RAPID_DIR / RAPID_MODELS[tag]
     if own.exists():
         return own
-    spec = importlib.util.find_spec("kaa")
-    for d in (spec.submodule_search_locations or []) if spec else []:
-        if (f := Path(d) / "res" / "models" / name).exists():
-            return f
-    raise RuntimeError(f"HIRO_OCR=rapidocr 要的模型 {name} 不在 {own.parent}，也没装 kaa 包")
+    raise RuntimeError(
+        f"HIRO_OCR=rapidocr 要的模型 {own.name} 不在 {own.parent}：先跑 python tools/assets/rapid_models.py"
+    )
 
 
 OCR_DEVICES = ("cuda", "dml", "cpu")  # HIRO_OCR_DEVICE=auto 时按这个顺序试

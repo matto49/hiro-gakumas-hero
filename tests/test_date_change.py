@@ -46,31 +46,6 @@ def test_not_triggered_by_other_pages():
     assert dc.date_change_button([box("日付変更", 120, 970)]) is None  # 没有按钮
 
 
-class FakeLoop:
-    def __init__(self, img):
-        self.screenshot = img
-
-
-def test_loop_callback_raises_and_is_throttled():
-    t = {"now": 0.0}
-    calls = []
-
-    def ocr(img):
-        calls.append(1)
-        return [box("日付変更", 120, 90), box("タイトルへ", 380, 280)]  # 横条内坐标
-
-    cb = dc.loop_callback(ocr, every=5.0, clock=lambda: t["now"])
-    with pytest.raises(dc.DateChanged):
-        cb(FakeLoop(np.zeros((1280, 720, 3), np.uint8)))
-    t["now"] = 2.0
-    assert cb(FakeLoop(np.zeros((1280, 720, 3), np.uint8))) is False and len(calls) == 1  # 5 秒内不再 OCR
-
-
-def test_loop_callback_quiet_on_normal_frames():
-    cb = dc.loop_callback(lambda img: [box("次へ", 360, 200)], every=0.0, clock=lambda: 1.0)
-    assert cb(FakeLoop(np.zeros((1280, 720, 3), np.uint8))) is False
-
-
 class Screens:
     """日期切换 → 标题（TAP TO START）→ 登录奖励（点空白）→ 购买推荐框（只认閉じる）→ 首页。"""
 
@@ -119,17 +94,9 @@ def test_landscape_frame_skipped_no_crash():
     """q14：LIVE 横屏帧（720x1280 宽 > 高）切空图 OCR 抛 cv2.error，主循环连崩。横屏直接跳过。"""
     from hiro.loop import date_change as dc
 
-    import numpy as np
-
     called = []
     img = np.zeros((720, 1280, 3), np.uint8)
     assert dc.strip_boxes(img, lambda im: called.append(im) or []) == [] and called == []
-
-    def boom(_):
-        raise RuntimeError("ocr failed")
-
-    cb = dc.loop_callback(boom, every=0, clock=lambda: 0.0)
-    assert cb(type("L", (), {"screenshot": np.zeros((1280, 720, 3), np.uint8)})()) is False
 
 
 @_real("date_change/data-update-win4-206.jpg")
@@ -139,9 +106,6 @@ def test_data_update_dialog_detected():
     img = cv2.imread(str(FIX / "data-update-win4-206.jpg"))
     pos = dc.date_change_button(dc.strip_boxes(img, ops.ocr_boxes))
     assert pos and abs(pos[0] - 360) < 50 and abs(pos[1] - 1157) < 20
-    cb = dc.loop_callback(ops.ocr_boxes, every=0, clock=lambda: 0.0)
-    with pytest.raises(dc.DateChanged, match="データ更新"):
-        cb(FakeLoop(img))
 
 
 def test_recover_accepts_download_and_never_cancels():

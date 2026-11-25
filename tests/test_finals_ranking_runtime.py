@@ -17,7 +17,7 @@ def _core(monkeypatch, page, texts, retry=False):
     monkeypatch.setattr(hif, "device", NS(screenshot=lambda: "img", click=lambda x, y: clicks.append((x, y))))
     monkeypatch.setattr("hiro.vision.pages.classify_page", lambda img: ("HIF_FINALS_RANKING", page))
     monkeypatch.setattr(hif, "screen_texts", lambda img: texts)
-    core = hif.HiroHifStrategy.__new__(hif.HiroHifStrategy)
+    core = hif.HifCore.__new__(hif.HifCore)
     core.s = NS(observe=lambda **k: records.append(k["fields"]), record=lambda *a, **k: None, note=lambda *a: None)
     core._finals_retry = lambda img, label: retry
     return core, clicks, records

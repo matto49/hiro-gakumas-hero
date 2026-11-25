@@ -181,6 +181,16 @@ class ProduceDeciders:
               "NIA_SALES_PLACE": self.sales_place, "NIA_SALES_EVENT": self.sales_event, "NIA_AUDITION_SELECT": self.audition_select,
               "EXAM_RETRY": self.exam_retry}[page]  # fmt: skip
         t0 = time.monotonic()
+        # 2026-11-25 插件架构：strategy.json 给这一页配了育成插件时先问它；它不管 / 不合格就走下面的内置逻辑
+        from hiro.brain import plugin_gate
+
+        pd, plugin_why = plugin_gate.produce_decide(
+            page, state, n_options, kw, context=lambda: self._plugin_context(state), invalid=_invalid_decision
+        )
+        if pd is not None:
+            pd.seconds = round(time.monotonic() - t0, 3)
+            self._prewarm(state)
+            return pd
         try:
             d = fn(state, **kw)
             why = _invalid_decision(page, d, n_options, kw)
@@ -189,9 +199,23 @@ class ProduceDeciders:
             d, why = None, f"决策器异常 {type(e).__name__}: {e}"
         if why is not None:
             d = self._page_fallback(page, state, n_options, why, prior=d, **kw)
+        if plugin_why is not None and d is not None:
+            d.warnings.append(plugin_why)
         d.seconds = round(time.monotonic() - t0, 3)
         self._prewarm(state)
         return d
+
+    def _plugin_context(self, state: GameState) -> dict:
+        """育成插件 begin 拿到的本局上下文（spec 4.5）。"""
+        from hiro.plugin_record import RECORD
+
+        return {
+            "mode": (state.produce or {}).get("mode"),
+            "idol": getattr(self.profile, "idol_id", None),
+            "profile": self.profile,
+            "main_attr": self.main_attr,
+            "trace_dir": getattr(RECORD, "trace_dir", None),
+        }
 
     def _prewarm(self, state: GameState) -> None:
         """选拔：牌组变了就在后台把下一场考试提前编译（resource.prewarm，不阻塞），之后的饮料模拟不用等编译（协调 2026-11-03）。"""

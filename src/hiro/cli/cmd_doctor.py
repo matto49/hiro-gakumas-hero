@@ -180,6 +180,37 @@ def _scan() -> dict:
     return _item("scan", "账号信息", True, f"已扫描：{'、'.join(done)}")
 
 
+def _plugins() -> dict | None:
+    """2026-11-25 插件架构：配了 strategy.json 时核对里面的插件都装了、能用（契约版本对得上）。没配时不出这一项。"""
+    from hiro import plugins
+    from hiro.cli.cmd_plugins import config_path
+    from hiro.strategy import load
+
+    path = config_path()
+    if not path.is_file():
+        return None
+    cfg = load(path)
+    want = [("observation_source", i) for i in cfg.sources]
+    want += [("exam_advisor", i) for i in set(cfg.exam.values())]
+    want += [("produce_advisor", i) for i in set(cfg.produce.values())]
+    bad = []
+    for kind, pid in want:
+        if plugins.get_by_id(kind, pid) is None:
+            why = next((x.error for x in plugins.available(kind) if x.id == pid), None) or "没装"
+            bad.append(f"{pid}（{why}）")
+    problems = bad + list(cfg.warnings)
+    if problems:
+        return _item(
+            "plugins",
+            "插件",
+            False,
+            "strategy.json 里有用不了的插件：" + "；".join(problems) + "，相关决策点会用内置逻辑",
+            "运行 hiro plugins list 查已装插件，装好或从 strategy.json 里去掉",
+            optional=True,
+        )
+    return _item("plugins", "插件", True, f"strategy.json 里配的 {len(want)} 个插件都能用", optional=True)
+
+
 @command(
     "doctor",
     Risk.READ,
@@ -203,5 +234,7 @@ def _doctor(a: dict) -> dict:
         _catalog(),
         _scan(),
     ]
+    if (pl := _plugins()) is not None:
+        items.append(pl)
     ready = all(i["ok"] is not False for i in items if not i["optional"] and i["id"] not in ("scan",))
     return {"items": items, "ready": ready}

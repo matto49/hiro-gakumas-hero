@@ -34,6 +34,7 @@ class PageState:
 class Source:
     origin: str  # save / screen / infer
     seq: int
+    by: str | None = None  # 1.3：插件写的值是「插件 id@版本」
 
 
 @dataclass
@@ -73,6 +74,9 @@ class GameState(Contract):
     )  # 1.2：字段路径 → verified / predicted / observed / pending / unknown
     pending_review: list[str] = field(default_factory=list)  # 1.2：待复核字段，非空时触发主动查看
     ledger: list[Event] = field(default_factory=list)  # 1.2：本局已应用的事件（最近 N 条，完整的在 trace）
+    hidden: dict[str, Any] = field(
+        default_factory=dict
+    )  # 1.3：数据来源插件给的、画面上看不到的字段（用过的对局打 uses_hidden）
     version: str = VERSION
 
     def problems(self) -> list[str]:

@@ -1,0 +1,245 @@
+{
+ "source": "20261124 初 REGULAR 藤田琴音 实战 trace 的考试步（只有字段，不含截图）",
+ "steps": [
+  {
+   "seq": 37,
+   "exam": {
+    "hand": [
+     {
+      "slot": 0,
+      "name": "可愛い仕草",
+      "card_id": "p_card-02-act-0_009",
+      "upgrade": 0,
+      "available": true,
+      "category": "active",
+      "cost": 5,
+      "hp_cost": 0,
+      "extra_cost": null,
+      "text": "好印象+2好印象の100%分パラメータ上昇レッスン中1回",
+      "tags": {
+       "once": true,
+       "impression_score_pct": 100
+      },
+      "badge_score": 4
+     },
+     {
+      "slot": 1,
+      "name": "アピールの基本",
+      "card_id": "p_card-00-act-0_001",
+      "upgrade": 0,
+      "available": true,
+      "category": "active",
+      "cost": 4,
+      "hp_cost": 0,
+      "extra_cost": null,
+      "text": "パラメータ+9",
+      "tags": {},
+      "badge_score": 9
+     },
+     {
+      "slot": 2,
+      "name": "よそ見はダメ♪+",
+      "card_id": "p_card-02-ido-3_015",
+      "upgrade": 1,
+      "available": true,
+      "category": "mental",
+      "cost": 6,
+      "hp_cost": 0,
+      "extra_cost": null,
+      "text": "元気+4好印象+9重複不可 レッスン中1回",
+      "tags": {
+       "once": true
+      },
+      "badge_score": null
+     }
+    ],
+    "drinks": [],
+    "pitem_charges": 1,
+    "buffs": {},
+    "statuses": []
+   }
+  },
+  {
+   "seq": 336,
+   "exam": {
+    "hand": [
+     {
+      "slot": 0,
+      "name": "目線の基本+",
+      "card_id": "p_card-02-men-0_011",
+      "upgrade": 1,
+      "available": true,
+      "category": "mental",
+      "cost": 2,
+      "hp_cost": 0,
+      "extra_cost": null,
+      "text": "元気+2好印象+3",
+      "tags": {},
+      "badge_score": null
+     },
+     {
+      "slot": 1,
+      "name": "紅葉ランニング+",
+      "card_id": "p_card-00-sup-3_093",
+      "upgrade": 1,
+      "available": true,
+      "category": "mental",
+      "cost": 0,
+      "hp_cost": 0,
+      "extra_cost": null,
+      "text": "低下状態無効1回スキルカードを2枚引くスキルカード使用数追加+1重複不可 レッスン中1回",
+      "tags": {
+       "once": true,
+       "extra_actions": 1,
+       "draws": 2
+      },
+      "badge_score": null
+     },
+     {
+      "slot": 2,
+      "name": "イメトレ",
+      "card_id": "p_card-02-men-2_008",
+      "upgrade": 0,
+      "available": true,
+      "category": "mental",
+      "cost": 4,
+      "hp_cost": 0,
+      "extra_cost": null,
+      "text": "元気+7やる気+4レッスン中1回",
+      "tags": {
+       "once": true
+      },
+      "badge_score": null
+     }
+    ],
+    "drinks": [
+     {
+      "slot": 0,
+      "name": "ホットコーヒー",
+      "drink_id": "pdrink_02-1-008",
+      "text": "やる気+3"
+     }
+    ],
+    "pitem_charges": 1,
+    "buffs": {
+     "好印象強化": 25,
+     "消費体力増加": 1
+    },
+    "statuses": [
+     {
+      "type": "ProduceExamEffectType_ExamReview",
+      "name": "好印象",
+      "value": 16,
+      "unit": "stack"
+     },
+     {
+      "type": "ProduceExamEffectType_ExamReviewMultiple",
+      "name": "好印象強化",
+      "value": 25,
+      "unit": "percent"
+     },
+     {
+      "type": "ProduceExamEffectType_ExamStaminaConsumptionAdd",
+      "name": "消費体力増加",
+      "value": 1,
+      "unit": "turns"
+     }
+    ]
+   }
+  },
+  {
+   "seq": 1588,
+   "exam": {
+    "hand": [
+     {
+      "slot": 0,
+      "name": "眠気",
+      "card_id": "p_card-00-acc-0_002",
+      "upgrade": 0,
+      "available": true,
+      "category": "trouble",
+      "cost": 0,
+      "hp_cost": 0,
+      "extra_cost": null,
+      "text": "レッスン中1回",
+      "tags": {
+       "once": true,
+       "is_sleep": true
+      },
+      "badge_score": null
+     },
+     {
+      "slot": 1,
+      "name": "手拍子+",
+      "card_id": "p_card-02-act-1_003",
+      "upgrade": 1,
+      "available": true,
+      "category": "active",
+      "cost": 5,
+      "hp_cost": 0,
+      "extra_cost": null,
+      "text": "好印象の200%分パラメータ上昇レッスン中1回",
+      "tags": {
+       "once": true,
+       "impression_score_pct": 200
+      },
+      "badge_score": null
+     },
+     {
+      "slot": 2,
+      "name": "アピールの基本++",
+      "card_id": "p_card-00-act-0_001",
+      "upgrade": 2,
+      "available": true,
+      "category": "active",
+      "cost": 2,
+      "hp_cost": 0,
+      "extra_cost": null,
+      "text": "パラメータ+14",
+      "tags": {},
+      "badge_score": 14
+     }
+    ],
+    "drinks": [],
+    "pitem_charges": 1,
+    "buffs": {
+     "好印象強化": 25,
+     "パラメータ上昇量増加": 10,
+     "消費体力増加": 1
+    },
+    "statuses": [
+     {
+      "type": "ProduceExamEffectType_ExamReview",
+      "name": "好印象",
+      "value": 67,
+      "unit": "stack"
+     },
+     {
+      "type": "ProduceExamEffectType_ExamReviewMultiple",
+      "name": "好印象強化",
+      "value": 25,
+      "unit": "percent"
+     },
+     {
+      "type": "ProduceExamEffectType_ExamCardPlayAggressive",
+      "name": "やる気",
+      "value": 12,
+      "unit": "stack"
+     },
+     {
+      "type": "ProduceExamEffectType_ExamLessonValueMultiple",
+      "name": "パラメータ上昇量増加",
+      "value": 10,
+      "unit": "percent"
+     },
+     {
+      "type": "ProduceExamEffectType_ExamStaminaConsumptionAdd",
+      "name": "消費体力増加",
+      "value": 1,
+      "unit": "turns"
+     }
+    ]
+   }
+  }
+ ]
+}

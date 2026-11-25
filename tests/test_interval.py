@@ -1,7 +1,6 @@
-# 调用 KAA / kotonebot（kotones-auto-assistant，GPL-3.0）
 """轮间执行器（hiro.produce.interval）离线测试。
 
-画面：KAA 参考图 hif_interval.png / hif_interval_confirm.png、第四局进入动画帧（tests/fixtures/interval/）；买的流程与相談同一套
+画面：KAA 参考图 hif_interval.png / hif_interval_confirm.png（私有样例 tests/fixtures/kaa_refs/，原来直接读已安装的 KAA）、第四局进入动画帧（tests/fixtures/interval/）；买的流程与相談同一套
 底部按钮，用相談录像的实拍帧驱动；回体力、强化之后的画面没有样本，用替身帧 + 指定 OCR 文字只验证流程。
 """
 
@@ -13,12 +12,13 @@ from hiro.produce import interval, ops, shop
 from hiro.produce.special_guidance import grid_center
 
 import cv2
-import kaa.tasks
 import pytest
 
 FIX = Path(__file__).parent / "fixtures"
-REFS = Path(kaa.tasks.__file__).parents[2] / "kotonebot-resource" / "sprites" / "jp" / "in_produce"
-needs_ref = pytest.mark.skipif(not (REFS / "hif_interval.png").exists(), reason="找不到 KAA 轮间参考图")
+REFS = FIX / "kaa_refs"
+needs_ref = pytest.mark.skipif(
+    not (REFS / "hif_interval.png").exists(), reason="没有轮间参考图 tests/fixtures/kaa_refs/"
+)
 
 
 def img(rel):

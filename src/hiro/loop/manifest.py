@@ -28,6 +28,7 @@ class ResourceManifest:
     layout_calib: str | None = None  # layout_calib.json 内容哈希
     signatures: str | None = None  # signatures.json 内容哈希
     contracts_version: str = CONTRACT_VERSION
+    plugins: dict = field(default_factory=dict)  # 2026-11-25 插件架构：strategy.json 生效对应表、配置警告、已装插件
     problems: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
@@ -43,6 +44,20 @@ def collect(*, check_master: bool = True) -> ResourceManifest:
             setattr(m, kind, plugins.source(kind))
         except Exception as e:  # noqa: BLE001
             m.problems.append(f"插件 {kind} 不可用：{e!r}")
+    try:
+        from hiro import strategy
+
+        cfg = strategy.current()
+        m.plugins = {
+            "mapping": cfg.mapping(),
+            "warnings": list(cfg.warnings),
+            "installed": {
+                k: [asdict(i) for i in plugins.available(k)]
+                for k in ("observation_source", "produce_advisor", "exam_advisor")
+            },
+        }
+    except Exception as e:  # noqa: BLE001
+        m.problems.append(f"插件配置读不了：{e!r}")
     try:
         assets = plugins.get("asset_source")
         user = getattr(assets, "user", None)

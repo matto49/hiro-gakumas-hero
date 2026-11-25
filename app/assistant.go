@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -14,6 +16,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/matto49/hiro-gakumas-hero/app/usagelog"
 )
 
 // 模型配置和对话入口（设计稿 §8）：照 magpie 的「服务商 + Key + 模型」。
@@ -74,6 +78,9 @@ type Settings struct {
 	HasKeys map[string]bool `json:"has_keys,omitempty"`
 	// WizardDone：新手向导走完了（或跳过了），之后打开直接进主窗口。
 	WizardDone bool `json:"wizard_done,omitempty"`
+	// Permission：操作权限档（ask / read / readwrite / all，空 = read）；AllowAllConfirmed：第一次切到 all 时确认过（只弹一次）。
+	Permission        string `json:"permission,omitempty"`
+	AllowAllConfirmed bool   `json:"allow_all_confirmed,omitempty"`
 }
 
 // DefaultDeepSeek 是 DeepSeek 的缺省地址和模型。
@@ -164,6 +171,8 @@ type Assistant struct {
 	Home string   `json:"-"`
 	Keys KeyStore `json:"-"`
 	Hiro *Hiro    `json:"-"`
+	// ExtTools 是外部插件给内置 agent 的工具（命令行 agent 用不了）。
+	ExtTools func() []ExtTool `json:"-"`
 }
 
 func (a *Assistant) settingsPath() string { return filepath.Join(a.Home, "settings.json") }
@@ -267,7 +276,8 @@ func (a *Assistant) provider() (ChatProvider, error) {
 	if err != nil {
 		return nil, err
 	}
-	return OpenAICompat{BaseURL: url, Model: model, Key: key, Client: &http.Client{Timeout: 120 * time.Second}}, nil
+	return OpenAICompat{BaseURL: url, Model: model, Key: key, Client: &http.Client{Timeout: 120 * time.Second},
+		Home: a.Home, Provider: a.Settings().Provider}, nil
 }
 
 // TestResult 是「测试」按钮的结果。
@@ -302,6 +312,11 @@ func (a *Assistant) Test(ctx context.Context) TestResult {
 
 // Ask 让初星助手回答一句话（history 是之前的对话）。
 func (a *Assistant) Ask(ctx context.Context, history []Turn, text string) (Reply, error) {
+	return a.AskWith(ctx, history, text, "", nil)
+}
+
+// AskWith 同 Ask，另带这一轮的上下文 extra 和工具进度回调 onTool（原生界面用）。
+func (a *Assistant) AskWith(ctx context.Context, history []Turn, text, extra string, onTool func(name, summary string)) (Reply, error) {
 	s := a.Settings()
 	switch s.Provider {
 	case "codex", "claude":
@@ -309,7 +324,7 @@ func (a *Assistant) Ask(ctx context.Context, history []Turn, text string) (Reply
 		if err != nil {
 			return Reply{}, fmt.Errorf("找不到 %s 命令：先装好并登录，或到设置里换服务商", s.Provider)
 		}
-		return CLIAgent{Kind: s.Provider, Bin: bin, Hiro: a.Hiro, Home: a.Home}.Ask(ctx, history, text)
+		return CLIAgent{Kind: s.Provider, Bin: bin, Hiro: a.Hiro, Home: a.Home, Extra: extra}.Ask(ctx, history, text)
 	}
 	p, err := a.provider()
 	if err != nil {
@@ -319,17 +334,23 @@ func (a *Assistant) Ask(ctx context.Context, history []Turn, text string) (Reply
 	if err != nil {
 		return Reply{}, fmt.Errorf("工具层不可用：%w", err)
 	}
-	return (&Agent{Hiro: a.Hiro, Tools: tools, Provider: p}).Ask(ctx, history, text)
+	var ext []ExtTool
+	if a.ExtTools != nil {
+		ext = a.ExtTools()
+	}
+	return (&Agent{Hiro: a.Hiro, Tools: tools, Provider: p, Extra: extra, OnTool: onTool, Ext: ext}).Ask(ctx, history, text)
 }
 
 // ---------------------------------------------------------------------------- 命令行 agent
 
 // CLIAgent 用用户已登录的 claude / codex 命令行当 agent：它们按说明自己调 hiro 命令。
 type CLIAgent struct {
-	Kind string // claude / codex
-	Bin  string
-	Hiro *Hiro
-	Home string
+	// Extra 是这一轮的「现在的情况」（各插件的上下文）。
+	Extra string
+	Kind  string // claude / codex
+	Bin   string
+	Hiro  *Hiro
+	Home  string
 }
 
 const cliRules = `
@@ -339,18 +360,43 @@ const cliRules = `
 要开局或扫描时，在回答最后单独写一行：
 HIRO_ACTION: run start <种类> [参数]
 例如 HIRO_ACTION: run start daily、HIRO_ACTION: run start hif --command new --mode qualify、HIRO_ACTION: run start tower --idol 篠澤広 --layers 1。
-程序会替你发起，并给玩家一张确认卡，玩家点了才开始。一次回答最多写一行。只回答玩家，不要改任何文件。`
+程序会替你发起，并给玩家一张确认卡，玩家点了才开始。一次回答最多写一行。
+有几张偶像卡都合适、要玩家挑一张时，不要写文字列表让玩家打字，在回答最后单独写一行：
+HIRO_CHOICE: idols <偶像卡编号> <偶像卡编号> …
+界面会给玩家一张能点的选择卡，玩家点了会回你一句。写了 HIRO_CHOICE 就不要再写 HIRO_ACTION。只回答玩家，不要改任何文件。`
 
 // cliAllowed 是命令行 agent 能跑的只读命令（Claude 的权限白名单）；cliDenied 明确拒绝（压过用户自己设置里更宽的规则）。
 var (
 	cliAllowed = []string{"Bash(hiro info:*)", "Bash(hiro catalog:*)", "Bash(hiro run status:*)", "Bash(hiro run events:*)",
-		"Bash(hiro pending list:*)", "Bash(hiro tools:*)", "Bash(hiro doctor)"}
+		"Bash(hiro pending list:*)", "Bash(hiro tools:*)", "Bash(hiro doctor)", "Bash(hiro usage:*)"}
 	cliDenied = []string{"Bash(hiro confirm:*)", "Bash(hiro cancel:*)", "Bash(hiro secret:*)", "Bash(hiro run start:*)",
 		"Bash(hiro run stop:*)", "Bash(hiro run pause:*)", "Bash(hiro run resume:*)", "Bash(hiro run takeover:*)", "Bash(pbpaste:*)"}
 )
 
 // actionLine 是 agent 请求开局的那一行。
 var actionLine = regexp.MustCompile(`(?m)^\s*HIRO_ACTION:\s*(.+?)\s*$`)
+
+// choiceLine 是 agent 请玩家挑偶像卡的那一行（HIRO_CHOICE: idols <编号> …）。
+var choiceLine = regexp.MustCompile(`(?m)^\s*HIRO_CHOICE:\s*idols\s+(.+?)\s*$`)
+
+// choiceCards 把回答里的 HIRO_CHOICE 行做成选择卡，并从回答里去掉这一行。
+func choiceCards(reply string) ([]map[string]any, string) {
+	var cards []map[string]any
+	if m := choiceLine.FindStringSubmatch(reply); m != nil {
+		ids := strings.Fields(m[1])
+		if len(ids) > 8 {
+			ids = ids[:8]
+		}
+		opts := make([]any, 0, len(ids))
+		for _, id := range ids {
+			opts = append(opts, map[string]any{"id": id})
+		}
+		if len(opts) > 0 {
+			cards = append(cards, map[string]any{"type": "choice", "kind": "idols", "options": opts, "status": "waiting"})
+		}
+	}
+	return cards, strings.TrimSpace(choiceLine.ReplaceAllString(reply, ""))
+}
 
 func (c CLIAgent) prompt(history []Turn, text string) string {
 	var b strings.Builder
@@ -397,7 +443,7 @@ func (c CLIAgent) argv(prompt, lastFile string) []string {
 			SystemPrompt + cliRules + "\n\n" + prompt}
 	}
 	argv := []string{c.Bin, "-p", prompt, "--append-system-prompt", SystemPrompt + cliRules,
-		"--permission-mode", "default", "--setting-sources", "project"}
+		"--permission-mode", "default", "--setting-sources", "project", "--output-format", "json"}
 	argv = append(argv, "--allowedTools")
 	argv = append(argv, cliAllowed...)
 	argv = append(argv, "--disallowedTools")
@@ -422,12 +468,20 @@ func (c CLIAgent) status(ctx context.Context) string {
 	return "（现在在跑：" + d.Current.Summary + "，状态 " + d.Current.State + "）\n"
 }
 
+// fullPrompt 是交给命令行 agent 的整段话：这一轮的上下文（没有时退回只写当前任务）+ 对话。
+func (c CLIAgent) fullPrompt(ctx context.Context, history []Turn, text string) string {
+	if strings.TrimSpace(c.Extra) != "" {
+		return c.Extra + "\n\n" + c.prompt(history, text)
+	}
+	return c.status(ctx) + c.prompt(history, text)
+}
+
 func (c CLIAgent) Ask(ctx context.Context, history []Turn, text string) (Reply, error) {
 	bin, err := c.shim()
 	if err != nil {
 		return Reply{}, err
 	}
-	prompt := c.status(ctx) + c.prompt(history, text)
+	prompt := c.fullPrompt(ctx, history, text)
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 	lastFile := filepath.Join(c.Home, "codex-last.txt")
@@ -439,6 +493,11 @@ func (c CLIAgent) Ask(ctx context.Context, history []Turn, text string) (Reply, 
 	cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "PYTHONUTF8=1", "HIRO_AGENT_SANDBOX=1")
 	hideWindow(cmd)
 	out, err := cmd.Output()
+	res, parsed := parseClaudeJSON(c.Kind, out)
+	c.record(ctx, res, parsed, err == nil && !res.IsError)
+	if parsed && res.IsError {
+		return Reply{}, fmt.Errorf("%s 出错：%s", c.Kind, strings.TrimSpace(res.Result))
+	}
 	if err != nil {
 		var ee *exec.ExitError
 		if errors.As(err, &ee) && len(ee.Stderr) > 0 {
@@ -451,14 +510,21 @@ func (c CLIAgent) Ask(ctx context.Context, history []Turn, text string) (Reply, 
 		return Reply{}, fmt.Errorf("%s 出错：%w", c.Kind, err)
 	}
 	reply := strings.TrimSpace(string(out))
+	if parsed {
+		reply = strings.TrimSpace(res.Result)
+	}
 	if c.Kind == "codex" {
 		if b, err := os.ReadFile(lastFile); err == nil {
 			reply = strings.TrimSpace(string(b))
 		}
 	}
+	// 回答里的 HIRO_CHOICE 行：做成选择卡（玩家挑偶像卡）；有它就不再发起开局
+	cards, reply := choiceCards(reply)
 	// 回答里的 HIRO_ACTION 行：只认 run start，由程序自己发起（拿到的是待确认），做成确认卡；行本身从回答里去掉
-	var cards []map[string]any
 	for _, m := range actionLine.FindAllStringSubmatch(reply, 2) {
+		if len(cards) > 0 {
+			break
+		}
 		args := strings.Fields(m[1])
 		if len(args) < 3 || args[0] != "run" || args[1] != "start" {
 			continue
@@ -466,13 +532,59 @@ func (c CLIAgent) Ask(ctx context.Context, history []Turn, text string) (Reply, 
 		r := c.Hiro.Call(ctx, args)
 		switch {
 		case r.Pending != nil:
-			cards = append(cards, map[string]any{"type": "confirm", "pending": r.Pending, "status": "waiting"})
+			cards = append(cards, map[string]any{"type": "confirm", "pending": r.Pending.Map(), "status": "waiting"})
 		case !r.OK && r.Error != nil:
 			cards = append(cards, map[string]any{"type": "error", "error": r.Error})
 		}
 	}
 	reply = strings.TrimSpace(actionLine.ReplaceAllString(reply, ""))
 	return Reply{Text: reply, Cards: cards}, nil
+}
+
+// claudeResult 是 claude -p --output-format json 的结果（只取用得到的字段）。
+type claudeResult struct {
+	Result  string   `json:"result"`
+	IsError bool     `json:"is_error"`
+	Cost    *float64 `json:"total_cost_usd"`
+	Usage   *struct {
+		Input      *int `json:"input_tokens"`
+		Output     *int `json:"output_tokens"`
+		CacheRead  *int `json:"cache_read_input_tokens"`
+		CacheWrite *int `json:"cache_creation_input_tokens"`
+	} `json:"usage"`
+	ModelUsage map[string]struct {
+		Cost float64 `json:"costUSD"`
+	} `json:"modelUsage"`
+}
+
+// parseClaudeJSON：claude 的输出是一个 JSON 对象；认不出（旧版本、codex）就当纯文本。
+func parseClaudeJSON(kind string, out []byte) (claudeResult, bool) {
+	var r claudeResult
+	t := bytes.TrimSpace(out)
+	if kind != "claude" || len(t) == 0 || t[0] != '{' || json.Unmarshal(t, &r) != nil {
+		return claudeResult{}, false
+	}
+	return r, true
+}
+
+// record 记一行：claude 取 usage 和 total_cost_usd（订阅，汇总时单列），模型取花费最多的那个；codex 没有用量，只记一次调用。
+func (c CLIAgent) record(ctx context.Context, r claudeResult, parsed, ok bool) {
+	row := usagelog.Row{Source: "chat", Thread: usagelog.ThreadOf(ctx), Provider: c.Kind + "-cli", OK: ok}
+	if parsed {
+		if r.Usage != nil {
+			row.Input, row.Output, row.CacheRead, row.CacheWrite = r.Usage.Input, r.Usage.Output, r.Usage.CacheRead, r.Usage.CacheWrite
+		}
+		row.Cost = r.Cost
+		best := -1.0
+		for m, u := range r.ModelUsage {
+			if u.Cost > best || (u.Cost == best && m < row.Model) {
+				row.Model, best = m, u.Cost
+			}
+		}
+	}
+	if err := usagelog.Record(c.Home, row); err != nil {
+		log.Printf("用量记不进流水账：%v", err)
+	}
 }
 
 // ---------------------------------------------------------------------------- 对话存储

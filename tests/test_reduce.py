@@ -99,3 +99,61 @@ def test_weak_idle_does_not_flap_dialog():
     assert s.page.name == "SELECT_CARD" and s.page_fields["candidates"] and s.pending_page.name == "IDLE"
     s = reduce(s, obs(4, "SELECT_CARD", {"candidates": [{"slot": 1}]}))
     assert s.page.name == "SELECT_CARD" and s.pending_page is None and s.page_fields["candidates"] == [{"slot": 1}]
+
+
+# ---- 插件观测（契约 1.3，2026-11-25 插件架构 spec 4.3）
+
+
+def plugin_obs(seq, page, fields=None, *, trust="save", by="hook@1", hidden=None):
+    return Observation(
+        seq,
+        float(seq),
+        PageObs(page, "produce"),
+        fields=fields or {},
+        source="plugin",
+        trust=trust,
+        by=by,
+        hidden=hidden or {},
+    )
+
+
+def test_plugin_obs_uses_declared_trust():
+    s = reduce(GameState(), obs(1, "ACTION_SELECT", {"stamina": 30}))
+    s = reduce(s, obs(2, "ACTION_SELECT", {"stamina": 30}))
+    s = reduce(s, plugin_obs(3, "ACTION_SELECT", {"stamina": 25}, trust="save"))
+    assert s.produce["stamina"] == 25
+    assert s.sources["produce.stamina"].origin == "save" and s.sources["produce.stamina"].by == "hook@1"
+    s = reduce(s, obs(3, "ACTION_SELECT", {"stamina": 30}))  # 同一帧之后的画面读数不覆盖 save 档
+    assert s.produce["stamina"] == 25
+
+
+def test_plugin_obs_screen_trust_is_screen_origin():
+    s = reduce(GameState(), obs(1, "ACTION_SELECT", {"stamina": 30}))
+    s = reduce(s, obs(2, "ACTION_SELECT", {}))
+    s = reduce(s, plugin_obs(2, "ACTION_SELECT", {"produce_point": 100}, trust="screen"))
+    assert s.sources["produce.produce_point"].origin == "screen"
+    assert s.sources["produce.produce_point"].by == "hook@1"
+
+
+def test_plugin_hidden_merged():
+    s = reduce(GameState(), obs(1, "HIF_EXAM", {}))
+    s = reduce(s, obs(2, "HIF_EXAM", {}))
+    s = reduce(s, plugin_obs(2, "HIF_EXAM", {}, hidden={"deck_order": ["a", "b"]}))
+    assert s.hidden == {"deck_order": ["a", "b"]}
+    s = reduce(s, plugin_obs(3, "HIF_EXAM", {}, hidden={"seed": 7}))
+    assert s.hidden == {"deck_order": ["a", "b"], "seed": 7}
+
+
+def test_screen_obs_has_no_by():
+    s = reduce(GameState(), obs(1, "ACTION_SELECT", {"stamina": 30}))
+    s = reduce(s, obs(2, "ACTION_SELECT", {"stamina": 30}))
+    assert s.sources["produce.stamina"].by is None
+
+
+def test_plugin_obs_does_not_touch_page():
+    s = reduce(GameState(), obs(1, "ACTION_SELECT", {}))
+    frames = s.page.frames
+    s2 = reduce(s, plugin_obs(1, "ACTION_SELECT", {"stamina": 9}, trust="screen"))
+    assert s2.page.frames == frames and s2.produce["stamina"] == 9
+    s3 = reduce(s2, plugin_obs(2, "HIF_EXAM", {"hp": 3}))  # 插件说在别的页：不改页面、不填字段
+    assert s3.page.name == "ACTION_SELECT" and s3.pending_page is None and not s3.exam

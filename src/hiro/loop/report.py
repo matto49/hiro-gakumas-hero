@@ -131,7 +131,28 @@ def report(trace_dir: Path) -> dict:
         meta = json.loads(run_json.read_text(encoding="utf-8"))
     out = summarize(list(read_steps(trace_dir)), meta)
     out["trace"] = str(trace_dir)
+    # 2026-11-25 插件架构：这一段用了哪些插件、各定了几步；用过隐藏信息的对局单独标出来
+    pj = trace_dir / "plugins.json"
+    plug = None
+    if pj.exists():
+        try:
+            plug = json.loads(pj.read_text(encoding="utf-8"))
+        except ValueError:
+            plug = None
+    out["plugins"] = plug
+    out["uses_hidden"] = bool(plug and plug.get("uses_hidden"))
     return out
+
+
+def _plugins_line(r: dict) -> str | None:
+    p = r.get("plugins")
+    if not p or not p.get("points"):
+        return None
+    parts = [
+        f"{k} {v.get('plugin')} 定 {v.get('decided', 0)} / 交回 {v.get('deferred', 0)} / 出错 {v.get('errors', 0)}"
+        for k, v in p["points"].items()
+    ]
+    return "- 插件：" + "；".join(parts)
 
 
 def _settle_line(st: dict | None) -> str:
@@ -148,7 +169,7 @@ def markdown(r: dict) -> str:
     lat = r["exam_shot_to_tap_ms"]
     llm = r["llm"]
     lines = [
-        f"# 运行报告 {r.get('trace', '')}",
+        f"# 运行报告 {r.get('trace', '')}" + ("（用了隐藏信息，战绩单独统计）" if r.get("uses_hidden") else ""),
         "",
         f"- 步数 {r['steps']}，决策 {r['decisions']}（来源 {r['decisions_by_source']}；决策器 {r['decisions_by_decider']}）",
         f"- 兜底 {r.get('fallbacks', 0)} 次；各决策器来源："
@@ -162,6 +183,8 @@ def markdown(r: dict) -> str:
         f"- 执行：{r['execution']}",
         f"- 考试：{r['exams']}",
     ]
+    if (pl := _plugins_line(r)) is not None:
+        lines.append(pl)
     return "\n".join(lines)
 
 

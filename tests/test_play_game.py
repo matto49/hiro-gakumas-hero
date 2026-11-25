@@ -50,7 +50,7 @@ def test_icon_right_edge_synthetic():
 
 def test_home_move_confirm_variants():
     """第十八局：标题读不全、按钮读成「→OK」也要认出「ホーム移動確認」。"""
-    from hiro.loop.resume import is_home_move_confirm
+    from hiro.loop.resume_rules import is_home_move_confirm
 
     assert is_home_move_confirm(["ホーム移動確認", "閉じる", "→OK"])
     assert is_home_move_confirm(["ホームに移動しますか？", "※ホームに移動後は「プロデュース > 本戦」から開始す"])
@@ -67,7 +67,7 @@ def test_vote_memory_needs_agreement():
 
 def test_memory_value_seen_tolerates_one_digit_confusion():
     """第十八局：开始确认页 1434 被 OCR 读成「⑨1454」，核对要放行；差两位或无关数字不放行。"""
-    from hiro.loop.kaa_patches import memory_value_seen
+    from hiro.produce.memory_select import memory_value_seen
 
     page = "Pアイドル設定⑨145445.5%229644.4%Q2117941.3%"
     assert memory_value_seen("1434", page) and memory_value_seen("2296", page) and memory_value_seen("1179", page)

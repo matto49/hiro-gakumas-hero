@@ -124,6 +124,8 @@ class TowerGnrpa:
         missing = [f for f in ("search", "plan_many") if not hasattr(rs, f)]
         if missing:
             raise RuntimeError(f"Rust 后端 gakumas_exam_rs 是旧版本，没有 {' / '.join(missing)}（要带搜索的新包）")
+        # 统计计数：begin 每场重置；构造时先建一份，begin 中途失败（没编成 / 主数据缺失）后执行层回调 undo_last 也不会报错
+        self.stats = collections.Counter()
         self.seconds = None if seconds is None else float(seconds)
         self.worlds, self.threads = int(worlds), int(threads)
         # warm：跨步热启动强度（上一步各世界最好路线的权重 × warm 作这一步的初始策略；0 = 关）；greedy：眼前得分先验（0 = 关）

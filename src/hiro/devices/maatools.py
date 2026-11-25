@@ -1,6 +1,6 @@
 """Mac + PlayCover：经 hguandl/PlayCover 的 PlayTools 在游戏进程里开的 MaaTools 服务截图、注入触摸（不要求前台、不动鼠标）。
 
-MaaToolsImpl 是协议客户端（原在 hiro.device，kotonebot 设备 hiro.device.connect 仍在用，从这里导入）；
+MaaToolsImpl 是协议客户端（原在 hiro.device）；
 MaaToolsDevice 是设备统一接口（hiro.devices.base）的实现：逻辑坐标、DeviceGone / DeviceUnavailable。
 协议见 hguandl/PlayTools 的 MaaTools.swift。
 """
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 class MaaToolsImpl:
-    """MaaTools 协议客户端：截图与触摸，坐标为截图物理像素。原在 hiro.device，原样挪来（kotonebot 设备也还用它）。"""
+    """MaaTools 协议客户端：截图与触摸，坐标为截图物理像素。原在 hiro.device，原样挪来。"""
 
     TOUCH_BEGAN, TOUCH_MOVED, TOUCH_ENDED = 0, 1, 3
 
@@ -194,7 +194,9 @@ def port_open(port: int = MAATOOLS_PORT, timeout: float = 1.0) -> bool:
 # 原来直接抛 DeviceUnavailable，整局崩掉）。先重试 EMPTY_RETRY_S；还是空就给一张和上一帧同尺寸的黑帧（这一拍当没截到：横屏时
 # LandscapeGuard 当黑屏处理、主循环不点）；连续 EMPTY_MAX_S 秒都是空帧才报 DeviceGone。
 EMPTY_RETRY_S, EMPTY_RETRY_GAP_S = 3.0, 0.3
-EMPTY_MAX_S = 30.0
+EMPTY_MAX_S = (
+    90.0  # 要比 LandscapeGuard 退全屏晚（进全屏 30s 后 + 黑屏 8s）：11-25 空帧 30s 先报 DeviceGone，guard 没机会退全屏
+)
 
 
 class MaaToolsDevice:

@@ -1,0 +1,16 @@
+[project]
+name = "hiro-example-plugins"
+version = "0.1.0"
+description = "hiro 插件接口示例：一个育成插件、一个数据来源插件（只用于演示接口，别拿来实战）"
+requires-python = ">=3.10"
+
+[project.entry-points."hiro_gakumas.plugins"]
+"produce_advisor.example_study" = "hiro_example_plugins.produce:StudyFirstOption"
+"observation_source.example_replay" = "hiro_example_plugins.source:ReplaySource"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

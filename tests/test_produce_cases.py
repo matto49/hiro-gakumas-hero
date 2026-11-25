@@ -1,6 +1,6 @@
 """培育决策器的合成用例（examples/cases/produce.json，局面手工构造、按社区攻略判对错），只用规则、不调 LLM。
 
-需要主数据（KAA game.db 同结构）：环境变量 HIRO_MASTER_DB 指定路径；没有就跳过（CI 默认跳过）。
+需要主数据库（python -m hiro.state.master_db 生成的，和原来 KAA 的 game.db 同结构）：环境变量 HIRO_MASTER_DB 指定路径；没有就跳过（CI 默认跳过）。
 """
 
 import json
@@ -51,11 +51,10 @@ class _MasterOnly:
 def _master(monkeypatch):
     path = _master_path()
     if path is None:
-        pytest.skip("没有主数据（设置 HIRO_MASTER_DB 为 KAA game.db 的路径）")
-    try:  # 有识别层的默认素材源（带日程）就用它，主数据目录指到同一个 game.db
+        pytest.skip("没有主数据（设置 HIRO_MASTER_DB 为主数据库的路径，python -m hiro.state.master_db 生成）")
+    try:  # 有识别层的默认素材源（带日程）就用它：它的主数据按 HIRO_MASTER_DB 读同一份库
         from hiro.defaults.assets import PublicAssetSource  # noqa: F401
 
-        monkeypatch.setenv("HIRO_KAA_GAME_DATA", str(Path(path).parent))
         plugins._registered.pop("asset_source", None)
     except ImportError:
         monkeypatch.setitem(plugins._registered, "asset_source", lambda: _MasterOnly(path))
