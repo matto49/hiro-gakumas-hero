@@ -228,11 +228,14 @@ def tutorial(frame, rt) -> str | None:
 
     if not _tutorial_card(frame.img):
         return None
-    # 按钮左边的「→」「×」图标会被读成单独的一个框：只数带假名 / 汉字的
+    # 按钮左边的「→」「×」图标会被读成单独的一个框：只数带假名 / 汉字的。按钮在底部正中：
+    # 右下角菜单图标「≡」会被 Vision（macOS 27.2.1）读成汉字「三」，只看中间那一段（A16）
     bottom = [
         (w, t)
         for t in frame.texts
-        if 1120 <= t.rect.center.y <= 1200 and (w := re.sub(r"[^\u3040-\u30ff\u4e00-\u9fff]", "", t.text))
+        if 1120 <= t.rect.center.y <= 1200
+        and 160 <= t.rect.center.x <= 560
+        and (w := re.sub(r"[^\u3040-\u30ff\u4e00-\u9fff]", "", t.text))
     ]
     if len(bottom) != 1 or bottom[0][0] not in TUTORIAL_BUTTONS:
         return None

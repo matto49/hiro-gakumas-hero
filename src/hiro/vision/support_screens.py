@@ -217,9 +217,10 @@ def read_support_formation(img: MatLike, boxes=None) -> dict | None:
         ),
         None,
     )
+    # 编成号在左侧；第 2 步页右上还有「親愛度 37/37」。macOS 27.2.1 的 Apple Vision 会把左边的小图标一起读成「- 1/20」（A16）
     page = next(
-        (m for t, b in texts if b[0] < 250 and (m := re.fullmatch(r"(\d+)/(\d+)", t))), None
-    )  # 编成号在左侧；第 2 步页右上还有「親愛度 37/37」
+        (m for t, b in texts if b[0] < 250 and (m := re.fullmatch(r"\D{0,3}?(\d+)\s*/\s*(\d+)", t.strip()))), None
+    )
     slots = [{"slot": i, **read_tile(img, x, y)} for i, (x, y) in enumerate(tiles)]
     out = {"view": view, "name": name, "number": int(page.group(1)) if page else None, "total": int(page.group(2)) if page else None,
            "slots": slots, "arrows": ARROWS[view],

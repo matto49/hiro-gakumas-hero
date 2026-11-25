@@ -218,6 +218,9 @@ def read_card_page(boxes) -> dict:
             "effect": _lines(boxes, 270, 510)}  # fmt: skip
 
 
+DISABLED_MARK = re.compile(r"^[発免癸]動不[可回司]")  # 能力卡角上的「発動不可」（含 Vision 的形近误读）
+
+
 def read_ability_page(boxes) -> list[dict]:
     """详情 2/2：能力（被动）卡片，两列排布。按列、按纵向间距把 OCR 框拼成一张张卡片：
     [{text, disabled}]（disabled = 卡片角上有「発動不可」，例如别的偶像专用的能力），左列在前、各列从上到下。"""
@@ -236,8 +239,10 @@ def read_ability_page(boxes) -> list[dict]:
             tiles.append(cur)
     out = []
     for parts in tiles:
-        disabled = "発動不可" in parts
-        text = "".join(p for p in parts if p != "発動不可").replace(" ", "")
+        # 角标「発動不可」：以前单独一个框；macOS 27.2.1 的 Apple Vision 会把它和后面的文字并成一段、
+        # 还读成「発動不回」「免動不可」（A16）。只认开头那一截
+        disabled = any(DISABLED_MARK.match(p.replace(" ", "")) for p in parts)
+        text = "".join(DISABLED_MARK.sub("", p.replace(" ", ""), count=1) for p in parts)
         if text:
             out.append({"text": text, "disabled": disabled})
     return out
