@@ -1080,16 +1080,21 @@ def read_extra_turns(img: MatLike, cache: RegionCache | None = None) -> int | No
 
     if white < EXTRA_WHITE_MIN:
         return 0  # 没有胶囊：不跑 OCR（稳定帧判断每帧都调）
-    text = str(cached(cache, "extra_turns", crop, ocr_text)) if cache is not None else ocr_text()
-    m = re.search(r"\+\s*([1-9])", text)
-    if m:
-        return int(m.group(1))
-    # A16：macOS 27.2.1 的 Apple Vision 常把胶囊里的「+1」读成一个「十」或什么也不读（识别测试集进阶集 7 帧）；
-    # 这时用 ddddocr 只读数字再试一次，1–9 才收（这 7 帧和其余 22 帧它都和真值一致）
-    from hiro.vision.digits import read_dddd
 
-    v = read_dddd(img, EXTRA_TEXT)
-    return v if v is not None and 1 <= v <= 9 else None
+    def read() -> int | None:
+        m = re.search(r"\+\s*([1-9])", ocr_text())
+        if m:
+            return int(m.group(1))
+        # A16：macOS 27.2.1 的 Apple Vision 常把胶囊里的「+1」读成一个「十」或什么也不读（识别测试集进阶集 7 帧）；
+        # 这时用 ddddocr 只读数字再试一次，1–9 才收（这 7 帧和其余 22 帧它都和真值一致）
+        from hiro.vision.digits import read_dddd
+
+        v = read_dddd(img, EXTRA_TEXT)
+        return v if v is not None and 1 <= v <= 9 else None
+
+    # Vision 和 ddddocr 退路一起缓存最终结果：同一画面不重复跑（稳定帧判断每帧都调，#112 review）
+    v = cached(cache, "extra_turns_value", crop, read)
+    return v if isinstance(v, int) else None
 
 
 def _with_extra(base: int | None, extra: int | None) -> int | None:

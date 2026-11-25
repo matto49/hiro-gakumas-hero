@@ -122,17 +122,16 @@ def read_consult(img: MatLike) -> dict:
     """→ {"shelf": [{index, kind, card_id | drink_id, name, upgrade, price, sale, purchased, center}], "services": {...}, "rerolls_left"}。"""
     x0, y0, x1, y1 = REGION
     # 不去空格：SALE 的「75 52」会被 Vision 读成一个框，去空格就成了 7552
-    boxes = _split_wide(
-        [
-            (t, (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0))
-            for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)
-        ]
-    )
+    boxes = [
+        (t, (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0))
+        for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)
+    ]
+    price_boxes = _split_wide(boxes)  # 只有读价格用拆开的框；提示行、按钮文字用原样（#112 review）
 
-    def texts_in(xr, yr) -> list[str]:
+    def texts_in(xr, yr, src=None) -> list[str]:
         return [
             t
-            for t, (bx1, by1, bx2, by2) in boxes
+            for t, (bx1, by1, bx2, by2) in (boxes if src is None else src)
             if xr[0] <= (bx1 + bx2) / 2 <= xr[1] and yr[0] <= (by1 + by2) / 2 <= yr[1]
         ]
 
@@ -141,7 +140,7 @@ def read_consult(img: MatLike) -> dict:
         for col, x in enumerate(COLS):
             xr = (x - 10, x + CELL + 10)
             item = _card(img, x) if row == 0 else _drink(img, x)
-            nums = _nums(texts_in(xr, PRICE_BAND[top]))
+            nums = _nums(texts_in(xr, PRICE_BAND[top], price_boxes))
             sale = len(nums) >= 2 or any("SALE" in t.upper().replace(" ", "") for t in texts_in(xr, SALE_BAND[top]))
             # 白字模板或 OCR 任一认出（A16：Vision 新版把「交換済」读成「卒換済」，同轮间商店）
             purchased = any("交換済" in t.replace(" ", "") for t in texts_in(xr, (top, top + CELL))) or _purchased_mark(
@@ -253,17 +252,16 @@ def read_interval_shelf(img: MatLike) -> dict:
     """轮间货架 → {interval: {cards, changes, drinks, recover, upgrade, refresh, customize}, complete}。
     价格是画面实付价；读不到的项为 None。complete：货架上方的提示行可见（没有弹窗 / 动画盖住）。"""
     x0, y0, x1, y1 = INTERVAL_REGION
-    boxes = _split_wide(
-        [
-            (t, (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0))
-            for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)
-        ]
-    )
+    boxes = [
+        (t, (bx1 + x0, by1 + y0, bx2 + x0, by2 + y0))
+        for t, _, (bx1, by1, bx2, by2) in ocr_boxes(img[y0:y1, x0:x1], scale=2)
+    ]
+    price_boxes = _split_wide(boxes)  # 只有读价格用拆开的框；提示行、按钮文字用原样（#112 review）
 
-    def texts_in(xr, yr) -> list[str]:
+    def texts_in(xr, yr, src=None) -> list[str]:
         return [
             t
-            for t, (bx1, by1, bx2, by2) in boxes
+            for t, (bx1, by1, bx2, by2) in (boxes if src is None else src)
             if xr[0] <= (bx1 + bx2) / 2 <= xr[1] and yr[0] <= (by1 + by2) / 2 <= yr[1]
         ]
 
@@ -274,7 +272,7 @@ def read_interval_shelf(img: MatLike) -> dict:
             kind = INTERVAL_KINDS[index]
             xr = (x - 10, x + CELL + 10)
             # 价格读成 0 / 个位数（RapidOCR 把「50」读成「;0」→ 0）当没读到：轮间没有免费或几 P 的东西，转去单格补读
-            nums = [n for n in _nums(texts_in(xr, INTERVAL_PRICE[top])) if n >= INTERVAL_MIN_PRICE]
+            nums = [n for n in _nums(texts_in(xr, INTERVAL_PRICE[top], price_boxes)) if n >= INTERVAL_MIN_PRICE]
             nums = nums or [n for n in _cell_price(img, x, INTERVAL_PRICE[top]) if n >= INTERVAL_MIN_PRICE]
             purchased = any("交換済" in t.replace(" ", "") for t in texts_in(xr, (top, top + CELL))) or _purchased_mark(
                 img, x, top
