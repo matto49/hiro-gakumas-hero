@@ -52,7 +52,17 @@ def test_daily_items(hiro_home):
 
 def test_run_start_accepts_new_params(run_cli):
     code, env = run_cli(
-        "run", "start", "hajime", "--idol", "i_card-skin-shro-3-007", "--difficulty", "master", "--support-set", "2"
+        "run",
+        "start",
+        "hajime",
+        "--idol",
+        "i_card-skin-shro-3-007",
+        "--difficulty",
+        "master",
+        "--support-set",
+        "2",
+        "--memory-set",
+        "1",
     )
     assert code == 3 and "MASTER" in env["data"]["pending"]["summary"].upper()
     code, env = run_cli("run", "start", "daily", "--items", "presents,nonsense")

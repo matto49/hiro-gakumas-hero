@@ -124,3 +124,38 @@ func TestCardWarnsWhenSetMissingAndShowsNotes(t *testing.T) {
 		}
 	}
 }
+
+// CodeRabbit #88：编成页「重新出方案」要能填编成号（不打字的玩家也能补上），读过编成位时列出空着的号一点就填
+func TestRegeneratePlanWithSetNumbers(t *testing.T) {
+	h := plugintest.New(map[string]string{
+		"plan show":       strings.Replace(strings.Replace(planJSON, `"set":2`, `"set":null`, 1), `"set":1`, `"set":null`, 1),
+		"catalog lookup":  `{"items":{}}`,
+		"catalog sprite":  `{"path":""}`,
+		"info formations": `{"kind":"formations","scanned_at":"2026-11-26 01:00:00","items":[{"mode":"hajime","kind":"support","set":3,"filled":0},{"mode":"hajime","kind":"support","set":4,"filled":5},{"mode":"hajime","kind":"memory","set":7,"filled":0}]}`,
+		"plan formation":  `{"ok":true}`,
+	})
+	p := New()
+	tt := ui.NewTester(plugintest.PanelView(func(c *ui.Context) { p.Panel(c, h, "") }), 520, 1600)
+	tt.Frame()
+	tt.Frame()
+	for _, l := range []string{"用支援卡编成 3", "用回忆编成 7"} {
+		if err := plugintest.ClickButton(tt, l); err != nil {
+			t.Fatalf("%v %q", err, tt.Texts())
+		}
+	}
+	if tt.HasText("用支援卡编成 4") {
+		t.Error("有东西的编成位不该列成空的")
+	}
+	if err := plugintest.ClickButton(tt, "重新出方案"); err != nil {
+		t.Fatal(err)
+	}
+	var got string
+	for _, c := range h.Calls {
+		if strings.HasPrefix(strings.Join(c, " "), "plan formation") {
+			got = strings.Join(c, " ")
+		}
+	}
+	if !strings.Contains(got, "--support-set 3") || !strings.Contains(got, "--memory-set 7") {
+		t.Errorf("重新出方案没带编成号：%q", got)
+	}
+}

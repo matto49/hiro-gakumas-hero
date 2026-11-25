@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/egoist/mygo/ui"
@@ -64,6 +65,28 @@ type state struct {
 	scenario int
 	attr     int // 0 自动 1 Vo 2 Da 3 Vi
 	busy     bool
+	// 重新出方案时填的编成号（CodeRabbit #88：按钮路径也要能补编成号）；slots 是读过的编成位现状
+	supSet, memSet string
+	slots          []slotRow
+	slotsLoaded    bool
+}
+
+type slotRow struct {
+	Mode   string `json:"mode"`
+	Kind   string `json:"kind"`
+	Set    int    `json:"set"`
+	Filled *int   `json:"filled"`
+}
+
+// emptySlots 是这个模式下空着的编成号（读过编成位时才有）。
+func (s *state) emptySlots(mode, kind string) []int {
+	var out []int
+	for _, r := range s.slots {
+		if r.Mode == mode && r.Kind == kind && r.Filled != nil && *r.Filled == 0 {
+			out = append(out, r.Set)
+		}
+	}
+	return out
 }
 
 // New 建编成方案插件。
@@ -145,7 +168,7 @@ func view(c *ui.Context, h plugin.Host, p *Summary, compact bool) {
 	if p.Support.Set == nil || p.Memory.Set == nil {
 		ui.Row(c).Gap(8).Padding(8, 10).Radius(kit.R8).Background(kit.BadT).Children(func() {
 			ui.Text(c, "编成号未定").FontSize(kit.FNote).FontWeight(600).TextColor(kit.Bad).Shrink(0)
-			ui.Text(c, "还没定存进游戏里的哪个编成位，这样开不了局。让初星助手重新出方案时带上编成号（先读一遍编成位，挑空着的）。").
+			ui.Text(c, "还没定存进游戏里的哪个编成位，这样开不了局。到「编成方案」页的「重新出方案」填上编成号（先点「读编成位」看哪些空着），或者在对话里让初星助手带上编成号重出。").
 				FontSize(kit.FNote).TextColor(kit.Ink).Wrap().Shrink(1)
 		})
 	}
@@ -229,6 +252,46 @@ func (s *state) load(h plugin.Host) {
 	})
 }
 
+// setInputs 是「重新出方案」里的两个编成号输入；读过编成位时列出空着的号，点一下就填。
+func (s *state) setInputs(c *ui.Context, h plugin.Host) {
+	if !s.slotsLoaded {
+		s.slotsLoaded = true
+		h.Go(func() func() {
+			var d struct {
+				Items []slotRow `json:"items"`
+			}
+			_ = h.Call(context.Background(), []string{"info", "formations"}).Decode(&d)
+			return func() { s.slots = d.Items }
+		})
+	}
+	if s.plan != nil && s.supSet == "" && s.plan.Support.Set != nil {
+		s.supSet = strconv.Itoa(*s.plan.Support.Set)
+	}
+	if s.plan != nil && s.memSet == "" && s.plan.Memory.Set != nil {
+		s.memSet = strconv.Itoa(*s.plan.Memory.Set)
+	}
+	mode := scenarios[s.scenario][0]
+	for _, k := range []struct {
+		kind, name string
+		v          *string
+	}{{"support", "支援卡", &s.supSet}, {"memory", "回忆", &s.memSet}} {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+			ui.Text(c, k.name+"编成号").FontSize(kit.FSmall).TextColor(kit.Ink2).Width(84)
+			ui.TextInput(c, k.v).Placeholder("不填").FontSize(kit.FSmall).Width(72).Label(k.name + "编成号")
+			for _, n := range s.emptySlots(mode, k.kind) {
+				label := fmt.Sprintf("用%s编成 %d", k.name, n)
+				if ui.Button(c, fmt.Sprintf("%d 空着", n)).Key(label).Label(label).FontSize(11.5).Padding(3, 8).Radius(99).
+					TextColor(kit.Ink2).Border(kit.Hair, kit.Line).Clicked() {
+					*k.v = strconv.Itoa(n)
+				}
+			}
+		})
+	}
+	if len(s.slots) == 0 {
+		kit.Note(c, "不知道哪些编成位空着：先点下面「写进游戏」里的「读编成位」。")
+	}
+}
+
 func (s *state) panel(c *ui.Context, h plugin.Host) {
 	if s.plan == nil && s.err == "" {
 		s.load(h)
@@ -248,11 +311,20 @@ func (s *state) panel(c *ui.Context, h plugin.Host) {
 	}
 	kit.Section(c, "重新出方案")
 	ui.Segmented(c, &s.attr, "主属性自动", "Vo", "Da", "Vi")
+	s.setInputs(c, h)
 	ui.Row(c).Gap(8).Children(func() {
 		if kit.Secondary(c, "重新出方案").Disabled(s.busy || s.plan == nil || s.plan.Idol.ID == "").Clicked() {
 			args := []string{"plan", "formation", "--idol", s.plan.Idol.ID}
 			if s.attr > 0 {
 				args = append(args, "--main-attr", []string{"", "Vo", "Da", "Vi"}[s.attr])
+			}
+			for _, x := range [][2]string{{"--support-set", s.supSet}, {"--memory-set", s.memSet}} {
+				if n, err := strconv.Atoi(strings.TrimSpace(x[1])); err == nil && n > 0 {
+					args = append(args, x[0], strconv.Itoa(n))
+				} else if strings.TrimSpace(x[1]) != "" {
+					s.err = "编成号要填数字：" + x[1]
+					return
+				}
 			}
 			s.busy = true
 			h.Go(func() func() {

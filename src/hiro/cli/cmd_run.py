@@ -144,12 +144,12 @@ def _check_formation_plan(a: dict) -> None:
         return
     if kind == "hif" and (a.get("mode") or "qualify") == "main":
         return  # 本战不走编成步骤，用的是选拔得到的回忆
-    if (
-        a.get("support_set")
-        or a.get("memory_set")
-        or os.environ.get("HIRO_SUPPORT_SET")
-        or os.environ.get("HIRO_MEMORY_SET")
-    ):
+    # 支援卡 / 回忆分开看：两样都指定了编成号才不看方案；只给了一样，另一样还要方案里有（CodeRabbit #88）
+    given = {
+        "support": bool(a.get("support_set") or os.environ.get("HIRO_SUPPORT_SET")),
+        "memory": bool(a.get("memory_set") or os.environ.get("HIRO_MEMORY_SET")),
+    }
+    if all(given.values()):
         return
     env_plan = os.environ.get("HIRO_FORMATION_PLAN")
     if env_plan == "off":
@@ -171,7 +171,7 @@ def _check_formation_plan(a: dict) -> None:
     if idol and want and idol != want:
         name = (plan.get("idol") or {}).get("name") or want
         raise CliError("plan_other_idol", f"现在的编成方案是给「{name}」出的，这局是 {idol}", hint)
-    _check_plan_sets(plan, ("support", "memory"), idol)
+    _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol)
 
 
 def _check_plan_sets(plan: dict, what, idol: str = "") -> None:

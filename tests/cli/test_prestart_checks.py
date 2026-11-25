@@ -150,3 +150,11 @@ def test_write_formation_without_set_is_refused(run_cli, hiro_home):
     _plan_no_set(hiro_home)
     _code, env = run_cli("run", "start", "write-formation", "--scenario", "hajime", "--what", "support")
     assert env["ok"] is False and env["error"]["code"] == "plan_no_set"
+
+
+def test_only_one_set_given_checks_the_other_in_plan(run_cli, hiro_home):
+    """CodeRabbit #88：只给了支援卡编成号，回忆编成号还要看方案；方案里也没有就在确认前说。"""
+    _plan_no_set(hiro_home)
+    _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE, "--support-set", "3")
+    assert env["ok"] is False and env["error"]["code"] == "plan_no_set" and "回忆" in env["error"]["message"]
+    assert "支援卡" not in env["error"]["message"]
