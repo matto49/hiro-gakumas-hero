@@ -17,7 +17,7 @@ type Tile struct {
 func Tiles(c *ui.Context, key, title string, items []Tile) {
 	ui.Column(c).Key(key).Gap(6).Children(func() {
 		if title != "" {
-			ui.Text(c, title).FontSize(11.5).FontWeight(600).TextColor(Ink3)
+			ui.Text(c, title).FontSize(11.5).FontWeight(600).TextColor(Ink2)
 		}
 		ui.Row(c).Wrap().Gap(6).Children(func() {
 			for i, it := range items {
@@ -35,7 +35,7 @@ func Tiles(c *ui.Context, key, title string, items []Tile) {
 					ui.Column(c).Gap(1).Grow(1).Shrink(1).Children(func() {
 						ui.Text(c, it.Name).FontSize(FSmall).TextColor(Ink).MaxLines(1).Ellipsis("…")
 						if it.Note != "" {
-							ui.Text(c, it.Note).FontSize(11).TextColor(Ink3).SingleLine()
+							ui.Text(c, it.Note).FontSize(11).TextColor(Ink2).SingleLine()
 						}
 					})
 					if it.Tag != "" {
