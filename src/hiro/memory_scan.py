@@ -33,6 +33,14 @@ def _formation_rows() -> list[dict]:
         return []
 
 
+def _known_for(key: str):
+    """增量补扫用：资料库里这一片已有的回忆。"""
+    from hiro.cli.store import open_store
+    from hiro.produce.memory_sig import KnownSet
+
+    return KnownSet(open_store().slice_entries(key))
+
+
 def _back_to_set(d, where: dict) -> None:
     """扫完（选择页已经キャンセル）把编成页切回进来时的编成号；切不回只记日志，不影响扫描结果。"""
     if not where.get("used") or not where.get("set"):
@@ -45,12 +53,53 @@ def _back_to_set(d, where: dict) -> None:
         logging.getLogger(__name__).warning("扫完没能切回编成 %s：%s", where["set"], e)
 
 
+def scan_slices(picker, keys: list[str], out_dir: Path, *, known_for, budget_s: float | None = None) -> dict:
+    """在回忆选择页里逐片扫（设计 5.4）：记下原来的排序 → 每片设筛选（入手排序）→ 扫（不退出选择页）→ 最后恢复排序、重置筛选、
+    点キャンセル。known_for(片) 给 KnownSet 时这一片增量补扫，给 None 时全读。budget_s 到了就停，没扫的片记在 pending。"""
+    from hiro.produce import memory_filter, memory_picker
+
+    state = memory_filter.read_state(picker)
+    deadline = picker.clock() + budget_s if budget_s else None
+    done: list[dict] = []
+    pending = list(keys)
+    restored = False
+    try:
+        for key in keys:
+            if deadline is not None and picker.clock() >= deadline:
+                break
+            memory_filter.apply_slice(picker, key)
+            known = known_for(key)
+            inv = memory_picker.scan(
+                picker, out_dir / f"slice-{key.replace(':', '-')}.json", known=known, deadline=deadline, close=False
+            )
+            done.append({"key": key, "mode": "full" if known is None else "incremental", "complete": bool(inv.get("complete")),
+                         "entries": inv["entries"], "new": inv.get("new"), "stopped": inv.get("stopped")})  # fmt: skip
+            pending.remove(key)
+            if inv.get("stopped") == "budget":
+                break
+    finally:
+        try:
+            restored = memory_filter.restore(picker, state)
+        except Exception as e:  # noqa: BLE001  恢复失败要写明，但不丢已经扫到的
+            logging.getLogger(__name__).warning("回忆列表的排序 / 筛选没能恢复：%s", e)
+        picker.cancel()
+    return {"slices": done, "pending": pending, "restored": restored, "scanned_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "complete": not pending and all(s["complete"] for s in done)}  # fmt: skip
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("command", choices=["explore", "scan"])
     parser.add_argument("--out", default="reports/live/memory-inventory.json")
     parser.add_argument("--max-pages", type=int, default=400)
     parser.add_argument("--no-calib", action="store_true", help="scan 时不存每页截图")
+    parser.add_argument(
+        "--slices", help="按片扫（设计 5.4）：片键逗号分隔（如 sense:hif,common:hif）或 all；不给就照旧整表扫"
+    )
+    parser.add_argument("--incremental", action="store_true", help="按片扫时增量补扫：连续 3 格资料库里有的就停")
+    parser.add_argument(
+        "--budget-s", type=float, default=None, help="按片扫的总时间预算（秒），到了就停、没扫的片记 pending"
+    )
     parser.add_argument(
         "--from-home",
         action="store_true",
@@ -83,6 +132,25 @@ def main():
         out = Path(f"reports/live/memory-explore/{stamp}")
         explore(picker, out)
         print(out)
+    elif args.slices:
+        from hiro.state.memory_slices import SLICES
+
+        keys = list(SLICES) if args.slices == "all" else [k.strip() for k in args.slices.split(",") if k.strip()]
+        known_for = _known_for if args.incremental else (lambda key: None)
+        inv = scan_slices(picker, keys, Path(args.out).parent, known_for=known_for, budget_s=args.budget_s)
+        if where is not None:
+            inv["context"] = {
+                "mode": where["mode"],
+                "formation_set": where["used"] or where["set"],
+                "empty": where["used"] is not None,
+            }
+        Path(args.out).write_text(json.dumps(inv, ensure_ascii=False, indent=1), encoding="utf-8")
+        if where is not None:
+            _back_to_set(d, where)
+        n = sum(len(x["entries"]) for x in inv["slices"])
+        print(
+            f"{len(inv['slices'])} 片、{n} 格（新的 {sum(x['new'] or 0 for x in inv['slices'])}）→ {args.out}（complete={inv['complete']}）"
+        )
     else:
         inv = scan(picker, Path(args.out), max_pages=args.max_pages)
         if where is not None:

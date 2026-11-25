@@ -115,6 +115,19 @@ NORMALIZE = {
 
 
 def import_inventory(kind: str, inv: dict, source: str) -> dict:
+    if kind == "memories" and "slices" in inv:  # 按片扫的回忆（设计 5.1）：每片存进片表，不动整表快照
+        st, read, added = open_store(), 0, 0
+        for sl in inv["slices"]:
+            r = st.save_slice(sl["key"], sl["entries"], mode=sl["mode"], complete=sl["complete"],
+                              context=inv.get("context"), scanned_at=inv.get("scanned_at"))  # fmt: skip
+            read, added = read + r["read"], added + r["added"]
+        return {
+            "kind": kind,
+            "slices": len(inv["slices"]),
+            "count": read,
+            "added": added,
+            "pending": inv.get("pending") or [],
+        }
     rows = NORMALIZE[kind](inv)
     complete = inv.get("complete")
     if kind == "game_settings":

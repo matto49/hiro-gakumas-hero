@@ -630,3 +630,60 @@ def test_pale_rows_real_frame():
     assert len(rows) == 3 and all(108 <= y2 - y1 <= 128 for y1, y2 in rows)
     cells = mp.grid_cells(img)
     assert len(cells) == 9 and len({c["hash"] for c in cells}) == 9
+
+
+# ---------------------------------------------------------------- 增量补扫 / 预算 / 多片不退出（设计 5.4 / D6）
+class CancelCounting(ListPicker):
+    def __init__(self, lst, clock=lambda: 0.0):
+        super().__init__(lst)
+        self.clock, self.cancels = clock, 0
+
+    def cancel(self):
+        self.cancels += 1
+        return True
+
+
+@pytest.mark.fixtures
+def test_incremental_scan_stops_after_three_known(tmp_path, monkeypatch):
+    """前 2 格是新的，之后都是资料库里有的：读到第 3 格已知就停（读 5 格），new=2。"""
+    from hiro.produce.memory_sig import KnownSet
+
+    monkeypatch.setattr(mp, "picker_open", lambda boxes: True)
+    lst = ScrollList()
+    known = KnownSet([{"card": {"card_id": f"m{r}-{c}"}} for r, c in all_cells(lst)[2:]])
+    inv = mp.scan(CancelCounting(lst), tmp_path / "inv.json", known=known)
+    assert lst.read == [(0, 0), (0, 1), (0, 2), (1, 0), (1, 1)]
+    assert inv["new"] == 2 and inv["stopped"] == "known" and inv["complete"]
+    assert [e.get("known", False) for e in inv["entries"]] == [False, False, True, True, True]
+
+
+@pytest.mark.fixtures
+def test_three_known_at_top_stop_immediately(tmp_path, monkeypatch):
+    from hiro.produce.memory_sig import KnownSet
+
+    monkeypatch.setattr(mp, "picker_open", lambda boxes: True)
+    lst = ScrollList()
+    cells = all_cells(lst)
+    known = KnownSet([{"card": {"card_id": f"m{r}-{c}"}} for r, c in cells if (r, c) != (1, 0)])
+    inv = mp.scan(CancelCounting(lst), tmp_path / "inv.json", known=known)
+    # 列表最上面 3 格都已知（最新的都扫过了）：读 3 格就停
+    assert len(lst.read) == 3 and inv["new"] == 0
+
+
+@pytest.mark.fixtures
+def test_budget_stops_scan_incomplete_and_keeps_entries(tmp_path, monkeypatch):
+    monkeypatch.setattr(mp, "picker_open", lambda boxes: True)
+    t = iter(range(0, 1000, 10))
+    p = CancelCounting(ScrollList(), clock=lambda: next(t))
+    inv = mp.scan(p, tmp_path / "inv.json", deadline=25)
+    assert inv["stopped"] == "budget" and not inv["complete"] and 1 <= len(inv["entries"]) < len(all_cells(p.lst))
+
+
+@pytest.mark.fixtures
+def test_close_false_leaves_picker_open(tmp_path, monkeypatch):
+    monkeypatch.setattr(mp, "picker_open", lambda boxes: True)
+    p = CancelCounting(ScrollList())
+    mp.scan(p, tmp_path / "inv.json", close=False)
+    assert p.cancels == 0
+    mp.scan(p, tmp_path / "inv2.json")
+    assert p.cancels == 1

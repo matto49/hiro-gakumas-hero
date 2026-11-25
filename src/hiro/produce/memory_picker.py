@@ -555,24 +555,39 @@ def mark_suspects(entries: list[dict]) -> int:
     return n
 
 
+STOP_AFTER_KNOWN = 3  # 增量补扫：连续这么多格都是资料库里有的就停（设计 D6）
 SCAN_BACKTRACK = 6  # 新页里找不到上一页最后一行时，最多往回滑几行再找
 
 
-def scan(picker: Picker, out: Path, *, max_pages: int = 600, on_entry: Callable[[dict], None] | None = None) -> dict:
+def scan(
+    picker: Picker,
+    out: Path,
+    *,
+    max_pages: int = 600,
+    on_entry: Callable[[dict], None] | None = None,
+    known=None,
+    stop_after_known: int = STOP_AFTER_KNOWN,
+    deadline: float | None = None,
+    close: bool = True,
+) -> dict:
     """从顶部开始逐行读。每页读完重新截一张图当「上一页」（读的时候点了格子，选中框会留在上一页最后一格，不重截会和新页对不上），
     再把最后一个完整行滑到最上面；新页里找上一页最后一行的位置（align），之后的行是新的。
     对不上：一行一行往回滑（最多 SCAN_BACKTRACK 行）找上一页最后一行；还找不到就停止扫描（gaps 记下，complete=False），不接着往下记
     （2026-11-15 账号 2：对不上后往回滑了 3 行接着记，旧行被当成新行记了一遍又一遍，行号全偏）。
     到底的判定：连续 2 次滑动后回忆格区都完全不变。每格读完核对详情栏有没有刷新，最后 mark_suspects 标可疑记录。
-    每个格子一条记录（slot = 全局行号 * 3 + 列，thumb = 格子缩略图指纹）；每读一格写一次 out。结束点「キャンセル」。只读。"""
+    每个格子一条记录（slot = 全局行号 * 3 + 列，thumb = 格子缩略图指纹）；每读一格写一次 out。结束点「キャンセル」。只读。
+    增量补扫（设计 5.4 / D6）：known（memory_sig.KnownSet，资料库这一片已有的）给了时，每格记 known，连续 stop_after_known 格
+    都已知就停（stopped="known"，算读完）；new = 新的格数。deadline（picker.clock 的时刻）到了就停（stopped="budget"，complete=False，
+    已读的照样输出）。close=False：结束时不点キャンセル（多片扫描在选择页里切筛选）。"""
     img = picker.shoot()
     if not picker_open(picker.ocr(img)):
         raise RuntimeError("不在回忆选择页（没看到 キャンセル / 決定 / 編成詳細）：请先在编成页点开一格回忆")
     if out.exists():
         out.with_suffix(out.suffix + ".bak").write_text(out.read_text(encoding="utf-8"), encoding="utf-8")
     img = to_top(picker)
-    inv = {"entries": [], "gaps": [], "scanned_at": None, "complete": False}
+    inv = {"entries": [], "gaps": [], "scanned_at": None, "complete": False, "new": 0}
     pages = new = 0
+    streak, stop = 0, False
     row_base, start = 0, 0  # 当前页第 0 行的全局行号；本页从第几行开始读（前面的行上一页读过）
     last = None  # 上一条记录：判断详情栏是不是没刷新
 
@@ -598,12 +613,27 @@ def scan(picker: Picker, out: Path, *, max_pages: int = 600, on_entry: Callable[
                     if last is not None and content_key(e) == content_key(last) and cell["hash"] != last.get("thumb"):
                         e["suspect"] = "same_as_prev"
                         logger.warning("回忆扫描：第 %s 格读到的和上一格一模一样（缩略图不同），记为可疑", e["cell"])
+                    if known is not None:
+                        e["known"] = known.take(e)
+                        streak = streak + 1 if e["known"] else 0
+                    inv["new"] += not e.get("known")
                     inv["entries"].append(e)
                     last = e
                     new += 1
                     if on_entry:
                         on_entry(e)
                     save()
+                    if known is not None and streak >= stop_after_known:
+                        inv["stopped"], inv["complete"], stop = "known", True, True
+                    elif deadline is not None and picker.clock() >= deadline:
+                        inv["stopped"], stop = "budget", True
+                    if stop:
+                        break
+                if stop:
+                    break
+            if stop:
+                logger.info("回忆扫描：%s，读了 %d 格、新的 %d 格", "连续已知、补扫完" if inv["stopped"] == "known" else "到预算时间", new, inv["new"])  # fmt: skip
+                break
             pages += 1
             if pages % PROGRESS_EVERY == 0:  # 初星助手的驾驶舱靠日志看进度
                 logger.info("回忆扫描：第 %d 页，已读 %d 格", pages, new)
@@ -650,7 +680,7 @@ def scan(picker: Picker, out: Path, *, max_pages: int = 600, on_entry: Callable[
         logger.error("回忆扫描：%s", inv["aborted"])
     inv["suspects"] = mark_suspects(inv["entries"])
     save()
-    if not closed and picker_open(picker.ocr(picker.shoot())):
+    if close and not closed and picker_open(picker.ocr(picker.shoot())):
         picker.cancel()  # 只在还在选择页时点キャンセル（不在了就别在别的画面上乱点）
     logger.info("回忆扫描：%d 页，读了 %d 格，可疑 %d 格，漏行 %d 处，complete=%s → %s", pages, new, inv["suspects"], len(inv["gaps"]),
                 inv["complete"], out)  # fmt: skip

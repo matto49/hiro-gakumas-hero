@@ -54,3 +54,13 @@ def test_import_event_comes_before_done(hiro_home):
         time.sleep(0.05)
     types = [e["type"] for e in job.events()]
     assert types.index("imported") < types.index("done"), types
+
+
+def test_scan_memories_runs_incremental_slices_by_default(hiro_home):
+    """设计 5.8：「补扫新回忆」= 12 片都增量补扫；params full=True 时全读（一键全收集用）。"""
+    from hiro.cli.jobs import KINDS
+
+    argv = KINDS["scan-memories"].argv({}, hiro_home)
+    assert "--slices" in argv and argv[argv.index("--slices") + 1] == "all" and "--incremental" in argv
+    full = KINDS["scan-memories"].argv({"full": True}, hiro_home)
+    assert "--incremental" not in full and "--slices" in full
