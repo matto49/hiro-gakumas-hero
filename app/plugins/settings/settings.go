@@ -329,7 +329,8 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 					}
 				}
 				// N5：模型这一步填了 Key（或已存过）就能点「下一步」：没测通时先存、再测，测通了自己进下一步
-				modelReady := s.modelOK || strings.TrimSpace(s.key) != "" || (s.d.Settings().HasKey && s.d.Settings().Provider == s.provider)
+				modelReady := s.modelOK || strings.TrimSpace(s.key) != "" || s.d.Settings().HasKeys[s.provider] ||
+					(s.d.Settings().HasKey && s.d.Settings().Provider == s.provider)
 				canNext := []bool{s.boot.Ready, true, s.sound, modelReady && !s.busy, true, true}[s.step]
 				ui.Row(c).Gap(8).Padding(10, 0, 0, 0).Children(func() {
 					if s.step > 0 && kit.Secondary(c, "上一步").Clicked() {
@@ -558,15 +559,25 @@ func (s *S) saveAndTest(h plugin.Host, advance bool) {
 		return // 没存上：原因已经写在下面
 	}
 	s.busy = true
+	tested := s.formKey() // 测的是这一份；测试期间玩家改了表单，就不按旧结果自动往下走（CodeRabbit #105）
 	h.Go(func() func() {
 		ok, msg := s.d.Test(context.Background())
 		return func() {
-			s.busy, s.modelOK, s.note, s.noteBad = false, ok, msg, !ok
-			if ok && advance && s.step == 3 {
+			same := s.formKey() == tested
+			s.busy, s.modelOK, s.note, s.noteBad = false, ok && same, msg, !ok
+			if ok && !same {
+				s.note = "测试期间改了设置，再点一次「下一步」测新的"
+			}
+			if ok && same && advance && s.step == 3 {
 				s.step++
 			}
 		}
 	})
+}
+
+// formKey 是模型表单现在的样子（服务商、模型、地址），用来判断测试结果是不是这一份的。
+func (s *S) formKey() string {
+	return s.provider + "\x00" + strings.TrimSpace(s.model) + "\x00" + strings.TrimSpace(s.baseURL)
 }
 
 func (s *S) saveModel() {

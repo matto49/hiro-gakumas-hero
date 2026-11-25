@@ -216,3 +216,44 @@ func TestWizardModelNextStaysWhenTestFails(t *testing.T) {
 		t.Errorf("测不通要留在这一步并说原因：第 %d 步 %q", s.step, tt.Texts())
 	}
 }
+
+// CodeRabbit #105：切到另一家已经存过 Key 的服务商，不填新 Key 也能直接「下一步」
+func TestWizardModelNextWithStoredKeyOfOtherProvider(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	f.s = Settings{Provider: "custom", HasKey: true, HasKeys: map[string]bool{"deepseek": true, "custom": true}}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`})
+	s, tt := wizardAt(t, f, h, 3)
+	s.provider = "deepseek"
+	tt.Frame()
+	if err := plugintest.ClickButton(tt, "下一步"); err != nil {
+		t.Fatalf("这家存过 Key，下一步应能点：%v", err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if s.step != 4 {
+		t.Errorf("应测通后进下一步，现在第 %d 步", s.step)
+	}
+}
+
+// CodeRabbit #105：测试期间改了表单，旧配置测通也不自动往下走
+func TestWizardModelNoAdvanceIfFormChangedDuringTest(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`})
+	d := f.deps()
+	var s *S
+	d.Test = func(context.Context) (bool, string) {
+		s.model = "another-model" // 测试还没回来，玩家就改了模型
+		return true, "模型回答：好"
+	}
+	s = New(d)
+	tt := ui.NewTester(func(c *ui.Context) { s.Gate(c, h) }, 1280, 900)
+	tt.Frame()
+	s.step, s.key = 3, "sk-test-not-real"
+	tt.Frame()
+	_ = plugintest.ClickButton(tt, "下一步")
+	tt.Frame()
+	tt.Frame()
+	if s.step != 3 {
+		t.Errorf("表单改过就不该自动前进，现在第 %d 步", s.step)
+	}
+}
