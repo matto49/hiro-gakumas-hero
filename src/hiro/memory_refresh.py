@@ -32,7 +32,16 @@ class PlanMemoryMissing(RuntimeError):
 
 
 def enabled() -> bool:
-    return os.environ.get(SWITCH, "").strip().lower() in ("1", "on", "true", "yes")
+    """开关：环境变量 HIRO_SCAN_BEFORE_START 设了以它为准；没设看初星助手设置（HIRO_HOME/settings.json 的 scan_before_start）。"""
+    v = os.environ.get(SWITCH)
+    if v is not None and v.strip():
+        return v.strip().lower() in ("1", "on", "true", "yes")
+    try:
+        from hiro.cli.home import hiro_home
+
+        return bool(json.loads((hiro_home() / "settings.json").read_text(encoding="utf-8")).get("scan_before_start"))
+    except (OSError, ValueError, AttributeError):
+        return False
 
 
 def ensure_fresh(

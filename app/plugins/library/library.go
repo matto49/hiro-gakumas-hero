@@ -72,6 +72,10 @@ func New() *plugin.Plugin {
 		Commands: []plugin.Command{
 			{Name: "资料库", Hint: "看支援卡、回忆、偶像卡"},
 			{Name: "扫描", Hint: "扫描支援卡 / 回忆 / 偶像卡 / 首页数值", Route: "scan"},
+			// 设计 5.7 / D7：对话里「/全收集」发起一键全收集（同样出确认卡）
+			{Name: "全收集", Hint: "一键全收集：首页数值、偶像卡、支援卡、编成、回忆按顺序扫一遍", Run: func(h plugin.Host) {
+				h.RunArgs("一键全收集", []string{"run", "start", "collect-all"})
+			}},
 		},
 		Chips: []plugin.Chip{{Label: "/扫描", Say: "/扫描"}, {Label: "/资料库", Say: "/资料库"}},
 		Cards: map[string]plugin.CardView{

@@ -183,3 +183,22 @@ func TestPermissionAllConfirmsOnce(t *testing.T) {
 		t.Errorf("确认过一次，之后直接切：%+v", f.s)
 	}
 }
+
+// 设计 5.6 / D4：「开局前自动补扫回忆」开关在设置里，缺省关，勾上存进 settings.json 的 scan_before_start
+func TestScanBeforeStartToggle(t *testing.T) {
+	f := &fake{s: Settings{Provider: "deepseek", WizardDone: true}, secrets: map[string]string{}, ready: true}
+	p := New(f.deps()).Plugin()
+	h := plugintest.New(map[string]string{})
+	tt := ui.NewTester(func(c *ui.Context) { p.Panel(c, h, "") }, 760, 2600)
+	tt.Frame()
+	if f.s.ScanBeforeStart {
+		t.Fatal("缺省应关")
+	}
+	if err := tt.Click(scanBeforeStartLabel); err != nil {
+		t.Fatalf("设置里没有开局前补扫开关：%v %q", err, tt.Texts())
+	}
+	tt.Frame()
+	if !f.s.ScanBeforeStart {
+		t.Fatalf("勾上后应保存：%+v", f.s)
+	}
+}

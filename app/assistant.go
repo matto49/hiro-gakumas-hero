@@ -81,6 +81,8 @@ type Settings struct {
 	// Permission：操作权限档（ask / read / readwrite / all，空 = read）；AllowAllConfirmed：第一次切到 all 时确认过（只弹一次）。
 	Permission        string `json:"permission,omitempty"`
 	AllowAllConfirmed bool   `json:"allow_all_confirmed,omitempty"`
+	// ScanBeforeStart：开局前自动补扫回忆（设计 5.6，缺省关；hiro.memory_refresh 读 settings.json 的 scan_before_start）。
+	ScanBeforeStart bool `json:"scan_before_start,omitempty"`
 }
 
 // DefaultDeepSeek 是 DeepSeek 的缺省地址和模型。

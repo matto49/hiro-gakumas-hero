@@ -76,3 +76,14 @@ def test_plan_memory_missing_stops(st, tmp_path):
     with pytest.raises(mr.PlanMemoryMissing) as e:
         mr.check_plan_memories(p, "sense", store=st)
     assert "sold-card" in str(e.value)
+
+
+def test_switch_read_from_settings_when_env_unset(monkeypatch, hiro_home):
+    """初星助手设置里的开关存在 settings.json 的 scan_before_start；环境变量设了以环境变量为准。"""
+    monkeypatch.delenv("HIRO_SCAN_BEFORE_START", raising=False)
+    assert not mr.enabled()
+    hiro_home.mkdir(parents=True, exist_ok=True)
+    (hiro_home / "settings.json").write_text(json.dumps({"scan_before_start": True}), encoding="utf-8")
+    assert mr.enabled()
+    monkeypatch.setenv("HIRO_SCAN_BEFORE_START", "0")
+    assert not mr.enabled()

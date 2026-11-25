@@ -177,3 +177,18 @@ func TestScanPanelMemoryButtonIsIncremental(t *testing.T) {
 		t.Errorf("补扫新回忆：%v", h.RunArgs_)
 	}
 }
+
+// 设计 5.7 / D7：对话里「/全收集」发起一键全收集（同样走确认卡）
+func TestCollectAllSlashCommand(t *testing.T) {
+	h, p := host(), New()
+	for _, cmd := range p.Commands {
+		if cmd.Name == "全收集" && cmd.Run != nil {
+			cmd.Run(h)
+			if len(h.RunArgs_) != 1 || strings.Join(h.RunArgs_[0][1:], " ") != "run start collect-all" {
+				t.Errorf("/全收集：%v", h.RunArgs_)
+			}
+			return
+		}
+	}
+	t.Fatal("没有 /全收集 命令")
+}

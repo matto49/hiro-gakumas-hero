@@ -26,6 +26,8 @@ type Settings struct {
 	// Permission 是操作权限档（ask / read / readwrite / all，空 = read）；AllowAllConfirmed 是第一次切到 all 时确认过。
 	Permission        string `json:"permission,omitempty"`
 	AllowAllConfirmed bool   `json:"allow_all_confirmed,omitempty"`
+	// ScanBeforeStart：开局前自动补扫回忆（设计 5.6，缺省关；hiro.memory_refresh 读 settings.json 的 scan_before_start）。
+	ScanBeforeStart bool `json:"scan_before_start,omitempty"`
 }
 
 // permLevels 是「操作权限」的四档（11-25 review，参考 dsh）。
@@ -417,6 +419,20 @@ func (s *S) permSection(c *ui.Context) {
 	}
 }
 
+const scanBeforeStartLabel = "开局前自动补扫回忆（最多 3 分钟）"
+
+// scanSection：开局前自动补扫回忆的开关（设计 5.6 / D4，缺省关）。
+func (s *S) scanSection(c *ui.Context) {
+	st := s.d.Settings()
+	on := st.ScanBeforeStart
+	ui.Checkbox(c, &on, scanBeforeStartLabel)
+	if on != st.ScanBeforeStart {
+		st.ScanBeforeStart = on
+		_ = s.d.Save(st, "")
+	}
+	kit.Note(c, "开新的一局前，先看这局要用的回忆（偶像卡流派 + 共通）有没有超过 1 天没扫，有就增量补扫；超过 3 分钟先开局，打完再补。")
+}
+
 func (s *S) deviceLine(c *ui.Context) {
 	text := s.device
 	if text == "" {
@@ -705,6 +721,8 @@ func (s *S) panel(c *ui.Context, h plugin.Host, route string) {
 	s.modelSection(c, h)
 	ui.Text(c, "操作权限").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
 	s.permSection(c)
+	ui.Text(c, "扫描").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
+	s.scanSection(c)
 	ui.Text(c, "游戏连接").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
 	s.deviceLine(c)
 	if kit.Secondary(c, "试连").Key("probe").Disabled(s.probing || h.LiveJob() != "").Clicked() {
