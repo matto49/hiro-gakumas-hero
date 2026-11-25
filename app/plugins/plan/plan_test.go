@@ -9,6 +9,7 @@ import (
 
 	"github.com/matto49/hiro-gakumas-hero/app/hiroapi"
 	"github.com/matto49/hiro-gakumas-hero/app/plugin"
+	"github.com/matto49/hiro-gakumas-hero/app/plugins/common"
 	"github.com/matto49/hiro-gakumas-hero/app/plugins/plugintest"
 )
 
@@ -157,5 +158,38 @@ func TestRegeneratePlanWithSetNumbers(t *testing.T) {
 	}
 	if !strings.Contains(got, "--support-set 3") || !strings.Contains(got, "--memory-set 7") {
 		t.Errorf("重新出方案没带编成号：%q", got)
+	}
+}
+
+// 11-26 真窗口：对话里的编成方案卡还是「租借：名字」一行一张、回忆没图标。和确认卡一样：小块、tag 在行尾、回忆按 card_id 取图。
+func TestFormationCardUsesTilesTagAtEndMemoryIcon(t *testing.T) {
+	common.Shared.Reset() // 别的测试查过同一批编号（当时资料库里没有）
+	t.Cleanup(common.Shared.Reset)
+	h := plugintest.New(map[string]string{
+		"plan show":      planJSON,
+		"catalog lookup": `{"items":{"s_card-2-0001":{"name":"一起去吧！"},"s_card-3-0070":{"name":"向着光"},"p_card-1":{"name":"偶像宣言","asset":"card-p_card-1"}}}`,
+		"catalog sprite": `{"path":"/tmp/x.webp"}`,
+	})
+	p := New()
+	var card map[string]any
+	_ = decode(planJSON, &card)
+	v := p.Cards["formation"]
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Width(620).Children(func() { v(c, h, plugin.Card{"type": "formation", "plan": card}) })
+	}, 760, 700)
+	tt.Frame()
+	tt.Frame()
+	name, ok1 := tt.Find("向着光")
+	tag, ok2 := tt.Find("租借")
+	if !ok1 || !ok2 || tag.X <= name.X {
+		t.Errorf("租借要是行尾的 tag：名字 %v tag %v %q", name, tag, tt.Texts())
+	}
+	if tt.HasText("租借：向着光") {
+		t.Error("不要再写成「租借：名字」")
+	}
+	mem, ok := tt.Find("偶像宣言+")
+	timing, ok3 := tt.Find("开局")
+	if !ok || !ok3 || timing.X <= mem.X {
+		t.Errorf("回忆用中文名、时机 tag 在行尾：%v %v %q", mem, timing, tt.Texts())
 	}
 }

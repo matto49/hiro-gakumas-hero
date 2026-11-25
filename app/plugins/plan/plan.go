@@ -142,6 +142,9 @@ func view(c *ui.Context, h plugin.Host, p *Summary, compact bool) {
 	if p.Support.Rental != nil {
 		ids = append(ids, p.Support.Rental.ID)
 	}
+	for _, m := range p.Memory.Chosen {
+		ids = append(ids, m.CardID)
+	}
 	ids = append(ids, p.Idol.ID)
 	names := common.Shared.Lookup(h, ids...)
 	zh := func(id, ja string) string {
@@ -181,6 +184,10 @@ func view(c *ui.Context, h plugin.Host, p *Summary, compact bool) {
 			}
 			kit.Note(c, "· "+n)
 		}
+	}
+	if compact {
+		compactTiles(c, h, p, names, zh)
+		return
 	}
 	kit.Section(c, "支援卡")
 	if p.Support.Error != "" {
@@ -230,6 +237,54 @@ func view(c *ui.Context, h plugin.Host, p *Summary, compact bool) {
 		for _, n := range p.Notes {
 			kit.Note(c, "· "+n)
 		}
+	}
+}
+
+// compactTiles 是对话里编成方案卡的支援卡 / 回忆：和确认卡同一套小块（kit.Tiles），租借、回忆时机放行尾 tag，
+// 回忆按 card_id 取图，鼠标停上去看效果（11-26 真窗口：原来「租借：名字」一行一张、回忆没图标）。
+func compactTiles(c *ui.Context, h plugin.Host, p *Summary, names map[string]*common.Entry, zh func(id, ja string) string) {
+	if p.Support.Error != "" {
+		ui.Text(c, p.Support.Error).FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
+	}
+	var sup []kit.Tile
+	for _, o := range p.Support.Own {
+		name, lv := zh(o.ID, o.Name), "Lv"+intStr(o.Level)
+		sup = append(sup, kit.Tile{Thumb: common.Shared.Sprite(h, "support-"+o.ID), Name: name, Note: lv,
+			Tip: common.Tip(names[o.ID], common.Both(name, o.Name), lv, strings.Join(o.Why, "；"))})
+	}
+	if r := p.Support.Rental; r != nil {
+		name := zh(r.ID, r.Name)
+		if r.ID == "" && r.Name == "" {
+			name = "开局时按实际列表挑"
+		}
+		t := kit.Tile{Tag: "租借", Name: name, Tip: common.Tip(names[r.ID], common.Both(name, r.Name), "租借：开局时从好友的支援卡里借这一张")}
+		if r.ID != "" {
+			t.Thumb = common.Shared.Sprite(h, "support-"+r.ID)
+		}
+		if r.Estimated {
+			t.Note = "估算"
+		}
+		sup = append(sup, t)
+	}
+	if len(sup) > 0 {
+		kit.Tiles(c, "plan-sup", "支援卡", sup)
+	}
+	if p.Memory.Error != "" {
+		ui.Text(c, p.Memory.Error).FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
+	}
+	var mem []kit.Tile
+	for _, m := range p.Memory.Chosen {
+		plus := strings.Repeat("+", m.Upgrade)
+		name := zh(m.CardID, m.Name) + plus
+		t := kit.Tile{Tag: labels.Timing(m.Timing), Name: name,
+			Tip: common.Tip(names[m.CardID], common.Both(name, m.Name+plus), "用在："+labels.Timing(m.Timing))}
+		if e := names[m.CardID]; e != nil && e.Asset != "" {
+			t.Thumb = common.Shared.Sprite(h, e.Asset)
+		}
+		mem = append(mem, t)
+	}
+	if len(mem) > 0 {
+		kit.Tiles(c, "plan-mem", "回忆", mem)
 	}
 }
 
