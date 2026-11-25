@@ -38,6 +38,25 @@ CREATE TABLE IF NOT EXISTS raw (
   snapshot_id INTEGER PRIMARY KEY REFERENCES snapshots(id),
   data TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS memory_slices (
+  account TEXT NOT NULL,
+  slice TEXT NOT NULL,
+  idx INTEGER NOT NULL,
+  data TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS memory_slices_key ON memory_slices(account, slice);
+CREATE TABLE IF NOT EXISTS slice_coverage (
+  account TEXT NOT NULL,
+  slice TEXT NOT NULL,
+  scanned_at TEXT NOT NULL,
+  full_at TEXT,
+  mode TEXT NOT NULL,
+  complete INTEGER,
+  context TEXT,
+  read INTEGER NOT NULL,
+  added INTEGER NOT NULL,
+  PRIMARY KEY (account, slice)
+);
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT
@@ -134,6 +153,85 @@ class Store:
             for (d,) in self.db.execute("SELECT data FROM rows WHERE snapshot_id=? ORDER BY idx", (row[0],))
         ]
         return self._meta(row), rows
+
+    # ------------------------------------------------------------ 回忆分片（设计 5.1 / D16 / D18）
+    def _acc(self) -> str:
+        return self.current_account() or ""
+
+    def slice_entries(self, slice_key: str) -> list[dict]:
+        return [
+            json.loads(d)
+            for (d,) in self.db.execute(
+                "SELECT data FROM memory_slices WHERE account=? AND slice=? ORDER BY idx", (self._acc(), slice_key)
+            )
+        ]
+
+    def save_slice(
+        self,
+        slice_key: str,
+        entries: list[dict],
+        *,
+        mode: str,
+        complete: bool,
+        context: dict | None = None,
+        scanned_at: str | None = None,
+    ) -> dict:
+        """存一片的扫描结果（扫描原始条目）。mode=full 且 complete：整片替换成这次读到的（卖掉、删掉的不在了）；
+        其余（增量，或全读中途停了）：只追加资料库里还没有的（按 memory_sig.KnownSet 认）。返回 {read, added}。"""
+        from hiro.produce.memory_sig import KnownSet
+
+        acc, at = self._acc(), scanned_at or now()
+        old = self.slice_entries(slice_key)
+        replace = mode == "full" and complete
+        if replace:
+            known = KnownSet(old)
+            added = sum(not known.take(e) for e in entries)
+            keep = [dict(e, slice=slice_key) for e in entries]
+        else:
+            known = KnownSet(old)
+            new = [dict(e, slice=slice_key) for e in entries if not known.take(e)]
+            added, keep = len(new), old + new
+        prev = self.slice_coverage().get(slice_key) or {}
+        with self.db:
+            self.db.execute("DELETE FROM memory_slices WHERE account=? AND slice=?", (acc, slice_key))
+            self.db.executemany(
+                "INSERT INTO memory_slices(account, slice, idx, data) VALUES (?,?,?,?)",
+                [(acc, slice_key, i, json.dumps(e, ensure_ascii=False)) for i, e in enumerate(keep)],
+            )
+            self.db.execute(
+                "INSERT OR REPLACE INTO slice_coverage(account, slice, scanned_at, full_at, mode, complete, context, read, added)"
+                " VALUES (?,?,?,?,?,?,?,?,?)",
+                (acc, slice_key, at, at if replace else prev.get("full_at"), mode, int(complete),
+                 json.dumps(context or {}, ensure_ascii=False), len(entries), added),
+            )  # fmt: skip
+        return {"read": len(entries), "added": added}
+
+    def slice_coverage(self) -> dict[str, dict]:
+        """当前账号每一片的最近一次扫描：{片: {scanned_at, full_at（最近一次完整全读）, mode, complete, context, read, added, count}}。"""
+        out = {}
+        for sl, at, full_at, mode, complete, ctx, read, added in self.db.execute(
+            "SELECT slice, scanned_at, full_at, mode, complete, context, read, added FROM slice_coverage WHERE account=?",
+            (self._acc(),),
+        ):
+            count = self.db.execute(
+                "SELECT COUNT(*) FROM memory_slices WHERE account=? AND slice=?", (self._acc(), sl)
+            ).fetchone()[0]
+            out[sl] = {"scanned_at": at, "full_at": full_at, "mode": mode, "complete": bool(complete),
+                       "context": json.loads(ctx or "{}"), "read": read, "added": added, "count": count}  # fmt: skip
+        return out
+
+    def memories_for_plan(self, plan: str | None) -> dict | None:
+        """出编成方案用的回忆库存（扫描原始格式 {entries, complete, scanned_at, source}）。
+        D16：这局要的片（slices_for_plan）都完整全读过，就用片数据合并（每条带 slice）；否则整套用旧的整表扫描快照，不混用。"""
+        from hiro.state.memory_slices import slices_for_plan
+
+        need = slices_for_plan(plan)
+        cov = self.slice_coverage()
+        if all((cov.get(k) or {}).get("full_at") for k in need):
+            entries = [e for k in need for e in self.slice_entries(k)]
+            return {"entries": entries, "complete": True, "source": "slices",
+                    "scanned_at": min(cov[k]["scanned_at"] for k in need), "slices": need}  # fmt: skip
+        return self.latest_raw("memories")
 
     def latest_raw(self, kind: str):
         """最新一次带原始输出的快照的原始输出；没有返回 None。"""
