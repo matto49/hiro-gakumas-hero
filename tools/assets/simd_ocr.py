@@ -32,7 +32,7 @@ TAG = "ocr-simd-v1"
 ASSET = "ocr-simd-v1.zip"
 URL = f"https://github.com/matto49/hiro-gakumas-hero/releases/download/{TAG}/{ASSET}"
 # 资产还没发布：发了 Release 之后，把 pack_simd_ocr.py 打印的 SHA256 填到这里（填之前下载会直接跳过，识别用 RapidOCR）
-SHA256 = "PENDING-fill-after-release"
+SHA256 = "0812bc5457e23c24bf30b6b0a8ca356fec95763fc6f5e6f322471b189edc5c8f"  # Release ocr-simd-v1（11-26 发）
 DOTNET_INSTALL_URL = "https://dot.net/v1/dotnet-install.ps1"
 DOTNET_CHANNEL = "10.0"
 TOP_DIRS = ("simd-ocr", "SimdPaddleOCR")  # zip 里的两个顶层目录；顶层的文件（NOTICE、许可证）装好后放进 deps/simd-ocr
