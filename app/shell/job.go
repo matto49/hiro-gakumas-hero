@@ -353,7 +353,11 @@ func (a *App) pinned(c *ui.Context) {
 		if kit.RowButton(c, "pinned-"+a.live, title, false).Padding(10, 12).Radius(kit.R16-2).Background(kit.CardBg).Border(kit.Hair, kit.LineStr).Children(func() {
 			ui.Box(c).Size(7, 7).Radius(4).Background(kit.Brand)
 			ui.Text(c, title).FontSize(kit.FSmall).FontWeight(600).TextColor(kit.Ink)
-			ui.Text(c, labels.State(v.State)).FontSize(kit.FNote).TextColor(kit.Ink3)
+			kind := ""
+			if v.Job != nil {
+				kind = v.Job.Kind
+			}
+			ui.Text(c, labels.StateOf(kind, v.State)).FontSize(kit.FNote).TextColor(kit.Ink3)
 		}).Clicked() {
 			a.OpenPanel("cockpit", "")
 		}

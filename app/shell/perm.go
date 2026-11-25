@@ -1,6 +1,9 @@
 package shell
 
 import (
+	"regexp"
+	"strings"
+
 	"github.com/egoist/mygo/ui"
 
 	"github.com/matto49/hiro-gakumas-hero/app/kit"
@@ -143,8 +146,12 @@ func (a *App) autoStart(m *Message, card plugin.Card) {
 		}
 	}
 	card["auto"] = level
+	// N6（11-26 G1）：回复里那句「要开始「…」吗？点下面的确认卡。」是按要确认写的；自动开始了就去掉，下面那行会写「已自动开始…不用确认」
+	m.Text = strings.TrimSpace(askConfirm.ReplaceAllString(m.Text, ""))
 	a.resolve(m, card, "confirm")
 }
+
+var askConfirm = regexp.MustCompile(`要开始「[^」]*」吗？点下面的确认卡。`)
 
 // firstScanKinds 是第一次用时要扫的库存（info summary 的类别 → run start 的种类）。
 var firstScanKinds = [][2]string{{"supports", "scan-supports"}, {"memories", "scan-memories"}, {"idols", "scan-idols"}}

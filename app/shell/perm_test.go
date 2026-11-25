@@ -306,3 +306,39 @@ func TestComposerPermissionSaveErrorShown(t *testing.T) {
 		t.Errorf("确认框存失败不能关，要说原因：%q", tt2.Texts())
 	}
 }
+
+// N6（11-26 G1）：自动开始了，回复里就不该还留着「要开始「…」吗？点下面的确认卡。」
+func TestAutoStartDropsAskSentence(t *testing.T) {
+	call := &fakeCall{resp: map[string]hiroapi.Result{"confirm p1": ok(`{"job":{"id":"j1","kind":"scan-idols"}}`)}}
+	ask := func(context.Context, []Turn, string, string, func(string, string)) (Reply, error) {
+		return Reply{Text: "好的，再扫一次。\n要开始「扫描偶像卡」吗？点下面的确认卡。", Cards: []plugin.Card{ConfirmCard(accessPending("p1", "scan-idols", "read"))}}, nil
+	}
+	a, run := newTestApp(newMem(), call, ask, viewReg())
+	a.d.Permission = func() string { return "" }
+	a.Send("再扫一次偶像卡")
+	run.Drain()
+	for _, m := range a.Current().Messages {
+		if strings.Contains(m.Text, "点下面的确认卡") {
+			t.Errorf("自动开始后还在叫人点确认卡：%q", m.Text)
+		}
+	}
+	found := false
+	for _, m := range a.Current().Messages {
+		found = found || m.Text == "好的，再扫一次。"
+	}
+	if !found {
+		t.Error("模型自己说的话要留着")
+	}
+	// 要等确认的照旧
+	ask2 := func(context.Context, []Turn, string, string, func(string, string)) (Reply, error) {
+		return Reply{Text: "要开始「开一局初」吗？点下面的确认卡。", Cards: []plugin.Card{ConfirmCard(accessPending("p2", "hajime", "all"))}}, nil
+	}
+	b, run2 := newTestApp(newMem(), &fakeCall{resp: map[string]hiroapi.Result{}}, ask2, viewReg())
+	b.d.Permission = func() string { return "" }
+	b.Send("打一把初")
+	run2.Drain()
+	ms := b.Current().Messages
+	if !strings.Contains(ms[len(ms)-1].Text, "点下面的确认卡") {
+		t.Errorf("要确认的还应提示点确认卡：%q", ms[len(ms)-1].Text)
+	}
+}

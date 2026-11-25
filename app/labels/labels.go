@@ -192,6 +192,23 @@ func Kind(k string) string { return pick(kinds, k, "") }
 // State 是任务状态的中文。
 func State(s string) string { return pick(states, s, "") }
 
+// Plays 是一步步打牌 / 培育的任务（有步骤、有画面、说「游玩中」「已打」）；扫描、检查设置、日常这些不是（N6，11-26 G1）。
+func Plays(kind string) bool {
+	switch kind {
+	case "hajime", "nia", "tower", "hif", "main-task", "story", "selftest":
+		return true
+	}
+	return false
+}
+
+// StateOf 是带上任务种类的状态中文：不是打牌 / 培育的任务在跑时说「进行中」，不说「游玩中」。
+func StateOf(kind, s string) string {
+	if s == "running" && kind != "" && !Plays(kind) {
+		return "进行中"
+	}
+	return State(s)
+}
+
 // Timing 是回忆时机的中文。
 func Timing(s string) string { return pick(timings, s, "") }
 
@@ -255,7 +272,7 @@ var tools = map[string]string{
 	"info_affection": "查了好感度", "info_formations": "查了编成位", "info_game_settings": "查了游戏设置",
 	"catalog_search": "搜了资料库", "catalog_get": "查了资料库", "catalog_supports": "查了支援卡资料", "catalog_sync": "同步了资料库",
 	"plan_formation": "出了编成方案", "plan_show": "看了编成方案", "write_formation": "准备写编成", "scan_formations": "准备读编成位",
-	"run_start": "发起开局", "run_status": "看了任务状态", "run_events": "看了对局步骤", "doctor": "检查了环境", "tools": "看了能用的工具",
+	"run_start": "发起任务", "run_status": "看了任务状态", "run_events": "看了对局步骤", "doctor": "检查了环境", "tools": "看了能用的工具",
 }
 
 // Tool 是 agent 工具名（info_idols…）给玩家看的说法；插件的工具统称「用了插件工具」。

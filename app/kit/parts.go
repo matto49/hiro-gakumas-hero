@@ -76,7 +76,10 @@ func AttrTag(c *ui.Context, attr string) {
 }
 
 // StatePill 是任务状态：运行中橙点，出错红，其余灰。
-func StatePill(c *ui.Context, state string) {
+func StatePill(c *ui.Context, state string) { StatePillOf(c, "", state) }
+
+// StatePillOf 同 StatePill，文字按任务种类（扫描等在跑时写「进行中」）。
+func StatePillOf(c *ui.Context, kind, state string) {
 	fg := Ink2
 	switch state {
 	case "running", "takeover":
@@ -88,7 +91,7 @@ func StatePill(c *ui.Context, state string) {
 	}
 	ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
 		ui.Box(c).Size(7, 7).Radius(4).Background(fg)
-		ui.Text(c, labels.State(state)).FontSize(FTag).TextColor(fg)
+		ui.Text(c, labels.StateOf(kind, state)).FontSize(FTag).TextColor(fg)
 	})
 }
 
