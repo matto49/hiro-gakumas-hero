@@ -46,7 +46,7 @@ func (a *App) permMenu(c *ui.Context) {
 				a.choosePermission(lv)
 			}
 		}
-	}).Label("操作权限：" + PermName[cur]).Tooltip("操作权限：哪些事不用确认就直接做").
+	}).Label("操作权限："+PermName[cur]).Tooltip("操作权限：哪些事不用确认就直接做").
 		FontSize(kit.FNote).TextColor(kit.Ink2).Padding(4, 8).Radius(kit.R8).Background(ui.RGBA(0, 0, 0, 0))
 	if a.confirmAll {
 		ui.Modal(c, &a.confirmAll, func() {
@@ -59,21 +59,38 @@ func (a *App) permMenu(c *ui.Context) {
 						a.confirmAll = false
 					}
 					if kit.Primary(c, "确定，允许所有行为").Key("perm-all-ok").Clicked() {
-						a.confirmAll = false
-						_ = a.d.SetPermission(PermAll)
+						if err := a.d.SetPermission(PermAll); err != nil {
+							a.permErr = "没存上：" + err.Error() + "，再点一次试试"
+						} else {
+							a.confirmAll, a.permErr = false, ""
+						}
 					}
 				})
+				if a.permErr != "" {
+					ui.Text(c, a.permErr).FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
+				}
 			})
 		})
 	}
 }
 
 func (a *App) choosePermission(level string) {
+	a.permErr = ""
 	if level == PermAll && (a.d.AllowAllConfirmed == nil || !a.d.AllowAllConfirmed()) {
 		a.confirmAll = true
 		return
 	}
-	_ = a.d.SetPermission(level)
+	if err := a.d.SetPermission(level); err != nil {
+		// 存不上就还是原来的档（可能是更高的档），要说清楚、让人再试（CodeRabbit #91）
+		a.permErr = "操作权限没存上：" + err.Error() + "。现在还是「" + PermName[a.permission()] + "」，再选一次试试"
+	}
+}
+
+// permError 是输入框下面一行：上次换档没存上的原因（换档成功后清掉）。
+func (a *App) permError(c *ui.Context) {
+	if a.permErr != "" && !a.confirmAll {
+		ui.Text(c, a.permErr).FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
+	}
 }
 
 // Allows 是这一档下这类操作能不能不确认直接开始。没设过档位按「允许读操作」；不知道类别（旧版 CLI）按最高的算。

@@ -64,6 +64,8 @@ type App struct {
 	ui    viewState
 	// confirmAll 是输入框里切到「允许所有行为」时的二次确认框开着。
 	confirmAll bool
+	// permErr 是上次换操作权限没存上的原因。
+	permErr string
 
 	jobs     map[string]*plugin.JobView
 	live     string // 活着的任务编号

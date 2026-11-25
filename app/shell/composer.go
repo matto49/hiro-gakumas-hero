@@ -59,6 +59,7 @@ func (a *App) inputBox(c *ui.Context) {
 				}
 			})
 		})
+		a.permError(c)
 	}
 }
 

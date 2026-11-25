@@ -2,6 +2,7 @@ package shell
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -280,4 +281,28 @@ func TestPreviewComposerPermission(t *testing.T) {
 	_ = tt.Click("操作权限：" + PermName[PermRead])
 	tt.Frame()
 	snap(t, tt, "perm-composer-menu")
+}
+
+// CodeRabbit #91：存不上（文件不可写等）时要说清楚、能再试，不能当作已经换档；确认框存成功才关。
+func TestComposerPermissionSaveErrorShown(t *testing.T) {
+	a, tt, _ := composerPermApp(t, PermAll, true)
+	a.d.SetPermission = func(string) error { return errors.New("settings.json 写不进去") }
+	_ = tt.Click("操作权限：" + PermName[PermAll])
+	tt.Frame()
+	_ = tt.Click("总是询问")
+	tt.Frame()
+	if !tt.HasText("操作权限没存上：settings.json 写不进去。现在还是「允许所有行为」，再选一次试试") {
+		t.Errorf("保存失败要说原因和下一步：%q", tt.Texts())
+	}
+	a2, tt2, _ := composerPermApp(t, PermRead, false)
+	a2.d.SetPermission = func(string) error { return errors.New("磁盘满了") }
+	_ = tt2.Click("操作权限：" + PermName[PermRead])
+	tt2.Frame()
+	_ = tt2.Click("允许所有行为")
+	tt2.Frame()
+	_ = tt2.Click("确定，允许所有行为")
+	tt2.Frame()
+	if !tt2.HasText("确定允许所有行为？") || !tt2.HasText("没存上：磁盘满了，再点一次试试") {
+		t.Errorf("确认框存失败不能关，要说原因：%q", tt2.Texts())
+	}
 }
