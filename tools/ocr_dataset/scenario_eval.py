@@ -255,7 +255,7 @@ def score_buttons(buttons: list[dict], texts: list[tuple]) -> list[dict]:
             short = min(len(norm(t)) for t, _ in cands)
             best = [(t, box) for t, box in cands if len(norm(t)) == short]
 
-            def inside(bx):
+            def inside(bx, x1=x1, y1=y1, x2=x2, y2=y2):
                 cx, cy = (bx[0] + bx[2]) / 2, (bx[1] + bx[3]) / 2
                 return x1 <= cx <= x2 and y1 <= cy <= y2
 
