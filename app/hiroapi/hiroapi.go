@@ -4,6 +4,10 @@ package hiroapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"sort"
+	"strconv"
+	"strings"
 )
 
 // CliError 是命令失败时信封里的 error：code 给程序判断，message / hint 是写给人看的白话。
@@ -29,6 +33,41 @@ func (p Pending) Map() map[string]any {
 		m["args"] = p.Args
 	}
 	return m
+}
+
+// ArgvOf 是按待确认的命令名和参数重新拼出的命令行（合并确认卡排队的下一项要重新发起）：
+// run start 的 kind 是位置参数，其余按 --参数名（下划线换成连字符），bool 只在 true 时写开关，空值不写。
+func ArgvOf(command string, args map[string]any) []string {
+	argv := strings.Fields(command)
+	if k, _ := args["kind"].(string); k != "" {
+		argv = append(argv, k)
+	}
+	keys := make([]string, 0, len(args))
+	for k := range args {
+		if k != "kind" {
+			keys = append(keys, k)
+		}
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		flag := "--" + strings.ReplaceAll(k, "_", "-")
+		switch v := args[k].(type) {
+		case nil:
+		case bool:
+			if v {
+				argv = append(argv, flag)
+			}
+		case float64:
+			argv = append(argv, flag, strconv.FormatFloat(v, 'f', -1, 64))
+		case string:
+			if v != "" {
+				argv = append(argv, flag, v)
+			}
+		default:
+			argv = append(argv, flag, fmt.Sprint(v))
+		}
+	}
+	return argv
 }
 
 // PendingFromMap 从对话卡片里读回待确认；没有 id 时 ok=false。

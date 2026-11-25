@@ -78,14 +78,18 @@ func (a *App) resolve(m *Message, card plugin.Card, action string) {
 				}
 			case action == "cancel":
 				card["status"] = "cancelled"
+				a.afterBatchResolved(card, action, "")
 			default:
 				card["status"] = "confirmed"
+				jobID := ""
 				for _, c := range CardsFor(r) {
 					if c["type"] == "run" {
 						m.Cards = append(m.Cards, c)
 						a.onJobStarted(c)
+						jobID, _ = c["jobId"].(string)
 					}
 				}
+				a.afterBatchResolved(card, action, jobID)
 			}
 			a.save(t)
 		}
@@ -118,7 +122,12 @@ func (a *App) keyOnEmptyInput(key ui.Key) bool {
 
 func (a *App) confirmCard(c *ui.Context, m *Message, card plugin.Card) {
 	p, _ := pendingOf(card)
+	items := batchOf(card)
 	e, ok := a.reg.Explain(a, p)
+	if len(items) > 1 {
+		e, ok = plugin.Explained{Title: fmt.Sprintf("要做这 %d 件事", len(items)), Subtitle: "按顺序做，前一项没做完，后面的就不做了",
+			Cost: "会操作游戏"}, true
+	}
 	if !ok {
 		// 解读不了：只用 CLI 给的一句话，不显示命令名（11-25 review）
 		e = plugin.Explained{Title: p.Summary, Cost: "会操作游戏"}
@@ -162,6 +171,9 @@ func (a *App) confirmCard(c *ui.Context, m *Message, card plugin.Card) {
 			for gi, g := range e.Groups {
 				explainGroup(c, fmt.Sprintf("%s-g%d", p.ID, gi), g)
 			}
+			if len(items) > 1 {
+				a.batchItems(c, card, items)
+			}
 			ui.Box(c).Height(4)
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 				ui.Text(c, e.Cost).FontSize(kit.FNote).TextColor(kit.Ink3).Shrink(1)
@@ -170,7 +182,11 @@ func (a *App) confirmCard(c *ui.Context, m *Message, card plugin.Card) {
 					a.resolve(m, card, "cancel")
 				}
 				ui.Text(c, "Esc").FontSize(10.5).TextColor(kit.Ink3)
-				if kit.Primary(c, "开始").Key("confirm-" + p.ID).Disabled(busy).Clicked() {
+				start := "开始"
+				if len(items) > 1 {
+					start = "全部开始"
+				}
+				if kit.Primary(c, start).Key("confirm-" + p.ID).Disabled(busy).Clicked() {
 					a.resolve(m, card, "confirm")
 				}
 				ui.Text(c, "↵").FontSize(12).TextColor(kit.Ink3)

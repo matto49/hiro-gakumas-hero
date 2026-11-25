@@ -127,6 +127,9 @@ func (a *App) confirmLine(c *ui.Context, card plugin.Card) {
 	switch status {
 	case "confirmed":
 		text = "已开始「" + summary + "」· 你点了「开始」"
+		if n := len(batchOf(card)); n > 1 {
+			text = fmt.Sprintf("已开始「%s」等 %d 项 · 你点了「全部开始」", summary, n)
+		}
 	case "cancelled":
 		text = "已取消「" + summary + "」"
 	case "expired":

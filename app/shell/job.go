@@ -221,6 +221,7 @@ func (a *App) jobEnded(id, before string, v *plugin.JobView) {
 		a.ended = map[string]bool{}
 	}
 	a.ended[id] = true
+	a.continueBatch(id, v)
 	h := &jobHost{App: a, id: id}
 	for _, p := range a.reg.All() {
 		if p.OnJobEnd != nil {

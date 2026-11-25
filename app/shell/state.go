@@ -232,7 +232,7 @@ func (a *App) Send(text string) {
 				m := a.addTo(t, "agent", "", []plugin.Card{{"type": "error", "error": map[string]any{"code": "agent", "message": err.Error()}}})
 				m.Tools = tools
 			} else {
-				m := a.addTo(t, "agent", reply.Text, reply.Cards)
+				m := a.addTo(t, "agent", reply.Text, tidyCards(reply.Cards))
 				m.Tools = tools
 			}
 			a.save(t)

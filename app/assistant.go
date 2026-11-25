@@ -500,7 +500,7 @@ func (c CLIAgent) Ask(ctx context.Context, history []Turn, text string) (Reply, 
 		r := c.Hiro.Call(ctx, args)
 		switch {
 		case r.Pending != nil:
-			cards = append(cards, map[string]any{"type": "confirm", "pending": r.Pending, "status": "waiting"})
+			cards = append(cards, map[string]any{"type": "confirm", "pending": r.Pending.Map(), "status": "waiting"})
 		case !r.OK && r.Error != nil:
 			cards = append(cards, map[string]any{"type": "error", "error": r.Error})
 		}
