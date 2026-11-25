@@ -118,6 +118,18 @@ def tower_classify(img):
 
         if contest_page(screen_texts(img)):
             return PageHit("TOWER_CONTEST", "ocr")
+    if (
+        hit.name == "DIALOG"
+        and (f := hit.fields or {}).get("kind") == "produce_resume"
+        and "への道" in (f.get("title") or "")
+    ):
+        # D4b（11-26 04:07 实机）：日切换打断了挑战中的那一层，再进偶像之路弹「アイドルへの道再開」（リタイア / キャンセル / 再開する）。
+        # 只认「再開する」：通用弹窗交给 LLM 兜底时，见到リタイア / 破棄 不敢点，60s 停机
+        from hiro.vision.ocr import screen_texts
+
+        btn = next((t.rect for t in screen_texts(img) if t.text.strip() == "再開する" and t.rect.y1 > 1000), None)
+        if btn is not None:
+            return PageHit("TOWER_RESUME", "ocr", fields={"resume": ((btn.x1 + btn.x2) // 2, (btn.y1 + btn.y2) // 2)})
     return hit
 
 
@@ -602,6 +614,15 @@ class TowerPlay:
         logger.info("偶像之路：再挑戦（同じ編成で再挑戦 → OK）")
         return DONE
 
+    def on_resume(self, rt, f, hit):
+        """「アイドルへの道再開」：点「再開する」接着打挑战中的那一层（只点这个；リタイア 会破弃这一层，绝不点）。"""
+        if self._just_acted(rt, "TOWER_RESUME"):
+            return STAY
+        rt.device.tap(*hit.fields["resume"])
+        self._mark_acted(rt, "TOWER_RESUME")
+        logger.info("偶像之路：挑战中的关卡再開（点「再開する」）")
+        return DONE
+
     def handlers(self) -> dict:
         def reopen(fn):
             def h(rt, f, hit):
@@ -612,7 +633,8 @@ class TowerPlay:
 
         hs = {"home": self.on_home, "TOWER_CONTEST": self.on_contest, "TOWER_LIST": self.on_list, "TOWER_LAYERS": self.on_layers, "TOWER_LAYER_INFO": self.on_layer_info,
                 "TOWER_FORMATION": self.on_formation, "TOWER_MEMORY_SELECT": self.on_memory_select, "TOWER_EXAM": self.on_exam,
-                "TOWER_RANKING": self.on_ranking, "TOWER_RESULT": self.on_result, "TOWER_RETRY_CONFIRM": self.on_retry_confirm}  # fmt: skip
+                "TOWER_RANKING": self.on_ranking, "TOWER_RESULT": self.on_result, "TOWER_RETRY_CONFIRM": self.on_retry_confirm,
+                "TOWER_RESUME": self.on_resume}  # fmt: skip
 
         def track(page, fn):
             def h(rt, f, hit):

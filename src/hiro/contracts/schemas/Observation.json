@@ -121,9 +121,6 @@
   "screenshot",
   "source",
   "timings_ms",
-  "by",
-  "trust",
-  "hidden",
   "version"
  ],
  "additionalProperties": false,

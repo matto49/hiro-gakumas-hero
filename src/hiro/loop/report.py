@@ -139,8 +139,9 @@ def report(trace_dir: Path) -> dict:
             plug = json.loads(pj.read_text(encoding="utf-8"))
         except ValueError:
             plug = None
-    out["plugins"] = plug
-    out["uses_hidden"] = bool(plug and plug.get("uses_hidden"))
+    if plug is not None:  # 没装 / 没用插件时不多出这两个字段，报告和插件架构之前一样
+        out["plugins"] = plug
+        out["uses_hidden"] = bool(plug.get("uses_hidden"))
     return out
 
 

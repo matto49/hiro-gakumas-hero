@@ -461,3 +461,59 @@ def test_no_date_change_keeps_daily_counts(monkeypatch):
 
     tower_play.play_segment(SimpleNamespace(run=go), object(), tp)
     assert run.tries == {16: 3} and run.cleared == {15}
+
+
+def _resume_texts():
+    from types import SimpleNamespace
+
+    from hiro.vision.ocr import Box
+
+    rows = [("リタイア", (541, 853, 620, 873)), ("挑戦中のステージ情報があります。", (54, 932, 426, 962)),
+            ("ステージを再開しますか?", (56, 965, 340, 995)), ("✕キャンセル", (117, 1146, 311, 1176)), ("再開する", (467, 1148, 579, 1178))]  # fmt: skip
+    return [SimpleNamespace(text=t, rect=Box(*b)) for t, b in rows]
+
+
+def test_resume_dialog_after_date_change_is_tower_resume(monkeypatch):
+    """D4b（11-26 04:07 实机）：日切换打断了挑战中的那一层，回首页再进偶像之路弹「アイドルへの道再開」（リタイア / キャンセル / 再開する）。
+    认成 TOWER_RESUME，只点「再開する」；原来是通用弹窗、LLM 兜底见到リタイア不敢点，60s 停机。"""
+    from hiro.runtime import tower_play
+    from hiro.vision import classify as cls
+    from hiro.vision import ocr
+
+    monkeypatch.setattr(
+        cls,
+        "classify",
+        lambda img: cls.PageHit(
+            "DIALOG", "page_ocr", fields={"kind": "produce_resume", "title": "アイドルへの道再開リ"}
+        ),
+    )
+    monkeypatch.setattr(ocr, "screen_texts", lambda img: _resume_texts())
+    hit = tower_play.tower_classify(object())
+    assert hit.name == "TOWER_RESUME" and hit.fields["resume"] == (523, 1163)
+
+
+def test_produce_resume_dialog_of_other_mode_is_not_touched(monkeypatch):
+    from hiro.runtime import tower_play
+    from hiro.vision import classify as cls
+
+    monkeypatch.setattr(
+        cls,
+        "classify",
+        lambda img: cls.PageHit("DIALOG", "page_ocr", fields={"kind": "produce_resume", "title": "プロデュース再開"}),
+    )
+    assert tower_play.tower_classify(object()).name == "DIALOG"
+
+
+def test_resume_handler_taps_resume_only():
+    from types import SimpleNamespace
+
+    from hiro.runtime import tower_play
+
+    taps = []
+    rt = SimpleNamespace(
+        device=SimpleNamespace(tap=lambda x, y: taps.append((x, y))), sleep=lambda s: None, clock=lambda: 100.0
+    )
+    tp = tower_play.TowerPlay.__new__(tower_play.TowerPlay)
+    tp._acted = None
+    out = tp.on_resume(rt, None, SimpleNamespace(fields={"resume": (523, 1163)}))
+    assert taps == [(523, 1163)] and out.kind == "done"
