@@ -1,6 +1,10 @@
 package shell
 
-import "github.com/matto49/hiro-gakumas-hero/app/plugin"
+import (
+	"strings"
+
+	"github.com/matto49/hiro-gakumas-hero/app/plugin"
+)
 
 // 操作权限（11-25 review，参考 dsh 的权限范围）：确认卡按用户选的档位决定要不要等用户点。
 // 待确认里的 access 是 CLI 算的操作类别：read 只看画面；daily 领日常；blank 写空白编成位；
@@ -69,10 +73,11 @@ func (a *App) autoStart(m *Message, card plugin.Card) {
 }
 
 // firstScanKinds 是第一次用时要扫的库存（info summary 的类别 → run start 的种类）。
-var firstScanKinds = [][2]string{{"supports", "scan-supports"}, {"memories", "scan-memories"}, {"idols", "scan-idols"}}
+// 一键全收集的 5 步（顺序同 hiro.collect_all.STEPS）；首次进入只做信息库里从没扫过的（设计 5.7）
+var collectKinds = []string{"account", "idols", "supports", "memories", "formations"}
 
-// FirstScan（R11，11-25 review「首次进入的话，自动执行就好了」）：向导走完时，信息库里从没扫过的支援卡 / 回忆 / 偶像卡
-// 由初星助手自己发起扫描，合成一张卡按顺序做；扫描是读操作，缺省权限下不用确认（「总是询问」时照样等用户点）。
+// FirstScan（R11，11-25 review「首次进入的话，自动执行就好了」）：向导走完时，信息库里从没扫过的种类
+// 由初星助手自己发起一次一键全收集（collect-all --only，设计 5.7），扫过的不重扫；扫描是读操作，缺省权限下不用确认（「总是询问」时照样等用户点）。
 func (a *App) FirstScan() {
 	call := a.d.Call
 	a.d.Run.Go(func() func() {
@@ -90,17 +95,21 @@ func (a *App) FirstScan() {
 			}
 		}
 		var cards, errs []plugin.Card
-		for _, k := range firstScanKinds {
-			if v, ok := sum.Kinds[k[0]]; ok && v.ScannedAt != nil && *v.ScannedAt != "" {
+		var missing []string
+		for _, k := range collectKinds {
+			if v, ok := sum.Kinds[k]; ok && v.ScannedAt != nil && *v.ScannedAt != "" {
 				continue
 			}
-			r := call(a.ctx, []string{"run", "start", k[1]})
+			missing = append(missing, k)
+		}
+		if len(missing) > 0 {
+			r := call(a.ctx, []string{"run", "start", "collect-all", "--only", strings.Join(missing, ",")})
 			switch {
 			case r.Pending != nil:
 				cards = append(cards, ConfirmCard(*r.Pending))
 			case r.Error != nil:
 				errs = append(errs, plugin.Card{"type": "error", "error": map[string]any{"code": r.Error.Code,
-					"message": "没能开始扫描（" + k[1] + "）：" + r.Error.Message, "hint": r.Error.Hint}})
+					"message": "没能开始一键全收集：" + r.Error.Message, "hint": r.Error.Hint}})
 			}
 		}
 		cards = append(tidyCards(cards), errs...)
@@ -109,7 +118,7 @@ func (a *App) FirstScan() {
 		}
 		return func() {
 			t := a.ensureThread()
-			a.addTo(t, "agent", "第一次用：先扫一遍你的支援卡、回忆和偶像卡（只看画面，不改东西），出编成方案时才知道你有什么。", cards)
+			a.addTo(t, "agent", "第一次用：先把你的首页数值、偶像卡、支援卡、回忆和编成扫一遍（只看画面，不改东西），出编成方案时才知道你有什么。", cards)
 			a.save(t)
 		}
 	})

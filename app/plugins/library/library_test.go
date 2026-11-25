@@ -145,3 +145,15 @@ func TestChoiceCardWaitsForNames(t *testing.T) {
 		t.Errorf("卡名没查到不该能选：asked=%v", h.Asked)
 	}
 }
+
+// 设计 5.7：扫描页顶部「一键全收集」发起 collect-all（同样走确认卡）
+func TestScanPanelCollectAll(t *testing.T) {
+	h, p := host(), New()
+	tt := ui.NewTester(plugintest.PanelView(func(c *ui.Context) { p.Panel(c, h, "scan") }), 520, 700)
+	if err := plugintest.ClickButton(tt, "一键全收集"); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.RunArgs_) != 1 || strings.Join(h.RunArgs_[0][1:], " ") != "run start collect-all" {
+		t.Errorf("一键全收集：%v", h.RunArgs_)
+	}
+}

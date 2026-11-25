@@ -35,6 +35,7 @@ PARAMS = (
     "final_rank",
     "plugins",
     "sources",
+    "only",
 )
 
 
@@ -201,7 +202,7 @@ def run_access(a: dict) -> str:
     kind = a["kind"]
     if a.get("command") == "resume" or kind in EXAM_KINDS or kind == "main-task":
         return "all"
-    if kind.startswith("scan-") or kind in ("check-settings", "selftest"):
+    if kind.startswith("scan-") or kind in ("check-settings", "selftest", "collect-all"):
         return "read"
     if kind == "daily":
         return "daily"
@@ -332,6 +333,7 @@ def _first_reason(out: str) -> str:
         Arg("--no-llm", "决策只用规则和算法，不调用模型", type="bool"),
         Arg("--scenario", "write-formation：写哪个模式的编成", choices=("hif", "hajime", "nia")),
         Arg("--what", "write-formation：写哪些（support / memory，逗号分隔，缺省都写）"),
+        Arg("--only", "collect-all：只做这几步（account,idols,supports,memories,formations，逗号分隔；缺省全做）"),
         Arg("--dry-run", "write-formation：只看差在哪几格，不改；contest-unit：只读总合力，不重排", type="bool"),
         Arg(
             "--plugins",

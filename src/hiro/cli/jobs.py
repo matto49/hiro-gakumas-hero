@@ -348,6 +348,23 @@ KINDS: dict[str, Kind] = {
         output="account",
         pausable=False,
     ),
+    "collect-all": Kind(
+        "collect-all",
+        "一键全收集（只读）：首页数值 → 偶像卡 → 支援卡 → 回忆（12 片全读）→ 编成，每步跑完就入库；--only 只做其中几步",
+        lambda p, d: [
+            _PY,
+            "-m",
+            "hiro.collect_all",
+            "--dir",
+            str(d),
+            *(["--only", p["only"]] if p.get("only") else []),
+        ],
+        lambda p: (
+            "一键全收集：首页数值 → 偶像卡 → 支援卡 → 回忆（12 片全读）→ 编成（只读，不改编成）"
+            + (f"（只做 {p['only']}）" if p.get("only") else "")
+        ),
+        pausable=False,
+    ),
     "scan-idols": Kind(
         "scan-idols",
         "扫描偶像卡（只读：偶像一览里逐张点开读卡名，最后点「<<」退出，不点決定）",
