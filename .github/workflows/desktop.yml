@@ -92,6 +92,11 @@ jobs:
           cd dist
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
+          # 带「-」的版本号（desktop-v0.1.1-rc.1）是候选包：标预发布、不占 Latest；正式版才设成 Latest
+          case "${TAG#desktop-v}" in
+            *-*) flags=(--prerelease --latest=false) ;;
+            *) flags=(--latest) ;;
+          esac
           gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" --latest --title "初星助手 ${TAG#desktop-v}（桌面程序）" --notes "见 docs/code-signing-policy.md 和 README 的「桌面程序」一节。"
+            || gh release create "$TAG" -R "$GITHUB_REPOSITORY" "${flags[@]}" --title "初星助手 ${TAG#desktop-v}（桌面程序）" --notes "见 docs/code-signing-policy.md 和 README 的「桌面程序」一节。"
           gh release upload "$TAG" -R "$GITHUB_REPOSITORY" --clobber *
