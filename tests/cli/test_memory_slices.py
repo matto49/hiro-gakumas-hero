@@ -67,3 +67,26 @@ def test_slices_are_per_account(st):
     st.save_slice("sense:hif", [_e("a")], mode="full", complete=True)
     st.switch_account("B")
     assert st.slice_entries("sense:hif") == [] and st.slice_coverage() == {}
+
+
+def test_info_memories_reports_slice_coverage(st, monkeypatch):
+    """设计 5.8：回忆信息里带片覆盖：12 片里全读过几片、最旧的扫描时间、有没有没扫完的（待补）。"""
+    from hiro.cli import cmd_info
+
+    monkeypatch.setattr(cmd_info, "open_store", lambda: st)
+    st.save_snapshot("memories", [{"card": "old"}], "scan:old", complete=True, raw={"entries": [_e("old")]})
+    st.save_slice("sense:hif", [_e("a")], mode="full", complete=True, scanned_at="2026-11-26 05:00:00")
+    st.save_slice("logic:hif", [_e("b")], mode="full", complete=False, scanned_at="2026-11-26 04:00:00")
+    out = cmd_info._memories({"timing": None, "card": None})
+    assert out["slices"] == {"done": 1, "total": 12, "oldest": "2026-11-26 04:00:00", "pending": ["logic:hif"]}
+    assert [r["card"] for r in out["items"]] == ["old"]  # 12 片没齐：列表照旧是整表快照
+
+
+def test_info_memories_lists_slice_data_when_all_twelve_read(st, monkeypatch):
+    from hiro.cli import cmd_info
+
+    monkeypatch.setattr(cmd_info, "open_store", lambda: st)
+    for k in msl.SLICES:
+        st.save_slice(k, [_e(k)], mode="full", complete=True)
+    out = cmd_info._memories({"timing": None, "card": None})
+    assert out["total"] == 12 and out["source"] == "slices" and out["slices"]["done"] == 12

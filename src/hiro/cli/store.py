@@ -220,6 +220,18 @@ class Store:
                        "context": json.loads(ctx or "{}"), "read": read, "added": added, "count": count}  # fmt: skip
         return out
 
+    def slice_summary(self) -> dict:
+        """片覆盖摘要（资料库界面用，设计 5.8）：12 片里完整全读过几片、最旧的一次扫描时间、最近一次没扫完的片（待补）。"""
+        from hiro.state.memory_slices import SLICES
+
+        cov = self.slice_coverage()
+        return {
+            "done": sum(1 for k in SLICES if (cov.get(k) or {}).get("full_at")),
+            "total": len(SLICES),
+            "oldest": min((v["scanned_at"] for v in cov.values()), default=None),
+            "pending": sorted(k for k, v in cov.items() if not v["complete"]),
+        }
+
     def memories_for_plan(self, plan: str | None) -> dict | None:
         """出编成方案用的回忆库存（扫描原始格式 {entries, complete, scanned_at, source}）。
         D16：这局要的片（slices_for_plan）都完整全读过，就用片数据合并（每条带 slice）；否则整套用旧的整表扫描快照，不混用。"""

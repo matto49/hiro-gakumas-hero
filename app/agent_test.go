@@ -34,6 +34,7 @@ func recordingHiro(t *testing.T) (*Hiro, func() []string) {
 echo "$*" >> "` + log + `"
 case "$1 $2" in
   "info supports") echo '{"ok":true,"data":{"kind":"supports","scanned_at":"2026-11-16 18:00:00","items":[{"name":"さみだれ","rarity":"SSR","attr":"Vi"}]}}' ;;
+  "info memories") echo '{"ok":true,"data":{"kind":"memories","scanned_at":"2026-11-26 05:00:00","items":[{"card":"魅惑の視線"}],"slices":{"done":3,"total":12,"oldest":"2026-11-26 04:00:00","pending":[]}}}' ;;
   "run start") echo '{"ok":true,"data":{"pending":{"id":"p1","command":"run start","summary":"领日常奖励","expires_at":1}}}'; exit 3 ;;
   *) echo '{"ok":false,"error":{"code":"unknown_command","message":"?"}}'; exit 2 ;;
 esac
@@ -315,5 +316,26 @@ func TestCLIChoiceLineBecomesCard(t *testing.T) {
 	}
 	if opts, _ := cards[0]["options"].([]any); len(opts) != 2 {
 		t.Errorf("options %v", cards[0]["options"])
+	}
+}
+
+// 设计 5.8：回忆信息卡带上片覆盖
+func TestMemoryInfoCardCarriesSliceCoverage(t *testing.T) {
+	h, _ := recordingHiro(t)
+	srv, _ := fakeLLM(t,
+		`{"role":"assistant","content":"","tool_calls":[{"id":"c1","type":"function","function":{"name":"info_memories","arguments":"{}"}}]}`,
+		`{"role":"assistant","content":"你有 1 份"}`)
+	a := newTestAgent(h, srv.URL)
+	a.Tools = append(append([]ToolSpec{}, testTools...), ToolSpec{Name: "info memories", ToolName: "info_memories", Risk: "read", Help: "回忆", Agent: true})
+	r, err := a.Ask(context.Background(), nil, "我有哪些回忆")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Cards) != 1 {
+		t.Fatalf("cards %v", r.Cards)
+	}
+	sl, _ := r.Cards[0]["slices"].(map[string]any)
+	if sl == nil || sl["done"] != 3.0 {
+		t.Errorf("没带片覆盖：%v", r.Cards[0])
 	}
 }

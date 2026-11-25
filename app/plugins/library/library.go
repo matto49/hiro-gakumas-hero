@@ -25,6 +25,27 @@ type listing struct {
 	ScannedAt *string          `json:"scanned_at"`
 	Items     []map[string]any `json:"items"`
 	Hint      string           `json:"hint"`
+	Slices    map[string]any   `json:"slices"` // 回忆的片覆盖（info memories，设计 5.8）
+}
+
+// sliceLine：回忆按片扫描的覆盖情况一句话（设计 5.8）；没有片数据时空串。
+func sliceLine(sl map[string]any) string {
+	if sl == nil {
+		return ""
+	}
+	done, _ := sl["done"].(float64)
+	total, _ := sl["total"].(float64)
+	if total == 0 {
+		return ""
+	}
+	out := fmt.Sprintf("按片：%d 片里全读过 %d 片", int(total), int(done))
+	if o, _ := sl["oldest"].(string); o != "" {
+		out += " · 最旧 " + shortDate(o)
+	}
+	if p, _ := sl["pending"].([]any); len(p) > 0 {
+		out += fmt.Sprintf(" · 待补 %d 片", len(p))
+	}
+	return out
 }
 
 type state struct {
@@ -108,6 +129,9 @@ func (s *state) infoCard(c *ui.Context, h plugin.Host, card plugin.Card) {
 			ui.Spacer(c)
 			ui.Text(c, "资料库").FontSize(11).TextColor(kit.Ink3)
 		})
+		if sl, _ := card["slices"].(map[string]any); sliceLine(sl) != "" {
+			kit.Note(c, sliceLine(sl))
+		}
 		if len(items) == 0 {
 			kit.Note(c, or(hint, "没有符合的"))
 			return
@@ -434,6 +458,9 @@ func (s *state) listPanel(c *ui.Context, h plugin.Host, kind string) {
 	if l == nil {
 		return
 	}
+	if line := sliceLine(l.Slices); line != "" {
+		kit.Note(c, line)
+	}
 	if len(l.Items) == 0 {
 		kit.Note(c, or(l.Hint, "还没扫描过；到「扫描」里扫一次。"))
 		return
@@ -449,7 +476,7 @@ func (s *state) listPanel(c *ui.Context, h plugin.Host, kind string) {
 
 var scans = [][3]string{
 	{"scan-supports", "扫描支援卡", "翻一遍支援卡列表，记下等级和突破。"},
-	{"scan-memories", "扫描回忆", "翻一遍回忆列表，记下技能卡、参数和能力。"},
+	{"scan-memories", "补扫新回忆", "按流派 × 模式分 12 片，从最新的读起，碰到扫过的就停；第一次扫的片会全读。"},
 	{"scan-idols", "扫描偶像卡", "记下持有的偶像卡。"},
 	{"scan-account", "读首页数值", "PLv、AP、ジュエル。"},
 	{"check-settings", "检查游戏设置", "快进、跳过演出那几项开没开。"},

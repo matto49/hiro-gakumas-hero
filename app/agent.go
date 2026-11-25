@@ -460,10 +460,15 @@ func (a *Agent) runTool(ctx context.Context, byName map[string]ToolSpec, c toolC
 			Items     []map[string]any `json:"items"`
 			ScannedAt *string          `json:"scanned_at"`
 			Hint      string           `json:"hint"`
+			Slices    map[string]any   `json:"slices"` // 回忆的片覆盖（设计 5.8）
 		}
 		if json.Unmarshal(r.Data, &d) == nil && len(d.Items) > 0 {
-			return content, map[string]any{"type": "info", "title": infoTitles[t.Name], "kind": strings.ReplaceAll(strings.TrimPrefix(t.Name, "info "), "-", "_"),
-				"items": d.Items, "scannedAt": d.ScannedAt, "hint": d.Hint}, nil
+			card := map[string]any{"type": "info", "title": infoTitles[t.Name], "kind": strings.ReplaceAll(strings.TrimPrefix(t.Name, "info "), "-", "_"),
+				"items": d.Items, "scannedAt": d.ScannedAt, "hint": d.Hint}
+			if d.Slices != nil {
+				card["slices"] = d.Slices
+			}
+			return content, card, nil
 		}
 	}
 	return content, nil, nil

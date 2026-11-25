@@ -234,7 +234,17 @@ def _supports(a: dict) -> dict:
     args=(Arg("--timing", "获得时机", choices=("start", "mid", "final")), Arg("--card", "回忆技能卡名字包含这几个字")),
 )
 def _memories(a: dict) -> dict:
-    return _listing("memories", lambda r: _match(r.get("timing"), a["timing"]) and _contains(r.get("card"), a["card"]))
+    keep = lambda r: _match(r.get("timing"), a["timing"]) and _contains(r.get("card"), a["card"])  # noqa: E731
+    st = open_store()
+    summary = st.slice_summary()
+    if summary["done"] == summary["total"]:  # 12 片都完整全读过：列表用片数据（D16：不和旧整表混用）
+        inv = st.memories_for_plan(None) or {}
+        items = [r for r in normalize_memories(inv) if keep(r)]
+        out = {"kind": "memories", "scanned_at": inv.get("scanned_at"), "complete": True, "source": "slices",
+               "total": len(inv.get("entries") or []), "counts": counts(items), "items": items}  # fmt: skip
+    else:
+        out = _listing("memories", keep)
+    return {**out, "slices": summary}
 
 
 @command(

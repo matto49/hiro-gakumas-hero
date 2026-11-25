@@ -157,3 +157,23 @@ func TestScanPanelCollectAll(t *testing.T) {
 		t.Errorf("一键全收集：%v", h.RunArgs_)
 	}
 }
+
+// 设计 5.8：回忆信息卡带片覆盖（12 片里全读过几片、最旧哪天、有没有待补）
+func TestMemoryInfoCardShowsSliceCoverage(t *testing.T) {
+	tt := cardView(t, plugin.Card{"type": "info", "kind": "memories", "items": []any{map[string]any{"card": "魅惑の視線", "timing": "mid"}},
+		"slices": map[string]any{"done": 3.0, "total": 12.0, "oldest": "2026-11-26 04:00:00", "pending": []any{"logic:hif"}}})
+	if !tt.HasText("按片：12 片里全读过 3 片 · 最旧 11-26 · 待补 1 片") {
+		t.Errorf("回忆片覆盖：%q", tt.Texts())
+	}
+}
+
+func TestScanPanelMemoryButtonIsIncremental(t *testing.T) {
+	h, p := host(), New()
+	tt := ui.NewTester(plugintest.PanelView(func(c *ui.Context) { p.Panel(c, h, "scan") }), 520, 800)
+	if err := plugintest.ClickButton(tt, "补扫新回忆"); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.RunArgs_) != 1 || strings.Join(h.RunArgs_[0][1:], " ") != "run start scan-memories" {
+		t.Errorf("补扫新回忆：%v", h.RunArgs_)
+	}
+}
