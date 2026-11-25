@@ -3,6 +3,7 @@ package start
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -65,8 +66,6 @@ type state struct {
 	idol    idol
 	idols   []idol
 	loaded  bool
-	plan    *planBrief
-	planAt  time.Time
 
 	recent        []plugin.Job
 	recentAt      time.Time
@@ -194,19 +193,22 @@ func New() *plugin.Plugin {
 
 // ---- 确认卡解读 ----
 
-func (s *state) planFor(h plugin.Host) *planBrief {
-	if s.plan != nil && h.Now().Sub(s.planAt) < time.Minute {
-		return s.plan
+// planOf 是待确认里固定的编成方案摘要（CLI 出待确认时存的快照）。确认卡只看这一份：
+// 原来每分钟去读一次 plan show，方案期间重新出过，卡上和 confirm 时实际写进游戏的就不一样了（PR #79 CodeRabbit）。
+// 没有快照（旧 CLI 出的待确认、或这个任务不读方案）时返回 nil。
+func planOf(p hiroapi.Pending) *planBrief {
+	if len(p.Plan) == 0 {
+		return nil
 	}
-	s.planAt = h.Now()
-	h.Go(func() func() {
-		var p planBrief
-		if h.Call(context.Background(), []string{"plan", "show"}).Decode(&p) != nil {
-			return nil
-		}
-		return func() { s.plan = &p }
-	})
-	return s.plan
+	raw, err := json.Marshal(p.Plan)
+	if err != nil {
+		return nil
+	}
+	var pl planBrief
+	if json.Unmarshal(raw, &pl) != nil {
+		return nil
+	}
+	return &pl
 }
 
 // 代价行：会操作游戏，再加一句这件事会动到什么（11-25 review：非培育任务也写成「用掉 1 次培育」）。
@@ -249,7 +251,7 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 		if sc := r.Flags["scenario"]; sc != "" {
 			e.Subtitle = modeName(sc) + " 的编成"
 		}
-		if pl := s.planFor(h); pl != nil {
+		if pl := planOf(p); pl != nil {
 			e.Groups = pl.groups(h, cat)
 		}
 		return e, true
@@ -290,7 +292,7 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 		case r.Flags["support-set"] != "" || r.Flags["memory-set"] != "":
 			e.Rows = append(e.Rows, [2]string{"编成", fmt.Sprintf("游戏里的支援卡 %s 号、回忆 %s 号", or(r.Flags["support-set"], "当前"), or(r.Flags["memory-set"], "当前"))})
 		default:
-			if pl := s.planFor(h); pl != nil && pl.Support.Set != nil {
+			if pl := planOf(p); pl != nil && pl.Support.Set != nil {
 				e.Rows = append(e.Rows, [2]string{"编成", fmt.Sprintf("沿用编成方案（支援卡 %d 号、回忆 %s 号）", *pl.Support.Set, intOr(pl.Memory.Set))})
 				e.Groups = pl.groups(h, cat)
 			} else {

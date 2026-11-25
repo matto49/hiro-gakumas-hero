@@ -2,6 +2,7 @@ package start
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -11,6 +12,18 @@ import (
 	"github.com/matto49/hiro-gakumas-hero/app/plugins/plugintest"
 )
 
+// planSnap 是待确认里固定的那份编成方案摘要（CLI 出待确认时存的 plan 字段）
+func planSnap(t *testing.T, raw string) map[string]any {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+const planJSON = `{"idol":{"name":"月村手毬"},"support":{"set":2,"own":[{"id":"s_card-2-0001","name":"A","level":60},{"id":"s_card-3-0012","name":"B","level":55},{"id":"s_card-3-0013","name":"C","level":50},{"id":"s_card-3-0014","name":"D","level":50},{"id":"s_card-3-0015","name":"E","level":45}],"rental":{"id":"s_card-3-0000","name":"租来的","estimated":true}},"memory":{"set":1,"chosen":[{"card_id":"p_card-01-act-2_001","name":"成長痛","timing":"mid","upgrade":0},{"name":"仕切り直し","timing":"mid","upgrade":1},{"name":"輝くキミへ","timing":"mid","upgrade":1},{"name":"アイドル宣言","timing":"mid","upgrade":0}]},"notes":[]}`
+
 func host() *plugintest.Host {
 	return plugintest.New(map[string]string{
 		"catalog lookup": `{"items":{"i_card-skin-ttmr-3-0012":{"kind":"idols","name":"【Luna say maybe】月村手毬","rarity":"SSR","asset":"idol-i_card-ttmr-3-0012","attr":"Vo"},` +
@@ -18,9 +31,7 @@ func host() *plugintest.Host {
 			`"s_card-3-0000":{"kind":"supports","name":"租借乙","rarity":"SSR","text":"体力回复 +5"},` +
 			`"p_card-01-act-2_001":{"kind":"memories","name":"成长痛","rarity":"SR","asset":"card-p_card-01-act-2_001","text":"好调 +2 回合"}}}`,
 		"catalog sprite": `{"path":"/tmp/none.webp"}`,
-		"plan show": `{"idol":{"name":"月村手毬"},"support":{"set":2,"own":[{"id":"s_card-2-0001","name":"A","level":60},{"id":"s_card-3-0012","name":"B","level":55},{"id":"s_card-3-0013","name":"C","level":50},{"id":"s_card-3-0014","name":"D","level":50},{"id":"s_card-3-0015","name":"E","level":45}],"rental":{"id":"s_card-3-0000","name":"租来的","estimated":true}},` +
-			`"memory":{"set":1,"chosen":[{"card_id":"p_card-01-act-2_001","name":"成長痛","timing":"mid","upgrade":0},{"name":"仕切り直し","timing":"mid","upgrade":1},{"name":"輝くキミへ","timing":"mid","upgrade":1},{"name":"アイドル宣言","timing":"mid","upgrade":0}]},"notes":[]}`,
-		"info idols": `{"items":[{"id":"i_card-skin-ttmr-3-0012","name":"【Luna say maybe】月村手毬","rarity":"SSR"},{"id":"i_card-skin-hski-3-0001","name":"篠澤広","rarity":"SSR"}]}`,
+		"info idols":     `{"items":[{"id":"i_card-skin-ttmr-3-0012","name":"【Luna say maybe】月村手毬","rarity":"SSR"},{"id":"i_card-skin-hski-3-0001","name":"篠澤広","rarity":"SSR"}]}`,
 		"run status": `{"current":null,"recent":[
 			{"id":"j1","kind":"hajime","state":"done","summary":"初","started_at":1763900000,"params":{"idol":"i_card-skin-ttmr-3-0012"}},
 			{"id":"j2","kind":"hajime","state":"done","summary":"初","started_at":1763910000,"params":{"idol":"i_card-skin-ttmr-3-0012"}},
@@ -32,8 +43,9 @@ func TestExplainHajime(t *testing.T) {
 	h := host()
 	p := New()
 	// 第一次问：资料库在后台查（假宿主同步完成），第二次就有名字
-	p.Explain(h, hiroapi.Pending{Command: "hiro run start hajime --idol i_card-skin-ttmr-3-0012", Summary: "初"})
-	e, ok := p.Explain(h, hiroapi.Pending{Command: "hiro run start hajime --idol i_card-skin-ttmr-3-0012", Summary: "初"})
+	pd := hiroapi.Pending{Command: "hiro run start hajime --idol i_card-skin-ttmr-3-0012", Summary: "初", Plan: planSnap(t, planJSON)}
+	p.Explain(h, pd)
+	e, ok := p.Explain(h, pd)
 	if !ok {
 		t.Fatal("认不出 run start")
 	}
@@ -179,11 +191,37 @@ func TestStartersWithoutHistoryOpenPanel(t *testing.T) {
 
 func okResult(s string) hiroapi.Result { return hiroapi.Result{OK: true, Data: []byte(s)} }
 
+// 确认卡上的编成方案只看待确认里固定的那份，不再另外去读 plan show（PR #79 CodeRabbit：缓存 1 分钟，方案改了卡上还是旧的）
+func TestExplainUsesPendingPlanSnapshot(t *testing.T) {
+	h, p := host(), New()
+	pd := hiroapi.Pending{Command: "run start", Plan: planSnap(t, planJSON),
+		Args: map[string]any{"kind": "write-formation", "scenario": "hajime"}}
+	e, ok := p.Explain(h, pd)
+	if !ok || len(e.Groups) != 2 || len(e.Groups[0].Items) != 6 || e.Groups[1].Items[0].Name != "成长痛" {
+		t.Fatalf("写编成卡的方案分组 %+v", e.Groups)
+	}
+	// 方案换了（待确认里是另一份）：卡跟着待确认走，同一个 Plugin 连问两次也不串
+	other := planSnap(t, `{"idol":{"name":"月村手毬"},"support":{"set":9,"own":[],"rental":null},"memory":{"set":8,"chosen":[{"name":"新回忆","timing":"mid","upgrade":0}]}}`)
+	pd2 := hiroapi.Pending{Command: "run start", Plan: other, Args: map[string]any{"kind": "hajime", "idol": "i_card-skin-ttmr-3-0012"}}
+	e2, _ := p.Explain(h, pd2)
+	if len(e2.Groups) != 1 || e2.Groups[0].Items[0].Name != "新回忆" || !strings.Contains(e2.Rows[0][1], "支援卡 9 号、回忆 8 号") {
+		t.Errorf("第二张卡 %+v %+v", e2.Rows, e2.Groups)
+	}
+	if h.Called("plan show") {
+		t.Error("不该再调 plan show")
+	}
+	// 没有快照（旧 CLI 出的待确认）：不画方案，也不去读
+	e3, _ := p.Explain(h, hiroapi.Pending{Command: "run start", Args: map[string]any{"kind": "write-formation"}})
+	if len(e3.Groups) != 0 || h.Called("plan show") {
+		t.Errorf("没快照 %+v", e3.Groups)
+	}
+}
+
 // 11-25 review：「租借在卡的最后打一个 tag，前面还是要图标；回忆也要图标，hover 展示详细信息」
 func TestExplainItemsHaveIconsAndTips(t *testing.T) {
 	h := host()
 	p := New()
-	pend := hiroapi.Pending{Command: "hiro run start hajime --idol i_card-skin-ttmr-3-0012", Summary: "初"}
+	pend := hiroapi.Pending{Command: "hiro run start hajime --idol i_card-skin-ttmr-3-0012", Summary: "初", Plan: planSnap(t, planJSON)}
 	p.Explain(h, pend)
 	e, _ := p.Explain(h, pend)
 	sup, mem := e.Groups[0].Items, e.Groups[1].Items

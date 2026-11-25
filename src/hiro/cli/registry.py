@@ -73,6 +73,9 @@ class Command:
     precheck: Callable[[dict], None] | None = None  # ACT 命令：出待确认之前先查（明显做不了就直接报错，不让用户白确认）
     # ACT 命令：操作类别（read / daily / blank / write / overwrite / all），界面按权限档决定要不要确认
     access: Callable[[dict], str] | None = None
+    # ACT 命令：出待确认时把「卡上要给用户看、执行时又要读」的东西固定一份快照，返回 {"digest": 内容哈希, "label": 名字,
+    # "plan": 给界面画的摘要}（不需要快照返回 None）。confirm 时重算一次，哈希变了就不执行（PR #79 CodeRabbit：确认卡方案快照）
+    snapshot: Callable[[dict], dict | None] | None = None
     stdin: bool = False  # 从 stdin 读值（密码）；agent 不能调用
     agent: bool = True  # 是否给内置 agent 当工具
     extra: dict = field(default_factory=dict)

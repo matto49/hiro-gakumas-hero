@@ -25,6 +25,9 @@ type Pending struct {
 	Access    string         `json:"access,omitempty"` // 操作类别（read / daily / blank / write / overwrite / all），按权限档决定要不要确认
 	Summary   string         `json:"summary"`
 	ExpiresAt float64        `json:"expires_at"`
+	// Plan 是出待确认时 CLI 固定下来的编成方案摘要（写编成 / 开局会读方案的任务才有）：确认卡按它画，
+	// confirm 时 CLI 核对方案文件没变才执行（PR #79 CodeRabbit：确认卡方案快照）。
+	Plan map[string]any `json:"plan,omitempty"`
 }
 
 // Map 是存进对话卡片（JSON）里的样子。
@@ -35,6 +38,9 @@ func (p Pending) Map() map[string]any {
 	}
 	if p.Access != "" {
 		m["access"] = p.Access
+	}
+	if len(p.Plan) > 0 {
+		m["plan"] = p.Plan
 	}
 	return m
 }
@@ -85,6 +91,7 @@ func PendingFromMap(m map[string]any) (Pending, bool) {
 	p.Summary, _ = m["summary"].(string)
 	p.Args, _ = m["args"].(map[string]any)
 	p.Access, _ = m["access"].(string)
+	p.Plan, _ = m["plan"].(map[string]any)
 	switch v := m["expires_at"].(type) {
 	case float64:
 		p.ExpiresAt = v

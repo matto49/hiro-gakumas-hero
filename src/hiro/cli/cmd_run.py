@@ -255,6 +255,53 @@ def _check_plan_sets(plan: dict, what, idol: str = "", kind: str = "", lead: str
     )
 
 
+def _plan_file_used(a: dict) -> Path | None:
+    """这个任务要读的开局编成方案文件；任务不读方案（不是开局 / 写编成，或两样编成号都指定了）时返回 None。"""
+    from hiro.cli import paths
+    from hiro.cli.home import hiro_home
+
+    if a["kind"] == "write-formation":
+        return paths.plan_path(hiro_home())
+    if a["kind"] not in FORMATION_KINDS or (a.get("command") or "new") != "new":
+        return None
+    if a["kind"] == "hif" and (a.get("mode") or "qualify") == "main":
+        return None
+    if (a.get("support_set") or os.environ.get("HIRO_SUPPORT_SET")) and (
+        a.get("memory_set") or os.environ.get("HIRO_MEMORY_SET")
+    ):
+        return None
+    env_plan = os.environ.get("HIRO_FORMATION_PLAN")
+    if env_plan == "off":
+        return None
+    return Path(env_plan) if env_plan else paths.plan_path(hiro_home())
+
+
+def plan_snapshot(a: dict) -> dict | None:
+    """出待确认时固定一份编成方案：内容哈希（confirm 时核对）+ 摘要（确认卡按它画）。
+    确认卡原来每分钟读一次 `plan show`、执行时任务又读方案文件，期间方案被重新出过就会卡上和实际写的不一致（PR #79 CodeRabbit）。
+    方案文件不存在时也算一份快照（哈希为空）：确认时它出现了或没了都能察觉。"""
+    import hashlib
+
+    from hiro.cli.cmd_plan import summarize
+
+    path = _plan_file_used(a)
+    if path is None:
+        return None
+    try:
+        raw = path.read_bytes()
+    except OSError:
+        return {"digest": "", "label": "编成方案", "plan": None}
+    try:
+        plan = json.loads(raw.decode("utf-8"))
+    except ValueError:
+        plan = None
+    return {
+        "digest": hashlib.sha256(raw).hexdigest(),
+        "label": "编成方案",
+        "plan": summarize(plan) if isinstance(plan, dict) else None,
+    }
+
+
 EXAM_KINDS = ("hif", "hajime", "nia", "tower")  # 有考试、出牌靠算法的任务
 
 
@@ -405,6 +452,7 @@ def _first_reason(out: str) -> str:
     confirm_summary=_summary,
     precheck=_precheck,
     access=run_access,
+    snapshot=plan_snapshot,
 )
 def _start(a: dict) -> dict:
     # 对局用哪个模型：跟着发起开局的这个进程的环境（桌面程序按模型设置传；终端里就是自己 shell 的 HIRO_LLM）
