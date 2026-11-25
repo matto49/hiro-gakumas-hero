@@ -575,9 +575,10 @@ func (s *S) saveAndTest(h plugin.Host, advance bool) {
 	})
 }
 
-// formKey 是模型表单现在的样子（服务商、模型、地址），用来判断测试结果是不是这一份的。
+// formKey 是模型表单现在的样子（服务商、模型、地址、输入框里没保存的 Key），用来判断测试结果是不是这一份的。
+// 保存时 Key 输入框会清空：测试期间又粘了 Key，这里就和开始测时不一样（CodeRabbit #105）。只在内存里比，不落盘。
 func (s *S) formKey() string {
-	return s.provider + "\x00" + strings.TrimSpace(s.model) + "\x00" + strings.TrimSpace(s.baseURL)
+	return s.provider + "\x00" + strings.TrimSpace(s.model) + "\x00" + strings.TrimSpace(s.baseURL) + "\x00" + strings.TrimSpace(s.key)
 }
 
 func (s *S) saveModel() {

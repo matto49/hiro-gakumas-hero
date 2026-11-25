@@ -257,3 +257,25 @@ func TestWizardModelNoAdvanceIfFormChangedDuringTest(t *testing.T) {
 		t.Errorf("表单改过就不该自动前进，现在第 %d 步", s.step)
 	}
 }
+
+// CodeRabbit #105：测试期间又粘了新 Key，旧 Key 测通也不自动往下走
+func TestWizardModelNoAdvanceIfKeyTypedDuringTest(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`})
+	d := f.deps()
+	var s *S
+	d.Test = func(context.Context) (bool, string) {
+		s.key = "sk-another" // 测试还没回来，玩家又粘了一个 Key
+		return true, "模型回答：好"
+	}
+	s = New(d)
+	tt := ui.NewTester(func(c *ui.Context) { s.Gate(c, h) }, 1280, 900)
+	tt.Frame()
+	s.step, s.key = 3, "sk-test-not-real"
+	tt.Frame()
+	_ = plugintest.ClickButton(tt, "下一步")
+	tt.Frame()
+	if s.step != 3 {
+		t.Errorf("测试期间粘了新 Key 就不该自动前进，现在第 %d 步", s.step)
+	}
+}
