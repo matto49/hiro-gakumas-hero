@@ -172,3 +172,30 @@ def test_support_scan_goes_home_when_picker_fails(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError):
         mod.main()
     assert calls == ["home"]
+
+
+def test_memory_scan_keeps_scene_even_if_saving_fails(monkeypatch, tmp_path):
+    """#110 review：选择页关了、接着存盘出错（OSError）时，收尾也要保留现场。"""
+    import hiro.memory_scan as ms
+    from hiro.produce import formation_menu
+
+    calls = []
+    picker = SimpleNamespace(ocr=lambda img: [])
+    dev = SimpleNamespace(screenshot=lambda: None, tap=lambda x, y: None, swipe=lambda *a, **k: None)
+    monkeypatch.setattr(ms, "open_tool_device", lambda: dev)
+    monkeypatch.setattr(ms, "Picker", lambda *a, **k: picker)
+    monkeypatch.setattr(formation_menu, "open_picker", lambda *a, **k: None)
+    monkeypatch.setattr(formation_menu, "tool_device", lambda d: d)
+
+    def closed_then_disk_full(p, out, max_pages):
+        p.formation_may_have_changed = True
+        raise OSError("磁盘满了")
+
+    monkeypatch.setattr(ms, "scan", closed_then_disk_full)
+    monkeypatch.setattr(nav, "back_home", lambda d, timeout=nav.HOME_TIMEOUT: calls.append("home") or True)
+    monkeypatch.setattr(
+        sys, "argv", ["memory_scan", "scan", "--from-home", "--no-calib", "--out", str(tmp_path / "o.json")]
+    )
+    with pytest.raises(OSError):
+        ms.main()
+    assert calls == []

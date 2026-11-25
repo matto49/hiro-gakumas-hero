@@ -645,6 +645,7 @@ def scan(picker: Picker, out: Path, *, max_pages: int = 600, on_entry: Callable[
             f"读格子时回忆选择页关了（最后一条记录 {last_cell}）：{ex}。编成可能被改成了刚选中的那份回忆，请人工核对编成"
         )
         inv["formation_may_have_changed"] = True
+        picker.formation_may_have_changed = True  # 马上告诉调用方：后面存盘出错时收尾也要保留现场（#110 review）
         logger.error("回忆扫描：%s", inv["aborted"])
     inv["suspects"] = mark_suspects(inv["entries"])
     save()

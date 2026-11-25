@@ -55,10 +55,11 @@ def main():
             keep_scene = bool(inv.get("formation_may_have_changed"))
             print(f"{len(inv['entries'])} 份回忆 → {args.out}（complete={inv.get('complete')}）")
     finally:
-        # #108 review：选择页在扫描中关了（多半点成了「決定」）时 scan 已经停手要人核对编成，这里不能再点回首页离开现场
-        if (
-            args.from_home and not keep_scene
-        ):  # 从首页进来的就回首页（G1-F1：读完停在メモリー編成页，下一个任务开头不在首页）
+        # 从首页进来的就回首页（G1-F1：读完停在メモリー編成页，下一个任务开头不在首页）。
+        # 但选择页在扫描中关了（多半点成了「決定」，编成可能被改）时 scan 已经停手要人核对，不能再点回首页离开现场；
+        # 这个标记在发现的当下就打在 picker 上，存盘出错时也看得到（#108 / #110 review）
+        keep_scene = keep_scene or bool(getattr(picker, "formation_may_have_changed", False))
+        if args.from_home and not keep_scene:
             from hiro.runtime import nav
 
             nav.back_home(d)
