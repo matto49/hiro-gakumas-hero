@@ -79,7 +79,9 @@ class FakeDevice:
         self.swipes += 1  # 画面不变 = 到底
 
     def ocr(self, im):
-        key = next(k for k, v in self.frames.items() if v is im)
+        # 翻页 / 读详情只 OCR 上半部分（im 是帧的切片，base 指向原帧）
+        key = next(k for k, v in self.frames.items() if v is im or getattr(im, "base", None) is v)
+        key = (key, im.shape[0])
         if key not in self._ocr:
             self._ocr[key] = ops.ocr_boxes(im)
         return self._ocr[key]
@@ -687,3 +689,63 @@ def test_close_false_leaves_picker_open(tmp_path, monkeypatch):
     assert p.cancels == 0
     mp.scan(p, tmp_path / "inv2.json")
     assert p.cancels == 1
+
+
+@pytest.mark.fixtures
+def test_each_page_advances_two_rows(tmp_path, monkeypatch):
+    """11-26 实机：每页只前进 1 行（读完把最后一行滑到 y≈605，第 3 行下沿刚过 ROW_BOTTOM_MAX 认不出）。
+    把最后一行滑到 SCROLL_TOP_TARGET（≈585），每屏 3 行都完整，每页前进 2 行：36 行的列表滑动次数减半，每格仍只读一次。"""
+    lst = ScrollList(copies=3)
+    swipes = []
+    orig = lst.swipe
+    lst.swipe = lambda *a, **k: (swipes.append(a), orig(*a, **k))[1]
+    inv = run_scan(tmp_path, lst, monkeypatch)
+    assert sorted(set(lst.read)) == all_cells(lst) and len(lst.read) == len(all_cells(lst)) and inv["complete"]
+    assert len(swipes) <= len(lst.rows) // 2 + 6, len(swipes)
+
+
+def test_scroll_brings_last_read_row_to_top_target():
+    """读完一页把最后一行滑到 SCROLL_TOP_TARGET（不是第一行原来的位置）：实机帧行上沿 605 / 743 时滑 158，
+    之后 3 行上沿 585 / 722 / 860，下沿都在 ROW_BOTTOM_MAX 以内，每页前进 2 行（11-26 实机每页只前进 1 行）。"""
+    rows = [[{"rect": (40, 605, 210, 118)}], [{"rect": (40, 743, 210, 118)}]]
+    assert mp.page_scroll_px(rows) == 743 - mp.SCROLL_TOP_TARGET
+    assert mp.SCROLL_TOP_TARGET + 2 * mp.ROW_PITCH + mp.ROW_H[1] <= mp.ROW_BOTTOM_MAX
+    assert mp.page_scroll_px([[{"rect": (40, 605, 210, 118)}]]) == int(mp.ROW_PITCH)  # 只认出 1 行：照旧滑一行
+
+
+def test_read_selected_starts_on_current_page_and_never_flips_back(monkeypatch):
+    """11-26 实机：选另一格后详情栏停在原来那一页。读完不翻回第 1 页，下一格从当前页读起：每格只翻一次页。"""
+    monkeypatch.setattr(mp, "read_stats", lambda boxes: {"Vo": 1})
+    monkeypatch.setattr(mp, "read_card_page", lambda boxes: {"card": {"card_id": "c"}})
+    monkeypatch.setattr(mp, "read_ability_page", lambda boxes: ["a"])
+
+    class Pk(mp.Picker):
+        def __init__(self):
+            super().__init__(lambda: None, lambda x, y: None, lambda *a: None, ocr=lambda im: [], sleep=lambda s: None)
+            self.pages = []
+
+        def to_page(self, page):
+            self.pages.append(page)
+            self._page = page
+            return None, []
+
+    p = Pk()
+    e1, e2, e3 = p.read_selected(), p.read_selected(), p.read_selected()
+    assert p.pages == [1, 2, 2, 1, 1, 2]
+    assert e1 == e2 == e3 == {"stats": {"Vo": 1}, "card": {"card_id": "c"}, "abilities": ["a"]}
+
+
+def test_to_page_ocrs_only_detail_area():
+    """翻页 / 读详情只 OCR 画面上半部分（详情栏和页码都在 DETAIL_OCR_BOTTOM 以上）：整屏 OCR 0.38 秒，每格省两次。"""
+    import numpy as np
+
+    heights = []
+
+    def ocr(img):
+        heights.append(img.shape[0])
+        return [("1/2", 1.0, (330, 525, 390, 545))]
+
+    p = mp.Picker(lambda: np.zeros((1280, 720, 3), np.uint8), lambda x, y: None, lambda *a: None, ocr=ocr,
+                  sleep=lambda s: None, clock=lambda: 0.0)  # fmt: skip
+    p.to_page(1)
+    assert heights and all(h <= mp.DETAIL_OCR_BOTTOM for h in heights) and p._page == 1

@@ -42,7 +42,8 @@ FG_SAT_MIN, FG_VAL_MAX = 30, 180  # 分行用的「不是背景」像素：饱�
 ROW_PROBE_W = 120  # 分行时每列只量中间这么宽
 ROW_FG_MIN = 0.10  # 一条横线「不是背景」的占比 ≥ 这个算有内容（空隙实测 0.00，行内 ≥ 0.24）
 CELL_EMPTY_SAT = 15  # 格子平均饱和度低于这个算空格（空格约 0；浅色卡面整格只有 41–50，以前用的 40 太贴近）
-DETAIL_ROI = (40, 170, 640, 340)  # 详情栏 (x, y, w, h)：换选中回忆 / 换页时这里变
+DETAIL_ROI = (40, 170, 640, 340)
+DETAIL_OCR_BOTTOM = 560  # 详情栏 + 页码「1/2」（y≈535）的下沿；翻页 / 读详情只 OCR 这以上  # 详情栏 (x, y, w, h)：换选中回忆 / 换页时这里变
 STATS_ROI = (100, 30, 600, 90)
 PAGE_PREV, PAGE_NEXT = (230, 530), (485, 530)
 CANCEL_TAP = (211, 1162)
@@ -58,6 +59,9 @@ SWIPE_DURATION, SWIPE_HOLD = (
 CELL_MATCH_MAX = 14.0  # 两张格子缩略图（48x24 灰度）平均差 ≤ 这个算同一格（行带上下差 1–2 像素也能对上）
 MAX_BACKTRACK = 3
 ROW_PITCH = 137.5
+SCROLL_TOP_TARGET = (
+    585  # 读完一页把最后一行滑到这个上沿（11-26：滑到第一行原位 y≈605 时第 3 行下沿过 ROW_BOTTOM_MAX，每页只前进 1 行）
+)
 TIMING = {"開始時": "start", "中間試験": "mid", "オーディション後": "mid"}
 CLOSE_TEXTS = ("キャンセル", "閉じる", "戻る")
 ABILITY_GAP = 22  # 同一张能力卡片里相邻两行的间距 ≤ 这个；卡片之间更大
@@ -313,30 +317,42 @@ class Picker:
             changed, img = self._wait_change(before, DETAIL_ROI)
         return changed, img
 
+    def _detail_ocr(self, img) -> list:
+        """只 OCR 画面上半部分（详情栏和页码「1/2」都在 DETAIL_OCR_BOTTOM 以上）：整屏 OCR 约 0.38 秒，读一格要好几次。
+        选择页还开着没有的核对在点格子时做（select_checked → ensure_open，整屏）。"""
+        return self.ocr(img[:DETAIL_OCR_BOTTOM])
+
     def to_page(self, page: int) -> tuple[np.ndarray, list]:
         """详情栏翻到第 page 页（1 / 2）。每次点翻页箭头前核对还在选择页、并且认出了页码（认不出页码就不盲点，等一下重读）。"""
         img = self.shoot()
-        boxes = self.ensure_open(self.ocr(img))
+        boxes = self._detail_ocr(img)
         for _ in range(3):
             cur = detail_page(boxes)
             if cur == page:
+                self._page = page
                 return img, boxes
             if cur is None:
                 self.sleep(0.4)
                 img = self.shoot()
-                boxes = self.ensure_open(self.ocr(img))
+                boxes = self._detail_ocr(img)
                 continue
             self.click(*(PAGE_NEXT if cur < page else PAGE_PREV))
             _, img = self._wait_change(img, DETAIL_ROI)
-            boxes = self.ensure_open(self.ocr(img))
+            boxes = self._detail_ocr(img)
+        self._page = detail_page(boxes)
         return img, boxes
 
     def read_selected(self) -> dict:
-        _img, boxes = self.to_page(1)
-        entry = {"stats": read_stats(boxes), **read_card_page(boxes)}
-        _img2, boxes2 = self.to_page(2)
-        entry["abilities"] = read_ability_page(boxes2)
-        self.to_page(1)
+        """读选中这一格的详情两页。从详情栏当前停的那页读起、读完不翻回去（11-26 实机：选另一格后详情栏停在原来那页），
+        每格只翻一次页。"""
+        first = 2 if getattr(self, "_page", None) == 2 else 1
+        entry: dict = {}
+        for page in (first, 3 - first):
+            _img, boxes = self.to_page(page)
+            if page == 1:
+                entry = {"stats": read_stats(boxes), **read_card_page(boxes), **entry}
+            else:
+                entry["abilities"] = read_ability_page(boxes)
         return entry
 
     def scroll(
@@ -413,6 +429,14 @@ def row_overlap(prev: list[list[dict]], cur: list[list[dict]]) -> int:
         if all(same_row(prev[len(prev) - m + i], cur[i]) for i in range(m)):
             return m
     return 0
+
+
+def page_scroll_px(rows: list[list[dict]]) -> int:
+    """读完一页往上滑多少：把最后一个完整行滑到 SCROLL_TOP_TARGET（它留在新页最上面当对齐锚点），下面 2 行都完整；
+    只认出 1 行时照旧滑一行。"""
+    if len(rows) < 2:
+        return int(ROW_PITCH)
+    return max(int(ROW_PITCH), rows[-1][0]["rect"][1] - SCROLL_TOP_TARGET)
 
 
 def to_top(picker: "Picker", max_swipes: int = 80) -> np.ndarray:
@@ -646,7 +670,7 @@ def scan(
                     break
                 row_base, start = prev_base, 0
                 continue
-            dy = prev[-1][0]["rect"][1] - prev[0][0]["rect"][1] if len(prev) > 1 else int(ROW_PITCH)
+            dy = page_scroll_px(prev)
             moved, img = scroll_moved(picker, prev_img, dy)
             if not moved:  # 原起点和换的几个起点都滑不动，还在选择页：到底
                 _at_end(picker, inv, img, pages)
