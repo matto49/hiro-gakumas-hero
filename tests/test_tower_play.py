@@ -417,7 +417,8 @@ def test_date_change_mid_tower_recovers_and_keeps_going(monkeypatch):
     monkeypatch.setattr(tower_cache, "game_day", lambda now=None: day[0])
     run = SimpleNamespace(tries={16: 3}, best={16: 2}, cleared={15}, gave_up_three=[16], tower_id=None)
     tp = SimpleNamespace(finished=False, run=run, result_handled=False, _acted=None, _partial_since=None, exam_draws=None,
-                         done_layers=2)  # fmt: skip
+                         done_layers=2, nav={"seen": {}, "start": None})  # fmt: skip
+    tp._nav_reset = lambda: setattr(tp, "nav", {"seen": {}, "start": None})
     seen = []
 
     def go(until):
@@ -426,12 +427,17 @@ def test_date_change_mid_tower_recovers_and_keeps_going(monkeypatch):
             seen.append(1)
             # 打到一半：这些状态都在；然后过了日本时间 5 点
             tp.result_handled, tp._acted, tp._partial_since, tp.exam_draws = True, ("TOWER_RESULT", 1.0), 3.0, {"x": 1}
+            tp.nav = {
+                "seen": {1: (0, False)},
+                "start": 2,
+            }  # 选层搜索做到一半（CodeRabbit #96：第 1 层次数用完的记录要清）
             day[0] = "2026-11-26"
             raise DateChanged("日付変更")
         # 日切换后的这一轮：打到一半的状态和前一天的次数都清掉了，已打完的层数保留
         assert tp.result_handled is False and tp._acted is None and tp._partial_since is None and tp.exam_draws is None
         assert run.tries == {} and run.best == {} and run.cleared == set() and run.gave_up_three == []
         assert tp.done_layers == 2
+        assert tp.nav == {"seen": {}, "start": None}
         tp.finished = True
 
     tower_play.play_segment(SimpleNamespace(run=go), object(), tp)
@@ -448,6 +454,7 @@ def test_no_date_change_keeps_daily_counts(monkeypatch):
     tp = SimpleNamespace(
         finished=False, run=run, result_handled=False, _acted=None, _partial_since=None, exam_draws=None
     )
+    tp._nav_reset = lambda: None
 
     def go(until):
         tp.finished = True

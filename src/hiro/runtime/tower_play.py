@@ -638,6 +638,7 @@ def play_segment(rt, session, tp) -> None:
     def resume():
         # 日切换打断的那一场作废：结果页、再挑戦确认框、刚点过的页面、抽牌记录都从头来
         tp.result_handled, tp._acted, tp._partial_since, tp.exam_draws = False, None, None, None
+        tp._nav_reset()  # 选层搜索从头来：回首页再进来，层选择页的位置变了，之前看过的层也要按新的一天重看（CodeRabbit #96）
         today = tower_cache.game_day()
         if today != day[0]:
             run = tp.run
