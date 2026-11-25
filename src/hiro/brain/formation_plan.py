@@ -412,10 +412,18 @@ def inherited_sets(root: Path, fam: str) -> tuple[int | None, int | None]:
     return int(best["support"]["set"]), int(best["memory"]["set"])
 
 
-def needs_write(plan: dict, fam: str) -> bool:
-    """新格式的方案还没把支援卡和回忆都写进这个模式的游戏编成位（旧方案按以前的做法：认为玩家自己写好了）。"""
+def needs_write(plan: dict, fam: str, parts=("support", "memory")) -> bool:
+    """新格式的方案还没把 parts（缺省支援卡和回忆都算）写进这个模式的游戏编成位（旧方案按以前的做法：认为玩家自己写好了）。"""
     done = set(((plan.get("written") or {}).get(fam) or {}).get("what") or ())
-    return plan.get("version") == PLAN_VERSION and not {"support", "memory"} <= done
+    return plan.get("version") == PLAN_VERSION and not set(parts) <= done
+
+
+def unwritten(plan: dict, fam: str, parts=("support", "memory")) -> list[str]:
+    """parts 里还没写进游戏的那几样（按 support、memory 的顺序）。旧方案不算。"""
+    if plan.get("version") != PLAN_VERSION:
+        return []
+    done = set(((plan.get("written") or {}).get(fam) or {}).get("what") or ())
+    return [w for w in ("support", "memory") if w in parts and w not in done]
 
 
 def mark_written(current: str | Path, fam: str, what) -> None:

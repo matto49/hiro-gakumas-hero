@@ -149,10 +149,11 @@ def _check_formation_plan(a: dict) -> None:
     if kind == "hif" and (a.get("mode") or "qualify") == "main":
         return  # 本战不走编成步骤，用的是选拔得到的回忆
     # 支援卡 / 回忆分开看：两样都指定了编成号才不看方案；只给了一样，另一样还要方案里有（CodeRabbit #88）
-    given = {
-        "support": bool(a.get("support_set") or os.environ.get("HIRO_SUPPORT_SET")),
-        "memory": bool(a.get("memory_set") or os.environ.get("HIRO_MEMORY_SET")),
+    explicit = {
+        "support": a.get("support_set") or os.environ.get("HIRO_SUPPORT_SET"),
+        "memory": a.get("memory_set") or os.environ.get("HIRO_MEMORY_SET"),
     }
+    given = {k: bool(v) for k, v in explicit.items()}
     if all(given.values()):
         return
     env_plan = os.environ.get("HIRO_FORMATION_PLAN")
@@ -165,7 +166,20 @@ def _check_formation_plan(a: dict) -> None:
     if env_plan and Path(env_plan).resolve() != paths.plan_path(home).resolve():
         _check_plan_file(Path(env_plan), idol, kind, given)
         return
-    write_hint = f"写进游戏：hiro run start write-formation --scenario {kind}；写完再开局"
+    todo = [w for w in ("support", "memory") if not given[w]]  # 开局给了编成号的那样直接用游戏里编好的，不用写
+
+    def not_written(plan: dict, name: str, lead: str) -> CliError:
+        """方案里没指定的那几样还没写进游戏：只列这几样的编成位号，写编成也只写这几样。"""
+        parts = fp.unwritten(plan, kind, todo)
+        label = {"support": "支援卡", "memory": "回忆"}
+        where = "、".join(f"{label[w]}编成 {(plan.get(w) or {}).get('set')} 号" for w in parts)
+        what = "" if len(parts) == 2 else f" --what {parts[0]}"
+        return CliError(
+            "plan_not_written",
+            f"{lead}（{where}），游戏里{'这两个编成位' if len(parts) == 2 else '这个编成位'}还是之前的，要先写进去",
+            f"写进游戏：hiro run start write-formation --scenario {kind}{what}；写完再开局",
+        )
+
     found = fp.find_plan(home, idol, kind) if idol else None
     if found is None:
         if not idol:
@@ -174,7 +188,9 @@ def _check_formation_plan(a: dict) -> None:
         from hiro.cli.cmd_plan import make_plan
         from hiro.cli.registry import CliError as _E
 
-        s_set, m_set = fp.inherited_sets(home, kind)
+        s_set, m_set = fp.inherited_sets(home, kind)  # 没指定的沿用这个模式上一份方案的位号
+        s_set = int(explicit["support"]) if given["support"] else s_set
+        m_set = int(explicit["memory"]) if given["memory"] else m_set
         try:
             plan, _path = make_plan(home, idol, kind, difficulty=a.get("difficulty"), support_set=s_set,
                                     memory_set=m_set, source="auto")  # fmt: skip
@@ -189,23 +205,14 @@ def _check_formation_plan(a: dict) -> None:
         name = (plan.get("idol") or {}).get("name") or idol
         _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol, kind,
                          lead=f"已按社区攻略给「{name}」出了这个模式的开局编成方案，")  # fmt: skip
-        raise CliError(
-            "plan_not_written",
-            f"已按社区攻略给「{name}」出了这个模式的开局编成方案（支援卡编成 {s_set} 号、回忆编成 {m_set} 号），"
-            "游戏里这两个编成位还是之前的，要先写进去",
-            write_hint,
-        )
+        raise not_written(plan, name, f"已按社区攻略给「{name}」出了这个模式的开局编成方案")
     plan, path = found
     if path != paths.plan_path(home):
         fp.activate(home, plan)  # 开局核对、写编成都读当前方案
     name = (plan.get("idol") or {}).get("name") or idol
     _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol, kind, lead=f"「{name}」的")
-    if fp.needs_write(plan, kind):
-        raise CliError(
-            "plan_not_written",
-            f"「{name}」的开局编成方案（支援卡编成 {plan['support']['set']} 号、回忆编成 {plan['memory']['set']} 号）还没写进游戏",
-            write_hint,
-        )
+    if fp.needs_write(plan, kind, todo):
+        raise not_written(plan, name, f"「{name}」的开局编成方案还没写进游戏")
 
 
 def _check_plan_file(path: Path, idol: str, kind: str, given: dict) -> None:

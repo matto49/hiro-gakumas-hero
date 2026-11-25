@@ -163,3 +163,23 @@ def test_auto_plan_with_one_set_given_only_asks_the_other(run_cli, hiro_home, fa
     assert env["error"]["code"] == "plan_no_set"
     assert "回忆" in env["error"]["message"] and "支援卡" not in env["error"]["message"]
     assert "info formations" in env["error"]["hint"]
+
+
+def test_explicit_set_beats_inherited_and_only_rest_needs_writing(run_cli, hiro_home, fake_build):
+    """CodeRabbit #87：玩家开局给了 --support-set 3（游戏里 3 号编成已经编好），旧方案记的是 16 / 9。
+    自动出的方案支援卡用 3、回忆沿用 9；只要求写回忆，写完回忆就能开局，不会去覆盖支援卡 16 号。"""
+    from hiro.brain import formation_plan as fp
+
+    _legacy(hiro_home, sets=(16, 9))
+    _inventory(run_cli)
+    _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN, "--support-set", "3")
+    assert env["error"]["code"] == "plan_not_written", env
+    assert fake_build[-1]["support_set"] == 3 and fake_build[-1]["memory_set"] == 9
+    msg = env["error"]["message"]
+    assert "回忆编成 9 号" in msg and "16" not in msg and "支援卡编成" not in msg
+    assert "--what memory" in env["error"]["hint"]
+    per = json.loads((hiro_home / "plans" / "hajime" / f"{KOTONE}.json").read_text(encoding="utf-8"))
+    assert per["support"]["set"] == 3 and per["memory"]["set"] == 9
+    fp.mark_written(hiro_home / "formation-plan.json", "hajime", ("memory",))  # 只写了回忆
+    code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN, "--support-set", "3")
+    assert code == 3 and env["data"]["pending"], env
