@@ -124,6 +124,10 @@ class Session:
         self.state = self._reduce_checked(obs)
         self.last = obs
         self._buffer.append(obs)
+        if source != "plugin" and not is_transient(obs.page.name):
+            from hiro.plugin_record import RECORD
+
+            RECORD.note_page(obs.page.name, obs.fields)  # 结算页读数攒下来，育成插件 end 时当结果给
         if fields is not False and source == "screen" and img is not None:
             self._plugin_sources(obs, wall0)
         from hiro.loop.repeat_guard import state_sig

@@ -279,6 +279,19 @@ def cache_dir() -> Path:
     return Path(os.environ.get("HIRO_GUIDES_DIR") or Path.home() / ".cache" / "hiro" / "guides")
 
 
+def pack_info(mode: str | None = None) -> dict:
+    """攻略包的概况（不读条目，给插件 begin 的上下文用）：是否启用、缓存目录、manifest 里每个模式当前的包名、这一局模式的包名。
+    要条目本身用 entries(mode) / lookup()。没有 manifest（没下载过）时 packs 为空。"""
+    d = cache_dir()
+    packs: dict[str, str] = {}
+    try:
+        man = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+        packs = {m: p["name"] for m, p in (man.get("packs") or {}).items() if isinstance(p, dict) and p.get("name")}
+    except (OSError, ValueError, AttributeError):
+        packs = {}
+    return {"enabled": enabled(), "dir": str(d), "packs": packs, "pack": packs.get(mode) if mode else None}
+
+
 @cache
 def _load_pack(mode: str, root: str) -> tuple[Entry, ...]:
     d = Path(root)

@@ -27,7 +27,7 @@ def _setup(tmp_path, monkeypatch):
     for m in [m for m in sys.modules if m.startswith("hiro_example_plugins")]:
         del sys.modules[m]
     from hiro_example_plugins.produce import StudyFirstOption
-    from hiro_example_plugins.source import ReplaySource
+    from hiro_example_plugins.source import JsonFileSource
 
     plugins.reset()
     strategy.reset()
@@ -35,12 +35,12 @@ def _setup(tmp_path, monkeypatch):
     plugin_gate.reset()
     RECORD.reset()
     plugins.register("produce_advisor", StudyFirstOption, id="example_study")
-    plugins.register("observation_source", ReplaySource, id="example_replay")
+    plugins.register("observation_source", JsonFileSource, id="example_json")
     replay = tmp_path / "replay.json"
     replay.write_text(json.dumps({"ACTION_SELECT": {"produce_point": 77}, "hidden": {"seed": 1}}))
-    monkeypatch.setenv("HIRO_EXAMPLE_REPLAY", str(replay))
+    monkeypatch.setenv("HIRO_EXAMPLE_JSON", str(replay))
     cfg = tmp_path / "strategy.json"
-    cfg.write_text(json.dumps({"version": 1, "sources": ["example_replay"], "produce": {"STUDY": "example_study"}}))
+    cfg.write_text(json.dumps({"version": 1, "sources": ["example_json"], "produce": {"STUDY": "example_study"}}))
     monkeypatch.setenv("HIRO_STRATEGY_FILE", str(cfg))
     yield
     plugins.reset()
@@ -63,9 +63,9 @@ def test_example_plugins_end_to_end(tmp_path):
     s.record(obs2, decision=d)
 
     pj = json.loads((s.trace.dir / "plugins.json").read_text())
-    assert pj["mapping"] == {"sources": ["example_replay"], "produce.STUDY": "example_study"}
+    assert pj["mapping"] == {"sources": ["example_json"], "produce.STUDY": "example_study"}
     assert pj["points"]["produce.STUDY"]["decided"] == 1
-    assert pj["points"]["source.example_replay"]["decided"] >= 1
+    assert pj["points"]["source.example_json"]["decided"] >= 1
     assert pj["uses_hidden"] is True
 
     r = report(s.trace.dir)
@@ -78,4 +78,4 @@ def test_example_plugins_end_to_end(tmp_path):
 
 def test_example_entry_points_declared():
     text = (EXAMPLES.parent / "pyproject.toml").read_text(encoding="utf-8")
-    assert '"produce_advisor.example_study"' in text and '"observation_source.example_replay"' in text
+    assert '"produce_advisor.example_study"' in text and '"observation_source.example_json"' in text

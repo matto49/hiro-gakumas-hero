@@ -2,7 +2,8 @@
 
 所有模块间交换的数据都是这里的 Contract 子类。规则：
 - 字段只增不改名；每个对象带 version（契约版本），变更记入 docs/contracts.md；
-- to_dict/to_json 输出全部字段，None 原样保留（None = 没读到，不是 0）；
+- to_dict/to_json 输出全部字段，None 原样保留（None = 没读到，不是 0）；唯一例外：标了 metadata=OPTIONAL 的字段（插件架构 1.3 加的
+  by / trust / hidden / plugin）是默认值时不写，没装插件的记录和 1.2 一样，schema 里也不要求有；
 - from_dict 遇到未知字段报错（防止改名后静默丢数据），缺失字段用默认值；
 - validate() 按自动生成的 schema 校验（不依赖 jsonschema 包，支持的子集见 check()）。
 """
@@ -19,6 +20,22 @@ VERSION = "1.3"  # 契约版本：破坏性变更才升主版本；加字段升�
 
 class SchemaError(ValueError):
     pass
+
+
+# ---------------------------------------------------------------- 可省略字段
+OMIT = "omit_default"
+
+
+OPTIONAL = types.MappingProxyType({OMIT: True})  # field(default=…, metadata=OPTIONAL)：后加的、多数记录用不上的字段，
+# 值等于默认值时 to_dict 不写、schema 不要求出现，from_dict 缺了用默认值
+
+
+def _is_default(f: "dataclasses.Field", value) -> bool:
+    if f.default is not dataclasses.MISSING:
+        return value == f.default
+    if f.default_factory is not dataclasses.MISSING:
+        return value == f.default_factory()
+    return False
 
 
 # ---------------------------------------------------------------- schema 生成
@@ -63,7 +80,7 @@ def _type_schema(tp) -> dict:
 
 
 def schema_for(cls) -> dict:
-    """按 dataclass 的类型注解生成 JSON schema（draft 2020-12 子集）。所有字段都 required，不允许未知字段。"""
+    """按 dataclass 的类型注解生成 JSON schema（draft 2020-12 子集）。所有字段都 required（OPTIONAL 除外），不允许未知字段。"""
     hints = get_type_hints(cls)
     props = {}
     for f in dataclasses.fields(cls):
@@ -78,7 +95,7 @@ def schema_for(cls) -> dict:
         "title": cls.__name__,
         "type": "object",
         "properties": props,
-        "required": list(props),
+        "required": [f.name for f in dataclasses.fields(cls) if not f.metadata.get(OMIT)],
         "additionalProperties": False,
     }
     if cls.__doc__:
@@ -136,7 +153,11 @@ def _to_jsonable(v):
     if isinstance(v, Enum):
         return v.value
     if dataclasses.is_dataclass(v) and not isinstance(v, type):
-        return {f.name: _to_jsonable(getattr(v, f.name)) for f in dataclasses.fields(v)}
+        return {
+            f.name: _to_jsonable(getattr(v, f.name))
+            for f in dataclasses.fields(v)
+            if not (f.metadata.get(OMIT) and _is_default(f, getattr(v, f.name)))
+        }
     if isinstance(v, dict):
         return {str(k): _to_jsonable(x) for k, x in v.items()}
     if isinstance(v, (list, tuple)):

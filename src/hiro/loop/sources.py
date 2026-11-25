@@ -22,14 +22,35 @@ from hiro.contracts.game_state import PRIORITY
 logger = logging.getLogger(__name__)
 
 TOLERANCE_S = 0.5
-_started: set[str] = set()
+_started: set[str] = set()  # start 成功的数据来源（整个进程只 start 一次）
+_failed: set[str] = set()  # start 出错的：之后不再问它，也不收尾
 _warned: set[str] = set()
 
 
 def reset() -> None:
     """测试用。"""
     _started.clear()
+    _failed.clear()
     _warned.clear()
+
+
+def ensure_started(sid: str, src: Any, lab: str, context: dict[str, Any]) -> str | None:
+    """第一次用到这个数据来源时 start 它（进程内只一次，Session 和考试转接共用）。返回 None = 可以用；
+    否则是不能用的原因：start 出错的这次返回原因（调用方记一次错），以后一律返回空串（不再重复记，也不再 read）。"""
+    from hiro.plugin_record import RECORD
+
+    if sid in _started:
+        return None
+    if sid in _failed:
+        return ""
+    try:
+        src.start(context)
+    except Exception as e:  # noqa: BLE001
+        _failed.add(sid)
+        return f"数据来源 {lab} start 出错：{type(e).__name__}: {e}，之后不再用它"
+    _started.add(sid)
+    RECORD.on_exit(src.stop)
+    return None
 
 
 def fresh(t: float, frame_t: float, tol: float = TOLERANCE_S) -> bool:
@@ -78,16 +99,11 @@ def read_sources(
             continue
         lab = plugins.label(src)
         point = f"source.{sid}"
-        if sid not in _started:
-            _started.add(sid)
-            RECORD.on_exit(src.stop)
-            try:
-                src.start({"page": page})
-            except Exception as e:  # noqa: BLE001
-                why = f"数据来源 {lab} start 出错：{type(e).__name__}: {e}"
+        if (why := ensure_started(sid, src, lab, {"page": page})) is not None:
+            if why:
                 RECORD.error(point, lab, why)
                 notes.append(why)
-                continue
+            continue
         try:
             view = copy.deepcopy(state)  # 插件拿副本，超时后也碰不到主循环的状态
             r = call_with_timeout(

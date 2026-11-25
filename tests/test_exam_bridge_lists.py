@@ -186,6 +186,35 @@ def test_scalar_memory_hooks():
     assert got.hp == 15 and mem.item_charges_left == 2
 
 
+def test_save_numbers_alone_do_not_claim_the_hand(monkeypatch):
+    """只有体力 / 分数来自存档级插件：可信度报 save，但手牌还是画面的（run_exam 不按卡 id 对位置）。"""
+    monkeypatch.setattr(Hook, "reply", {"hp": 15})
+    mem, st = _screen_state(hand=[])
+    b = ObservationExamStateSource(Inner(st))
+    got, _ = _read(b, mem)
+    assert got.hp == 15 and b.confidence() == "save"
+    assert b.hand_from_plugin is False and b.lists_from_plugin is False
+
+
+def test_plugin_hand_marks_hand_from_plugin(monkeypatch):
+    monkeypatch.setattr(Hook, "reply", {"hand": [{"card_id": A, "upgrade": 0, "available": True, "slot": 0}]})
+    mem, st = _screen_state(hand=[])
+    b = ObservationExamStateSource(Inner(st))
+    _read(b, mem)
+    assert b.hand_from_plugin is True and b.confidence() == "save"
+    monkeypatch.setattr(Hook, "reply", {"hp": 3})
+    _read(b, mem)  # 下一帧插件没给手牌：标记跟着这一帧走
+    assert b.hand_from_plugin is False
+
+
+def test_plugin_drinks_only_do_not_claim_the_hand(monkeypatch):
+    monkeypatch.setattr(Hook, "reply", {"drinks": [{"drink_id": DRINK, "slot": 0}]})
+    mem, st = _screen_state(hand=[])
+    b = ObservationExamStateSource(Inner(st))
+    _read(b, mem)
+    assert b.lists_from_plugin is True and b.hand_from_plugin is False
+
+
 def test_screen_slot_maps_plugin_hand_by_card_id():
     """插件手牌顺序和屏幕不同时，按卡 id 找到屏幕位置（run_exam 在 confidence=save 时走这条）。"""
     from hiro import master

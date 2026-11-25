@@ -8,6 +8,9 @@
 - 代码里：hiro.plugins.register("exam_advisor", 你的类)
 
 查找顺序：register() > 环境变量 > 入口点 > 默认实现。每个方法拿不到就返回 None（不要猜），调用方各自有退路。
+
+数据来源（observation_source）和育成（produce_advisor）两种不一样：只能按 id 取用（strategy.json 选，入口点名写 <种类>.<id>，
+register 要给 id），没有环境变量，也没有不带 id 的入口点写法。
 """
 
 from __future__ import annotations
@@ -162,8 +165,9 @@ class ObservationSource(Protocol):
     def stop(self) -> None: ...
 
 
-KINDS: dict[str, tuple[type, str, str | None]] = {
+KINDS: dict[str, tuple[type, str | None, str | None]] = {
     # 种类 → (接口, 环境变量, 默认实现 "模块:类"；None = 没有默认，用内置逻辑)
+    # 环境变量为 None = 只能按 id 取用（strategy.json 选），见 BY_ID
     "asset_source": (AssetSource, "HIRO_ASSET_SOURCE", "hiro.defaults.assets:PublicAssetSource"),
     "exam_state_source": (ExamStateSource, "HIRO_EXAM_STATE_SOURCE", "hiro.defaults.exam_state:ScreenExamStateSource"),
     "exam_advisor": (
@@ -171,9 +175,10 @@ KINDS: dict[str, tuple[type, str, str | None]] = {
         "HIRO_EXAM_ADVISOR",
         "hiro.search.advisor:SearchAdvisor",
     ),  # 任务 ②：搜索不了退回 bench 中转层
-    "observation_source": (ObservationSource, "HIRO_OBSERVATION_SOURCE", None),
-    "produce_advisor": (ProduceAdvisor, "HIRO_PRODUCE_ADVISOR", None),
+    "observation_source": (ObservationSource, None, None),
+    "produce_advisor": (ProduceAdvisor, None, None),
 }
+BY_ID = frozenset(k for k, (_p, env, _d) in KINDS.items() if env is None)  # 只能按 id 取用的种类
 BUILTIN = "builtin"  # 内置实现的 id，保留不给插件用
 GROUP = "hiro_gakumas.plugins"
 _registered: dict[str, Callable[[], Any]] = {}
@@ -202,6 +207,8 @@ def register(kind: str, factory: Callable[[], Any], id: str | None = None) -> No
     if kind not in KINDS:
         raise KeyError(f"未知插件种类：{kind}（可选 {sorted(KINDS)}）")
     if id is None:
+        if kind in BY_ID:
+            raise ValueError(f"{kind} 只能按 id 取用（strategy.json 选）：register 要给 id=")
         _registered[kind] = factory
         _cache.pop(kind, None)
         return
@@ -326,10 +333,12 @@ def available(kind: str) -> list[PluginInfo]:
 
 def source(kind: str) -> str:
     """当前生效的实现来自哪里（写进 trace / 日志，方便复现）。"""
+    if kind in BY_ID:
+        return "strategy.json"
     if kind in _registered:
         return "register"
-    if os.environ.get(KINDS[kind][1]):
-        return f"env:{os.environ[KINDS[kind][1]]}"
+    if (env := KINDS[kind][1]) and os.environ.get(env):
+        return f"env:{os.environ[env]}"
     try:
         if _from_entry_point(kind):
             return "entry_point"
@@ -339,12 +348,14 @@ def source(kind: str) -> str:
 
 
 def get(kind: str) -> Any:
-    """取某种插件的实例（进程内单例）。实例要满足对应 Protocol，否则报错。没有默认实现的种类什么都没配时返回 None。"""
+    """取某种插件的实例（进程内单例）。实例要满足对应 Protocol，否则报错。只能按 id 取用的种类（BY_ID）返回 None，用 get_by_id。"""
+    if kind in BY_ID:
+        return None  # 这两种按 id 取用（get_by_id），没有「当前的那一个」
     if kind in _cache:
         return _cache[kind]
     proto, env, default = KINDS[kind]
     factory = _registered.get(kind)
-    if factory is None and os.environ.get(env):
+    if factory is None and env and os.environ.get(env):
         factory = _load(os.environ[env])
     if factory is None:
         factory = _from_entry_point(kind)

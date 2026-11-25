@@ -281,8 +281,13 @@ def test_exam_plugin_errors_fall_back():
         def decide(self, state, memory, previews, legal):
             return Decision(legal[1], source="sim")
 
-    d = GuardedAdvisor(Good(), Given(), "good@1", "exam.hif").decide(None, None, None, legal)
-    assert d.plugin == "good@1" and RECORD.points["exam.hif"]["decided"] == 1
+    g = GuardedAdvisor(Good(), Given(), "good@1", "exam.hif")
+    d = g.decide(None, None, None, legal)
+    assert (
+        d.plugin == "good@1" and RECORD.points["exam.hif"]["decided"] == 0
+    )  # 「已定」等执行成功才计（见 test_plugin_minors）
+    g.executed(d.action)
+    assert RECORD.points["exam.hif"]["decided"] == 1
 
 
 # ---- 11 转接层不把观测形状的列表字段塞进 BattleState；冲突说明进 trace

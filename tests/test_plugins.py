@@ -19,7 +19,8 @@ class Broken:
 def _clean(monkeypatch):
     plugins.reset()
     for _, env, _ in plugins.KINDS.values():
-        monkeypatch.delenv(env, raising=False)
+        if env:
+            monkeypatch.delenv(env, raising=False)
     yield
     plugins.reset()
 

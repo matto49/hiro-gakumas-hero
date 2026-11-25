@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from hiro.contracts.action import Action
-from hiro.contracts.base import VERSION, Contract
+from hiro.contracts.base import OPTIONAL, VERSION, Contract
 
 SOURCES = ("rule", "plan", "sim", "llm", "fallback", "recommended", "first", "expert", "bench", "plugin")
 
@@ -53,7 +53,7 @@ class Decision(Contract):
     llm: list[LLMTrace] = field(default_factory=list)  # 本次决策的 LLM 调用（可能重试多次）
     seconds: float | None = None  # 从拿到状态到给出决策的耗时
     decider: str | None = None  # battle / pick / action_select / consult / outing …
-    plugin: str | None = None  # 1.3：插件定的这一步时是「插件 id@版本」，内置为 None
+    plugin: str | None = field(default=None, metadata=OPTIONAL)  # 1.3：插件定的这一步时是「插件 id@版本」，内置时不写
     version: str = VERSION
 
     def problems(self) -> list[str]:

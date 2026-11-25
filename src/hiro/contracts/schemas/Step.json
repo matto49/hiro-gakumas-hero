@@ -131,9 +131,6 @@
     "screenshot",
     "source",
     "timings_ms",
-    "by",
-    "trust",
-    "hidden",
     "version"
    ],
    "additionalProperties": false,
@@ -267,8 +264,7 @@
       },
       "required": [
        "origin",
-       "seq",
-       "by"
+       "seq"
       ],
       "additionalProperties": false,
       "description": "Source(origin: str, seq: int, by: str | None = None)"
@@ -414,7 +410,6 @@
     "field_status",
     "pending_review",
     "ledger",
-    "hidden",
     "version"
    ],
    "additionalProperties": false,
@@ -714,7 +709,6 @@
     "llm",
     "seconds",
     "decider",
-    "plugin",
     "version"
    ],
    "additionalProperties": false,
@@ -1129,9 +1123,6 @@
      "screenshot",
      "source",
      "timings_ms",
-     "by",
-     "trust",
-     "hidden",
      "version"
     ],
     "additionalProperties": false,
@@ -1262,9 +1253,6 @@
      "screenshot",
      "source",
      "timings_ms",
-     "by",
-     "trust",
-     "hidden",
      "version"
     ],
     "additionalProperties": false,
@@ -1414,8 +1402,7 @@
       },
       "required": [
        "origin",
-       "seq",
-       "by"
+       "seq"
       ],
       "additionalProperties": false,
       "description": "Source(origin: str, seq: int, by: str | None = None)"
@@ -1561,7 +1548,6 @@
     "field_status",
     "pending_review",
     "ledger",
-    "hidden",
     "version"
    ],
    "additionalProperties": false,
