@@ -133,7 +133,7 @@ def test_fetch_installs_verifies_and_is_idempotent(tool, tmp_path, packed):
     assert tool.fetch_asset(deps, url=url, sha=sha) is True
     assert tool.simd_deps.missing_files(deps) == []
     assert (deps / "SimdPaddleOCR/models/medium_det.onnx").read_bytes() == b"model-medium_det.onnx"
-    assert (deps / "simd-ocr" / tool.STAMP).read_text().strip() == sha
+    assert (deps / tool.STAMP).read_text().strip() == sha
     assert (deps / "simd-ocr/NOTICE.txt").is_file() and (deps / "simd-ocr/LICENSE.SimdPaddleOCR").is_file()
     assert not (deps / "SimdPaddleOCR/models/small_det.onnx").exists()
     assert list(deps.glob("simd-*")) == [deps / "simd-ocr"], "临时目录要清掉"
@@ -148,16 +148,96 @@ def test_fetch_replaces_another_version_but_not_a_hand_built_install(tool, tmp_p
     assert (deps / "SimdPaddleOCR/models/medium_det.onnx").read_bytes() == b"mine"
     assert tool.fetch_asset(deps, url=url, sha=sha, force=True) is True  # --force 才换
     assert (deps / "SimdPaddleOCR/models/medium_det.onnx").read_bytes() == b"model-medium_det.onnx"
-    (deps / "simd-ocr" / tool.STAMP).write_text("old-version\n")  # 另一个版本的资产
+    (deps / tool.STAMP).write_text("old-version\n")  # 另一个版本的资产
     (deps / "SimdPaddleOCR/models/medium_det.onnx").write_bytes(b"old")
     assert tool.fetch_asset(deps, url=url, sha=sha) is True
     assert (deps / "SimdPaddleOCR/models/medium_det.onnx").read_bytes() == b"model-medium_det.onnx"
 
 
+def _fail_swap_into(monkeypatch, dirname):
+    """让「把新解出来的 dirname 换进 deps」这一步失败（模拟目录被占用 / 杀毒软件锁住）。"""
+    real = Path.replace
+
+    def replace(self, target):
+        if self.name == dirname and self.parent.name == "out":
+            raise PermissionError(13, "目录被占用", str(target))
+        return real(self, target)
+
+    monkeypatch.setattr(Path, "replace", replace)
+
+
+def _old_install(tool, deps):
+    """装好了的旧版本（另一个版本的资产）：内容和新资产不同，方便看有没有被换掉。"""
+    make_deps(deps)
+    (deps / "simd-ocr/HiroSimdOcr.dll").write_bytes(b"OLD-helper")
+    (deps / "SimdPaddleOCR/models/medium_det.onnx").write_bytes(b"OLD-model")
+    (deps / tool.STAMP).write_text("old-version\n")
+
+
+def _state(deps):
+    return (deps / "simd-ocr/HiroSimdOcr.dll").read_bytes(), (
+        deps / "SimdPaddleOCR/models/medium_det.onnx"
+    ).read_bytes()
+
+
+@pytest.mark.parametrize("failing", ["simd-ocr", "SimdPaddleOCR"])
+def test_two_dirs_are_updated_together_or_rolled_back(tool, tmp_path, packed, monkeypatch, failing):
+    """CodeRabbit #115：两个目录当一次更新。任一个换不进去，已经换进去的要恢复，旧 stamp 保留；
+    不能半新半旧还写上新 stamp（否则下次因为四个文件都在而直接跳过）。"""
+    url, sha = packed
+    deps = tmp_path / "deps"
+    _old_install(tool, deps)
+    with monkeypatch.context() as m:
+        _fail_swap_into(m, failing)
+        with pytest.raises(PermissionError):
+            tool.fetch_asset(deps, url=url, sha=sha)
+    assert _state(deps) == (b"OLD-helper", b"OLD-model")
+    assert (deps / tool.STAMP).read_text().strip() == "old-version"
+    assert not any(p.name.startswith("simd-") and p.name != "simd-ocr" for p in deps.iterdir()), "临时目录要清掉"
+    assert tool.fetch_asset(deps, url=url, sha=sha) is True  # 问题解决后下次能正常装好
+    assert _state(deps) == (b"HiroSimdOcr.dll", b"model-medium_det.onnx")
+    assert (deps / tool.STAMP).read_text().strip() == sha
+
+
+def test_backup_is_kept_when_the_rollback_itself_fails(tool, tmp_path, packed, monkeypatch):
+    url, sha = packed
+    deps = tmp_path / "deps"
+    _old_install(tool, deps)
+    real = Path.replace
+
+    def replace(self, target):
+        if self.name == "old-simd-ocr":  # 恢复旧的 simd-ocr 时失败
+            raise PermissionError(13, "目录被占用", str(target))
+        return real(self, target)
+
+    with monkeypatch.context() as m:
+        _fail_swap_into(m, "SimdPaddleOCR")
+        real_fail = Path.replace
+        m.setattr(
+            Path,
+            "replace",
+            lambda self, target: replace(self, target) if self.name == "old-simd-ocr" else real_fail(self, target),
+        )
+        with pytest.raises(tool.RollbackFailed, match="备份在"):
+            tool.fetch_asset(deps, url=url, sha=sha)
+    backups = list(deps.glob("simd-*/old-simd-ocr"))
+    assert backups and (backups[0] / "HiroSimdOcr.dll").read_bytes() == b"OLD-helper", "恢复没做完时备份不能删"
+
+
+def test_failed_first_install_leaves_neither_directory(tool, tmp_path, packed, monkeypatch):
+    url, sha = packed
+    deps = tmp_path / "deps"
+    _fail_swap_into(monkeypatch, "SimdPaddleOCR")
+    with pytest.raises(PermissionError):
+        tool.fetch_asset(deps, url=url, sha=sha)
+    assert not (deps / "simd-ocr").exists() and not (deps / "SimdPaddleOCR").exists()
+    assert not (deps / tool.STAMP).exists()
+
+
 def test_fetch_rejects_wrong_sha_and_keeps_existing_files(tool, tmp_path, packed):
     url, _sha = packed
     deps = make_deps(tmp_path / "deps")
-    (deps / "simd-ocr" / tool.STAMP).write_text("old-version\n")
+    (deps / tool.STAMP).write_text("old-version\n")
     before = (deps / "SimdPaddleOCR/models/medium_det.onnx").read_bytes()
     with pytest.raises(tool.InstallError, match="校验不对"):
         tool.fetch_asset(deps, url=url, sha="0" * 64)

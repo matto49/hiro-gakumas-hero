@@ -78,9 +78,13 @@ def test_doctor_ocr_item_follows_hiro_ocr_and_platform(monkeypatch, tmp_path):
     assert it["ok"] is True and it["detail"].startswith("SIMD PaddleOCR")
 
 
-def test_doctor_simd_missing_is_optional_and_never_blocks_ready(run_cli, monkeypatch):
+def test_doctor_simd_missing_is_optional_and_never_blocks_ready(run_cli, monkeypatch, tmp_path):
     from hiro.cli import cmd_doctor
 
+    monkeypatch.delenv(
+        "HIRO_OCR", raising=False
+    )  # 不被本机环境带偏：不固定后端、依赖目录指向空目录（本机装过 SIMD 也一样）
+    monkeypatch.setenv("HIRO_SIMD_DEPS", str(tmp_path / "no-deps"))
     monkeypatch.setattr(cmd_doctor.sys, "platform", "win32")
     _, env = run_cli("doctor")
     ocr = items(env)["ocr"]

@@ -470,6 +470,33 @@ func (s *S) installEnv(h plugin.Host) {
 				s.bootLines = append(s.bootLines, "出错了："+err.Error())
 			}
 			s.Recheck(h)
+			s.refreshOcr(h) // 装好 SIMD 之后，「文字识别」那行不能还是装之前读到的
+		}
+	})
+}
+
+// refreshOcr 重新读文字识别后端：调不连游戏的 doctor，只更新 ocr 项（platform 等项留着试连时读到的）。
+// 不看 deviceOK，游戏试连过与否都刷。
+func (s *S) refreshOcr(h plugin.Host) {
+	h.Go(func() func() {
+		var d struct {
+			Items []doctorItem `json:"items"`
+		}
+		err := h.Call(context.Background(), []string{"doctor"}).Decode(&d)
+		return func() {
+			if err != nil {
+				return
+			}
+			s.devMu.Lock()
+			defer s.devMu.Unlock()
+			for _, it := range d.Items {
+				if it.ID == "ocr" {
+					if s.doctor == nil {
+						s.doctor = map[string]doctorItem{}
+					}
+					s.doctor[it.ID] = it
+				}
+			}
 		}
 	})
 }

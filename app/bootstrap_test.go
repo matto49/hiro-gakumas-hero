@@ -184,7 +184,7 @@ func TestPlanWindowsInstallsSimdOcrAsAnOptionalStepAfterSetup(t *testing.T) {
 		t.Fatalf("setup.ps1 里的 SIMD 项要跳过（单独一步装）：%v", steps[0].Argv)
 	}
 	simd := steps[1]
-	if !simd.Optional || simd.Dir != "/h/src" {
+	if !simd.Optional || filepath.ToSlash(simd.Dir) != "/h/src" {
 		t.Fatalf("SIMD 是可选步骤：%+v", simd)
 	}
 	if got := filepath.ToSlash(simd.Argv[0]); got != "/h/src/.venv/Scripts/python.exe" || filepath.ToSlash(simd.Argv[1]) != "/h/src/tools/assets/simd_ocr.py" {

@@ -322,3 +322,41 @@ func TestPanelHasNoOcrLineBeforeDoctorHasRun(t *testing.T) {
 		t.Errorf("还没读到 doctor 时不该画：%q", tt.Texts())
 	}
 }
+
+// CodeRabbit #115：重装运行环境（装好 SIMD）之后，「文字识别」那一行要跟着刷新，不能一直显示旧的「没装好」；
+// 游戏已经试连过（deviceOK 有值）时也要刷，而且不为此重新连游戏。
+func TestReinstallRefreshesTheOcrLine(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	f.s = Settings{Provider: "deepseek", WizardDone: true}
+	stale := `{"id":"ocr","ok":false,"detail":"RapidOCR（SIMD 没装好：找不到 .NET 10 Runtime）","next":"设置 → 运行环境 →「重装运行环境」会再试一次装 SIMD"}`
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`, "doctor --probe": `{"items":[` + stale + `]}`})
+	d := f.deps()
+	d.BootReset = func() error { return nil }
+	d.BootRun = func(context.Context, func(string)) error {
+		h.Resp["doctor"] = hiroapi.Result{OK: true, Data: []byte(`{"items":[{"id":"platform","ok":null,"detail":"还没试连游戏"},{"id":"ocr","ok":true,"detail":"SIMD PaddleOCR（PP-OCRv6，有显卡走 Vulkan）"}]}`)}
+		return nil
+	}
+	s := New(d)
+	p := s.Plugin()
+	tt := ui.NewTester(plugintest.PanelView(func(c *ui.Context) { p.Panel(c, h, "") }), 560, 1600)
+	tt.Frame()
+	s.Probe(h)
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText("文字识别：RapidOCR（SIMD 没装好") {
+		t.Fatalf("前提：先显示没装好：%q", tt.Texts())
+	}
+	probes := strings.Count(strings.Join(flat(h.Calls), "|"), "doctor --probe")
+	if err := plugintest.ClickButton(tt, "重装运行环境"); err != nil {
+		t.Fatalf("%v %q", err, tt.Texts())
+	}
+	tt.Frame()
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText("文字识别：SIMD PaddleOCR") || tt.HasText("SIMD 没装好") {
+		t.Errorf("装好后应显示 SIMD：%q", tt.Texts())
+	}
+	if n := strings.Count(strings.Join(flat(h.Calls), "|"), "doctor --probe"); n != probes {
+		t.Errorf("刷新文字识别不该重新连游戏：试连 %d → %d 次", probes, n)
+	}
+}

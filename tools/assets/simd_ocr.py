@@ -36,7 +36,7 @@ SHA256 = "0812bc5457e23c24bf30b6b0a8ca356fec95763fc6f5e6f322471b189edc5c8f"  # R
 DOTNET_INSTALL_URL = "https://dot.net/v1/dotnet-install.ps1"
 DOTNET_CHANNEL = "10.0"
 TOP_DIRS = ("simd-ocr", "SimdPaddleOCR")  # zip 里的两个顶层目录；顶层的文件（NOTICE、许可证）装好后放进 deps/simd-ocr
-STAMP = ".asset-sha256"  # 装好的资产的 SHA256，写在 deps/simd-ocr 里；和 SHA256 对得上就不重复下载
+STAMP = ".simd-asset-sha256"  # 装好的资产的 SHA256，写在 deps 根（不在会被整个换掉的两个目录里）；和 SHA256 对得上就不重复下载
 
 CONNECT_TIMEOUT = 30  # 连不上 / 一次读卡住超过这么久就放弃这次
 DOWNLOAD_DEADLINE = 1800  # 一个文件整个下载最多这么久
@@ -117,18 +117,59 @@ def _check_layout(staging: Path) -> None:
         raise InstallError("资产里缺 " + "、".join(str(p.relative_to(staging)) for p in missing))
 
 
+class RollbackFailed(InstallError):
+    """换入新版本失败、恢复旧版本也没做完：旧文件的备份还在临时目录里，不能删。"""
+
+
+def _swap_in(staging: Path, deps: Path, work: Path, sha: str) -> None:
+    """把 staging 里的 TOP_DIRS 当一次更新换进 deps：都换成功才写新 stamp；任一步失败就把已经换进去的恢复成旧的
+    （旧的备份在 work 里，提交成功之前不删），再把原来的异常抛出去。恢复也没做完抛 RollbackFailed（备份留着）。
+    换的过程中 stamp 先写成 updating：中途进程被杀，下次因为 stamp 对不上会重新装，不会把半新半旧当成装好了。"""
+    stamp = deps / STAMP
+    prev_stamp = stamp.read_text() if stamp.is_file() else None
+    state: dict[str, list[bool]] = {}  # 目录名 → [旧的已经挪到备份, 新的已经放进 deps]
+    try:
+        stamp.write_text("updating\n")
+        for name in TOP_DIRS:
+            cur, old = deps / name, work / f"old-{name}"
+            state[name] = flags = [False, False]
+            if cur.exists():
+                cur.replace(old)
+                flags[0] = True
+            (staging / name).replace(cur)
+            flags[1] = True
+        stamp.write_text(sha + "\n")
+    except BaseException:
+        try:
+            for name, (moved_old, placed_new) in reversed(state.items()):
+                if placed_new:
+                    shutil.rmtree(deps / name)
+                if moved_old:
+                    (work / f"old-{name}").replace(deps / name)
+            if prev_stamp is None:
+                stamp.unlink(missing_ok=True)
+            else:
+                stamp.write_text(prev_stamp)
+        except OSError as e:
+            raise RollbackFailed(
+                f"换入新版本失败、恢复旧版本也没做完：{e}；旧文件的备份在 {work}，可以手动拷回 {deps}"
+            ) from e
+        raise
+
+
 def fetch_asset(deps: Path, *, url: str | None = None, sha: str | None = None, force: bool = False) -> bool:
     """装辅助程序和模型到 deps。已经是这个版本就不动，返回 False；这次装了返回 True；没装成抛 InstallError。
     url / sha 缺省取模块常量 URL / SHA256（测试里传本机 http.server 的）。"""
     url, sha = url or URL, sha or SHA256
     if not pinned(sha):
         raise InstallError(f"{TAG} 资产还没发布（SHA256 没填）")
-    stamp = deps / "simd-ocr" / STAMP
+    stamp = deps / STAMP
     # 文件齐了、且不是别的版本的资产（没有 stamp 的是开发者自己用 build-simd-ocr.ps1 编的：不覆盖，要换用 --force）就不动
     if not force and not simd_deps.missing_files(deps) and (not stamp.is_file() or stamp.read_text().strip() == sha):
         return False
     deps.mkdir(parents=True, exist_ok=True)
     work = Path(tempfile.mkdtemp(prefix="simd-", dir=deps))
+    keep_work = False
     try:
         zpath = work / ASSET
         print(f"下载 {url}", flush=True)
@@ -142,24 +183,17 @@ def fetch_asset(deps: Path, *, url: str | None = None, sha: str | None = None, f
         except zipfile.BadZipFile as e:
             raise InstallError(f"{ASSET} 不是有效的 zip：{e}") from e
         _check_layout(staging)
-        (staging / "simd-ocr" / STAMP).write_text(sha + "\n")
         for extra in staging.iterdir():  # 许可证 / NOTICE 跟着辅助程序放
             if extra.is_file():
                 shutil.move(extra, staging / "simd-ocr" / extra.name)
-        # 换进 deps：先挪走旧的，换失败就挪回来，不留半截
-        for name in TOP_DIRS:
-            new, cur, old = staging / name, deps / name, work / f"old-{name}"
-            if cur.exists():
-                cur.replace(old)
-            try:
-                new.replace(cur)
-            except OSError:
-                if old.exists():
-                    old.replace(cur)
-                raise
+        _swap_in(staging, deps, work, sha)
         return True
+    except RollbackFailed:
+        keep_work = True
+        raise
     finally:
-        shutil.rmtree(work, ignore_errors=True)
+        if not keep_work:
+            shutil.rmtree(work, ignore_errors=True)
 
 
 def install_dotnet(deps: Path, *, timeout: float = DOTNET_TIMEOUT) -> bool:
