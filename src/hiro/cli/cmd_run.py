@@ -56,6 +56,15 @@ def _precheck(a: dict) -> None:
 
         if not paths.plan_path(hiro_home()).is_file():
             raise CliError("no_plan", "还没有编成方案，没东西可写", "先出一份：hiro plan formation --idol <偶像卡编号>")
+        if not a.get("dry_run"):
+            try:
+                plan = json.loads(paths.plan_path(hiro_home()).read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                plan = {}
+            what = [
+                w.strip() for w in (a.get("what") or "support,memory").split(",") if w.strip() in ("support", "memory")
+            ]
+            _check_plan_sets(plan, what, ((plan.get("idol") or {}).get("idol_card_id") or ""))
         if not a.get("dry_run") and "memory" in (a.get("what") or "support,memory"):
             _check_memory_freshness(paths.plan_path(hiro_home()), hiro_home())
     if a["kind"] in ("hajime", "nia") and (a.get("command") or "new") == "new" and not a.get("idol"):
@@ -162,6 +171,25 @@ def _check_formation_plan(a: dict) -> None:
     if idol and want and idol != want:
         name = (plan.get("idol") or {}).get("name") or want
         raise CliError("plan_other_idol", f"现在的编成方案是给「{name}」出的，这局是 {idol}", hint)
+    _check_plan_sets(plan, ("support", "memory"), idol)
+
+
+def _check_plan_sets(plan: dict, what, idol: str = "") -> None:
+    """方案里要用的编成号（支援卡 / 回忆）没定时，在出待确认之前就说清楚（11-26 Mac：方案没带编成号，
+    确认开局后才报「new 开局要编成号」）。"""
+    from hiro.cli.registry import CliError
+
+    missing = [w for w in what if (plan.get(w) or {}).get("set") is None]
+    if not missing:
+        return
+    names = "、".join({"support": "支援卡", "memory": "回忆"}[w] for w in missing)
+    raise CliError(
+        "plan_no_set",
+        f"编成方案还没定{names}存进游戏里的哪个编成位，开局时不知道选哪一套",
+        f"重新出方案时带上编成号：hiro plan formation --idol {idol or '<偶像卡编号>'} --support-set <号> --memory-set <号>"
+        "（哪些编成位空着用 hiro info formations 看，没读过就先 hiro run start scan-formations）；"
+        "或者开局时直接加 --support-set / --memory-set",
+    )
 
 
 EXAM_KINDS = ("hif", "hajime", "nia", "tower")  # 有考试、出牌靠算法的任务

@@ -77,7 +77,8 @@ def _write_setup(home, *, mem_scanned, plan_created, produce_ended=None):
     plan = {
         "created": plan_created,
         "idol": {"idol_card_id": "i_card-fktn-3-000"},
-        "memory": {"chosen": [{"cell": [128, 2]}]},
+        "support": {"set": 16},
+        "memory": {"set": 9, "chosen": [{"cell": [128, 2]}]},
     }
     (home / "formation-plan.json").write_text(json.dumps(plan), encoding="utf-8")
     Store(home / "hiro.db").save_snapshot(
@@ -123,3 +124,29 @@ def test_write_support_only_or_dry_run_skip_memory_freshness(run_cli, hiro_home)
     for extra in (("--what", "support"), ("--dry-run",)):
         code, env = run_cli("run", "start", "write-formation", "--scenario", "hajime", *extra)
         assert code == 3 and env["data"]["pending"], extra
+
+
+# ---------------------------------------------------------------- 方案没定编成号（11-26 Mac：方案没带编成号，确认后才报「new 开局要编成号」）
+
+
+def _plan_no_set(home, idol="i_card-fktn-3-000"):
+    home.mkdir(parents=True, exist_ok=True)
+    plan = {"idol": {"idol_card_id": idol, "name": "世界一可愛い私"}, "support": {"set": None}, "memory": {"set": None}}
+    (home / "formation-plan.json").write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+
+
+def test_plan_without_set_is_refused_before_confirm(run_cli, hiro_home):
+    _plan_no_set(hiro_home)
+    _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE)
+    assert env["ok"] is False and env["error"]["code"] == "plan_no_set"
+    assert "编成位" in env["error"]["message"] and "--support-set" not in env["error"]["message"]
+    assert "--support-set" in env["error"]["hint"] and "info formations" in env["error"]["hint"]
+    # 开局时直接给了编成号就照常
+    code, env = run_cli("run", "start", "hajime", "--idol", KOTONE, "--support-set", "3", "--memory-set", "7")
+    assert code == 3 and env["data"]["pending"]
+
+
+def test_write_formation_without_set_is_refused(run_cli, hiro_home):
+    _plan_no_set(hiro_home)
+    _code, env = run_cli("run", "start", "write-formation", "--scenario", "hajime", "--what", "support")
+    assert env["ok"] is False and env["error"]["code"] == "plan_no_set"

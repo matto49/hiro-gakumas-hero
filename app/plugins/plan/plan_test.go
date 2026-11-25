@@ -105,3 +105,22 @@ func TestOldFormationCardDoesNotClearNewerPlan(t *testing.T) {
 		t.Errorf("plan show 读了 %d 次，面板：%v", n, tt.HasText("出方案时间 2026-11-24 09:00"))
 	}
 }
+
+// 11-26：方案没定编成号时，对话里的方案卡要写明（原来卡上什么都不提，开局确认后才报「new 开局要编成号」）；方案备注也要显示
+func TestCardWarnsWhenSetMissingAndShowsNotes(t *testing.T) {
+	h, p := host(), New()
+	noSet := strings.Replace(strings.Replace(planJSON, `"set":2`, `"set":null`, 1), `"set":1`, `"set":null`, 1)
+	noSet = strings.Replace(noSet, `"notes":["主属性按初定 Vo"]`, `"notes":["支援卡技能数据缺失，建议手动挑"]`, 1)
+	var card map[string]any
+	_ = decode(noSet, &card)
+	v := p.Cards["formation"]
+	tt := ui.NewTester(func(c *ui.Context) {
+		ui.Column(c).Fill().Children(func() { v(c, h, plugin.Card{"type": "formation", "plan": card}) })
+	}, 760, 800)
+	all := strings.Join(tt.Texts(), "\n")
+	for _, s := range []string{"编成号未定", "建议手动挑"} {
+		if !strings.Contains(all, s) {
+			t.Errorf("方案卡没有 %q：%q", s, tt.Texts())
+		}
+	}
+}

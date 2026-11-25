@@ -141,6 +141,24 @@ func view(c *ui.Context, h plugin.Host, p *Summary, compact bool) {
 		head += " · 回忆编成 " + intStr(p.Memory.Set)
 	}
 	ui.Text(c, head).FontSize(kit.FNote).TextColor(kit.Ink2).Wrap()
+	// 11-26：编成号没定时开局会失败（「new 开局要编成号」），卡上要先说
+	if p.Support.Set == nil || p.Memory.Set == nil {
+		ui.Row(c).Gap(8).Padding(8, 10).Radius(kit.R8).Background(kit.BadT).Children(func() {
+			ui.Text(c, "编成号未定").FontSize(kit.FNote).FontWeight(600).TextColor(kit.Bad).Shrink(0)
+			ui.Text(c, "还没定存进游戏里的哪个编成位，这样开不了局。让初星助手重新出方案时带上编成号（先读一遍编成位，挑空着的）。").
+				FontSize(kit.FNote).TextColor(kit.Ink).Wrap().Shrink(1)
+		})
+	}
+	// 方案自己的备注（「建议手动挑」这类警告）：对话里的卡也显示，原来只在编成页里看得到
+	if compact && len(p.Notes) > 0 {
+		for i, n := range p.Notes {
+			if i == 3 {
+				kit.Note(c, fmt.Sprintf("还有 %d 条备注，在编成页里。", len(p.Notes)-3))
+				break
+			}
+			kit.Note(c, "· "+n)
+		}
+	}
 	kit.Section(c, "支援卡")
 	if p.Support.Error != "" {
 		ui.Text(c, p.Support.Error).FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
