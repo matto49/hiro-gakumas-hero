@@ -129,3 +129,17 @@ def test_incremental_puts_new_first_and_recomputes_positions(st):
     )
     got = [(e["card"]["card_id"], e["slot"], e["cell"]) for e in st.slice_entries("sense:hif")]
     assert got == [("n", 0, [0, 0]), ("a", 1, [0, 1]), ("b", 2, [0, 2]), ("c", 3, [1, 0]), ("d", 4, [1, 1])]
+
+
+def test_slice_only_user_is_not_told_memories_never_scanned(st, monkeypatch):
+    """终审 I7：新用户只按片扫过（没有整表快照）：概况里回忆要算扫过（时间取最近一次片扫描、数量是片里的份数），
+    回忆列表列出已有的片数据（没齐 12 片时 complete=False）。"""
+    from hiro.cli import cmd_info
+
+    monkeypatch.setattr(cmd_info, "open_store", lambda: st)
+    st.save_slice("sense:hif", [_e("a"), _e("b")], mode="full", complete=True, scanned_at="2026-11-26 05:00:00")
+    st.save_slice("common:hif", [_e("c")], mode="full", complete=True, scanned_at="2026-11-26 06:00:00")
+    mem = cmd_info._summary({})["kinds"]["memories"]
+    assert mem["scanned_at"] == "2026-11-26 06:00:00" and mem["count"] == 3 and mem["complete"] is False
+    out = cmd_info._memories({"timing": None, "card": None})
+    assert out["source"] == "slices" and out["total"] == 3 and out["complete"] is False and len(out["items"]) == 3

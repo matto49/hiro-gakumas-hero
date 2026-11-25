@@ -8,6 +8,7 @@ from pathlib import Path
 
 from hiro.cli.registry import Arg, CliError, Risk, command
 from hiro.cli.store import KINDS, open_store
+from hiro.state.memory_slices import SLICES
 
 SCAN_HINT = {
     "account": "还没读过首页数值：游戏停在首页时运行 hiro run start scan-account",
@@ -204,6 +205,10 @@ def _summary(args: dict) -> dict:
             "scanned_at": meta["scanned_at"] if meta else None,
             "complete": meta["complete"] if meta else None,
         }
+    cov = st.slice_coverage()
+    if cov and kinds["memories"]["scanned_at"] is None:  # 只按片扫过（终审 I7）：回忆算扫过
+        kinds["memories"] = {"count": sum(v["count"] for v in cov.values()), "complete": st.slice_summary()["done"] == len(SLICES),
+                             "scanned_at": max(v["scanned_at"] for v in cov.values())}  # fmt: skip
     meta, rows = st.latest("account")
     return {"account": rows[0] if rows else None, "kinds": kinds}
 
@@ -239,11 +244,14 @@ def _memories(a: dict) -> dict:
     keep = lambda r: _match(r.get("timing"), a["timing"]) and _contains(r.get("card"), a["card"])  # noqa: E731
     st = open_store()
     summary = st.slice_summary()
-    if summary["done"] == summary["total"]:  # 12 片都完整全读过：列表用片数据（D16：不和旧整表混用）
-        inv = st.memories_for_plan(None) or {}
-        items = [r for r in normalize_memories(inv) if keep(r)]
-        out = {"kind": "memories", "scanned_at": inv.get("scanned_at"), "complete": True, "source": "slices",
-               "total": len(inv.get("entries") or []), "counts": counts(items), "items": items}  # fmt: skip
+    cov = st.slice_coverage()
+    whole, _ = st.latest("memories")
+    if summary["done"] == summary["total"] or (cov and whole is None):
+        # 12 片都完整全读过：列表用片数据（D16：不和旧整表混用）；没有整表、只按片扫过：列出已有的片（终审 I7）
+        entries = [e for k in SLICES for e in st.slice_entries(k)]
+        items = [r for r in normalize_memories({"entries": entries}) if keep(r)]
+        out = {"kind": "memories", "scanned_at": min(v["scanned_at"] for v in cov.values()), "source": "slices",
+               "complete": summary["done"] == summary["total"], "total": len(entries), "counts": counts(items), "items": items}  # fmt: skip
     else:
         out = _listing("memories", keep)
     return {**out, "slices": summary}
