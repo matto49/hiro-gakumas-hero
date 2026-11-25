@@ -428,12 +428,31 @@ def _cards_by_dash_name() -> dict[str, tuple[str, list[tuple[str, int]]]]:
     return {k: v for k, v in out.items() if k not in clash}
 
 
+def _unique_prefix(name: str) -> tuple[str, list[tuple[str, int]]] | None:
+    """卡名丢了尾字（回忆详情「楽観的」读成「楽观」，11-26 两次扫描都一样）：读到的字（去掉「+」后至少 2 个字）
+    是唯一一张卡名的开头、「+」个数也一样时认成那张；两张以上卡以它开头就取不定。"""
+    base = name.rstrip("+")
+    plus = len(name) - len(base)
+    if len(base) < 2:
+        return None
+    found = [
+        (full, hits)
+        for full, hits in _cards_by_full_name().items()
+        if full.rstrip("+").startswith(base) and len(full) - len(full.rstrip("+")) == plus
+    ]
+    if len({h[0] for _, hits in found for h in hits}) != 1:
+        return None
+    return found[0]
+
+
 def card_from_name(text: str, candidates: set[str] | None = None) -> dict | None:
     """卡名（OCR，带「+」）精确命中主数据 → {card_id, name, upgrade}；同名多张时按 candidates（如本页卡格认出的 id）取，取不定给 None。
     精确没命中时把全角半角、长音符号统一再查（RapidOCR 常把「ー」读成「一」：DMM dmm2 特別指導「えいえいお一+」，Windows 回归集 sg-dmm2-2c）。"""
     name = text.replace("＋", "+").replace(" ", "").strip()
     hits = _cards_by_full_name().get(name) or []
     if not hits and (alt := _cards_by_dash_name().get(_dash_key(name))) is not None:
+        name, hits = alt
+    if not hits and (alt := _unique_prefix(name)) is not None:
         name, hits = alt
     if candidates:
         hits = [h for h in hits if h[0] in candidates] or hits
