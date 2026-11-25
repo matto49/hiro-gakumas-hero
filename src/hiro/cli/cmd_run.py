@@ -266,14 +266,14 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
             steps.append("把编成方案写进空着的" + "、".join(f"{label[w]}编成 {n} 号" for w, n in picked.items()))
         else:
             steps.append(f"先读一遍{_MODE_NAME.get(kind, kind)}的编成位，挑空着的把编成方案写进去")
-    elif fp.unwritten(plan, kind, todo):
-        steps.append(
-            "把编成方案写进"
-            + "、".join(f"{label[w]}编成 {(plan.get(w) or {}).get('set')} 号" for w in fp.unwritten(plan, kind, todo))
-        )
+    elif left := fp.unwritten(plan, kind, todo):
+        # 编成号是沿用的：只有那个位是空的、或者是初星助手自己写过的，才自动写；玩家自己的编成照旧让玩家确认覆盖（CodeRabbit #95）
+        if not all(_slot_ours_or_blank(home, kind, w, (plan.get(w) or {}).get("set")) for w in left):
+            return False
+        steps.append("把编成方案写进" + "、".join(f"{label[w]}编成 {(plan.get(w) or {}).get('set')} 号" for w in left))
     if not steps:
         return False
-    if "memory" in todo:
+    if "memory" in missing or "memory" in fp.unwritten(plan, kind, todo):
         # 要写回忆：库存扫描之后又打过培育、或方案比扫描旧，就在出确认卡之前说清楚（手动写编成那条路同样的检查，CodeRabbit #95）
         from hiro.cli import paths
 
@@ -282,6 +282,28 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
     a["prepare_what"] = ",".join(todo)
     a["prepare_note"] = "；".join(steps) + "（只写空着的或初星助手自己写过的编成位，写完回读核对）"
     return True
+
+
+def _slot_ours_or_blank(home: Path, kind: str, what: str, n) -> bool:
+    """这个模式的 what（support / memory）n 号编成位能不能直接写：初星助手写过（哪份方案的 written 记着这个号），
+    或者最近一次读的编成位现状（读完没再写过）里它是空的。"""
+    from hiro.brain import formation_plan as fp
+    from hiro.cli import paths
+    from hiro.cli.store import open_store
+
+    if n is None:
+        return False
+    files = list((home / "plans" / kind).glob("*.json")) if (home / "plans" / kind).is_dir() else []
+    for f in [*files, paths.plan_path(home)]:
+        w = ((fp.load(f) or {}).get("written") or {}).get(kind) or {}
+        if what in (w.get("what") or ()) and w.get(f"{what}_set") == n:
+            return True
+    meta, rows = open_store().latest("formations")
+    if meta is None or _wrote_formation_since(meta.get("scanned_at"), kind):
+        return False
+    return any(
+        r.get("mode") == kind and r.get("kind") == what and r.get("set") == n and r.get("filled") == 0 for r in rows
+    )
 
 
 def _check_plan_file(path: Path, idol: str, kind: str, given: dict) -> None:

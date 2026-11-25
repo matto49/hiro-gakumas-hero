@@ -163,3 +163,48 @@ def test_prepare_what_reaches_job_argv(tmp_path):
     argv = jobs.KINDS["hajime"].argv({"idol": KOTONE, "prepare": True, "prepare_what": "memory"}, tmp_path)
     i = argv.index("hiro.runtime.prepare_start")
     assert "--what" in argv[i:] and argv[argv.index("--what") + 1] == "memory"
+
+
+def _other_plan_written(home, sets):
+    """别的偶像的方案，初星助手写进过这两个编成位。"""
+    from hiro.brain import formation_plan as fp
+
+    plan = {"version": fp.PLAN_VERSION, "created": "2026-11-25 10:00:00", "idol": {"idol_card_id": "i_card-ttmr-3-000", "name": "Luna"},
+            "support": {"set": sets[0]}, "memory": {"set": sets[1]},
+            "written": {"hajime": {"what": ["memory", "support"], "support_set": sets[0], "memory_set": sets[1]}}}  # fmt: skip
+    path = fp.plan_key_path(home, "i_card-ttmr-3-000", "hajime")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
+
+
+def test_known_sets_filled_by_player_fall_back_to_asking(run_cli, hiro_home, on):
+    """CodeRabbit #95：沿用的编成号在游戏里有东西、又不是初星助手写的：不自动覆盖，照旧让玩家确认写编成。"""
+    _plan(hiro_home, sets=(4, 5))
+    _formations("hajime", {4: 5}, {5: 4})
+    _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
+    assert env["error"]["code"] == "plan_not_written"
+
+
+def test_known_sets_written_by_us_are_reused(run_cli, hiro_home, on):
+    _plan(hiro_home, sets=(4, 5))
+    _other_plan_written(hiro_home, (4, 5))
+    _formations("hajime", {4: 5}, {5: 4})
+    code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
+    assert code == 3 and env["data"]["pending"]["args"]["prepare"] is True
+
+
+def test_support_only_left_does_not_check_memory_freshness(run_cli, hiro_home, on, monkeypatch):
+    """CodeRabbit #95：只剩支援卡没写时，回忆库存过期不该挡开局。"""
+    from hiro.brain import formation_plan as fp
+    from hiro.cli import cmd_run
+    from hiro.cli.registry import CliError
+
+    def stale(plan_path, home):
+        raise CliError("inventory_stale", "回忆库存是旧的", "重扫回忆")
+
+    monkeypatch.setattr(cmd_run, "_check_memory_freshness", stale)
+    _plan(hiro_home, sets=(4, 5))
+    fp.mark_written(hiro_home / "formation-plan.json", "hajime", ("memory",))
+    _formations("hajime", {4: 0}, {5: 4})
+    code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
+    assert code == 3 and env["data"]["pending"]["args"]["prepare"] is True, env
