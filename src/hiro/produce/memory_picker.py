@@ -368,6 +368,9 @@ class Picker:
                 entry = {"stats": stats_with_fallback(_img, boxes, self.ocr), **read_card_page(boxes), **entry}
             else:
                 entry["abilities"] = read_ability_page(boxes)
+        # 读完核对选择页还开着（整屏 OCR）：点格子被当成「決定」时选择页会关、编成可能被改；翻页只 OCR 上半部分看不到底部按钮，
+        # 这层核对不能省（#116 第二轮审查：一页最后一格 / 片尾 / 预算到时关了会发现不了）
+        self.ensure_open()
         return entry
 
     def scroll(

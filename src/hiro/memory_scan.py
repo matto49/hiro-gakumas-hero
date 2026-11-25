@@ -47,21 +47,29 @@ def _formation_rows() -> list[dict]:
         return []
 
 
-def known_for_slice(store, key: str):
-    """增量补扫用的「资料库里已有的」：这一片完整读过、而且属性是本身的（从空编成进去读的）才给 KnownSet；
-    否则返回 None = 这一片全读（终审 I3：没读完的片增量会读到已知就停、永远补不全；I4：带偏移的旧读数签名对不上）。"""
+def known_for_slice(store, key: str, *, empty: bool | None = True):
+    """增量补扫用的「资料库里已有的」。下面几种都返回 None = 这一片全读：
+    - 从没完整读过（终审 I3：没读完的片增量会读到已知就停、永远补不全）；
+    - 最近一次没读完（被预算打断，#116 第二轮审查：中断处以下的新回忆补不进来）；
+    - 库里是带偏移读的，或者和这次的编成上下文不同（empty 不一样：签名对不上，终审 I4 / 第二轮审查）。"""
     from hiro.produce.memory_sig import KnownSet
 
     cov = store.slice_coverage().get(key) or {}
-    if not cov.get("full_at") or not (cov.get("context") or {}).get("empty"):
+    stored_empty = bool((cov.get("context") or {}).get("empty"))
+    if (
+        not cov.get("full_at")
+        or not cov.get("complete")
+        or not stored_empty
+        or (empty is not None and empty != stored_empty)
+    ):
         return None
     return KnownSet(store.slice_entries(key))
 
 
-def _known_for(key: str):
+def _known_for(key: str, empty: bool):
     from hiro.cli.store import open_store
 
-    return known_for_slice(open_store(), key)
+    return known_for_slice(open_store(), key, empty=empty)
 
 
 def _back_to_set(d, where: dict) -> None:
@@ -176,20 +184,21 @@ def scan_slices(
             if bad or inv.get("stopped") == "budget":
                 break
     finally:
+        reset = False
         if not (closed or getattr(picker, "formation_may_have_changed", False)):
-            restored = _leave_picker(picker, state)
+            restored, reset = _leave_picker(picker, state)
     return {"slices": done, "pending": pending, "restored": restored, "scanned_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "formation_may_have_changed": closed, "filter_reset": not closed,
+            "formation_may_have_changed": closed, "filter_reset": reset,
             "complete": not closed and not pending and all(s["complete"] for s in done)}  # fmt: skip
 
 
-def _leave_picker(picker, state: dict) -> bool:
-    """恢复排序 / 方向、重置筛选，关弹窗，点キャンセル退出选择页；返回排序和方向是不是确认恢复了。"""
+def _leave_picker(picker, state: dict) -> tuple[bool, bool]:
+    """恢复排序 / 方向、重置筛选，关弹窗，点キャンセル退出选择页；返回 (排序和方向确认恢复了, 筛选确实重置了)。"""
     from hiro.produce import memory_filter
 
-    restored = False
+    restored, report = False, {}
     try:
-        restored = memory_filter.restore(picker, state)
+        restored = memory_filter.restore(picker, state, report=report)
     except Exception as e:  # noqa: BLE001  恢复失败要写明，但不丢已经扫到的
         logging.getLogger(__name__).warning("回忆列表的排序 / 筛选没能恢复：%s", e)
     try:  # 恢复失败时弹窗可能还开着：先关弹窗，下面的キャンセル才是退出选择页（终审 I6）
@@ -197,7 +206,7 @@ def _leave_picker(picker, state: dict) -> bool:
     except Exception as e:  # noqa: BLE001
         logging.getLogger(__name__).warning("关「ソート・フィルタ」弹窗失败：%s", e)
     picker.cancel()
-    return restored
+    return restored, bool(report.get("filter_reset"))
 
 
 def main():
@@ -260,7 +269,8 @@ def main():
             from hiro.state.memory_slices import SLICES
 
             keys = list(SLICES) if args.slices == "all" else [k.strip() for k in args.slices.split(",") if k.strip()]
-            known_for = _known_for if args.incremental else (lambda key: None)
+            now_empty = bool(ctx and ctx.get("empty"))  # 这次是不是从空编成进的：和库里不一样就全读（签名对不上）
+            known_for = (lambda key: _known_for(key, now_empty)) if args.incremental else (lambda key: None)
             inv = scan_slices(picker, keys, Path(args.out).parent, known_for=known_for, budget_s=args.budget_s,
                               on_slice=slices_progress_writer(Path(args.out), ctx))  # fmt: skip
             keep_scene = bool(inv.get("formation_may_have_changed"))
@@ -268,7 +278,10 @@ def main():
                 inv["context"] = ctx
             if not keep_scene:
                 # 筛选按「フィルタをリセット」回到默认（玩家原来自己设的筛选会被清掉）；排序 / 方向确认不了时也说清楚（#116 审查重要 4）
-                print("提示：回忆列表的筛选已重置为默认（扫描前自己设过筛选的，要在游戏里重新设）", flush=True)
+                if inv.get("filter_reset"):
+                    print("提示：回忆列表的筛选已重置为默认（扫描前自己设过筛选的，要在游戏里重新设）", flush=True)
+                else:
+                    print("注意：回忆列表的筛选可能没恢复（还停在扫描时设的那一片），请到游戏里看一下", flush=True)
                 if not inv.get("restored"):
                     print(
                         "注意：回忆列表的排序 / 升降序可能被改了，请到游戏里看一下（选择页右下的排序按钮）", flush=True
@@ -284,6 +297,11 @@ def main():
                 inv["context"] = ctx
                 Path(args.out).write_text(json.dumps(inv, ensure_ascii=False, indent=1), encoding="utf-8")
             print(f"{len(inv['entries'])} 份回忆 → {args.out}（complete={inv.get('complete')}）")
+    except Exception:
+        # 选择页关了的标记打上之后又出错（存盘失败之类）：照样按「编成可能被改」退出，别让调用方当普通失败接着开局（#116 第二轮审查）
+        if not getattr(picker, "formation_may_have_changed", False):
+            raise
+        logging.getLogger(__name__).exception("回忆扫描：选择页关了之后又出错")
     finally:
         # 从首页进来的就回首页（G1-F1：读完停在メモリー編成页，下一个任务开头不在首页）。
         # 但选择页在扫描中关了（多半点成了「決定」，编成可能被改）时 scan 已经停手要人核对，不能再点回首页离开现场；

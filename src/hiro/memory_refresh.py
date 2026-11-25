@@ -68,6 +68,8 @@ def ensure_fresh(
     cov = store.slice_coverage()
 
     def stale(k: str) -> bool:
+        if cov.get(k) and not cov[k].get("complete"):  # 最近一次没读完（预算打断）：不管多新都要补（#116 第二轮审查）
+            return True
         at = (cov.get(k) or {}).get("scanned_at")
         try:
             return at is None or now - datetime.strptime(at, "%Y-%m-%d %H:%M:%S") > STALE_AFTER
@@ -115,18 +117,22 @@ def _scan(keys: list[str], budget_s: float | None, out_dir: Path) -> dict:
         flush=True,
     )
     r = subprocess.run(argv, check=False)
+    inv: dict = {}
+    if out.is_file():  # 出错时已经逐片写好的部分也入库（设计 I2，#116 第二轮审查）
+        try:
+            inv = json.loads(out.read_text(encoding="utf-8"))
+            res = import_inventory("memories", inv, source=f"refresh:{out.stem}")
+            print(f"补扫回忆入库：读了 {res['count']} 格，新的 {res.get('added')} 份", flush=True)
+        except (OSError, ValueError, KeyError) as e:
+            print(f"补扫回忆的结果没能入库：{e}", flush=True)
+            inv = {}
     if r.returncode == FORMATION_CHANGED_EXIT:
         raise FormationMayHaveChanged("补扫回忆时选择页在扫描中关了，编成可能被改")
-    if r.returncode != 0 or not out.is_file():
-        print(f"补扫回忆没成功（退出码 {r.returncode}），用现有库存继续", flush=True)
-        return {"pending": keys}
-    inv = json.loads(out.read_text(encoding="utf-8"))
-    res = import_inventory("memories", inv, source=f"refresh:{out.stem}")
-    print(
-        f"补扫回忆入库：读了 {res['count']} 格，新的 {res.get('added')} 份；没补完 {len(inv.get('pending') or [])} 片",
-        flush=True,
-    )
-    return inv
+    done = {x.get("key") for x in inv.get("slices") or [] if x.get("complete") and not x.get("rejected")}
+    pending: list[str] = list(inv["pending"]) if inv.get("pending") is not None else [k for k in keys if k not in done]
+    if r.returncode != 0:
+        print(f"补扫回忆没做完（退出码 {r.returncode}），用现有库存继续；没补完 {len(pending)} 片", flush=True)
+    return {**inv, "pending": pending}
 
 
 def refresh_and_start(

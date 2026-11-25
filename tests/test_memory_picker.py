@@ -718,6 +718,7 @@ def test_read_selected_starts_on_current_page_and_never_flips_back(monkeypatch):
     monkeypatch.setattr(mp, "read_stats", lambda boxes: {"Vo": 1})
     monkeypatch.setattr(mp, "read_card_page", lambda boxes: {"card": {"card_id": "c"}})
     monkeypatch.setattr(mp, "read_ability_page", lambda boxes: ["a"])
+    monkeypatch.setattr(mp, "picker_open", lambda boxes: True)  # 读完核对选择页还开着
 
     class Pk(mp.Picker):
         def __init__(self):
@@ -761,3 +762,22 @@ def test_stats_fall_back_to_full_frame_when_a_digit_is_missed(name, want):
     boxes = ops.ocr_boxes(img[: mp.DETAIL_OCR_BOTTOM])
     s = mp.stats_with_fallback(img, boxes, ops.ocr_boxes)
     assert (s["Vo"], s["Da"], s["Vi"]) == want
+
+
+def test_read_selected_checks_picker_still_open(monkeypatch):
+    """#116 第二轮审查重要 1：读完一格要核对选择页还开着（点格子被当成「決定」时选择页会关）。
+    提速时只 OCR 上半部分、去掉了这层核对，一页最后一格 / 片尾 / 预算到时关了就发现不了。"""
+    monkeypatch.setattr(mp, "read_stats", lambda boxes: {"Vo": 1, "Da": 1, "Vi": 1, "hp": 0})
+    monkeypatch.setattr(mp, "read_card_page", lambda boxes: {"card": {"card_id": "c"}})
+    monkeypatch.setattr(mp, "read_ability_page", lambda boxes: [])
+
+    class Pk(mp.Picker):
+        def __init__(self):
+            super().__init__(lambda: None, lambda x, y: None, lambda *a: None, ocr=lambda im: [], sleep=lambda s: None)
+
+        def to_page(self, page):
+            self._page = page
+            return None, []
+
+    with pytest.raises(mp.PickerClosed):
+        Pk().read_selected()

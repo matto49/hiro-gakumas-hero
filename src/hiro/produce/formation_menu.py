@@ -455,6 +455,11 @@ def open_picker(
         if ready(dev.shoot()):
             logger.info("编成菜单：%s 选择列表已打开（点了第 1 格；编成 %s）", kind, where["used"] or where["set"])
             return where
+    if where.get("used"):  # 为了空编成切过模式 / 编成号：打不开选择页就切回去再报错（#116 第二轮审查）
+        try:
+            back_to(dev, where)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("选择页没打开，切回 %s 编成 %s 也失败：%s", where.get("mode"), where.get("set"), e)
     raise FormationWriteError(f"点{'回忆' if kind == 'memory' else '支援卡'}格没打开选择列表")
 
 

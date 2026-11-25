@@ -73,3 +73,21 @@ def test_memory_step_is_whole_list_scan_when_slices_off(tmp_path, monkeypatch):
     calls, _imported, runner, importer = _fake()
     collect_all.run(tmp_path, ["memories"], runner=runner, importer=importer)
     assert "--slices" not in calls[0] and "hiro.memory_scan" in calls[0]
+
+
+def test_failed_step_still_imports_partial_output(tmp_path):
+    """#116 第二轮审查次要：回忆这一步中途出错（退出码非 0），已经逐片写好的结果也要入库（设计 I2），再停下。"""
+    imported = []
+
+    def runner(argv, env=None):
+        out = argv[argv.index("--out") + 1]
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump({"slices": [{"key": "sense:hif"}]}, f)
+        return R(3)
+
+    def importer(kind, inv, source):
+        imported.append((kind, inv))
+        return {"count": 1}
+
+    assert collect_all.run(tmp_path, ["memories"], runner=runner, importer=importer) == 3
+    assert imported == [("memories", {"slices": [{"key": "sense:hif"}]})]

@@ -26,3 +26,32 @@ def test_pick_empty_set_falls_back_to_another_mode():
 
 def test_pick_empty_set_none_when_all_full():
     assert memory_scan.pick_empty_set([r for r in ROWS if r["filled"]], "hif") is None
+
+
+def test_main_exits_formation_changed_even_if_scan_raises(monkeypatch, tmp_path):
+    """#116 第二轮审查次要：选择页关了的标记打上后又抛异常（比如存盘出错），退出码也要是 FORMATION_CHANGED_EXIT，
+    不然开局前补扫当成普通失败、照样开局。"""
+    import sys
+
+    from hiro.produce import memory_picker
+
+    class Dev:
+        def screenshot(self):
+            return None
+
+        def tap(self, x, y):
+            pass
+
+        def swipe(self, *a, **k):
+            pass
+
+    monkeypatch.setattr(memory_scan, "open_tool_device", lambda: Dev())
+
+    def boom(picker, out, **kw):
+        picker.formation_may_have_changed = True
+        raise OSError("存盘失败")
+
+    monkeypatch.setattr(memory_scan, "scan", boom)
+    monkeypatch.setattr(sys, "argv", ["memory_scan", "scan", "--no-calib", "--out", str(tmp_path / "o.json")])
+    assert memory_scan.main() == memory_scan.FORMATION_CHANGED_EXIT
+    del memory_picker

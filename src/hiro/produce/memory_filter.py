@@ -195,7 +195,7 @@ def apply_slice(p, slice_key: str) -> None:
     ensure_newest_first(p)
 
 
-def restore(p, state: dict) -> bool:
+def restore(p, state: dict, *, report: dict | None = None) -> bool:
     """排序改回 state["sort"]（不知道就不动），筛选点「フィルタをリセット」。返回按钮上的排序是不是已经恢复。"""
     _open(p)
     if state.get("sort"):
@@ -204,6 +204,8 @@ def restore(p, state: dict) -> bool:
     _tap(p, "フィルタ", exact=True, y_min=1000, why="（页签）")
     _tap(p, "リセット", y_min=900, y_max=1000, why="（フィルタをリセット）")
     _confirm(p)
+    if report is not None:
+        report["filter_reset"] = True  # 点了重置并且弹窗关了：筛选确实回到默认（#116 第二轮审查：没重置时别说重置了）
     want = state.get("dir")
     if want and sort_direction(p.shoot()) not in (want, None):
         p.click(*DIR_BTN)

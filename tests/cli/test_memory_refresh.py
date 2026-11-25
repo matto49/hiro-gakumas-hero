@@ -128,3 +128,42 @@ def test_scan_subprocess_exit_code_maps_to_formation_changed(monkeypatch, tmp_pa
     )
     with pytest.raises(mr.FormationMayHaveChanged):
         mr._scan(["sense:hif"], 180, tmp_path)
+
+
+def test_unfinished_slice_is_stale_even_if_recent(st):
+    """预算打断的片（最近一次 complete=False）即使不到 1 天也要排补扫。"""
+    for k in msl.slices_for_plan("sense"):
+        st.save_slice(k, [_e(k)], mode="full", complete=True)
+    k0 = msl.slices_for_plan("sense")[0]
+    st.save_slice(k0, [], mode="incremental", complete=False)
+    calls = []
+    mr.ensure_fresh("sense", store=st, run_scan=lambda keys, budget: calls.append(keys) or {})
+    assert calls == [[k0]]
+
+
+def test_refresh_scan_imports_partial_output_on_failure(monkeypatch, tmp_path):
+    """子进程非 0 退出时，已写好的逐片进度照样入库；编成可能被改（退出码 5）时入库后再停。"""
+    import subprocess
+
+    from hiro import memory_scan
+    from hiro.cli import cmd_info
+
+    got = []
+    monkeypatch.setattr(
+        cmd_info, "import_inventory", lambda kind, inv, source: got.append(inv) or {"count": 1, "added": 0}
+    )
+
+    def run(argv, **kw):
+        out = argv[argv.index("--out") + 1]
+        with open(out, "w", encoding="utf-8") as f:
+            f.write(json.dumps({"slices": [{"key": "sense:hif"}], "pending": ["common:hif"]}))
+        return subprocess.CompletedProcess(argv, run.code)
+
+    monkeypatch.setattr(subprocess, "run", run)
+    run.code = 1
+    r = mr._scan(["sense:hif", "common:hif"], 180, tmp_path)
+    assert len(got) == 1 and r["pending"] == ["common:hif"]
+    run.code = memory_scan.FORMATION_CHANGED_EXIT
+    with pytest.raises(mr.FormationMayHaveChanged):
+        mr._scan(["sense:hif", "common:hif"], 180, tmp_path)
+    assert len(got) == 2

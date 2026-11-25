@@ -397,3 +397,20 @@ def test_open_picker_switches_mode_for_empty_set_and_back(game, monkeypatch):
     g.where = "menu"  # 扫完点キャンセル回到编成页
     fm.back_to(dev, got)
     assert (g.mode, g.number) == ("hajime", 10)
+
+
+def test_open_picker_switches_back_when_picker_never_opens(game, monkeypatch):
+    """#116 第二轮审查次要：切到空编成后选择页打不开（报错停下），要把模式和编成号切回去。"""
+    g, dev = game
+    g.mode, g.tab, g.number = "hajime", "memory", 10
+    monkeypatch.setattr(fm, "read_memory_icons", lambda img: [{"empty": True}] * 4)
+    from hiro.produce.formation_writer import FormationWriteError
+
+    orig = g.click
+    g.click = lambda x, y: (
+        None if (x, y) == fm.MEMORY_TILES[0] else orig(x, y)
+    )  # 点回忆格没反应：选择页打不开、还在编成页
+    dev.click = g.click
+    with pytest.raises(FormationWriteError):
+        fm.open_picker(dev, "memory", ready=lambda img: False, use_set=lambda mode: ("hif", 19))
+    assert (g.mode, g.number) == ("hajime", 10)

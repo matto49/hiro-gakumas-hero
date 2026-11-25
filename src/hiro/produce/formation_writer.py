@@ -375,7 +375,7 @@ def fix_memory(dev: Device, plan: dict, *, read_icons, make_picker, slots=STEP3_
                 raise
     finally:
         if filter_state is not None and not closed:
-            _restore_filter(dev, make_picker, slots[0], filter_state)
+            _restore_filter(dev, make_picker, slots[0], filter_state, read_icons=read_icons)
     return done
 
 
@@ -393,21 +393,31 @@ def _open_slot(dev: Device, make_picker, xy):
     raise FormationWriteError("点回忆格没打开回忆选择页")
 
 
-def _restore_filter(dev: Device, make_picker, xy, state: dict) -> None:
-    """写完编成后再开一次选择页，把排序改回去、筛选重置，点キャンセル（游戏的排序筛选退出后会保留，11-26 实机）。失败只记日志。"""
+def _restore_filter(dev: Device, make_picker, xy, state: dict, *, read_icons=None) -> None:
+    """写完编成后再开一次选择页，把排序改回去、筛选重置，点キャンセル（游戏的排序筛选退出后会保留，11-26 实机）。
+    弹窗还开着先关弹窗；选择页开着直接在上面恢复；都不在时要认得出编成页（回忆格有认出的卡）才点格子开选择页，
+    认不出就不点（#116 审查严重 2：点格子会落在弹窗 / 格子区）。结果写进任务日志（对话里看得到）。失败不影响已经写好的编成。"""
     try:
         from hiro.produce import memory_filter
         from hiro.produce.memory_picker import picker_open
 
         picker = make_picker()
-        # 选择页还开着（套筛选后判断方向出错之类）：直接在上面恢复；不在了才点回忆格打开（点格子会落在格子区，#116 审查严重 2）
+        memory_filter.close_popup(picker)
         if not picker_open(picker.ocr(picker.shoot())):
+            reads = read_icons(dev.shoot()) if read_icons else []
+            if not any(r.get("known") for r in reads):
+                print("注意：写完编成后看不出停在编成页，没去恢复回忆列表的排序 / 筛选，请到游戏里看一下", flush=True)
+                return
             picker = _open_slot(dev, make_picker, xy)
-        if not memory_filter.restore(picker, state):
-            logger.warning("回忆选择页的排序没能恢复成 %s", state.get("sort"))
+        report: dict = {}
+        ok = memory_filter.restore(picker, state, report=report)
+        if report.get("filter_reset"):
+            print("提示：回忆列表的筛选已重置为默认（写编成前自己设过筛选的，要在游戏里重新设）", flush=True)
+        if not ok:
+            print("注意：回忆列表的排序 / 升降序可能被改了，请到游戏里看一下", flush=True)
         picker.cancel()
     except Exception as e:  # noqa: BLE001  恢复失败不影响已经写好的编成
-        logger.warning("写完编成后恢复回忆选择页的排序 / 筛选失败：%s", e)
+        print(f"注意：写完编成后恢复回忆列表的排序 / 筛选失败（{e}），请到游戏里看一下", flush=True)
 
 
 def _fix_slot(dev: Device, picker, target: dict, slot: int, key: str, current: list, read_icons, done: list) -> None:

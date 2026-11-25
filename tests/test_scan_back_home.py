@@ -196,6 +196,6 @@ def test_memory_scan_keeps_scene_even_if_saving_fails(monkeypatch, tmp_path):
     monkeypatch.setattr(
         sys, "argv", ["memory_scan", "scan", "--from-home", "--no-calib", "--out", str(tmp_path / "o.json")]
     )
-    with pytest.raises(OSError):
-        ms.main()
+    # #116 第二轮审查：标记打上后又出错，按「编成可能被改」以 FORMATION_CHANGED_EXIT 退出（开局前补扫才会停下不开局），照样保留现场
+    assert ms.main() == ms.FORMATION_CHANGED_EXIT
     assert calls == []

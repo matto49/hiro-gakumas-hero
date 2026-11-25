@@ -188,6 +188,17 @@ class Store:
         acc, at = self._acc(), scanned_at or now()
         old = self.slice_entries(slice_key)
         replace = mode == "full" and complete
+        prev = self.slice_coverage().get(slice_key) or {}
+        same_ctx = bool((prev.get("context") or {}).get("empty")) == bool((context or {}).get("empty"))
+        if not replace and old and not same_ctx:
+            # 编成上下文不同（一个从空编成读、一个带偏移）又不是完整全读：签名对不上，合并会重复入库。不合并，旧数据和上下文不动，
+            # 标成下次要全读（full_at 清空、complete=False）（#116 第二轮审查重要 3）
+            with self.db:
+                self.db.execute(
+                    "UPDATE slice_coverage SET scanned_at=?, full_at=NULL, mode=?, complete=0, read=?, added=0 WHERE account=? AND slice=?",
+                    (at, mode, len(entries), acc, slice_key),
+                )
+            return {"read": len(entries), "added": 0}
         if replace:
             known = KnownSet(old)
             added = sum(not known.take(e) for e in entries)
@@ -197,7 +208,6 @@ class Store:
             new = [dict(e, slice=slice_key) for e in entries if not known.take(e)]
             # 入手排序下新回忆在最上面，旧的整体往后挪：新的放前面、整片重算格子位置（终审 C1：写编成按行 / 列找）
             added, keep = len(new), [_at_slot(e, i) for i, e in enumerate(new + old)]
-        prev = self.slice_coverage().get(slice_key) or {}
         with self.db:
             self.db.execute("DELETE FROM memory_slices WHERE account=? AND slice=?", (acc, slice_key))
             self.db.executemany(

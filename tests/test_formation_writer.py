@@ -458,7 +458,7 @@ def test_fix_memory_applies_slice_filter_then_restores(monkeypatch):
     log = []
     monkeypatch.setattr(memory_filter, "read_state", lambda p: (log.append("read"), {"sort": "アイドル"})[1])
     monkeypatch.setattr(memory_filter, "apply_slice", lambda p, k: log.append(f"apply {k}"))
-    monkeypatch.setattr(memory_filter, "restore", lambda p, st: (log.append(f"restore {st['sort']}"), True)[1])
+    monkeypatch.setattr(memory_filter, "restore", lambda p, st, **kw: (log.append(f"restore {st['sort']}"), True)[1])
     monkeypatch.setattr(
         memory_picker,
         "iter_rows",
@@ -498,7 +498,7 @@ def test_fix_memory_picker_closed_skips_filter_restore(monkeypatch):
     log = []
     monkeypatch.setattr(memory_filter, "read_state", lambda p: {"sort": "アイドル", "dir": "desc"})
     monkeypatch.setattr(memory_filter, "apply_slice", lambda p, k: log.append("apply"))
-    monkeypatch.setattr(memory_filter, "restore", lambda p, st: (log.append("restore"), True)[1])
+    monkeypatch.setattr(memory_filter, "restore", lambda p, st, **kw: (log.append("restore"), True)[1])
     monkeypatch.setattr(memory_picker, "picker_open", lambda boxes: True)
 
     def closed(picker, target, **kw):
@@ -519,7 +519,7 @@ def test_restore_filter_uses_open_picker_instead_of_tapping_tile(monkeypatch):
 
     clicks = []
     monkeypatch.setattr(memory_picker, "picker_open", lambda boxes: True)
-    monkeypatch.setattr(memory_filter, "restore", lambda p, st: True)
+    monkeypatch.setattr(memory_filter, "restore", lambda p, st, **kw: True)
 
     class Pk:
         def shoot(self):
@@ -537,3 +537,34 @@ def test_restore_filter_uses_open_picker_instead_of_tapping_tile(monkeypatch):
     )
     fw._restore_filter(dev, Pk, fw.STEP3_SLOTS[0], {"sort": "アイドル"})
     assert clicks == ["cancel"]
+
+
+def test_restore_filter_does_not_tap_when_page_unknown(monkeypatch):
+    """#116 第二轮审查（第一轮 2 的另一半）：选择页没开着时，要确认在编成页（认得出回忆格的图标）才点格子去开选择页；
+    认不出（弹窗挡着、别的画面）就不点，提示去游戏里看。弹窗还开着先关弹窗。"""
+    from hiro.produce import memory_filter, memory_picker
+
+    log = []
+    monkeypatch.setattr(memory_picker, "picker_open", lambda boxes: False)
+    monkeypatch.setattr(memory_filter, "close_popup", lambda p: (log.append("close_popup"), True)[1])
+    monkeypatch.setattr(memory_filter, "restore", lambda p, st, **kw: (log.append("restore"), True)[1])
+
+    class Pk:
+        def shoot(self):
+            return None
+
+        def ocr(self, img):
+            return []
+
+        def cancel(self):
+            log.append("cancel")
+            return True
+
+    dev = fw.Device(
+        shoot=lambda: None, click=lambda x, y: log.append(("click", x, y)), swipe=lambda *a: None, sleep=lambda s: None
+    )
+    fw._restore_filter(dev, Pk, fw.STEP3_SLOTS[0], {"sort": "アイドル"}, read_icons=lambda img: [{"known": False}] * 4)
+    assert log == ["close_popup"]  # 先关弹窗；认不出编成页：不点格子、不恢复
+    log.clear()
+    fw._restore_filter(dev, Pk, fw.STEP3_SLOTS[0], {"sort": "アイドル"}, read_icons=lambda img: [{"known": True}] * 4)
+    assert ("click", *fw.STEP3_SLOTS[0]) in log

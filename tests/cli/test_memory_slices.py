@@ -33,7 +33,7 @@ def test_slice_keys():
 def test_full_read_replaces_slice_incremental_appends_new_only(st):
     r = st.save_slice("sense:hif", [_e("a"), _e("b")], mode="full", complete=True, context={"empty": True})
     assert r == {"read": 2, "added": 2}
-    r = st.save_slice("sense:hif", [_e("c"), _e("a")], mode="incremental", complete=True)
+    r = st.save_slice("sense:hif", [_e("c"), _e("a")], mode="incremental", complete=True, context={"empty": True})
     assert r == {"read": 2, "added": 1}
     assert sorted(e["card"]["card_id"] for e in st.slice_entries("sense:hif")) == ["a", "b", "c"]
     st.save_slice("sense:hif", [_e("a")], mode="full", complete=True)  # 全读：卖掉的 b、c 不在了
@@ -170,3 +170,17 @@ def test_plan_uses_whole_list_when_slices_switch_off(st, monkeypatch):
     assert [e["card"]["card_id"] for e in cmd_plan.memory_inventory(st, "sense")["entries"]] == ["old"]
     monkeypatch.setattr(msl, "enabled", lambda: True)
     assert cmd_plan.memory_inventory(st, "sense")["source"] == "slices"
+
+
+def test_merge_with_different_context_does_not_duplicate(st):
+    """#116 第二轮审查重要 3：库里是从空编成读的（属性是本身的），这次增量 / 没读完的读数带偏移（不是空编成）：签名对不上，
+    合并会把同一批回忆重复入库、还改写上下文。上下文不同又不是完整全读时不合并，旧数据和上下文不动，标成下次要全读。"""
+    st.save_slice("sense:hif", [_e("a", vi=64)], mode="full", complete=True, context={"empty": True})
+    r = st.save_slice("sense:hif", [_e("a", vi=79)], mode="incremental", complete=True, context={"empty": False})
+    assert r["added"] == 0
+    assert [e["stats"]["Vi"] for e in st.slice_entries("sense:hif")] == [64]
+    cov = st.slice_coverage()["sense:hif"]
+    assert cov["context"] == {"empty": True} and cov["full_at"] is None and cov["complete"] is False
+    # 完整全读照旧整片替换（换成这次的上下文）
+    st.save_slice("sense:hif", [_e("a", vi=79)], mode="full", complete=True, context={"empty": False})
+    assert st.slice_coverage()["sense:hif"]["context"] == {"empty": False}

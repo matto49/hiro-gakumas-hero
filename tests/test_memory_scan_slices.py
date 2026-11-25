@@ -28,7 +28,9 @@ def fakes(monkeypatch):
     p = P()
     monkeypatch.setattr(memory_filter, "read_state", lambda pk: (pk.log.append("read"), {"sort": "アイドル"})[1])
     monkeypatch.setattr(memory_filter, "apply_slice", lambda pk, k: pk.log.append(f"apply {k}"))
-    monkeypatch.setattr(memory_filter, "restore", lambda pk, st: (pk.log.append(f"restore {st['sort']}"), True)[1])
+    monkeypatch.setattr(
+        memory_filter, "restore", lambda pk, st, **kw: (pk.log.append(f"restore {st['sort']}"), True)[1]
+    )
 
     def fake_scan(pk, out, *, known=None, deadline=None, close=True, **kw):
         assert close is False
@@ -165,7 +167,7 @@ def test_progress_writer_saves_after_each_slice(tmp_path):
 def test_restore_failure_closes_popup_before_leaving(fakes, tmp_path, monkeypatch):
     from hiro.produce import memory_filter
 
-    def bad_restore(pk, st):
+    def bad_restore(pk, st, **kw):
         pk.log.append("restore")
         raise memory_filter.MemoryFilterError("找不到入手")
 
@@ -219,3 +221,39 @@ def test_picker_closed_mid_slice_stops_and_touches_nothing(fakes, tmp_path, monk
     )
     assert fakes.log == ["read", "apply sense:hif", "scan"]
     assert out["formation_may_have_changed"] is True and not out["complete"] and out["restored"] is False
+
+
+def test_incremental_after_unfinished_scan_reads_full(tmp_path):
+    """#116 第二轮审查重要 2：完整读过，但最近一次增量被预算打断（complete=False）：下一次要全读，不然顶部 3 格已知就停、
+    中断处以下的新回忆永远补不进来。当前编成上下文和库里的不同（一个空编成、一个不是）也要全读。"""
+    st = Store(tmp_path / "hiro.db")
+    st.save_slice("sense:hif", [{"card": {"card_id": "a"}}], mode="full", complete=True, context={"empty": True})
+    assert memory_scan.known_for_slice(st, "sense:hif") is not None
+    st.save_slice(
+        "sense:hif", [{"card": {"card_id": "b"}}], mode="incremental", complete=False, context={"empty": True}
+    )
+    assert memory_scan.known_for_slice(st, "sense:hif") is None
+    st.save_slice("logic:hif", [{"card": {"card_id": "c"}}], mode="full", complete=True, context={"empty": True})
+    assert memory_scan.known_for_slice(st, "logic:hif", empty=False) is None
+
+
+def test_filter_reset_reported_only_when_it_happened(fakes, tmp_path, monkeypatch):
+    """#116 第二轮审查（第一轮 4 的另一半）：restore 出错、没点到重置时，不能说「筛选已重置」。"""
+    from hiro.produce import memory_filter
+
+    def bad_restore(pk, st, **kw):
+        raise memory_filter.MemoryFilterError("找不到入手")
+
+    monkeypatch.setattr(memory_filter, "restore", bad_restore)
+    monkeypatch.setattr(memory_filter, "close_popup", lambda pk: True)
+    out = memory_scan.scan_slices(fakes, ["sense:hif"], tmp_path, known_for=lambda k: None, plan_of=lambda c: None)
+    assert out["filter_reset"] is False and out["restored"] is False
+
+    def good_restore(pk, st, report=None):
+        if report is not None:
+            report["filter_reset"] = True
+        return True
+
+    monkeypatch.setattr(memory_filter, "restore", good_restore)
+    out = memory_scan.scan_slices(fakes, ["sense:hif"], tmp_path, known_for=lambda k: None, plan_of=lambda c: None)
+    assert out["filter_reset"] is True and out["restored"] is True
