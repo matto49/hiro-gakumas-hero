@@ -80,13 +80,71 @@ type planBrief struct {
 	Support struct {
 		Set *int `json:"set"`
 		Own []struct {
-			ID   string `json:"id"`
-			Name string `json:"name"`
+			ID    string `json:"id"`
+			Name  string `json:"name"`
+			Level *int   `json:"level"`
 		} `json:"own"`
+		Rental *struct {
+			ID        string `json:"id"`
+			Name      string `json:"name"`
+			Estimated bool   `json:"estimated"`
+		} `json:"rental"`
 	} `json:"support"`
 	Memory struct {
-		Set *int `json:"set"`
+		Set    *int `json:"set"`
+		Chosen []struct {
+			Name    string `json:"name"`
+			Timing  string `json:"timing"`
+			Upgrade int    `json:"upgrade"`
+		} `json:"chosen"`
 	} `json:"memory"`
+}
+
+// groups 是方案里的支援卡（自有 + 租借，共 6 格）和回忆，确认卡里逐项列出（11-25 review：只列两张、没有回忆）。
+func (pl *planBrief) groups(h plugin.Host, cat *common.Catalog) []plugin.ExplainGroup {
+	name := func(id, ja string) string {
+		if id != "" {
+			if en := cat.Get(h, id); en != nil && en.Name != "" {
+				return en.Name
+			}
+		}
+		if ja != "" {
+			return ja
+		}
+		return "?"
+	}
+	sup := plugin.ExplainGroup{Title: "支援卡"}
+	for _, o := range pl.Support.Own {
+		it := plugin.ExplainItem{Thumb: cat.Sprite(h, "support-"+o.ID), Name: name(o.ID, o.Name)}
+		if o.Level != nil {
+			it.Note = fmt.Sprintf("Lv%d", *o.Level)
+		}
+		sup.Items = append(sup.Items, it)
+	}
+	if r := pl.Support.Rental; r != nil {
+		it := plugin.ExplainItem{Tag: "租借", Name: name(r.ID, r.Name)}
+		if r.ID != "" {
+			it.Thumb = cat.Sprite(h, "support-"+r.ID)
+		}
+		if r.ID == "" && r.Name == "" {
+			it.Name = "开局时按实际列表挑"
+		}
+		if r.Estimated {
+			it.Note = "估算"
+		}
+		sup.Items = append(sup.Items, it)
+	}
+	mem := plugin.ExplainGroup{Title: "回忆"}
+	for _, m := range pl.Memory.Chosen {
+		mem.Items = append(mem.Items, plugin.ExplainItem{Tag: labels.Timing(m.Timing), Name: m.Name + strings.Repeat("+", m.Upgrade)})
+	}
+	var out []plugin.ExplainGroup
+	for _, g := range []plugin.ExplainGroup{sup, mem} {
+		if len(g.Items) > 0 {
+			out = append(out, g)
+		}
+	}
+	return out
 }
 
 // New 建开局插件。
@@ -137,26 +195,62 @@ func (s *state) planFor(h plugin.Host) *planBrief {
 	return s.plan
 }
 
+// 代价行：会操作游戏，再加一句这件事会动到什么（11-25 review：非培育任务也写成「用掉 1 次培育」）。
+const (
+	costProduce  = "会操作游戏 · 用掉 1 次培育"
+	costReadOnly = "会操作游戏 · 只看画面，不改东西"
+)
+
 func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (plugin.Explained, bool) {
-	r, ok := common.ParseRunStart(p.Command)
+	r, ok := common.RunArgsOf(p)
 	if !ok {
 		return plugin.Explained{}, false
 	}
 	name := modeName(r.Kind)
-	e := plugin.Explained{Title: "开一局 " + name, Cost: "会操作游戏 · 用掉 1 次培育"}
+	dry := r.Flags["dry-run"] == "true"
+	e := plugin.Explained{Title: name, Cost: "会操作游戏"}
+	produce := false
 	switch {
 	case r.Flags["command"] == "resume":
 		e.Title, e.Cost = "接着打 "+name, "会操作游戏 · 接着游戏里开着的那局"
+	case r.Kind == "hajime" || r.Kind == "nia" || r.Kind == "tower":
+		e.Title, e.Cost, produce = "开一局 "+name, costProduce, true
+	case r.Kind == "hif":
+		produce = true
+		if r.Flags["mode"] == "main" {
+			e.Title, e.Cost = "开一局 H.I.F 本战", "会操作游戏 · 用掉一份选拔回忆"
+		} else {
+			e.Title, e.Cost = "开一局 H.I.F 选拔", costProduce
+		}
 	case r.Kind == "daily":
 		e.Title, e.Cost = "领日常奖励", "会操作游戏 · 不花ジュエル"
-	case strings.HasPrefix(r.Kind, "scan-") || r.Kind == "check-settings":
-		e.Title, e.Cost = labels.Kind(r.Kind), "会操作游戏 · 只看画面，不改东西"
-	case r.Kind == "hif":
-		if r.Flags["mode"] == "main" {
-			e.Title = "开一局 H.I.F 本战"
-			e.Cost = "会操作游戏 · 用掉一份选拔回忆"
+	case strings.HasPrefix(r.Kind, "scan-") || r.Kind == "check-settings" || r.Kind == "selftest":
+		e.Cost = costReadOnly
+	case r.Kind == "write-formation":
+		if dry {
+			e.Title, e.Cost = "对照编成方案", costReadOnly
 		} else {
-			e.Title = "开一局 H.I.F 选拔"
+			e.Title, e.Cost = "把编成方案写进游戏", "会操作游戏 · 会改游戏里的编成"
+		}
+		if sc := r.Flags["scenario"]; sc != "" {
+			e.Subtitle = modeName(sc) + " 的编成"
+		}
+		if pl := s.planFor(h); pl != nil {
+			e.Groups = pl.groups(h, cat)
+		}
+		return e, true
+	case r.Kind == "main-task":
+		e.Title = "做初星課題"
+	case r.Kind == "story":
+		e.Title = "看初星コミュ"
+		if ch := r.Flags["chapter"]; ch != "" {
+			e.Subtitle = "第 " + ch + " 章"
+		}
+	case r.Kind == "contest-unit":
+		if dry {
+			e.Title, e.Cost = "看竞赛编队总合力", costReadOnly
+		} else {
+			e.Title, e.Cost = "竞赛编队", "会操作游戏 · 会改竞赛编队（おまかせ重排）"
 		}
 	}
 	var sub []string
@@ -174,17 +268,17 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 	} else if d := defaultDiff(r.Kind); d != "" && r.Flags["command"] != "resume" {
 		sub = append(sub, strings.ToUpper(d))
 	}
-	e.Subtitle = strings.Join(sub, " · ")
-	if r.Flags["idol"] != "" && r.Flags["command"] != "resume" {
+	if len(sub) > 0 {
+		e.Subtitle = strings.Join(sub, " · ")
+	}
+	if produce && r.Flags["idol"] != "" && r.Flags["command"] != "resume" {
 		switch {
 		case r.Flags["support-set"] != "" || r.Flags["memory-set"] != "":
-			e.Rows = append(e.Rows, [2]string{"编成", fmt.Sprintf("支援卡 %s 号、回忆 %s 号", or(r.Flags["support-set"], "当前"), or(r.Flags["memory-set"], "当前"))})
+			e.Rows = append(e.Rows, [2]string{"编成", fmt.Sprintf("游戏里的支援卡 %s 号、回忆 %s 号", or(r.Flags["support-set"], "当前"), or(r.Flags["memory-set"], "当前"))})
 		default:
 			if pl := s.planFor(h); pl != nil && pl.Support.Set != nil {
 				e.Rows = append(e.Rows, [2]string{"编成", fmt.Sprintf("沿用编成方案（支援卡 %d 号、回忆 %s 号）", *pl.Support.Set, intOr(pl.Memory.Set))})
-				for _, sp := range pl.Support.Own {
-					e.Thumbs = append(e.Thumbs, cat.Sprite(h, "support-"+sp.ID))
-				}
+				e.Groups = pl.groups(h, cat)
 			} else {
 				e.Rows = append(e.Rows, [2]string{"编成", "沿用游戏里当前选中的编成"})
 			}

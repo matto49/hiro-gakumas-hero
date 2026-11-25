@@ -109,7 +109,7 @@ def run(argv: list[str]) -> tuple[int, dict]:
         return PENDING_EXIT, {
             "ok": True,
             "data": {
-                "pending": {k: rec[k] for k in ("id", "command", "summary", "expires_at")},
+                "pending": pending.public(rec),
                 "message": f"需要用户确认：{summary}。用户同意后运行 hiro confirm {rec['id']}；不要自己确认。",
             },
         }

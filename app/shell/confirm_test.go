@@ -154,3 +154,32 @@ func TestKeysIgnorePluginCardsAndFreshCards(t *testing.T) {
 		t.Errorf("确认了 %v", call.calls)
 	}
 }
+
+// 解读不了的待确认：兜底样式也不显示命令名（11-25 review：「不要只展示 command run start，甚至指令名都不要显示」）
+func TestConfirmFallbackHidesCommand(t *testing.T) {
+	call := &fakeCall{resp: map[string]hiroapi.Result{}}
+	ask := func(context.Context, []Turn, string, string, func(string, string)) (Reply, error) {
+		return Reply{Text: "好", Cards: []plugin.Card{ConfirmCard(hiroapi.Pending{ID: "p2", Command: "run start", Summary: "做点什么", ExpiresAt: 4102444800})}}, nil
+	}
+	a, run := newTestApp(newMem(), call, ask, viewReg())
+	tt := ui.NewTester(a.View, 1280, 800)
+	a.Send("随便")
+	run.Drain()
+	tt.Frame()
+	if !tt.HasText("做点什么") {
+		t.Fatalf("兜底标题：%q", tt.Texts())
+	}
+	for _, s := range tt.Texts() {
+		if s == "命令" || s == "run start" {
+			t.Errorf("兜底样式不该出现命令：%q", tt.Texts())
+		}
+	}
+}
+
+func TestPendingArgsSurviveCard(t *testing.T) {
+	card := ConfirmCard(hiroapi.Pending{ID: "p3", Command: "run start", Args: map[string]any{"kind": "daily"}})
+	p, ok := pendingOf(card)
+	if !ok || p.Args["kind"] != "daily" {
+		t.Errorf("卡里读回的待确认 %+v", p)
+	}
+}

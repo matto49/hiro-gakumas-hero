@@ -121,7 +121,7 @@ func (e *Ext) serve(ctx context.Context, method string, params json.RawMessage) 
 		h.Go(func() func() {
 			return func() {
 				h.Post("插件「"+name+"」想要："+pd.Summary, plugin.Card{"type": "confirm", "status": "waiting", "from": name,
-					"pending": map[string]any{"id": pd.ID, "command": pd.Command, "summary": pd.Summary, "expires_at": pd.ExpiresAt}})
+					"pending": pd.Map()})
 			}
 		})
 	}

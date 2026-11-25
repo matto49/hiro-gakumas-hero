@@ -15,10 +15,41 @@ type CliError struct {
 
 // Pending 是会动游戏的命令返回的待确认：用户点了确认卡才 confirm。
 type Pending struct {
-	ID        string  `json:"id"`
-	Command   string  `json:"command"`
-	Summary   string  `json:"summary"`
-	ExpiresAt float64 `json:"expires_at"`
+	ID        string         `json:"id"`
+	Command   string         `json:"command"`
+	Args      map[string]any `json:"args,omitempty"` // 命令的参数（run start 的 kind / idol / …），确认卡按它画
+	Summary   string         `json:"summary"`
+	ExpiresAt float64        `json:"expires_at"`
+}
+
+// Map 是存进对话卡片（JSON）里的样子。
+func (p Pending) Map() map[string]any {
+	m := map[string]any{"id": p.ID, "command": p.Command, "summary": p.Summary, "expires_at": p.ExpiresAt}
+	if len(p.Args) > 0 {
+		m["args"] = p.Args
+	}
+	return m
+}
+
+// PendingFromMap 从对话卡片里读回待确认；没有 id 时 ok=false。
+func PendingFromMap(m map[string]any) (Pending, bool) {
+	if m == nil {
+		return Pending{}, false
+	}
+	p := Pending{}
+	p.ID, _ = m["id"].(string)
+	p.Command, _ = m["command"].(string)
+	p.Summary, _ = m["summary"].(string)
+	p.Args, _ = m["args"].(map[string]any)
+	switch v := m["expires_at"].(type) {
+	case float64:
+		p.ExpiresAt = v
+	case int:
+		p.ExpiresAt = float64(v)
+	case int64:
+		p.ExpiresAt = float64(v)
+	}
+	return p, p.ID != ""
 }
 
 // Result 是一次命令的结果：信封原样带回，再加上退出码和解析出的待确认。

@@ -41,6 +41,11 @@ def create(command: str, args: dict, summary: str) -> dict:
     return rec
 
 
+def public(rec: dict) -> dict:
+    """给 agent / 界面看的待确认：带上参数（args），确认卡按种类和参数画（11-25 review：只有 command 时界面认不出种类）。"""
+    return {k: rec.get(k) for k in ("id", "command", "args", "summary", "expires_at")}
+
+
 def take(pid: str) -> dict:
     """拿走一条待确认（之后同一编号再确认就是 pending_unknown）。过期的也拿走，但报 pending_expired。"""
     if not _ID.match(pid or ""):
@@ -81,5 +86,5 @@ def listing() -> list[dict]:
         if t > rec.get("expires_at", 0):
             p.unlink(missing_ok=True)
             continue
-        out.append({k: rec[k] for k in ("id", "command", "summary", "expires_at")})
+        out.append(public(rec))
     return out

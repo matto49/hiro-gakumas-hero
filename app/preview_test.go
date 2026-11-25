@@ -50,7 +50,7 @@ func TestPreview(t *testing.T) {
 			b, _ := json.Marshal(map[string]string{"path": sprite(args[2])})
 			return string(b)
 		case key == "plan show":
-			return `{"created":"2026-11-23 20:00","idol":{"id":"i_card-skin-ttmr-3-0012","name":"月村手毬"},"main_attr":"Vo","support":{"set":2,"own":[{"id":"s_card-2-0001","name":"一緒に行こう！","attr":"Vo","level":50,"why":["Vo 主力"]},{"id":"s_card-3-0012","name":"放課後の約束","attr":"Vo","level":50,"why":["集中"]},{"id":"s_card-3-0027","name":"止まらないドキドキ","attr":"Da","level":45,"why":[]},{"id":"s_card-3-0044","name":"集中タイム","attr":"Vo","level":60,"why":[]},{"id":"s_card-3-0070","name":"光に向かって","attr":"Vi","level":50,"why":[]}]},"memory":{"set":1,"chosen":[{"name":"アイドル宣言","upgrade":1,"timing":"start"}]},"notes":["主属性按初定 Vo"]}`
+			return `{"created":"2026-11-23 20:00","idol":{"id":"i_card-skin-ttmr-3-0012","name":"月村手毬"},"main_attr":"Vo","support":{"set":2,"own":[{"id":"s_card-2-0001","name":"一緒に行こう！","attr":"Vo","level":50,"why":["Vo 主力"]},{"id":"s_card-3-0012","name":"放課後の約束","attr":"Vo","level":50,"why":["集中"]},{"id":"s_card-3-0027","name":"止まらないドキドキ","attr":"Da","level":45,"why":[]},{"id":"s_card-3-0044","name":"集中タイム","attr":"Vo","level":60,"why":[]},{"id":"s_card-3-0070","name":"光に向かって","attr":"Vi","level":50,"why":[]}],"rental":{"id":"s_card-3-0000","name":"あなたにも作ってあげる！","attr":"Vo","estimated":true}},"memory":{"set":1,"chosen":[{"name":"アイドル宣言","upgrade":1,"timing":"start"},{"name":"成長痛","upgrade":0,"timing":"mid"},{"name":"仕切り直し","upgrade":1,"timing":"mid"},{"name":"輝くキミへ","upgrade":1,"timing":"final"}]},"notes":["主属性按初定 Vo"]}`
 		case key == "run status":
 			if live {
 				return `{"current":{"id":"j7","kind":"hajime","state":"running","summary":"初 · 月村手毬","started_at":` + strconv.FormatInt(t0, 10) + `},"recent":[]}`
@@ -94,7 +94,9 @@ func TestPreview(t *testing.T) {
 	// 一句话开局：agent 回偶像卡 + 待确认
 	idol := map[string]any{"type": "info", "title": "偶像卡", "kind": "idols", "scannedAt": "2026-11-22 10:00:00",
 		"items": []any{map[string]any{"id": "i_card-skin-ttmr-3-0012", "name": "【Luna say maybe】月村手毬", "title": "Luna say maybe", "idol": "月村手毬", "rarity": "SSR", "plan": "sense"}}}
-	confirm := shell.ConfirmCard(hiroapi.Pending{ID: "p1", Command: "hiro run start hajime --idol i_card-skin-ttmr-3-0012", Summary: "初", ExpiresAt: 4102444800})
+	// 和 CLI 实际返回的一样：command 只是命令名，种类和参数在 args 里
+	confirm := shell.ConfirmCard(hiroapi.Pending{ID: "p1", Command: "run start", Summary: "初", ExpiresAt: 4102444800,
+		Args: map[string]any{"kind": "hajime", "idol": "i_card-skin-ttmr-3-0012", "difficulty": nil, "support_set": nil, "no_llm": false}})
 	tt := ui.NewTester(app.View, 1280, 800)
 	tt.SetScale(2)
 	settle := func() {

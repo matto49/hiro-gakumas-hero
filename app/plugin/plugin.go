@@ -83,7 +83,19 @@ type Explained struct {
 	Art      string      // 卡头大图（本机路径），没有就不画
 	Rows     [][2]string // 卡身几行「键 值」
 	Thumbs   []string    // 卡身一排小图（支援卡），本机路径
-	Cost     string      // 卡脚左边的代价
+	Groups   []ExplainGroup
+	Cost     string // 卡脚左边的代价
+}
+
+// ExplainGroup 是确认卡卡身里的一组列表（「支援卡」6 张、「回忆」4 份）。
+type ExplainGroup struct {
+	Title string
+	Items []ExplainItem
+}
+
+// ExplainItem 是列表里的一行：小图（可空）、标签（租借 / 回忆时机）、名字、右边的小字。
+type ExplainItem struct {
+	Thumb, Tag, Name, Note string
 }
 
 // Plugin 是一个插件给的全部东西（§5.1 的七类），哪项没有就留空。

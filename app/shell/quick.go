@@ -36,5 +36,5 @@ func CardsFor(r hiroapi.Result) []plugin.Card {
 // ConfirmCard 是一张等确认的卡。
 func ConfirmCard(p hiroapi.Pending) plugin.Card {
 	return plugin.Card{"type": "confirm", "status": "waiting",
-		"pending": map[string]any{"id": p.ID, "command": p.Command, "summary": p.Summary, "expires_at": p.ExpiresAt}}
+		"pending": p.Map()}
 }
