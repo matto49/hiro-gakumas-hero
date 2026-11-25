@@ -446,3 +446,45 @@ def test_fix_support_waits_while_list_is_still_opening():
     g.click, g.shoot = click, shoot
     fw.fix_support(g.device(), _plan(["a", "b", "c", "d", "e"]), read_formation=g.read_formation, read_list=g.read_list)
     assert g.slots == ["a", "b", "c", "d", "e"]
+
+
+def test_fix_memory_applies_slice_filter_then_restores(monkeypatch):
+    """D15：分片库存里的回忆，行号是片内的（这一片的筛选 + 入手排序下）。写编成前先套同样的筛选，全部写完再开一次选择页恢复排序、
+    重置筛选、退出。"""
+    from hiro.produce import memory_filter, memory_picker
+
+    mem = FakeMemory(["act-2_062", "men-3_012", "act-3_050", "men-1_035"])
+    card_of = lambda r, c: "act-3_039" if (r, c) == (2, 0) else f"other{r}{c}"  # noqa: E731
+    log = []
+    monkeypatch.setattr(memory_filter, "read_state", lambda p: (log.append("read"), {"sort": "アイドル"})[1])
+    monkeypatch.setattr(memory_filter, "apply_slice", lambda p, k: log.append(f"apply {k}"))
+    monkeypatch.setattr(memory_filter, "restore", lambda p, st: (log.append(f"restore {st['sort']}"), True)[1])
+    monkeypatch.setattr(
+        memory_picker,
+        "iter_rows",
+        lambda p: (
+            (log.append("walk") or True)
+            and ((g, [{"row": g, "col": c, "center": (0, 0)} for c in range(3)]) for g in range(mem.rows))
+        ),
+    )
+    monkeypatch.setattr(memory_picker, "picker_open", lambda boxes: True)
+    monkeypatch.setattr(fw, "memory_key", lambda e: e["key_override"])
+    plan = {"memory": {"chosen": [{"card_id": "p_card-02-act-2_062"}, {"card_id": "p_card-00-men-3_012"}, {"card_id": "p_card-02-act-3_050"},
+                                  {"card_id": "p_card-02-act-3_039", "cell": [2, 0], "key": "key20", "slice": "sense:hif"}]}}  # fmt: skip
+    dev = fw.Device(shoot=mem.shoot, click=mem.click, swipe=lambda *a: None, sleep=lambda s: None)
+    done = fw.fix_memory(dev, plan, read_icons=mem.read_icons, make_picker=lambda: mem.picker(card_of))
+    assert done == [{"slot": 3, "from": "men-1_035", "to": "act-3_039"}]
+    assert log[:3] == ["read", "apply sense:hif", "walk"] and log[-1] == "restore アイドル"
+    assert mem.view == "step3"  # 恢复后退出了选择页
+
+
+def test_plan_records_slice_and_signature():
+    from hiro.brain import formation
+    from hiro.produce import memory_sig
+
+    raw = {"cell": [3, 1], "slot": 10, "stats": {"Vo": 0, "Da": 52, "Vi": 64, "hp": 0}, "slice": "common:nia",
+           "card": {"card_id": "p_card-x", "upgrade": 0}, "abilities": [{"text": "初期ビジュアル上昇+15"}]}  # fmt: skip
+    pos = formation._inventory_position(raw)
+    assert pos["cell"] == [3, 1] and pos["slice"] == "common:nia" and pos["signature"] == memory_sig.signature(raw)
+    del raw["slice"]
+    assert "slice" not in formation._inventory_position(raw)

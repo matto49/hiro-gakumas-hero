@@ -90,3 +90,22 @@ def test_info_memories_lists_slice_data_when_all_twelve_read(st, monkeypatch):
         st.save_slice(k, [_e(k)], mode="full", complete=True)
     out = cmd_info._memories({"timing": None, "card": None})
     assert out["total"] == 12 and out["source"] == "slices" and out["slices"]["done"] == 12
+
+
+def test_plan_formation_uses_slices_of_idol_plan(st, monkeypatch, run_cli, hiro_home):
+    """D16：偶像卡流派的 3 片 + 共通 3 片都全读过，出方案就用片数据。"""
+    from hiro.brain import formation_plan as fp
+    from hiro.cli import cmd_plan
+
+    monkeypatch.setattr(cmd_plan, "open_store", lambda: st)
+    for k in msl.slices_for_plan("sense"):
+        st.save_slice(k, [_e(k)], mode="full", complete=True)
+    st.save_snapshot("supports", [], "scan:x", complete=True, raw={"items": []})
+    got = {}
+    monkeypatch.setattr(fp, "idol_info", lambda idol, *a, **k: {"plan": "ProducePlanType_Plan1"})
+    monkeypatch.setattr(fp, "build", lambda idol, **kw: got.update(kw) or {"idol": {"idol_card_id": idol}})
+    monkeypatch.setattr(cmd_plan, "summarize", lambda plan: {})
+    monkeypatch.setattr(fp, "format_report", lambda plan: "")
+    cmd_plan._formation({"idol": "i_card-x", "support_set": None, "memory_set": None, "main_attr": None,
+                         "fixed_main": False, "mode": None, "out": None})  # fmt: skip
+    assert got["memory_inventory"]["source"] == "slices" and len(got["memory_inventory"]["entries"]) == 6

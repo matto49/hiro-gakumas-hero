@@ -383,7 +383,12 @@ def _inventory_position(raw: dict) -> dict:
         return {}
     from hiro.produce.memory_picker import entry_key
 
-    return {"cell": list(raw["cell"]), "key": entry_key(raw)}
+    pos = {"cell": list(raw["cell"]), "key": entry_key(raw)}
+    if raw.get("slice"):  # 分片库存（设计 5.1 / D15）：行号是片内的，写编成时先套这一片的筛选；签名用来核对
+        from hiro.produce.memory_sig import signature
+
+        pos.update(slice=raw["slice"], signature=signature(raw))
+    return pos
 
 
 def select_memories(inventory: dict | list, *, gains: dict | None = None, finals: dict | None = None, plan: str = "ProducePlanType_Plan2",

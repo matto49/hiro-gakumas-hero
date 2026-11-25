@@ -74,6 +74,16 @@ def summarize(plan: dict) -> dict:
     }
 
 
+def _plan_style(fp, idol: str) -> str | None:
+    """偶像卡的流派（sense / logic / anomaly），决定出方案要哪几片回忆（设计 D16）；认不出（主数据缺、编号不对）时 None = 12 片全要。"""
+    from hiro.brain.guides import PLAN_OF
+
+    try:
+        return PLAN_OF.get(fp.idol_info(idol).get("plan"))
+    except Exception:  # noqa: BLE001  认不出交给后面 build 报 bad_idol
+        return None
+
+
 @command(
     "plan formation",
     Risk.READ,
@@ -89,17 +99,18 @@ def summarize(plan: dict) -> dict:
 )
 def _formation(a: dict) -> dict:
     st = open_store()
-    sup, mem = st.latest_raw("supports"), st.latest_raw("memories")
+    home = ensure_home()
+    paths.apply_to_process(home)  # 主数据路径
+    from hiro.brain import formation_plan as fp
+    from hiro.state.catalog import CatalogUnavailable
+
+    sup, mem = st.latest_raw("supports"), st.memories_for_plan(_plan_style(fp, a["idol"]))
     if sup is None and mem is None:
         raise CliError(
             "no_inventory",
             "还没有支援卡和回忆的库存",
             "先扫描支援卡和回忆（hiro run start scan-supports / scan-memories）",
         )
-    home = ensure_home()
-    paths.apply_to_process(home)  # 主数据路径
-    from hiro.brain import formation_plan as fp
-    from hiro.state.catalog import CatalogUnavailable
 
     try:
         plan = fp.build(

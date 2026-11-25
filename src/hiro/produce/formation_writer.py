@@ -290,6 +290,10 @@ def pick_memory(picker, target: dict, *, decide=PICKER_DECIDE) -> None:
     from hiro.produce.memory_picker import iter_rows
 
     row, col = target["cell"]
+    if target.get("slice"):  # 分片库存（D15）：行号是这一片的筛选 + 入手排序下的，先套上同样的筛选
+        from hiro.produce import memory_filter
+
+        memory_filter.apply_slice(picker, target["slice"])
     want_core, want_ab = _core(target["key"]), _abilities_text(target["key"])
     tried = 0
 
@@ -352,39 +356,67 @@ def fix_memory(dev: Device, plan: dict, *, read_icons, make_picker, slots=STEP3_
     if any(k in missing_pos for _, k in moves):
         raise FormationWriteError("方案里的回忆没有库存位置（旧版方案），请重扫回忆库存后重新生成方案")
     done = []
-    for slot, key in moves:
-        logger.info("编成修正：回忆第 %d 格 %s → %s", slot + 1, current[slot] or "认不出", key)
-        from hiro.produce.memory_picker import picker_open
+    filter_state = None  # 套过分片筛选时，进第一个选择页前的排序（写完恢复，D15）
+    try:
+        for slot, key in moves:
+            logger.info("编成修正：回忆第 %d 格 %s → %s", slot + 1, current[slot] or "认不出", key)
+            picker = _open_slot(dev, make_picker, slots[slot])
+            if targets[key].get("slice") and filter_state is None:
+                from hiro.produce import memory_filter
 
-        picker, opened = make_picker(), False
-        for attempt in range(
-            PICKER_OPEN_TRIES
-        ):  # 页面打开有时慢（11-16 Mac 实机：1.5 秒后还没开 → 不开局）：多等、没开再点一次
-            if attempt == 0 or attempt == PICKER_OPEN_TRIES // 2:
-                dev.click(*slots[slot])
-            dev.sleep(1.5)
-            if picker_open(picker.ocr(picker.shoot())):
-                opened = True
-                break
-        if not opened:
-            raise FormationWriteError("点回忆格没打开回忆选择页")
-        from hiro.produce.memory_picker import PickerClosed
-
-        try:
-            pick_memory(picker, targets[key])
-        except PickerClosed as e:  # 找的途中选择页关了（点成了「決定」）：这一格可能被换成了别的回忆，停下交给人
-            raise FormationWriteError(
-                f"回忆第 {slot + 1} 格：找方案里的回忆时选择页关了，这一格可能被换成了别的回忆：{e}"
-            ) from e
-        img = None
-        for _ in range(10):
-            img = dev.shoot()
-            reads = read_icons(img)
-            if any(r.get("known") for r in reads):
-                break
-            dev.sleep(0.5)
-        if not reads[slot].get("known") or reads[slot]["card"] != key:
-            dev.snap(img, f"memory-verify-fail-{slot}")
-            raise FormationWriteError(f"回忆第 {slot + 1} 格改完认成 {reads[slot].get('card')}，不是 {key}")
-        done.append({"slot": slot, "from": current[slot], "to": key})
+                filter_state = memory_filter.read_state(picker)
+            _fix_slot(dev, picker, targets[key], slot, key, current, read_icons, done)
+    finally:
+        if filter_state is not None:
+            _restore_filter(dev, make_picker, slots[0], filter_state)
     return done
+
+
+def _open_slot(dev: Device, make_picker, xy):
+    """点回忆格打开选择页；页面打开有时慢（11-16 Mac 实机：1.5 秒后还没开 → 不开局）：多等、没开再点一次。"""
+    from hiro.produce.memory_picker import picker_open
+
+    picker = make_picker()
+    for attempt in range(PICKER_OPEN_TRIES):
+        if attempt == 0 or attempt == PICKER_OPEN_TRIES // 2:
+            dev.click(*xy)
+        dev.sleep(1.5)
+        if picker_open(picker.ocr(picker.shoot())):
+            return picker
+    raise FormationWriteError("点回忆格没打开回忆选择页")
+
+
+def _restore_filter(dev: Device, make_picker, xy, state: dict) -> None:
+    """写完编成后再开一次选择页，把排序改回去、筛选重置，点キャンセル（游戏的排序筛选退出后会保留，11-26 实机）。失败只记日志。"""
+    try:
+        from hiro.produce import memory_filter
+
+        picker = _open_slot(dev, make_picker, xy)
+        if not memory_filter.restore(picker, state):
+            logger.warning("回忆选择页的排序没能恢复成 %s", state.get("sort"))
+        picker.cancel()
+    except Exception as e:  # noqa: BLE001  恢复失败不影响已经写好的编成
+        logger.warning("写完编成后恢复回忆选择页的排序 / 筛选失败：%s", e)
+
+
+def _fix_slot(dev: Device, picker, target: dict, slot: int, key: str, current: list, read_icons, done: list) -> None:
+    """修一格：在已打开的选择页里找方案的回忆、決定，再认一次核对。"""
+    from hiro.produce.memory_picker import PickerClosed
+
+    try:
+        pick_memory(picker, target)
+    except PickerClosed as e:  # 找的途中选择页关了（点成了「決定」）：这一格可能被换成了别的回忆，停下交给人
+        raise FormationWriteError(
+            f"回忆第 {slot + 1} 格：找方案里的回忆时选择页关了，这一格可能被换成了别的回忆：{e}"
+        ) from e
+    img = None
+    for _ in range(10):
+        img = dev.shoot()
+        reads = read_icons(img)
+        if any(r.get("known") for r in reads):
+            break
+        dev.sleep(0.5)
+    if not reads[slot].get("known") or reads[slot]["card"] != key:
+        dev.snap(img, f"memory-verify-fail-{slot}")
+        raise FormationWriteError(f"回忆第 {slot + 1} 格改完认成 {reads[slot].get('card')}，不是 {key}")
+    done.append({"slot": slot, "from": current[slot], "to": key})
