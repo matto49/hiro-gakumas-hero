@@ -79,3 +79,15 @@ def test_child_keeps_failing_falls_back_to_rapidocr(monkeypatch, fresh):
     assert ocr.ocr_boxes(_img(), scale=1) == [("rapid", 1.0, (0, 0, 1, 1))]
     assert len(started) == ocr.CHILD_RESTARTS and ocr.engine() == "rapidocr" and not ocr._vision_fail["child"]
     assert vc._child is None  # 退到 RapidOCR 时把子进程关掉
+
+
+def test_hung_child_times_out_and_is_killed():
+    """#152 review：子进程卡住时，写请求 + 读回答整段受同一个截止时间管，超时先杀子进程。"""
+    hang = "import hiro.vision.ocr as o, time\no._vision_request = lambda img, w, h, langs: time.sleep(60)"
+    c = vc.VisionChild(timeout=3, patch=hang)
+    try:
+        with pytest.raises(vc.ChildDied, match="没回答"):
+            c.read(_img(), 10, 7, ("ja-JP",))
+        assert c.proc.poll() is not None
+    finally:
+        c.close()

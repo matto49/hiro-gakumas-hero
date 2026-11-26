@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import select
 import subprocess
 import sys
 import threading
@@ -54,32 +53,55 @@ class VisionChild:
         data = buf.tobytes()
         stdin, stdout = self.proc.stdin, self.proc.stdout
         assert stdin is not None and stdout is not None
-        try:
-            stdin.write((json.dumps({"w": w, "h": h, "languages": list(languages), "n": len(data)}) + "\n").encode())
-            stdin.write(data)
-            stdin.flush()
-        except OSError as e:
-            raise ChildDied(f"Vision 子进程收不到请求：{e}") from e
-        ready, _, _ = select.select([stdout], [], [], self.timeout)
-        if not ready:
+        head = (json.dumps({"w": w, "h": h, "languages": list(languages), "n": len(data)}) + "\n").encode()
+        got: dict = {}
+
+        def talk() -> (
+            None
+        ):  # 写请求、读回答整段放在一个线程里，主线程用同一个截止时间等（#152 review：子进程卡住时写管道也会卡）
+            try:
+                stdin.write(head)
+                stdin.write(data)
+                stdin.flush()
+                got["line"] = stdout.readline()
+            except (OSError, ValueError) as e:
+                got["exc"] = e
+
+        t = threading.Thread(target=talk, daemon=True)
+        t.start()
+        t.join(self.timeout)
+        if t.is_alive():
+            self.kill()  # 先杀子进程：管道断了，卡在读写上的线程也就出来了
+            t.join(2)
             raise ChildDied(f"Vision 子进程 {self.timeout:.0f} 秒没回答")
-        line = stdout.readline()
+        if "exc" in got:
+            raise ChildDied(f"Vision 子进程收不到请求：{got['exc']}") from got["exc"]
+        line = got.get("line") or b""
         if not line:
             raise ChildDied(f"Vision 子进程退出了（退出码 {self.proc.poll()}）")
         try:
-            got = json.loads(line)
+            reply = json.loads(line)
         except ValueError as e:
             raise ChildDied(f"Vision 子进程的回答读不懂：{line[:80]!r}") from e
-        return [(t, float(c), (int(b[0]), int(b[1]), int(b[2]), int(b[3]))) for t, c, b in got["out"]], got.get("err")
+        return [(t, float(c), (int(b[0]), int(b[1]), int(b[2]), int(b[3]))) for t, c, b in reply["out"]], reply.get(
+            "err"
+        )
+
+    def kill(self) -> None:
+        if self.proc.poll() is None:
+            self.proc.kill()
+        self.proc.wait()
 
     def close(self) -> None:
+        """正常关：关 stdin 让子进程自己退出，2 秒不退就杀；子进程已经卡住或退出时直接杀（关管道可能卡在没写完的缓冲上）。"""
+        if self.proc.poll() is not None:
+            return
         try:
             if self.proc.stdin:
                 self.proc.stdin.close()
             self.proc.wait(timeout=2)
-        except (OSError, subprocess.TimeoutExpired):
-            self.proc.kill()
-            self.proc.wait()
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            self.kill()
 
 
 _lock = threading.Lock()
