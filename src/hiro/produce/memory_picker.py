@@ -557,6 +557,7 @@ def iter_rows(picker: "Picker", *, max_pages: int = 600):
         moved, img = scroll_moved(picker, prev_img, dy)
         if not moved:
             return  # 到底
+        first = img  # 第一次翻过去的画面：回滑也对不上时和最后一帧一起存，方便对比（#148 review）
         k = align(prev, page_rows(img))
         back = 0
         while k is None and back < SCAN_BACKTRACK:
@@ -569,8 +570,10 @@ def iter_rows(picker: "Picker", *, max_pages: int = 600):
             )
             snap = getattr(picker, "snap", None)  # 留证据（同扫描）：G3 这次对不上没留帧，查不了
             if callable(snap):
-                snap(prev_img, f"iter-row{base + len(prev) - 1:04d}-prev")
-                snap(img, f"iter-row{base + len(prev) - 1:04d}-cur")
+                tag = f"iter-row{base + len(prev) - 1:04d}"
+                snap(prev_img, f"{tag}-prev")
+                snap(first, f"{tag}-first")
+                snap(img, f"{tag}-after-back")
             return
         base, start = base + len(prev) - 1 - k, k + 1
 

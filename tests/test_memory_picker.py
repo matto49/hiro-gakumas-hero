@@ -793,3 +793,30 @@ def test_to_page_checks_picker_before_flipping(monkeypatch):
     with pytest.raises(mp.PickerClosed):
         p.to_page(2)  # 整屏没有キャンセル / 決定：选择页不在了
     assert clicks == []
+
+
+def test_iter_rows_saves_frames_when_alignment_fails(monkeypatch):
+    """#148 review：iter_rows 对不上时存三帧——上一页、第一次翻过去的、回滑后的（G3 那次没留帧，根因查不实）。"""
+    frames = iter(range(1000))
+    shots = []
+
+    class P:
+        def shoot(self):
+            return next(frames)
+
+        def scroll(self, rows=None, **kw):
+            return next(frames)
+
+        def snap(self, img, tag):
+            shots.append(tag)
+
+    monkeypatch.setattr(mp, "to_top", lambda p: next(frames))
+    monkeypatch.setattr(mp, "page_rows", lambda img: [[{"rect": (0, 600 + 140 * i, 10, 10)}] for i in range(3)])
+    monkeypatch.setattr(mp, "scroll_moved", lambda p, before, px: (True, next(frames)))
+    monkeypatch.setattr(mp, "align", lambda prev, cur: None)
+    list(mp.iter_rows(P(), max_pages=3))
+    assert [t.rsplit("-", 1)[-1] if not t.endswith("after-back") else "after-back" for t in shots] == [
+        "prev",
+        "first",
+        "after-back",
+    ]

@@ -75,6 +75,7 @@ def main() -> int:
             d.screenshot,
             d.tap,
             lambda x1, y1, x2, y2: d.swipe(x1, y1, x2, y2, duration=SWIPE_DURATION, hold=SWIPE_HOLD),
+            calib_dir=calib_dir,  # 回忆列表对不上时的帧也存进这次的截图目录（#148 review：原来不传，snap 什么都不写）
         )
 
     try:
