@@ -66,12 +66,14 @@ def _stopping(st):
 
 
 def test_llm_stops_when_switch_off(monkeypatch):
+    """G1-F8（11-26）：停机原因要说清楚是「规则拿不准、LLM 的意见缺省不执行」，不能写成「认不出」。"""
     monkeypatch.delenv("HIRO_DRINK_FULL_AUTO", raising=False)
     st, swapped = _st(monkeypatch, "llm")
     _stopping(st)
-    with pytest.raises(UnhandledPage):
+    with pytest.raises(UnhandledPage) as e:
         st._drink_full_skip()
     assert swapped == []
+    assert "认不出" not in str(e.value) and "HIRO_DRINK_FULL_AUTO" in str(e.value) and "丢 パワフル漢方" in str(e.value)
 
 
 def test_llm_swaps_when_switch_on(monkeypatch):
