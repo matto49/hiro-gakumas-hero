@@ -43,11 +43,12 @@ EXAM_END_LOOP_TIMEOUT = 90.0  # 考试结束后点「次へ」/ 结果页的总�
 
 
 def drink_full_auto() -> bool:
-    """开关 HIRO_DRINK_FULL_AUTO=1（默认关，协调 11-17）：选饮料页饮料已满时，LLM 给出的换 / 不换也照执行（原来只认 rule / sim，
-    初 REGULAR 实机 LLM 和规则结论一样还是被当成「认不出」停机）；决策认不出（兜底）时默认跳过这瓶，不停机。"""
+    """开关 HIRO_DRINK_FULL_AUTO（用户 11-26 21:4x 定缺省开；=0 关，协调 11-17 原来缺省关）：选饮料页饮料已满时，
+    LLM 给出的换 / 不换也照执行（原来只认 rule / sim，初 REGULAR 实机 LLM 和规则结论一样还是被当成「认不出」停机）；
+    决策认不出（兜底）时默认跳过这瓶，不停机。换饮料策略按偶像流派定档、同档按社区顺序（#135）。"""
     import os
 
-    return os.environ.get("HIRO_DRINK_FULL_AUTO") == "1"
+    return os.environ.get("HIRO_DRINK_FULL_AUTO", "1").strip() != "0"
 
 
 def _page_name(page) -> str | None:
@@ -849,7 +850,7 @@ class HifCore:
             if d.source == "llm":
                 # G1-F8（11-26）：规则拿不准、LLM 给了换 / 不换，原来也写「认不出」，小白看不懂为什么停
                 why = (f"饮料已满（所持上限），规则拿不准换不换，LLM 的意见是「{d.reason}」；"
-                       "缺省只照规则 / 模拟的换饮料决定执行（设置 HIRO_DRINK_FULL_AUTO=1 才照 LLM 执行），请手动选一下")  # fmt: skip
+                       "现在只照规则 / 模拟的换饮料决定执行（HIRO_DRINK_FULL_AUTO 被设成了 0），请手动选一下")  # fmt: skip
             else:
                 why = f"饮料已满（所持上限），持有或新饮料认不出，不能判断换不换：{d.reason}"
             if not auto:

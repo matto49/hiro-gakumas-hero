@@ -51,8 +51,8 @@ def test_rule_and_sim_decisions_swap(monkeypatch, source):
     assert swapped == [(0, 1)]
 
 
-def test_fallback_still_stops(monkeypatch):
-    monkeypatch.delenv("HIRO_DRINK_FULL_AUTO", raising=False)
+def test_fallback_still_stops_when_switch_off(monkeypatch):
+    monkeypatch.setenv("HIRO_DRINK_FULL_AUTO", "0")
     st, swapped = _st(monkeypatch, "fallback")
     st._stop = lambda page, why, **kw: (_ for _ in ()).throw(UnhandledPage(why))
     with pytest.raises(UnhandledPage):
@@ -66,8 +66,8 @@ def _stopping(st):
 
 
 def test_llm_stops_when_switch_off(monkeypatch):
-    """G1-F8（11-26）：停机原因要说清楚是「规则拿不准、LLM 的意见缺省不执行」，不能写成「认不出」。"""
-    monkeypatch.delenv("HIRO_DRINK_FULL_AUTO", raising=False)
+    """G1-F8（11-26）：停机原因要说清楚是「规则拿不准、LLM 的意见没执行」，不能写成「认不出」（开关关着时）。"""
+    monkeypatch.setenv("HIRO_DRINK_FULL_AUTO", "0")
     st, swapped = _st(monkeypatch, "llm")
     _stopping(st)
     with pytest.raises(UnhandledPage) as e:
@@ -99,3 +99,11 @@ def test_unrecognized_skips_when_switch_on(monkeypatch):
     assert st._drink_full_skip() is True
     assert swapped == [] and clicks == [(360, 1006), (360, 1097)] and st._skip_incoming_drink
     assert recorded[0].action.args == {"discard": [], "receive": False} and "默认跳过" in recorded[0].reason and notes
+
+
+def test_switch_on_by_default(monkeypatch):
+    """用户 11-26 21:4x 定：HIRO_DRINK_FULL_AUTO 缺省开，不设也照 LLM 换饮料；=0 才关。"""
+    monkeypatch.delenv("HIRO_DRINK_FULL_AUTO", raising=False)
+    assert hif.drink_full_auto() is True
+    monkeypatch.setenv("HIRO_DRINK_FULL_AUTO", "0")
+    assert hif.drink_full_auto() is False
