@@ -269,13 +269,17 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
         meta, rows = open_store().latest("formations")
         fresh = [r for r in rows if r.get("mode") == kind] if meta is not None else []
         if meta is not None and fresh and not _wrote_formation_since(meta.get("scanned_at"), kind):
-            picked, unread = {}, []
+            picked, unread, reused = {}, [], set()
             for w in missing:
                 if not any(r.get("kind") == w for r in fresh):
                     # 这一样没读过（开局前准备只读要挑号的那几样，#157 review）：不能当成全满，任务里先读再挑
                     unread.append(w)
                     continue
                 blanks = sorted(int(r["set"]) for r in fresh if r.get("kind") == w and r.get("filled") == 0)
+                if not blanks and (ours := own_full_slots(home, kind, w, fresh)):
+                    picked[w] = ours[0]  # D26：都满了，覆盖初星助手自己写过的号
+                    reused.add(w)
+                    continue
                 if not blanks:
                     raise CliError(
                         "formations_full",
@@ -288,7 +292,13 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
                 plan[w] = dict(plan.get(w) or {}, set=n)
             if picked:
                 fp.save_plan(home, plan, kind)
-                steps.append("把编成方案写进空着的" + "、".join(f"{label[w]}编成 {n} 号" for w, n in picked.items()))
+                steps.append(
+                    "把编成方案写进"
+                    + "、".join(
+                        f"{label[w]}编成 {n} 号（{'都满了，覆盖初星助手之前写过的' if w in reused else '空着的'}）"
+                        for w, n in picked.items()
+                    )
+                )
             if unread:
                 steps.append(
                     f"先读一遍{_MODE_NAME.get(kind, kind)}的{'、'.join(label[w] for w in unread)}编成位，挑空着的把编成方案写进去"
@@ -313,13 +323,22 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
     return True
 
 
+def own_full_slots(home: Path, kind: str, what: str, rows: list) -> list[int]:
+    """编成位读数 rows 里这个模式的 what 编成号中初星助手写过的那几号（从小到大）。
+    D26（11-26 用户本人定）：编成位都满了时直接覆盖这些号，不再停下来问；玩家自己配的照旧不动。"""
+    nums = sorted({int(r["set"]) for r in rows if r.get("kind") == what and r.get("mode", kind) == kind})
+    return [n for n in nums if slot_written_by_us(home, kind, what, n)]
+
+
 def slot_written_by_us(home: Path, kind: str, what: str, n) -> bool:
-    """这个模式的 what n 号编成位是初星助手写过的（哪份方案的 written 记着这个号）。"""
+    """这个模式的 what n 号编成位是初星助手写过的（formation-slots.json 记过，或哪份方案的 written 记着这个号）。"""
     from hiro.brain import formation_plan as fp
     from hiro.cli import paths
 
     if n is None:
         return False
+    if int(n) in fp.recorded_slots(home, kind, what):
+        return True
     files = list((home / "plans" / kind).glob("*.json")) if (home / "plans" / kind).is_dir() else []
     for f in [*files, paths.plan_path(home)]:
         w = ((fp.load(f) or {}).get("written") or {}).get(kind) or {}

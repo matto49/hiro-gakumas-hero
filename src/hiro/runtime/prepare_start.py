@@ -80,17 +80,12 @@ def _exec(argv: list[str], *, platform: str = sys.platform) -> int:
 def _full_hint(mode: str, what: str, rows: list) -> str:
     """编成位都满了时说清楚：有哪几号、哪些是初星助手自己写过的（覆盖它不动玩家配的）、在对话里怎么说。
     G1 第 3 轮 11-26（N34）：原来只说「告诉初星助手用哪一号覆盖」，小白不知道有哪些号、哪个能覆盖。"""
-    from hiro.cli.cmd_run import slot_written_by_us
-    from hiro.cli.home import hiro_home
-
     nums = sorted(int(r["set"]) for r in rows if r.get("kind") == what)
     span = f"{nums[0]}–{nums[-1]} 号" if nums else ""
-    ours = [n for n in nums if slot_written_by_us(hiro_home(), mode, what, n)]
     msg = (
-        f"{MODE_NAME[mode]}的{LABEL[what]}编成 {span}都有卡，没有空着的可以放编成方案（初星助手不替你覆盖自己配的编成）"
+        f"{MODE_NAME[mode]}的{LABEL[what]}编成 {span}都有卡，没有空着的可以放编成方案，"
+        "也没有初星助手以前写过的号可以覆盖（初星助手不替你覆盖自己配的编成）"
     )
-    if ours:
-        msg += f"。其中 {'、'.join(map(str, ours))} 号曾由初星助手写入，覆盖前请确认后来没有手动改过"
     return msg + f"。要覆盖哪一号，在对话里说「{LABEL[what]}编成用 N 号覆盖」；也可以先在游戏里清空一组再开局"
 
 
@@ -136,20 +131,31 @@ def main(argv: list[str] | None = None) -> int:
 
         import_inventory("formations", out, source="prepare_start")
         rows = out.get("sets") or []
+        from hiro.cli.cmd_run import own_full_slots
+        from hiro.cli.home import hiro_home
+
+        reused = {}
         for w in missing:
             blanks = sorted(int(r["set"]) for r in rows if r.get("kind") == w and r.get("filled") == 0)
+            if not blanks and (ours := own_full_slots(hiro_home(), mode, w, rows)):
+                blanks = reused[w] = ours  # D26：都满了，覆盖初星助手自己写过的号（不动玩家配的）
             if not blanks:
                 return _stop(_full_hint(mode, w, rows), 4)
             rec["picked"][w] = blanks[0]
             plan[w] = dict(plan.get(w) or {}, set=blanks[0])
+        if reused:
+            rec["reused"] = {w: v[0] for w, v in reused.items()}
+            logger.info(
+                "开局前准备：%s都满了，覆盖初星助手之前写过的 %s",
+                "、".join(LABEL[w] for w in reused),
+                "、".join(f"{LABEL[w]}编成 {v[0]} 号" for w, v in reused.items()),
+            )
         cid = (plan.get("idol") or {}).get("idol_card_id")
-        from hiro.cli.home import hiro_home
-
         if cid and plan.get("version") == fp.PLAN_VERSION and path == plan_path() and path.parent == hiro_home():
             fp.save_plan(hiro_home(), plan, mode)  # 按偶像卡 × 模式的那份和当前方案一起更新
         else:
             path.write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
-        logger.info("开局前准备：用空着的 %s", "、".join(f"{LABEL[w]}编成 {n} 号" for w, n in rec["picked"].items()))
+        logger.info("开局前准备：用 %s", "、".join(f"{LABEL[w]}编成 {n} 号" for w, n in rec["picked"].items()))
     plan = fp.load(path) or plan
     todo = fp.unwritten(plan, mode, what) if plan.get("version") == fp.PLAN_VERSION else []
     if todo:

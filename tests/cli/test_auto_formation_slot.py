@@ -108,6 +108,24 @@ def test_all_full_asks_which_to_overwrite(run_cli, hiro_home, on):
     assert "满" in env["error"]["message"] and "--support-set" in env["error"]["hint"]
 
 
+def test_all_full_overwrites_sets_we_wrote(run_cli, hiro_home, on):
+    """D26（11-26 用户本人定）：都满了、有初星助手写过的号，直接挑来覆盖，开局确认卡里说清楚。"""
+    from hiro.brain import formation_plan as fp
+
+    _plan(hiro_home)
+    fp.record_slots(hiro_home, "hajime", {"support": 18, "memory": 9})
+    fp.record_slots(hiro_home, "nia", {"support": 3})  # 别的模式记的号不算
+    _formations("hajime", dict.fromkeys(range(1, 21), 5), dict.fromkeys(range(1, 21), 4))
+    code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
+    assert code == 3, env
+    pend = env["data"]["pending"]
+    assert pend["args"]["prepare"] is True
+    assert "支援卡编成 18 号（都满了，覆盖初星助手之前写过的）" in pend["summary"]
+    assert "回忆编成 9 号（都满了，覆盖初星助手之前写过的）" in pend["summary"]
+    per = json.loads((hiro_home / "plans" / "hajime" / f"{KOTONE}.json").read_text(encoding="utf-8"))
+    assert per["support"]["set"] == 18 and per["memory"]["set"] == 9
+
+
 def test_prepare_wraps_produce_job_argv(tmp_path):
     from hiro.cli import jobs
 

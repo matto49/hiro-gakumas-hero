@@ -426,6 +426,29 @@ def unwritten(plan: dict, fam: str, parts=("support", "memory")) -> list[str]:
     return [w for w in ("support", "memory") if w in parts and w not in done]
 
 
+USED_SLOTS = "formation-slots.json"  # 初星助手写进游戏过的编成号（按模式 × 支援卡 / 回忆），和当前方案放在同一个目录
+
+
+def record_slots(root: str | Path, fam: str, sets: dict) -> None:
+    """把初星助手写进游戏的编成号记一笔。方案文件会被同一位偶像的新方案盖掉（written 跟着丢），这里单独留底。
+    D26（11-26 用户本人定）：「记录初星助手使用过的编号，都可以自己覆盖」——编成位都满了时，记过的号直接拿来覆盖。"""
+    path = Path(root) / USED_SLOTS
+    data = load(path) or {}
+    fam_rec = dict(data.get(fam) or {})
+    for what, n in sets.items():
+        if n is None:
+            continue
+        fam_rec[what] = sorted({*map(int, fam_rec.get(what) or ()), int(n)})
+    data[fam] = fam_rec
+    _write_json(path, data)
+
+
+def recorded_slots(root: str | Path, fam: str, what: str) -> list[int]:
+    """record_slots 记过的这个模式的支援卡 / 回忆编成号（从小到大）。"""
+    rec = ((load(Path(root) / USED_SLOTS) or {}).get(fam) or {}).get(what) or ()
+    return sorted({int(n) for n in rec})
+
+
 def mark_written(current: str | Path, fam: str, what) -> None:
     """写编成任务写完、回读核对通过后调：当前方案和 plans/<模式>/<偶像卡>.json 都记上 written[模式]。"""
     current = Path(current)
@@ -438,6 +461,7 @@ def mark_written(current: str | Path, fam: str, what) -> None:
               "support_set": (plan.get("support") or {}).get("set"), "memory_set": (plan.get("memory") or {}).get("set")}  # fmt: skip
     plan["written"] = w
     _write_json(current, plan)
+    record_slots(current.parent, fam, {x: (plan.get(x) or {}).get("set") for x in what})
     cid = (plan.get("idol") or {}).get("idol_card_id")
     if cid and plan.get("version") == PLAN_VERSION:
         key = plan_key_path(current.parent, cid, plan_family(plan) or fam)
