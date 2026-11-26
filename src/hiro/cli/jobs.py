@@ -143,7 +143,7 @@ def _hif_argv(p: dict, d: Path) -> list[str]:
         "--mode",
         p.get("mode") or "qualify",
         "--trace",
-        d.name,
+        p.get("trace") or d.name,
     ]
     if p.get("idol"):
         argv += ["--idol", p["idol"]]
@@ -194,7 +194,7 @@ def _produce_argv(module: str, default_level: str):
             "--difficulty",
             p.get("difficulty") or default_level,
             "--trace",
-            d.name,
+            p.get("trace") or d.name,
             "--out",
             str(d / "frames"),
         ]
@@ -505,6 +505,43 @@ for _k in ("hif", "hajime", "nia"):
     KINDS[_k] = _refresh_before_start(KINDS[_k])
 
 
+RESUME_CHAIN = ("hif", "hajime", "nia")  # 续打时接上同一局上一段 trace 的任务种类
+RESUME_CHAIN_MAX_AGE_S = 2 * 86400  # 上一段停下超过两天就不接（中间多半在别处打完 / 放弃了）
+
+
+def resume_chain(jobs: Path, traces: Path, kind: str, params: dict) -> dict:
+    """续打（command=resume）接上同一局：找同种类最近一个任务，它没打完（不是 done）就沿用它的 trace 基名和偶像卡。
+
+    N10 / N11（11-26 G1）：桌面端「接着打」每次用新任务号当 trace 名、不带偶像卡编号，
+    hif.Core._prior_trace_dirs 按基名找不到上一段——拿过的卡、考完的场数、局面打底都丢了；偶像退回空，
+    提示词的「偶像」一节当成篠澤広写（藤田ことね的局 LLM 理由里出现「和篠澤広的打法契合」）。
+    返回要并进参数的 {"trace": "<基名>-rN", "idol": ...}；接不上返回 {}。调用方已给的 idol 不覆盖。"""
+    prev = None
+    for d in sorted(jobs.glob("*"), reverse=True):
+        try:
+            j = json.loads((d / "job.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if j.get("kind") == kind:
+            prev = j
+            break
+    if prev is None or prev.get("state") in ("done", "running"):
+        return {}  # 上一局打完了：这次续的是别处开的新局
+    if time.time() - float(prev.get("ended_at") or prev.get("started_at") or 0) > RESUME_CHAIN_MAX_AGE_S:
+        return {}
+    pp = prev.get("params") or {}
+    base = re.sub(r"-r\d+$", "", pp.get("trace") or prev.get("id") or "")
+    if not base:
+        return {}
+    used = [
+        int(m.group(1)) for t in traces.glob(base + "-r*") if (m := re.fullmatch(re.escape(base) + r"-r(\d+)", t.name))
+    ]
+    out = {"trace": f"{base}-r{max(used, default=0) + 1}"}
+    if not params.get("idol") and pp.get("idol"):
+        out["idol"] = pp["idol"]
+    return out
+
+
 def jobs_dir(home: Path) -> Path:
     d = home / "jobs"
     d.mkdir(parents=True, exist_ok=True)
@@ -554,7 +591,10 @@ class Job:
         self.work = home / "work"
         self.work.mkdir(parents=True, exist_ok=True)
         self.flag = self.dir / "pause.flag"
-        self.trace = self.work / "traces" / self.id  # hif / tower / selftest 用 --trace <任务编号>
+        if params.get("command") == "resume" and kind.name in RESUME_CHAIN:
+            self.params = params = {**params, **resume_chain(jobs_dir(home), self.work / "traces", kind.name, params)}
+        # hif / tower / selftest 用 --trace <任务编号>；续打接上一段时是 <上一段基名>-rN（resume_chain）
+        self.trace = self.work / "traces" / (params.get("trace") or self.id)
         self.state = "running"
         self.started_at, self.ended_at, self.exit_code = time.time(), None, None
         self.reason: str | None = None  # 出错原因（failed 时）

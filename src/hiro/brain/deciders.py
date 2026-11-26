@@ -4732,7 +4732,10 @@ def _idol_section(idol_card_id: str | None, profile: IdolProfile | None, mode_id
     # 偶像卡攻略（协调 11-20）：各决策点排最前的条目的 why + 出处；广要 HIRO_GUIDES_HIRO=1，没包 / 开关关时没有
     extra = guide_notes(mode_id, idol_card_id)
     tail = ("\n\n这张卡的攻略要点：\n" + "\n".join(extra)) if extra else ""
-    if f in (None, "yaruki"):
+    if not idol_card_id:
+        # N10（11-26 G1）：桌面端续打不带偶像卡编号，原来这里当成广写，藤田ことね的局 LLM 理由里出现「和篠澤広的打法契合」
+        return "## 偶像\n\n这局的偶像卡没认出来：不要按某个偶像或流派推断，只按局面、候选和下面的社区规则判断。" + tail
+    if f == "yaruki" and "-shro-" in idol_card_id:
         return (
             "## 偶像\n\n篠澤広（Campus mode!!）是ロジック的やる気流派：能上やる気的卡、用完就除外的卡对她有用；好印象系的卡和她的打法冲突。"
             + tail
@@ -4745,8 +4748,13 @@ def _idol_section(idol_card_id: str | None, profile: IdolProfile | None, mode_id
         if profile is not None and profile.idol_id == (idol_card_id or "").replace("i_card-skin-", "i_card-")
         else (idol_card_id or "未知")
     )
+    if buff is None:  # 主数据查不到这张卡的流派：不编「主打 None」
+        return (
+            f"## 偶像\n\n{name}：流派没查到（主数据里没有这张卡的考试效果），按局面和社区规则判断，不要套用别的偶像的打法。"
+            + tail
+        )
     return (
-        f"## 偶像\n\n{name}：{flows.flow_name(idol_card_id)}，拿手 buff 是{buff or '未知'}。"
+        f"## 偶像\n\n{name}：{flows.flow_name(idol_card_id) or '流派未知'}，拿手 buff 是{buff}。"
         f"主打{buff}、加{buff}的卡和用完就除外的卡对她有用；主打{others}的卡和她的打法冲突。"
         f"循环件 [g8-NIAM]：{loops}。"
         + ("" if extra else "更细的初 / N.I.A 卡表：暂无（社区篇只有回忆用的流派优先表）。")
