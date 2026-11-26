@@ -53,6 +53,10 @@ class GkmsProduceAdvisor:
         self._log: Path | None = None
         self._visit: tuple | None = None  # 这一次相談 / 轮间（页面名, 进页的 seq）
         self._used: set[str] = set()  # 这一次已经用过的服务 / 买过的格子
+        # 最近一次的中间结果（离线对比 tools/gkms_compare.py 读）：不管的原因、路线、V
+        self.last_why: str | None = None
+        self.last_route: dict | None = None
+        self.last_values: dict | None = None
 
     # ------------------------------------------------------------------ 生命周期
     def begin(self, context: dict) -> None:
@@ -82,11 +86,13 @@ class GkmsProduceAdvisor:
 
     def _defer(self, page: str, why: str) -> None:
         logger.info("GKMS 不管 %s：%s", page, why)
+        self.last_why = why
         self._note(page, deferred=why)
         return None
 
     # ------------------------------------------------------------------ 入口
     def decide(self, page: str, state: Any, *, n_options: int | None, kw: dict) -> Decision | None:
+        self.last_why = self.last_route = self.last_values = None
         try:
             if page == "ACTION_SELECT":
                 return self._action_select(state)
@@ -112,6 +118,7 @@ class GkmsProduceAdvisor:
             return self._defer("ACTION_SELECT", f"GKMS 计划本周选 {choice}，画面选项里没有")
         o = opts[i]
         dec = next((d for d in res.get("decisions") or [] if d.get("step") == step), None)
+        self.last_route = {"choice": choice, "decision": dec, "plan": res["plan"]}
         others = "、".join(f"{x['choice']} {x['vs_best']:+g}" for x in (dec or {}).get("options") or [] if x.get("vs_best") not in (None, 0))
         end = res["plan"].get("end") or {}
         reason = (f"GKMS 路线：第 {step} 周选 {choice}（评分 {res['plan'].get('rating')}"
@@ -123,7 +130,8 @@ class GkmsProduceAdvisor:
 
     # ------------------------------------------------------------------ 选卡类
     def _idol(self, state: Any) -> str | None:
-        return (state.produce or {}).get("idol_card_id") or self.context.get("idol")
+        idol = (state.produce or {}).get("idol_card_id") or self.context.get("idol")
+        return idol.replace("i_card-skin-", "i_card-") if isinstance(idol, str) else idol  # 选卡包按偶像卡 id，不认 skin id
 
     def _pack_label(self, state: Any) -> str:
         return "pickv" if family((state.produce or {}).get("mode")) == HIF else "pickv（H.I.F 的包）"
@@ -140,6 +148,7 @@ class GkmsProduceAdvisor:
                              rarity_mode=mode if family(mode) == HIF else "produce-008", wait_s=PACK_WAIT_S, timeout=CALL_TIMEOUT_S)  # fmt: skip
         if r.get("state") != "ok":
             return None
+        self.last_values = r
         return r
 
     def _best_take(self, page: str, state: Any, cands: list[dict]) -> tuple[int, dict, float, dict] | None:
@@ -247,6 +256,7 @@ class GkmsProduceAdvisor:
     def card_decide(self, page: str, state: Any, *, budget: int, kw: dict) -> Decision | None:
         """内置决策器要离开相談 / 轮间时，这一页的卡还要不要做点什么（spec 4.5）：删 トラブル > 买 / 强化（V 高的先）> 删 V 低于 TAU 的卡。
         每种服务一次只用一次、同一格不买两次（插件自己记）；都不值得返回 None（内置照常结束）。"""
+        self.last_why = self.last_route = self.last_values = None
         try:
             return self._card_decide(page, state, budget)
         except GkmsError as e:

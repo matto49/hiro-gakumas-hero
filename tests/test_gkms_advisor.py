@@ -126,3 +126,13 @@ def test_not_installed_raises_on_create(monkeypatch):
     monkeypatch.setattr(locate, "find", lambda: None)
     with pytest.raises(RuntimeError):
         GkmsProduceAdvisor()
+
+
+def test_skin_idol_id_normalized():
+    client = FakeClient(values=values({"p_card-a": 0.5}))
+    adv = GkmsProduceAdvisor(client=client)
+    s = make("SELECT_CARD", page_fields={"candidates": CANDS[:1]})
+    s.produce["idol_card_id"] = "i_card-skin-shro-3-007"
+    adv.begin({"idol": None})
+    adv.decide("SELECT_CARD", s, n_options=1, kw={})
+    assert next(a for op, a in client.calls if op == "values")["idol"] == "i_card-shro-3-007"
