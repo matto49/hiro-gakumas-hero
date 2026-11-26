@@ -8,9 +8,9 @@ from pathlib import Path
 from gkms_fakes import FakeClient, values
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
-import gkms_compare as gc  # noqa: E402
-
 from hiro.gkms.advisor import GkmsProduceAdvisor  # noqa: E402
+
+import gkms_compare as gc  # noqa: E402
 
 RAW = json.loads((Path(__file__).parent / "data" / "gkms-hajime-pro-w11.json").read_text())
 ROUTE = {"plan": {"route": [[11, "event_school"]], "rating": 8271.1, "end": {}},
@@ -23,11 +23,26 @@ ROUTE = {"plan": {"route": [[11, "event_school"]], "rating": 8271.1, "end": {}},
 def rows():
     a = copy.deepcopy(RAW)
     a["produce"]["idol_card_id"] = "i_card-x"
-    act = {"seq": 9, "state": a, "decision": {"action": {"kind": "ProduceNext", "args": {"option": "rest"}}, "source": "rule", "reason": "休息"}}
+    act = {
+        "seq": 9,
+        "state": a,
+        "decision": {"action": {"kind": "ProduceNext", "args": {"option": "rest"}}, "source": "rule", "reason": "休息"},
+    }
     b = copy.deepcopy(RAW)
     b["page"]["name"] = "SELECT_CARD"
-    b["page_fields"] = {"candidates": [{"index": 0, "card_id": "p_card-a"}, {"index": 1, "card_id": "p_card-b"}], "rerolls_left": 0}
-    card = {"seq": 12, "state": b, "decision": {"action": {"kind": "ActivateEffect", "args": {"pick_indexes": [0]}}, "source": "rule", "reason": "拿 a"}}
+    b["page_fields"] = {
+        "candidates": [{"index": 0, "card_id": "p_card-a"}, {"index": 1, "card_id": "p_card-b"}],
+        "rerolls_left": 0,
+    }
+    card = {
+        "seq": 12,
+        "state": b,
+        "decision": {
+            "action": {"kind": "ActivateEffect", "args": {"pick_indexes": [0]}},
+            "source": "rule",
+            "reason": "拿 a",
+        },
+    }
     return [act, card]
 
 
@@ -40,7 +55,11 @@ def test_compare_steps_and_report(tmp_path):
     by = {r["page"]: r for r in res}
     assert by["ACTION_SELECT"]["gkms"] == "event_school" and by["ACTION_SELECT"]["same"] is False
     assert by["ACTION_SELECT"]["recorded_gap"] == -289.8  # 实机选的休む在 GKMS 模型里比最优差多少
-    assert by["SELECT_CARD"]["same"] is False and by["SELECT_CARD"]["v_recorded"] == 0.2 and by["SELECT_CARD"]["v_gkms"] == 0.6
+    assert (
+        by["SELECT_CARD"]["same"] is False
+        and by["SELECT_CARD"]["v_recorded"] == 0.2
+        and by["SELECT_CARD"]["v_gkms"] == 0.6
+    )
     md = gc.report(res, title="测试")
     assert "| produce-002 | ACTION_SELECT | 1 | 0 | 0 | 1 |" in md
     assert "GKMS 自己的模型" in md  # 报告开头写明偏向

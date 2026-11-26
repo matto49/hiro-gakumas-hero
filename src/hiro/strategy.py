@@ -123,7 +123,11 @@ class Strategy:
             out[f"produce.{k}"] = v
         defaults = []
         for page in PRODUCE_PAGES:
-            if page not in self.produce and page not in self.produce_builtin and (pid := default_produce(page)) is not None:
+            if (
+                page not in self.produce
+                and page not in self.produce_builtin
+                and (pid := default_produce(page)) is not None
+            ):
                 out[f"produce.{page}"] = pid
                 defaults.append(f"produce.{page}")
         if defaults:

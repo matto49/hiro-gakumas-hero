@@ -2,13 +2,13 @@
 
 import copy
 
-import pytest
-
 from hiro import plugins, strategy
 from hiro.brain import plugin_gate
 from hiro.brain.deciders import ProduceDeciders
 from hiro.contracts import Action, ActionKind, Decision, GameState
 from hiro.gkms.advisor import GkmsProduceAdvisor
+
+import pytest
 from gkms_fakes import FakeClient, values
 
 SHELF = [{"index": 0, "kind": "card", "card_id": "p_card-a", "upgrade": 0, "price": 100, "purchased": False},
@@ -73,7 +73,9 @@ def test_builtin_first_sees_no_cards(gkms, monkeypatch):
 
 
 def test_then_plugin_buys_best_card(gkms, monkeypatch):
-    gkms["client"] = FakeClient(values=values({"p_card-a": 0.3, "p_card-b": 0.8}, held={"p_card-d": 0.5, "p_card-e": 0.6}))
+    gkms["client"] = FakeClient(
+        values=values({"p_card-a": 0.3, "p_card-b": 0.8}, held={"p_card-d": 0.5, "p_card-e": 0.6})
+    )
     builtin_spy(monkeypatch, END)
     d = ProduceDeciders(None).decide("CONSULT", consult())
     assert d.action.kind is ActionKind.SHOP_BUY and d.action.args == {"index": 1}
@@ -81,7 +83,9 @@ def test_then_plugin_buys_best_card(gkms, monkeypatch):
 
 
 def test_budget_limits(gkms, monkeypatch):
-    gkms["client"] = FakeClient(values=values({"p_card-a": 0.9, "p_card-b": 0.8}, held={"p_card-d": 0.5, "p_card-e": 0.6}))
+    gkms["client"] = FakeClient(
+        values=values({"p_card-a": 0.9, "p_card-b": 0.8}, held={"p_card-d": 0.5, "p_card-e": 0.6})
+    )
     builtin_spy(monkeypatch, END)
     d = ProduceDeciders(None).decide("CONSULT", consult(p=70))
     assert d.action.args == {"index": 1}  # 100P 的 a 买不起
@@ -100,23 +104,33 @@ def test_delete_low_v_once_per_visit(gkms, monkeypatch):
 
 
 def test_nothing_worth_it_ends(gkms, monkeypatch):
-    gkms["client"] = FakeClient(values=values({"p_card-a": 0.01, "p_card-b": 0.02}, held={"p_card-d": 0.5, "p_card-e": 0.6}, up={"p_card-d": 0.01}))
+    gkms["client"] = FakeClient(
+        values=values(
+            {"p_card-a": 0.01, "p_card-b": 0.02}, held={"p_card-d": 0.5, "p_card-e": 0.6}, up={"p_card-d": 0.01}
+        )
+    )
     builtin_spy(monkeypatch, END)
     d = ProduceDeciders(None).decide("CONSULT", consult(services={}))
     assert d.action.kind is ActionKind.SHOP_END
 
 
 def test_hif_finals_consult_keeps_interval_reserve(gkms, monkeypatch):
-    gkms["client"] = FakeClient(values=values({"p_card-a": 0.9, "p_card-b": 0.8}, held={"p_card-d": 0.5, "p_card-e": 0.6}))
+    gkms["client"] = FakeClient(
+        values=values({"p_card-a": 0.9, "p_card-b": 0.8}, held={"p_card-d": 0.5, "p_card-e": 0.6})
+    )
     builtin_spy(monkeypatch, END)
     d = ProduceDeciders(None).decide("CONSULT", consult(p=250, mode="produce-008", services={}))
     assert d.action.kind is ActionKind.SHOP_END  # 250 − 留给轮间的 200 = 50，两张卡都买不起
 
 
 def test_upgrade_uses_deck_index(gkms, monkeypatch):
-    gkms["client"] = FakeClient(values=values({}, held={"p_card-d": 0.5, "p_card-e": 0.6}, up={"p_card-d": 0.1, "p_card-e": 0.4}))
+    gkms["client"] = FakeClient(
+        values=values({}, held={"p_card-d": 0.5, "p_card-e": 0.6}, up={"p_card-d": 0.1, "p_card-e": 0.4})
+    )
     builtin_spy(monkeypatch, END)
-    d = ProduceDeciders(None).decide("CONSULT", consult(shelf=[], services={"upgrade": {"price": 80, "available": True}}))
+    d = ProduceDeciders(None).decide(
+        "CONSULT", consult(shelf=[], services={"upgrade": {"price": 80, "available": True}})
+    )
     assert d.action.kind is ActionKind.SHOP_UPGRADE_CARD and d.action.args == {"card_index": 1}
 
 

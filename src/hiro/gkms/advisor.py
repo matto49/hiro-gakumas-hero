@@ -6,6 +6,7 @@ GKMS 在子进程里算（hiro.gkms.client）；算不了、对不上、出错�
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import time
@@ -20,7 +21,9 @@ from hiro.state.modes import HIF, family
 logger = logging.getLogger(__name__)
 
 VERSION = "0.1"
-CARD_PAGES = frozenset({"SELECT_CARD", "SKILL_CARD_CHANGE_1", "SKILL_CARD_CHANGE_2", "SKILL_CARD_REMOVAL", "SKILL_CARD_ENHANCE"})
+CARD_PAGES = frozenset(
+    {"SELECT_CARD", "SKILL_CARD_CHANGE_1", "SKILL_CARD_CHANGE_2", "SKILL_CARD_REMOVAL", "SKILL_CARD_ENHANCE"}
+)
 PACK_WAIT_S = 10.0  # 第一次用到某张偶像卡的选卡包时，在 worker 里最多等这么久下载
 CALL_TIMEOUT_S = 25.0
 
@@ -65,22 +68,23 @@ class GkmsProduceAdvisor:
         self._log = Path(td) / "gkms.jsonl" if td else None
 
     def end(self, result: dict | None) -> None:
-        try:
+        with contextlib.suppress(Exception):
             self.client.close()
-        except Exception:  # noqa: BLE001
-            pass
 
     def hello(self) -> dict:
         if self._hello is None:
             self._hello = self.client.call("hello")
-        return self._hello
+        return self._hello or {}
 
     def _note(self, page: str, **rec: Any) -> None:
         if self._log is None:
             return
         try:
             with self._log.open("a", encoding="utf-8") as f:
-                f.write(json.dumps({"t": round(time.time(), 3), "page": page, **rec}, ensure_ascii=False, default=str) + "\n")
+                f.write(
+                    json.dumps({"t": round(time.time(), 3), "page": page, **rec}, ensure_ascii=False, default=str)
+                    + "\n"
+                )
         except OSError:
             pass
 
@@ -111,7 +115,7 @@ class GkmsProduceAdvisor:
             rec["idol_card_id"] = self.context.get("idol")
         res = self.client.call("route", record=rec, from_step=rec["from_step"], timeout=CALL_TIMEOUT_S)
         step = rec["from_step"]
-        choice = dict((int(s), c) for s, c in res["plan"]["route"]).get(step)
+        choice = {int(s): c for s, c in res["plan"]["route"]}.get(step)
         opts = (state.page_fields or {}).get("options") or []
         i = state_map.option_for(choice, opts) if choice else None
         if i is None:
@@ -119,19 +123,32 @@ class GkmsProduceAdvisor:
         o = opts[i]
         dec = next((d for d in res.get("decisions") or [] if d.get("step") == step), None)
         self.last_route = {"choice": choice, "decision": dec, "plan": res["plan"]}
-        others = "、".join(f"{x['choice']} {x['vs_best']:+g}" for x in (dec or {}).get("options") or [] if x.get("vs_best") not in (None, 0))
+        others = "、".join(
+            f"{x['choice']} {x['vs_best']:+g}"
+            for x in (dec or {}).get("options") or []
+            if x.get("vs_best") not in (None, 0)
+        )
         end = res["plan"].get("end") or {}
         reason = (f"GKMS 路线：第 {step} 周选 {choice}（评分 {res['plan'].get('rating')}"
                   + (f"；其余比最优差：{others}" if others else "")
                   + f"；计划终局 Vo {end.get('vocal')} / Da {end.get('dance')} / Vi {end.get('visual')}）")  # fmt: skip
-        self._note("ACTION_SELECT", step=step, choice=choice, option=i, rating=res["plan"].get("rating"), route=res["plan"]["route"])
+        self._note(
+            "ACTION_SELECT",
+            step=step,
+            choice=choice,
+            option=i,
+            rating=res["plan"].get("rating"),
+            route=res["plan"]["route"],
+        )
         return Decision(Action.produce_next(o["option"], attr=o.get("attr"), sp=o.get("sp")), reason, "plan", 0.8,
                         decider="gkms_route")  # fmt: skip
 
     # ------------------------------------------------------------------ 选卡类
     def _idol(self, state: Any) -> str | None:
         idol = (state.produce or {}).get("idol_card_id") or self.context.get("idol")
-        return idol.replace("i_card-skin-", "i_card-") if isinstance(idol, str) else idol  # 选卡包按偶像卡 id，不认 skin id
+        return (
+            idol.replace("i_card-skin-", "i_card-") if isinstance(idol, str) else idol
+        )  # 选卡包按偶像卡 id，不认 skin id
 
     def _pack_label(self, state: Any) -> str:
         return "pickv" if family((state.produce or {}).get("mode")) == HIF else "pickv（H.I.F 的包）"
@@ -140,7 +157,7 @@ class GkmsProduceAdvisor:
         deck = [c for c in ((state.produce or {}).get("deck") or []) if _cid(c)]
         if not deck and page_cards:
             deck = [c for c in page_cards if _cid(c)]
-        return [_cid(c) for c in deck]
+        return [cid for c in deck if (cid := _cid(c))]
 
     def _values(self, state: Any, *, offer=(), upgrade=(), page_cards=None) -> dict | None:
         mode = (state.produce or {}).get("mode")
@@ -181,7 +198,13 @@ class GkmsProduceAdvisor:
             return Decision(Action(ActionKind.REROLL), f"{lab}：刷新（新候选的期望最好 V 比现在高 {gain:g} > {thr:g}；现在 {listing}）", "plan", 0.7,
                             decider="gkms_pickv")  # fmt: skip
         self._note("SELECT_CARD", pick=i, card=c["card_id"], v=v, take=r["take"])
-        return Decision(Action.activate_effect(i), f"{lab}：拿 {c['card_id']}（V {v:g}；候选 {listing}）", "plan", 0.8, decider="gkms_pickv")
+        return Decision(
+            Action.activate_effect(i),
+            f"{lab}：拿 {c['card_id']}（V {v:g}；候选 {listing}）",
+            "plan",
+            0.8,
+            decider="gkms_pickv",
+        )
 
     def _change_pick(self, state: Any) -> Decision | None:
         cands = list((state.page_fields or {}).get("candidates") or [])
@@ -197,14 +220,23 @@ class GkmsProduceAdvisor:
         """按 pickv.removal_by_v 的顺序，挑第一张画面上认得出、没定制过的卡。"""
         deck = [{"card_id": _cid(c), "upgrade": (c.get("upgrade") if isinstance(c, dict) else getattr(c, "upgrade", 0)) or 0}
                 for c in ((state.produce or {}).get("deck") or cards) if _cid(c)]  # fmt: skip
-        r = self.client.call("removal", idol=self._idol(state), deck=deck, allow_trouble=allow_trouble, wait_s=PACK_WAIT_S, timeout=CALL_TIMEOUT_S)
+        r = self.client.call(
+            "removal",
+            idol=self._idol(state),
+            deck=deck,
+            allow_trouble=allow_trouble,
+            wait_s=PACK_WAIT_S,
+            timeout=CALL_TIMEOUT_S,
+        )
         if r.get("state") != "ok":
             self._defer(page, f"选卡包不可用（偶像卡 {self._idol(state)}）")
             return {"defer": True}
         usable = [c for c in cards if c.get("card_id") and not c.get("customized")]
         for want in r.get("order") or []:
             for c in usable:
-                if c["card_id"] == want["card_id"] and (want.get("upgrade") is None or int(c.get("upgrade") or 0) == int(want["upgrade"] or 0)):
+                if c["card_id"] == want["card_id"] and (
+                    want.get("upgrade") is None or int(c.get("upgrade") or 0) == int(want["upgrade"] or 0)
+                ):
                     return c
         return None
 
@@ -286,7 +318,15 @@ class GkmsProduceAdvisor:
             return sv if sv.get("price") is not None and sv["price"] <= budget else None
 
         up_sv, del_sv = usable("upgrade"), usable("delete")
-        up_ids = list(dict.fromkeys(_cid(c) for c in deck if not (c.get("upgrade") if isinstance(c, dict) else getattr(c, "upgrade", 0)))) if up_sv else []
+        up_ids = (
+            list(
+                dict.fromkeys(
+                    _cid(c) for c in deck if not (c.get("upgrade") if isinstance(c, dict) else getattr(c, "upgrade", 0))
+                )
+            )
+            if up_sv
+            else []
+        )
         if not shelf and not up_ids and not del_sv:
             return None
         r = self._values(state, offer=[it["card_id"] for it in shelf], upgrade=up_ids)
@@ -314,7 +354,11 @@ class GkmsProduceAdvisor:
             ups = [(r["up"].get(cid), cid) for cid in up_ids if r["up"].get(cid) is not None]
             if ups:
                 v, cid = max(ups)
-                idx = next(i for i, c in enumerate(deck) if _cid(c) == cid and not (c.get("upgrade") if isinstance(c, dict) else 0))
+                idx = next(
+                    i
+                    for i, c in enumerate(deck)
+                    if _cid(c) == cid and not (c.get("upgrade") if isinstance(c, dict) else 0)
+                )
                 if v >= tau:
                     opts.append((v, "upgrade", Decision(Action(up_kind, {"card_index": idx}),
                                                         f"{lab}：强化 {cid}（V × 强化率 {v:g}；{up_sv['price']}P）", "plan", 0.8, decider="gkms_pickv")))  # fmt: skip
@@ -332,10 +376,21 @@ class GkmsProduceAdvisor:
 
         cards = [{"card_id": _cid(c), "upgrade": (c.get("upgrade") if isinstance(c, dict) else getattr(c, "upgrade", 0)) or 0,
                   "customized": bool(c.get("customized") if isinstance(c, dict) else getattr(c, "customized", False))} for c in deck]  # fmt: skip
-        r = self.client.call("removal", idol=self._idol(state), deck=cards, allow_trouble=True, wait_s=PACK_WAIT_S, timeout=CALL_TIMEOUT_S)
+        r = self.client.call(
+            "removal",
+            idol=self._idol(state),
+            deck=cards,
+            allow_trouble=True,
+            wait_s=PACK_WAIT_S,
+            timeout=CALL_TIMEOUT_S,
+        )
         for want in r.get("order") or []:
             for i, c in enumerate(cards):
-                if c["card_id"] == want["card_id"] and not c["customized"] and (want.get("upgrade") is None or c["upgrade"] == int(want["upgrade"] or 0)):
+                if (
+                    c["card_id"] == want["card_id"]
+                    and not c["customized"]
+                    and (want.get("upgrade") is None or c["upgrade"] == int(want["upgrade"] or 0))
+                ):
                     try:
                         trouble = _is_trouble_card(c["card_id"])
                     except Exception:  # noqa: BLE001  主数据查不到：按不是トラブル

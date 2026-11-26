@@ -2,9 +2,9 @@
 
 import sys
 
-import pytest
-
 from hiro.gkms import locate
+
+import pytest
 
 MODULES = ("hajime_route.py", "nia_route.py", "pickv.py")
 

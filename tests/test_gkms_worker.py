@@ -5,10 +5,10 @@ import sys
 import textwrap
 from pathlib import Path
 
-import pytest
-
 from hiro.gkms import client as gc
 from hiro.gkms import locate
+
+import pytest
 
 DATA = Path(__file__).parent / "data"
 
@@ -60,11 +60,14 @@ def fake_install(tmp_path, body: str) -> locate.Install:
 
 
 def test_timeout_raises_and_kills(tmp_path, monkeypatch):
-    inst, script = fake_install(tmp_path, """
+    inst, script = fake_install(
+        tmp_path,
+        """
         import sys, time, json
         for line in sys.stdin:
             time.sleep(5)
-    """)
+    """,
+    )
     monkeypatch.setattr(gc, "WORKER", script)
     c = gc.Client(inst)
     with pytest.raises(gc.GkmsError, match="超时"):
@@ -73,10 +76,13 @@ def test_timeout_raises_and_kills(tmp_path, monkeypatch):
 
 
 def test_restart_once_then_give_up(tmp_path, monkeypatch):
-    inst, script = fake_install(tmp_path, """
+    inst, script = fake_install(
+        tmp_path,
+        """
         import sys
         sys.exit(3)
-    """)
+    """,
+    )
     monkeypatch.setattr(gc, "WORKER", script)
     c = gc.Client(inst)
     for _ in range(2):

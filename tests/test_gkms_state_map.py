@@ -59,7 +59,7 @@ def test_missing_week_ahead_defers():
 
 
 def test_missing_week_behind_is_fine():
-    rec, why = sm.record(state())  # 样例本来就缺第 6 周（在第 11 周之前）
+    _rec, why = sm.record(state())  # 样例本来就缺第 6 周（在第 11 周之前）
     assert why is None
 
 
@@ -90,9 +90,9 @@ def test_option_for_maps_back():
 
 
 def test_real_route_maps_back_to_screen(monkeypatch):
-    import pytest
-
     from hiro.gkms import client, locate
+
+    import pytest
 
     monkeypatch.delenv("HIRO_GKMS", raising=False)  # conftest 默认关
     inst = locate.find()

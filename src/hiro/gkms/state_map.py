@@ -53,7 +53,7 @@ def _growth(v: Any) -> int:
 def record(state) -> tuple[dict | None, str | None]:
     """(GKMS 培育记录, None) 或 (None, 为什么拼不出来)。记录里另带 from_step（本周）。"""
     p = dict(state.produce or {})
-    mode = p.get("mode")
+    mode = str(p.get("mode") or "")
     fam = family(mode)
     if fam not in (HAJIME, NIA):
         return None, f"{mode} 不是初 / N.I.A（H.I.F 的选行动这一版不接）"
@@ -106,7 +106,15 @@ def record(state) -> tuple[dict | None, str | None]:
         "uuid": "hiro-live",
         "produce_id": mode,
         "idol_card_id": p.get("idol_card_id"),
-        "occasions": [{"rpc": "Start", "at_step": int(step) - 1, "state": st, "items_gained": list(p.get("items") or []), "deck": []}],
+        "occasions": [
+            {
+                "rpc": "Start",
+                "at_step": int(step) - 1,
+                "state": st,
+                "items_gained": list(p.get("items") or []),
+                "deck": [],
+            }
+        ],
         "schedule": rows,
         "support_state": sups,
         "activations": [],
@@ -124,10 +132,14 @@ def option_for(choice: str, options: list[dict]) -> int | None:
         name = o.get("option")
         if name == "training" and c.startswith("lesson_"):
             parts = c.split("_")  # lesson_da[_sp|_hard]
-            if ATTR.get(o.get("attr")) == parts[1] and bool(o.get("sp")) == ("sp" in parts[2:]) and bool(o.get("oikomi")) == ("hard" in parts[2:]):
+            if (
+                ATTR.get(o.get("attr") or "") == parts[1]
+                and bool(o.get("sp")) == ("sp" in parts[2:])
+                and bool(o.get("oikomi")) == ("hard" in parts[2:])
+            ):
                 return i
             if o.get("oikomi") and "hard" in parts[2:] and o.get("attr") is None:
                 return i  # 追い込み选项在选行动页上不分属性（属性在下一页选）
-        elif SIMPLE.get(name) == c:
+        elif SIMPLE.get(str(name)) == c:
             return i
     return None

@@ -65,7 +65,9 @@ def _version(home: Path) -> str | None:
             return f.read_text(encoding="utf-8", errors="replace").strip()[:40] or None
     if (home / ".git").exists():
         try:
-            r = subprocess.run(["git", "-C", str(home), "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5)
+            r = subprocess.run(
+                ["git", "-C", str(home), "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5
+            )
             return r.stdout.strip() or None
         except (OSError, subprocess.SubprocessError):
             return None

@@ -208,7 +208,9 @@ class ProduceDeciders:
         self._prewarm(state)
         return d
 
-    def _mixed_page(self, page: str, state: GameState, fn, n_options: int | None, kw: dict, t0: float) -> Decision | None:
+    def _mixed_page(
+        self, page: str, state: GameState, fn, n_options: int | None, kw: dict, t0: float
+    ) -> Decision | None:
         """相談 / 轮间交给声明了 card_scope_pages 的插件时（GKMS 插件 spec 4.5）：内置决策器先看去掉卡的页面（饮料、回体力照它做）；
         它要结束时问插件这一页的卡怎么办，预算 = P 点 − 预留。这一页没交给这种插件时返回 None，走原来的流程。"""
         from hiro import plugins, strategy
@@ -227,6 +229,7 @@ class ProduceDeciders:
             d, why = None, f"决策器异常 {type(e).__name__}: {e}"
         if why is not None:
             d = self._page_fallback(page, view, n_options, why, prior=d, **kw)
+        assert d is not None
         if d.action.kind not in (ActionKind.SHOP_END, ActionKind.INTERVAL_END):
             d.reason += f"（这一页的卡交给插件 {pid}）"
             d.seconds = round(time.monotonic() - t0, 3)

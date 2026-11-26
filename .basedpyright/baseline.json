@@ -6952,14 +6952,6 @@
         ],
         "./src/hiro/vision/digits.py": [
             {
-                "code": "reportMissingImports",
-                "range": {
-                    "startColumn": 9,
-                    "endColumn": 12,
-                    "lineCount": 1
-                }
-            },
-            {
                 "code": "reportOptionalOperand",
                 "range": {
                     "startColumn": 68,

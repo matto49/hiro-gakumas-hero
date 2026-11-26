@@ -57,7 +57,11 @@ def _key(action: dict | None) -> tuple:
 def _recorded_index(state: GameState, action: dict) -> int | None:
     a = action.get("args") or {}
     for i, o in enumerate(state.page_fields.get("options") or []):
-        if o.get("option") == a.get("option") and (o.get("attr") or None) == (a.get("attr") or None) and bool(o.get("sp")) == bool(a.get("sp")):
+        if (
+            o.get("option") == a.get("option")
+            and (o.get("attr") or None) == (a.get("attr") or None)
+            and bool(o.get("sp")) == bool(a.get("sp"))
+        ):
             return i
     return None
 
@@ -92,7 +96,14 @@ def compare_step(trace: Path, row: dict, adv) -> dict | None:
         dec = (adv.last_route or {}).get("decision") or {}
         ri = _recorded_index(state, rec_action or {})
         opts = state.page_fields.get("options") or []
-        out["recorded_gap"] = next((o.get("vs_best") for o in dec.get("options") or [] if ri is not None and state_map.option_for(o["choice"], opts) == ri), None)
+        out["recorded_gap"] = next(
+            (
+                o.get("vs_best")
+                for o in dec.get("options") or []
+                if ri is not None and state_map.option_for(o["choice"], opts) == ri
+            ),
+            None,
+        )
     elif page == "SELECT_CARD":
         cands = state.page_fields.get("candidates") or []
         take = (adv.last_values or {}).get("take") or {}
@@ -155,13 +166,24 @@ def report(res: list[dict], *, title: str = "GKMS 插件离线对比") -> str:
         lines += [f"| {w} | {n} |" for w, n in why.most_common(15)]
     diffs = [r for r in res if r.get("same") is False][:20]
     if diffs:
-        lines += ["", "## 不一致的例子（前 20 条）", "", "| trace | seq | 页面 | 现有 | GKMS |", "|---|---|---|---|---|"]
+        lines += [
+            "",
+            "## 不一致的例子（前 20 条）",
+            "",
+            "| trace | seq | 页面 | 现有 | GKMS |",
+            "|---|---|---|---|---|",
+        ]
         for r in diffs:
             cut = lambda s: str(s or "").replace("|", "／").replace("\n", " ")[:90]  # noqa: E731
-            lines.append(f"| {r['trace']} | {r['seq']} | {r['page']} | {cut(r['recorded'])} | {cut(r.get('gkms_reason'))} |")
+            lines.append(
+                f"| {r['trace']} | {r['seq']} | {r['page']} | {cut(r['recorded'])} | {cut(r.get('gkms_reason'))} |"
+            )
     secs = [r["seconds"] for r in res if r.get("seconds") is not None]
     if secs:
-        lines += ["", f"GKMS 每步耗时：平均 {sum(secs) / len(secs):.2f} 秒，最长 {max(secs):.2f} 秒（共 {len(secs)} 步）。"]
+        lines += [
+            "",
+            f"GKMS 每步耗时：平均 {sum(secs) / len(secs):.2f} 秒，最长 {max(secs):.2f} 秒（共 {len(secs)} 步）。",
+        ]
     return "\n".join(lines) + "\n"
 
 
@@ -181,7 +203,9 @@ def main(argv=None) -> int:
         adv.end(None)
     out = Path(a.out or f"reports/gkms-compare/{time.strftime('%Y%m%d-%H%M%S')}")
     out.mkdir(parents=True, exist_ok=True)
-    (out / "steps.jsonl").write_text("\n".join(json.dumps(r, ensure_ascii=False, default=str) for r in res) + "\n", encoding="utf-8")
+    (out / "steps.jsonl").write_text(
+        "\n".join(json.dumps(r, ensure_ascii=False, default=str) for r in res) + "\n", encoding="utf-8"
+    )
     md = report(res)
     if a.idol_default:
         md = md.replace("\n## 总表", f"\n> run.json 没写偶像卡的 trace 按 {a.idol_default} 算（假设）。\n\n## 总表", 1)

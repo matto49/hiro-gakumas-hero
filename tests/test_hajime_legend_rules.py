@@ -3,8 +3,8 @@
 社区几条一致的说法：LEGEND 基本不休息、不外出，体力靠早结束课程回；活動支給是主轴；SP 课出现就上；授業补最低的属性。
 """
 
-from hiro.brain.hajime_nia import Status, choose_action, choose_study
 from hiro.brain import hajime_nia_rules as hr
+from hiro.brain.hajime_nia import Status, choose_action, choose_study
 
 
 def _opt(option, attr=None, sp=None):
@@ -39,7 +39,7 @@ def test_legend_rests_only_when_lesson_impossible():
 
 def test_legend_allowance_over_outing_when_tired():
     opts = [_opt("outing"), _opt("allowance"), _opt("rest")]
-    o, reason, rules = _pick(_st(stamina=20), opts)
+    o, _reason, rules = _pick(_st(stamina=20), opts)
     assert o["option"] == "allowance"
     assert "hajime.legend_allowance" in rules
 
@@ -51,8 +51,12 @@ def test_legend_sp_first():
 
 
 def test_legend_study_fills_lowest_attr():
-    choices = [{"index": 0, "attr": "Vo", "cost_hp": 5}, {"index": 1, "attr": "Da", "cost_hp": 5}, {"index": 2, "attr": "Vi", "cost_hp": 5}]
-    i, reason, rules = choose_study(_st(), choices)
+    choices = [
+        {"index": 0, "attr": "Vo", "cost_hp": 5},
+        {"index": 1, "attr": "Da", "cost_hp": 5},
+        {"index": 2, "attr": "Vi", "cost_hp": 5},
+    ]
+    i, _reason, rules = choose_study(_st(), choices)
     assert i == 2 and "hajime.legend_study_lowest" in rules
 
 
@@ -63,6 +67,11 @@ def test_pro_unchanged_still_rests_when_tired():
 
 
 def test_legend_rules_have_sources():
-    for rid in ("hajime.legend_no_rest", "hajime.legend_allowance", "hajime.legend_sp_first", "hajime.legend_study_lowest"):
+    for rid in (
+        "hajime.legend_no_rest",
+        "hajime.legend_allowance",
+        "hajime.legend_sp_first",
+        "hajime.legend_study_lowest",
+    ):
         r = hr.rule(rid)
         assert r["difficulties"] == ["legend"] and r["quote"] and r["source"] in hr.load()["sources"]

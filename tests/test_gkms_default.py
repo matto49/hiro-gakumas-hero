@@ -1,9 +1,9 @@
 """装了 GKMS 就默认启用（spec 4.4）与日程列表探查自动打开（spec 4.7）。用假的 GKMS 插件，不需要本机装 GKMS。"""
 
-import pytest
-
 from hiro import plugins, strategy
 from hiro.gkms import advisor
+
+import pytest
 
 
 class FakeGkms:

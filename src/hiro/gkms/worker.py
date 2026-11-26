@@ -1,3 +1,5 @@
+# pyright: reportMissingImports=false
+# GakumasCLI 是本机装的 GKMS（运行时加进 sys.path），不是本仓库的依赖
 """在 GKMS 自己的 Python 里跑的子进程（spec 4.3）。只调用 GKMS 的函数，不复制它的算法。
 
     <python> -I -u worker.py <gkms_home>
@@ -106,7 +108,10 @@ def op_removal(args):
     pack, state = _pack(PV, args.get("idol"), args.get("wait_s"))
     if pack is None:
         return {"state": state, "order": []}
-    deck = [{"produce_card_id": c["card_id"], "current_upgrade_count": int(c.get("upgrade") or 0)} for c in args.get("deck") or []]
+    deck = [
+        {"produce_card_id": c["card_id"], "current_upgrade_count": int(c.get("upgrade") or 0)}
+        for c in args.get("deck") or []
+    ]
     order = PV.removal_by_v(deck, pack, allow_trouble=bool(args.get("allow_trouble", True)), k=10**6)
     return {"state": state, "order": [{"card_id": c["id"], "upgrade": c.get("upgrade")} for c in order]}
 
@@ -115,7 +120,14 @@ def op_crash(_args):  # 测试用
     sys.exit(3)
 
 
-OPS = {"hello": op_hello, "route": op_route, "pack": op_pack, "values": op_values, "removal": op_removal, "crash": op_crash}
+OPS = {
+    "hello": op_hello,
+    "route": op_route,
+    "pack": op_pack,
+    "values": op_values,
+    "removal": op_removal,
+    "crash": op_crash,
+}
 
 
 def main() -> None:

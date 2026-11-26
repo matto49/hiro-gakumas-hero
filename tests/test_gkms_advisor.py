@@ -4,17 +4,18 @@ import copy
 import json
 from pathlib import Path
 
-import pytest
-
 from hiro.brain.deciders import _invalid_decision
 from hiro.brain.plugin_gate import ALLOWED_KINDS
 from hiro.contracts import ActionKind, GameState
 from hiro.gkms.advisor import GkmsProduceAdvisor
 from hiro.gkms.client import GkmsError
 
+import pytest
 from gkms_fakes import FakeClient, values  # noqa: E402
 
 RAW = json.loads((Path(__file__).parent / "data" / "gkms-hajime-pro-w11.json").read_text())
+
+
 def make(page, mode="produce-002", page_fields=None, deck=None, **produce):
     d = copy.deepcopy(RAW)
     d["page"]["name"] = page
@@ -71,19 +72,31 @@ CANDS = [{"index": 0, "card_id": "p_card-a"}, {"index": 1, "card_id": "p_card-b"
 
 def test_select_card_takes_highest_v():
     adv = GkmsProduceAdvisor(client=FakeClient(values=values({"p_card-a": 0.2, "p_card-b": 0.7, "p_card-c": None})))
-    d = ok("SELECT_CARD", run(adv, "SELECT_CARD", make("SELECT_CARD", page_fields={"candidates": CANDS, "rerolls_left": 0}), n=3), n=3)
+    d = ok(
+        "SELECT_CARD",
+        run(adv, "SELECT_CARD", make("SELECT_CARD", page_fields={"candidates": CANDS, "rerolls_left": 0}), n=3),
+        n=3,
+    )
     assert d.action.kind is ActionKind.ACTIVATE_EFFECT and d.action.args["pick_indexes"] == [1]
     assert "H.I.F 的包" in d.reason  # 初用 H.I.F 的选卡包近似
 
 
 def test_select_card_rerolls_when_worth():
-    adv = GkmsProduceAdvisor(client=FakeClient(values=values({"p_card-a": 0.1, "p_card-b": 0.1, "p_card-c": 0.1}, reroll_gain=0.3)))
-    d = ok("SELECT_CARD", run(adv, "SELECT_CARD", make("SELECT_CARD", page_fields={"candidates": CANDS, "rerolls_left": 1}), n=3), n=3)
+    adv = GkmsProduceAdvisor(
+        client=FakeClient(values=values({"p_card-a": 0.1, "p_card-b": 0.1, "p_card-c": 0.1}, reroll_gain=0.3))
+    )
+    d = ok(
+        "SELECT_CARD",
+        run(adv, "SELECT_CARD", make("SELECT_CARD", page_fields={"candidates": CANDS, "rerolls_left": 1}), n=3),
+        n=3,
+    )
     assert d.action.kind is ActionKind.REROLL
 
 
 def test_select_card_no_reroll_left_takes_best():
-    adv = GkmsProduceAdvisor(client=FakeClient(values=values({"p_card-a": 0.1, "p_card-b": 0.3, "p_card-c": 0.1}, reroll_gain=0.3)))
+    adv = GkmsProduceAdvisor(
+        client=FakeClient(values=values({"p_card-a": 0.1, "p_card-b": 0.3, "p_card-c": 0.1}, reroll_gain=0.3))
+    )
     d = run(adv, "SELECT_CARD", make("SELECT_CARD", page_fields={"candidates": CANDS, "rerolls_left": 0}), n=3)
     assert d.action.kind is ActionKind.ACTIVATE_EFFECT
 
@@ -96,18 +109,30 @@ def test_select_card_no_pack_defers():
 def test_change_pick_and_remove():
     adv = GkmsProduceAdvisor(client=FakeClient(values=values({"p_card-a": 0.2, "p_card-b": 0.7, "p_card-c": 0.1}),
                                                removal={"state": "ok", "order": [{"card_id": "p_card-x", "upgrade": 0}, {"card_id": "p_card-y", "upgrade": 1}]}))  # fmt: skip
-    d1 = ok("SKILL_CARD_CHANGE_1", run(adv, "SKILL_CARD_CHANGE_1", make("SKILL_CARD_CHANGE_1", page_fields={"candidates": CANDS})))
+    d1 = ok(
+        "SKILL_CARD_CHANGE_1",
+        run(adv, "SKILL_CARD_CHANGE_1", make("SKILL_CARD_CHANGE_1", page_fields={"candidates": CANDS})),
+    )
     assert d1.action.args == {"stage": 1, "pick_index": 1}
     cards = [{"index": 0, "card_id": "p_card-y", "upgrade": 1}, {"index": 1, "card_id": "p_card-x", "upgrade": 0, "customized": True},
              {"index": 2, "card_id": None}]  # fmt: skip
-    d2 = ok("SKILL_CARD_CHANGE_2", adv.decide("SKILL_CARD_CHANGE_2", make("SKILL_CARD_CHANGE_2", page_fields={"cards": cards}), n_options=None, kw={}))
+    d2 = ok(
+        "SKILL_CARD_CHANGE_2",
+        adv.decide(
+            "SKILL_CARD_CHANGE_2", make("SKILL_CARD_CHANGE_2", page_fields={"cards": cards}), n_options=None, kw={}
+        ),
+    )
     assert d2.action.args["remove_card_id"] == "p_card-y" and d2.action.args["remove_index"] == 0  # 定制过的 x 跳过
 
 
 def test_removal_cancels_when_nothing_removable():
-    adv = GkmsProduceAdvisor(client=FakeClient(removal={"state": "ok", "order": [{"card_id": "p_card-x", "upgrade": 0}]}))
+    adv = GkmsProduceAdvisor(
+        client=FakeClient(removal={"state": "ok", "order": [{"card_id": "p_card-x", "upgrade": 0}]})
+    )
     cards = [{"index": 0, "card_id": "p_card-x", "upgrade": 0, "customized": True}]
-    d = ok("SKILL_CARD_REMOVAL", run(adv, "SKILL_CARD_REMOVAL", make("SKILL_CARD_REMOVAL", page_fields={"cards": cards})))
+    d = ok(
+        "SKILL_CARD_REMOVAL", run(adv, "SKILL_CARD_REMOVAL", make("SKILL_CARD_REMOVAL", page_fields={"cards": cards}))
+    )
     assert d.action.args == {"cancel": True}
 
 
@@ -115,7 +140,9 @@ def test_enhance_picks_highest_upgrade_value():
     adv = GkmsProduceAdvisor(client=FakeClient(values=values({}, up={"p_card-a": 0.1, "p_card-b": 0.4})))
     cards = [{"index": 0, "card_id": "p_card-a", "upgrade": 0}, {"index": 1, "card_id": "p_card-b", "upgrade": 0},
              {"index": 2, "card_id": "p_card-c", "upgrade": 1}]  # fmt: skip
-    d = ok("SKILL_CARD_ENHANCE", run(adv, "SKILL_CARD_ENHANCE", make("SKILL_CARD_ENHANCE", page_fields={"cards": cards})))
+    d = ok(
+        "SKILL_CARD_ENHANCE", run(adv, "SKILL_CARD_ENHANCE", make("SKILL_CARD_ENHANCE", page_fields={"cards": cards}))
+    )
     assert d.action.args == {"card_id": "p_card-b", "index": 1, "upgrade": 0}
     assert adv.client.calls[-1][1]["upgrade"] == ["p_card-a", "p_card-b"]  # 强化过的不问
 
