@@ -31,15 +31,19 @@ def memory_row(reads: list[dict]) -> tuple[int, list]:
     return sum(1 for r in reads if not r.get("empty")), [r.get("card") if r.get("known") else None for r in reads]
 
 
-def survey(dev, mode: str, *, kinds=("support", "memory"), read_formation=None, read_icons=None, sets=SETS) -> dict:
-    """dev：formation_writer.Device。按 kinds 顺序翻遍 sets，返回输出 dict（一个编成号读不到就记 filled=None，接着翻下一个）。"""
+def survey(
+    dev, mode: str, *, kinds=("support", "memory"), read_formation=None, read_icons=None, sets=SETS, stop_at_blank=False
+) -> dict:
+    """dev：formation_writer.Device。按 kinds 顺序翻遍 sets，返回输出 dict（一个编成号读不到就记 filled=None，接着翻下一个）。
+    stop_at_blank：每样读到第一个空着的编成就不往下翻（开局前只要找一个空位，N33：G1 第 3 轮 40 组全读用了 8 分钟）；
+    这时 complete=False、stopped_at_blank=True，没读的编成号不出现在 sets 里（按「不知道」处理，不会被当成空的）。"""
     from hiro.produce import formation_menu as fm
     from hiro.produce.formation_writer import FormationWriteError, _settled_step2
 
     menu = fm.Menu(dev)
     menu.open()
     menu.ensure_mode(mode)
-    rows, complete = [], True
+    rows, complete, stopped = [], True, False
     for kind in kinds:
         menu.ensure_tab(kind)
         for n in sets:
@@ -57,7 +61,14 @@ def survey(dev, mode: str, *, kinds=("support", "memory"), read_formation=None, 
                 complete = False
             rows.append({"kind": kind, "set": n, "filled": filled, "cards": cards})
             logger.info("编成位：%s 编成 %d：%s", kind, n, "读不到" if filled is None else f"{filled} 格有东西")
-    return {"scanned_at": time.strftime("%Y-%m-%d %H:%M:%S"), "mode": mode, "complete": complete, "sets": rows}
+            if stop_at_blank and filled == 0:
+                if n != list(sets)[-1]:
+                    complete, stopped = False, True
+                break
+    out = {"scanned_at": time.strftime("%Y-%m-%d %H:%M:%S"), "mode": mode, "complete": complete, "sets": rows}
+    if stopped:
+        out["stopped_at_blank"] = True
+    return out
 
 
 def main() -> int:

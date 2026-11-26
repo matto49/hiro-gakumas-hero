@@ -38,15 +38,15 @@ def plan_path() -> Path:
     return paths.plan_path(hiro_home())
 
 
-def _survey(mode: str) -> dict:
-    """进编成菜单翻 1–20 号读编成位现状（hiro.produce.formation_survey，只读）。"""
+def _survey(mode: str, kinds=("support", "memory")) -> dict:
+    """进编成菜单读编成位现状（hiro.produce.formation_survey，只读）：只读要挑号的那几样，每样读到第一个空位就停（N33）。"""
     from hiro.produce import formation_menu
     from hiro.produce.formation_survey import survey
     from hiro.tool_device import open_tool_device
     from hiro.vision.support_screens import read_support_formation
 
     dev = formation_menu.tool_device(open_tool_device())
-    return survey(dev, mode, read_formation=read_support_formation)
+    return survey(dev, mode, kinds=tuple(kinds), read_formation=read_support_formation, stop_at_blank=True)
 
 
 def _write(mode: str, what=("support", "memory"), blank_only=()) -> int:
@@ -125,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.info(
             "开局前准备：方案还没定%s编成号，先读%s的编成位", "、".join(LABEL[w] for w in missing), MODE_NAME[mode]
         )
-        out = _survey(mode)
+        out = _survey(mode, missing)
         from hiro.cli.cmd_info import import_inventory
 
         import_inventory("formations", out, source="prepare_start")

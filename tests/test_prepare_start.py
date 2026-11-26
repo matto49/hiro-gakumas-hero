@@ -32,7 +32,7 @@ def _plan(home, sets=(None, None), written=False):
 def calls(monkeypatch):
     log = []
 
-    def survey(mode):
+    def survey(mode, kinds=("support", "memory")):
         log.append(("survey", mode))
         sets = [{"kind": "support", "set": n, "filled": 5 if n < 3 else 0, "cards": []} for n in range(1, 21)]
         sets += [{"kind": "memory", "set": n, "filled": 4 if n < 7 else 0, "cards": []} for n in range(1, 21)]
@@ -100,7 +100,7 @@ def test_nothing_to_do_just_starts(home, calls):
 
 def test_all_full_stops_without_writing(home, calls, monkeypatch, capsys):
     _plan(home)
-    monkeypatch.setattr(ps, "_survey", lambda mode: {"scanned_at": "x", "mode": mode, "complete": True,
+    monkeypatch.setattr(ps, "_survey", lambda mode, kinds=(): {"scanned_at": "x", "mode": mode, "complete": True,
                         "sets": [{"kind": k, "set": n, "filled": 3, "cards": []} for k in ("support", "memory") for n in range(1, 21)]})  # fmt: skip
     rc = ps.main(["--mode", "hajime", "--", "x"])
     assert rc != 0 and not any(c[0] in ("write", "exec") for c in calls)
