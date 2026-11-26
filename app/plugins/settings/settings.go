@@ -102,9 +102,10 @@ type S struct {
 	step      int
 	sound     bool
 	// N27（G3 第 2 轮：Windows 从安装到开局点了 18 下）：这次刚装好环境 / 第一次走到「连游戏」并连上，就自己进下一步。
-	// maxStep 是这次走到过的最远一步：退回来再看时不自动前进
+	// connectAuto：第一次停在「连游戏」这一步期间才自动前进；离开过（往前或往后）就不再自动跳（#154 review）
 	installedNow bool
-	maxStep      int
+	connectSeen  bool
+	connectAuto  bool
 	modelOK      bool
 	// relaunchErr 是「以管理员身份重新打开」没成的原因（取消了「是否允许」等）
 	relaunchErr string
@@ -206,12 +207,12 @@ func (s *S) Probe(h plugin.Host) {
 				}
 			}
 			s.deviceOK = &ok
-			if ok && s.step == 1 && s.maxStep <= 1 && !s.d.Settings().WizardDone {
+			if ok && s.step == 1 && s.connectAuto && !s.d.Settings().WizardDone {
 				// N27：向导第一次走到「连游戏」并连上：停一下让人看到「已连上」，再自己进下一步
 				h.Go(func() func() {
 					time.Sleep(connectedPause)
 					return func() {
-						if s.step == 1 && s.maxStep <= 1 {
+						if s.step == 1 && s.connectAuto {
 							s.step = 2
 						}
 					}
@@ -324,7 +325,11 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 			}
 		}
 	}
-	s.maxStep = max(s.maxStep, s.step)
+	if s.step == 1 && !s.connectSeen {
+		s.connectSeen, s.connectAuto = true, true
+	} else if s.step != 1 {
+		s.connectAuto = false
+	}
 	ui.Row(c).Fill().Background(kit.Bg).AlignItems(ui.Stretch).Children(func() {
 		ui.Column(c).Width(232).Shrink(0).Background(kit.Side).Padding(22, 18).Gap(6).BorderColor(kit.Line).BorderWidth(0, kit.Hair, 0, 0).Children(func() {
 			ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(0, 0, 16, 0).Children(func() {

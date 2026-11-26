@@ -571,3 +571,25 @@ func TestWizardAdvancesByItself(t *testing.T) {
 		t.Errorf("退回来看时不该自动前进：step=%d", s.step)
 	}
 }
+
+// #154 review：第一次到「连游戏」没连上，退回去再回来重试连上了：不自动前进（只认第一次停留期间）。
+func TestWizardNoAutoAdvanceAfterLeavingConnectStep(t *testing.T) {
+	connectedPause = 0
+	defer func() { connectedPause = 1200 * time.Millisecond }()
+	f := &fake{secrets: map[string]string{}, ready: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`, "doctor --probe": `{"items":[{"id":"platform","ok":false,"detail":"没连上"}]}`})
+	s, tt := wizardAt(t, f, h, 1)
+	if s.step != 1 {
+		t.Fatalf("没连上不该前进：step=%d", s.step)
+	}
+	s.step = 0 // 退回去
+	tt.Frame()
+	s.step = 1 // 再回来
+	tt.Frame()
+	h.Resp["doctor --probe"] = hiroapi.Result{OK: true, Data: []byte(`{"items":[{"id":"platform","ok":true,"detail":"学マス（PlayCover）：已连上"}]}`)}
+	s.Probe(h)
+	tt.Frame()
+	if s.step != 1 {
+		t.Errorf("离开过再回来重试连上，不该自动前进：step=%d", s.step)
+	}
+}
