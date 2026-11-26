@@ -30,8 +30,8 @@ SWITCH = "HIRO_MEMORY_SLICES"
 
 
 def enabled() -> bool:
-    """「回忆按片扫描」开关（缺省关，#116 审查重要 5）：环境变量 HIRO_MEMORY_SLICES 设了以它为准；没设看初星助手设置
-    （HIRO_HOME/settings.json 的 memory_slices）。关着时扫描回忆照旧整表滚动扫、出方案照旧用整表快照。"""
+    """「回忆按片扫描」开关（D10 用户 11-26 18:14 定：缺省开）：环境变量 HIRO_MEMORY_SLICES 设了以它为准；没设看初星助手设置
+    （HIRO_HOME/settings.json 的 memory_slices_off，玩家在设置里关了才是 true）。关着时扫描回忆照旧整表滚动扫、出方案照旧用整表快照。"""
     import json
     import os
 
@@ -41,6 +41,6 @@ def enabled() -> bool:
     try:
         from hiro.cli.home import hiro_home
 
-        return bool(json.loads((hiro_home() / "settings.json").read_text(encoding="utf-8")).get("memory_slices"))
+        return not json.loads((hiro_home() / "settings.json").read_text(encoding="utf-8")).get("memory_slices_off")
     except (OSError, ValueError, AttributeError):
-        return False
+        return True  # 没有设置文件（命令行直接用、初星助手还没存过设置）：按缺省开

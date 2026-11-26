@@ -29,8 +29,9 @@ type Settings struct {
 	AllowAllConfirmed bool   `json:"allow_all_confirmed,omitempty"`
 	// ScanBeforeStart：开局前自动补扫回忆（设计 5.6，缺省关；hiro.memory_refresh 读 settings.json 的 scan_before_start）。
 	ScanBeforeStart bool `json:"scan_before_start,omitempty"`
-	// MemorySlices：回忆按片扫描（筛选 + 入手排序、增量补扫、一键全收集、首次进入走一键全收集；缺省关，#116 审查重要 5）。
-	MemorySlices bool `json:"memory_slices,omitempty"`
+	// MemorySlicesOff：关掉了「回忆按片扫描」（筛选 + 入手排序、增量补扫、一键全收集、首次进入走一键全收集）。
+	// D10（用户 11-26 18:14 定）缺省开：没写就是开，玩家关了才记 true。原来的 memory_slices（缺省关时勾上才写）不再读，开着照样是开。
+	MemorySlicesOff bool `json:"memory_slices_off,omitempty"`
 }
 
 // permLevels 是「操作权限」的四档（11-25 review，参考 dsh）。
@@ -447,21 +448,21 @@ func (s *S) permNote(c *ui.Context) {
 }
 
 const (
-	memorySlicesLabel    = "回忆按片扫描（实验）"
+	memorySlicesLabel    = "回忆按片扫描"
 	scanBeforeStartLabel = "开局前自动补扫回忆（最多 3 分钟）"
 )
 
-// scanSection：回忆按片扫描、开局前自动补扫两个开关（都缺省关；设计 5.6 / D4，#116 审查重要 5）。
+// scanSection：回忆按片扫描（D10 缺省开）、开局前自动补扫（缺省关）两个开关（设计 5.6 / D4，#116 审查重要 5）。
 func (s *S) scanSection(c *ui.Context) {
 	st := s.d.Settings()
-	slices := st.MemorySlices
+	slices := !st.MemorySlicesOff // D10：缺省开
 	ui.Checkbox(c, &slices, memorySlicesLabel)
 	kit.Note(c, "回忆按流派 × 模式分 12 片扫，只补扫新回忆；首次进入改走一键全收集。会临时改回忆列表的排序和筛选，扫完改回排序、筛选重置为默认。")
 	before := st.ScanBeforeStart
 	ui.Checkbox(c, &before, scanBeforeStartLabel)
 	kit.Note(c, "要先开上面的「回忆按片扫描」。开新的一局前，看这局要用的回忆有没有超过 1 天没扫，有就增量补扫；超过 3 分钟先开局，打完再补。")
-	if slices != st.MemorySlices || before != st.ScanBeforeStart {
-		st.MemorySlices, st.ScanBeforeStart = slices, before
+	if slices == st.MemorySlicesOff || before != st.ScanBeforeStart {
+		st.MemorySlicesOff, st.ScanBeforeStart = !slices, before
 		_ = s.d.Save(st, "")
 	}
 }

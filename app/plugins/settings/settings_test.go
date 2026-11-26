@@ -392,22 +392,22 @@ func TestScanBeforeStartToggle(t *testing.T) {
 	}
 }
 
-// #116 审查重要 5：「回忆按片扫描」开关缺省关，勾上存 memory_slices
+// D10（用户 11-26 18:14 定）：「回忆按片扫描」缺省开，取消勾选存 memory_slices_off
 func TestMemorySlicesToggle(t *testing.T) {
 	f := &fake{s: Settings{Provider: "deepseek", WizardDone: true}, secrets: map[string]string{}, ready: true}
 	p := New(f.deps()).Plugin()
 	h := plugintest.New(map[string]string{})
 	tt := ui.NewTester(func(c *ui.Context) { p.Panel(c, h, "") }, 760, 2800)
 	tt.Frame()
-	if f.s.MemorySlices {
-		t.Fatal("缺省应关")
+	if f.s.MemorySlicesOff {
+		t.Fatal("缺省应开")
 	}
 	if err := tt.Click(memorySlicesLabel); err != nil {
 		t.Fatalf("设置里没有按片扫描开关：%v", err)
 	}
 	tt.Frame()
-	if !f.s.MemorySlices {
-		t.Fatalf("勾上后应保存：%+v", f.s)
+	if !f.s.MemorySlicesOff {
+		t.Fatalf("取消勾选后应记成关：%+v", f.s)
 	}
 }
 

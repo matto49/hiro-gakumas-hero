@@ -88,7 +88,7 @@ func buildApp(d appDeps) *shell.App {
 		HasModel:     func() bool { return cache.hasModel() },
 		Gate:         set.Gate,
 		Permission:   func() string { return cache.Get().Permission },
-		MemorySlices: func() bool { return cache.Get().MemorySlices },
+		MemorySlices: func() bool { return !cache.Get().MemorySlicesOff }, // D10 缺省开
 		SetPermission: func(level string) error {
 			s := cache.Get()
 			s.Permission = level

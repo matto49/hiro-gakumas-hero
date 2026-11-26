@@ -82,14 +82,15 @@ def test_plan_memory_missing_stops(st, tmp_path):
 def test_switch_read_from_settings_when_env_unset(monkeypatch, hiro_home):
     """初星助手设置里的开关存在 settings.json 的 scan_before_start；环境变量设了以环境变量为准。"""
     monkeypatch.delenv("HIRO_SCAN_BEFORE_START", raising=False)
+    monkeypatch.delenv("HIRO_MEMORY_SLICES", raising=False)
     assert not mr.enabled()
     hiro_home.mkdir(parents=True, exist_ok=True)
-    (hiro_home / "settings.json").write_text(json.dumps({"scan_before_start": True}), encoding="utf-8")
-    assert not mr.enabled()  # 补扫是按片扫的：「回忆按片扫描」也要开（#116 审查重要 5）
     (hiro_home / "settings.json").write_text(
-        json.dumps({"scan_before_start": True, "memory_slices": True}), encoding="utf-8"
+        json.dumps({"scan_before_start": True, "memory_slices_off": True}), encoding="utf-8"
     )
-    assert mr.enabled()
+    assert not mr.enabled()  # 补扫是按片扫的：「回忆按片扫描」也要开（#116 审查重要 5）
+    (hiro_home / "settings.json").write_text(json.dumps({"scan_before_start": True}), encoding="utf-8")
+    assert mr.enabled()  # D10：按片扫描缺省开
     monkeypatch.setenv("HIRO_SCAN_BEFORE_START", "0")
     assert not mr.enabled()
 

@@ -150,10 +150,12 @@ def test_slices_switch_from_env_or_settings(monkeypatch, hiro_home):
     import json as _json
 
     monkeypatch.delenv("HIRO_MEMORY_SLICES", raising=False)
-    assert not msl.enabled()
+    assert msl.enabled()  # D10（用户 11-26 18:14 定）：缺省开，没有设置文件也开
     hiro_home.mkdir(parents=True, exist_ok=True)
+    (hiro_home / "settings.json").write_text(_json.dumps({"memory_slices_off": True}), encoding="utf-8")
+    assert not msl.enabled()  # 玩家在设置里关了
     (hiro_home / "settings.json").write_text(_json.dumps({"memory_slices": True}), encoding="utf-8")
-    assert msl.enabled()
+    assert msl.enabled()  # 旧设置文件（缺省关时勾上写的 memory_slices）照样是开
     monkeypatch.setenv("HIRO_MEMORY_SLICES", "0")
     assert not msl.enabled()
 

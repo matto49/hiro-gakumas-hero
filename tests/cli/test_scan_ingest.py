@@ -69,11 +69,12 @@ def test_scan_memories_runs_incremental_slices_when_enabled(hiro_home, monkeypat
 
 
 def test_scan_memories_default_is_old_whole_list_scan(hiro_home, monkeypatch):
-    """#116 审查重要 5：「回忆按片扫描」开关缺省关：scan-memories 照旧整表滚动扫描（不开筛选弹窗、不改排序）；开了才按片。"""
+    """#116 审查重要 5：「回忆按片扫描」关着时 scan-memories 照旧整表滚动扫描（不开筛选弹窗、不改排序）；开着才按片。
+    D10（用户 11-26 18:14 定）起缺省开。"""
     from hiro.cli.jobs import KINDS
 
-    monkeypatch.delenv("HIRO_MEMORY_SLICES", raising=False)
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "0")
     argv = KINDS["scan-memories"].argv({}, hiro_home)
     assert "--slices" not in argv and "--incremental" not in argv and "--from-home" in argv
-    monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")
-    assert "--slices" in KINDS["scan-memories"].argv({}, hiro_home)
+    monkeypatch.delenv("HIRO_MEMORY_SLICES", raising=False)
+    assert "--slices" in KINDS["scan-memories"].argv({}, hiro_home)  # 缺省开

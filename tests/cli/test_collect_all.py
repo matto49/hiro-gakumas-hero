@@ -68,8 +68,8 @@ def test_run_start_collect_all_passes_only(run_cli, hiro_home):
 
 
 def test_memory_step_is_whole_list_scan_when_slices_off(tmp_path, monkeypatch):
-    """开关关着（缺省）：回忆这一步照旧整表滚动扫（#116 审查重要 5）。"""
-    monkeypatch.delenv("HIRO_MEMORY_SLICES", raising=False)
+    """开关关着：回忆这一步照旧整表滚动扫（#116 审查重要 5；D10 起缺省开，这里显式关）。"""
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "0")
     calls, _imported, runner, importer = _fake()
     collect_all.run(tmp_path, ["memories"], runner=runner, importer=importer)
     assert "--slices" not in calls[0] and "hiro.memory_scan" in calls[0]
