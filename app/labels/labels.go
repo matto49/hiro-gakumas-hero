@@ -281,6 +281,11 @@ var tools = map[string]string{
 	"catalog_search": "搜了资料库", "catalog_get": "查了资料库", "catalog_supports": "查了支援卡资料", "catalog_sync": "同步了资料库",
 	"plan_formation": "出了编成方案", "plan_show": "看了编成方案", "write_formation": "准备写编成", "scan_formations": "准备读编成位",
 	"run_start": "发起任务", "run_status": "看了任务状态", "run_events": "看了对局步骤", "doctor": "检查了环境", "tools": "看了能用的工具",
+	// G1 第 3 轮（N32）：对话里露出了「choose_idol 等你选」。注册表里给 agent 的工具都要在这里有说法（tests/test_tool_labels.py 查）
+	"choose_idol": "请你选偶像卡", "cancel": "取消了待确认的操作", "pending_list": "看了待确认的操作", "plugins_list": "看了插件",
+	"run_pause": "暂停任务", "run_resume": "继续任务", "run_stop": "停下任务", "run_takeover": "接手任务", "run_report": "看了对局报告",
+	"run_review": "看了对局复盘", "secret_copy": "复制了账号信息", "secret_list": "看了存着的账号",
+	"usage_chat": "查了对话用量", "usage_daily": "查了每天用量", "usage_job": "查了任务用量", "usage_monthly": "查了每月用量", "usage_recent": "查了最近用量",
 }
 
 // Tool 是 agent 工具名（info_idols…）给玩家看的说法；插件的工具统称「用了插件工具」。
