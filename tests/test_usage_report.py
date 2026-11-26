@@ -102,3 +102,38 @@ def test_exited_writes_usage_json_and_report_without_exams(tmp_path, monkeypatch
     rep = [e for e in evs if e["type"] == "report"]
     assert len(rep) == 1 and rep[0]["usage"]["calls"] == 1 and rep[0]["exams"] == []
     assert (job.dir / "usage.json").is_file()
+
+
+def test_peak_pricing_falls_back_when_tz_database_missing(monkeypatch, caplog):
+    # N46：Windows 的 Python 没有时区数据库，ZoneInfo 找不到时区；用量统计不能崩，按固定偏移（北京时间 +8）算高峰
+    def boom(name):
+        raise report.ZoneInfoNotFoundError(f"No time zone found with key {name}")
+
+    monkeypatch.setattr(report, "ZoneInfo", boom)
+    monkeypatch.setattr(report, "_warned_tz", set())
+    with caplog.at_level("WARNING", logger=report.log.name):
+        peak = report.row_cost(row(ts="2026-11-25T02:00:00.000+00:00"), PRICES)  # 周三北京时间 10:00：高峰
+        off = report.row_cost(row(ts="2026-11-25T07:03:33.000+08:00"), PRICES)  # 周三 07:03：空闲
+        weekend = report.row_cost(row(ts="2026-11-28T10:00:00.000+08:00"), PRICES)  # 周六
+    assert peak[0] == pytest.approx(10.04)
+    assert off[0] == pytest.approx(5.02)
+    assert weekend[0] == pytest.approx(5.02)
+    assert len([r for r in caplog.records if "Asia/Shanghai" in r.getMessage()]) == 1  # 只警告一次
+
+
+def test_unknown_tz_name_falls_back_to_beijing_offset(monkeypatch):
+    monkeypatch.setattr(report, "ZoneInfo", lambda name: (_ for _ in ()).throw(KeyError(name)))
+    monkeypatch.setattr(report, "_warned_tz", set())
+    entry = {"peak": {"tz": "Mars/Olympus", "weekdays": [2], "hours": [[9, 12]], "multiplier": 3.0}}
+    assert report._multiplier(entry, "2026-11-25T10:00:00.000+08:00") == 3.0
+    assert report._multiplier(entry, "2026-11-25T13:00:00.000+08:00") == 1.0
+
+
+def test_summaries_survive_missing_tz_database(monkeypatch):
+    # 用量页读的 daily / monthly / job 汇总都要过价格表，不能因为时区数据库缺失整页崩
+    monkeypatch.setattr(report, "ZoneInfo", lambda name: (_ for _ in ()).throw(report.ZoneInfoNotFoundError(name)))
+    monkeypatch.setattr(report, "_warned_tz", set())
+    rows = [row(id="a", ts="2026-11-25T02:00:00.000+00:00"), row(id="b")]
+    (day,) = report.summarize(rows, key="day")
+    assert day["cost"]["CNY"] == pytest.approx(10.04 + 5.02)
+    assert report.job_usage("J1", rows)["cost"]["CNY"] == pytest.approx(10.04 + 5.02)

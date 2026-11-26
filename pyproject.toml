@@ -8,7 +8,8 @@ version = "0.2.0"
 description = "让大模型稳定玩卡牌养成游戏的工程框架：数据契约、可重放主循环、状态记账与互验、模型无关的 LLM 适配、逐回合复盘页与标注系统"
 requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later; KAA 派生的文件为 GPL-3.0（见 LICENSE.GPL-3.0）" }
-dependencies = ["numpy", "opencv-python-headless"]
+# tzdata：Windows 的 Python 没有时区数据库，hiro.usage.report 按北京时间判高峰时段要用（N46，G3 第 3 轮 11-26）
+dependencies = ["numpy", "opencv-python-headless", "tzdata; sys_platform == 'win32'"]
 
 [project.scripts]
 hiro = "hiro.cli.main:main"
