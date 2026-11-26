@@ -18,12 +18,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import time
 from pathlib import Path
 
 import cv2
 
 TILE_KEYS = ("support_card_id", "name", "type", "attr", "rarity", "level", "breaks")
+
+
+logger = logging.getLogger(__name__)
 
 
 def _load(path: str):
@@ -114,13 +118,12 @@ def list_scan() -> list[dict]:
             screens.append(r)
             new = {c["support_card_id"] for c in r["cards"] if c.get("support_card_id")} - seen
             seen |= new
+            # 进度：桌面版的进度栏显示最后一行日志，原来这里直接打印卡表（G3 11-26：「1 4 +6 [('すっかり秋色ですね！', 50, 2), …]」）
             print(
-                page,
-                len(screens),
-                f"+{len(new)}",
-                [(c["name"], c["level"], c["breaks"]) for c in r["cards"] if not c["partial"]],
+                f"支援卡扫描：第 {page} 页第 {len(screens)} 屏，这屏新认出 {len(new)} 张，一共 {len(seen)} 张",
                 flush=True,
             )
+            logger.debug("读数 %s", [(c["name"], c["level"], c["breaks"]) for c in r["cards"] if not c["partial"]])
             idle = idle + 1 if not new else 0
             if idle >= 2:
                 break
@@ -160,7 +163,9 @@ def live(n: int) -> list[dict]:
             break  # 翻了一圈回到起点
         seen.add(r["number"])
         out.append(r)
-        print(r["number"], r["name"], [(s["name"], s["level"], s["breaks"]) for s in r["slots"]], flush=True)
+        filled = sum(1 for s in r["slots"] if s.get("name"))
+        print(f"支援卡编成 {r['number']} 号（{r['name']}）：{filled} 格有卡", flush=True)
+        logger.debug("读数 %s", [(s["name"], s["level"], s["breaks"]) for s in r["slots"]])
         d.tap(*r["arrows"]["next"])
         time.sleep(1.5)
     return out
@@ -212,7 +217,8 @@ def main() -> None:
         }
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     Path(a.out).write_text(json.dumps(inv, ensure_ascii=False, indent=1), encoding="utf-8")
-    print("wrote", a.out, len(inv["cards"]), "cards")
+    print(f"支援卡扫描完成：{len(inv['cards'])} 张", flush=True)
+    logger.info("写入 %s", a.out)
 
 
 if __name__ == "__main__":
