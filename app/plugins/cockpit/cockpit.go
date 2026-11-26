@@ -112,6 +112,18 @@ func kindOf(v *plugin.JobView) string {
 	return v.Job.Kind
 }
 
+// 进度行给玩家看：去掉工具日志里的本机路径（「→ /Users/…/out.json」）和「(complete=True)」这类内部字段（N8，11-26 G1 第 2 轮）。
+var (
+	progressPath  = regexp.MustCompile(`\s*(→|->)?\s*(/|[A-Za-z]:\\)\S+`)
+	progressField = regexp.MustCompile(`\s*[（(]\s*\w+=\w+\s*[)）]`)
+)
+
+func tidyProgress(text string) string {
+	t := logPrefix.ReplaceAllString(text, "")
+	t = progressField.ReplaceAllString(progressPath.ReplaceAllString(t, ""), "")
+	return strings.TrimSpace(t)
+}
+
 var logPrefix = regexp.MustCompile(`^\[[^\]]*\]\s*\[[A-Z]+\]\s*\[[^\]]*\]\s*`)
 
 // progress 是不打牌的任务现在做到哪：最近一条日志（去掉时间 / 级别 / 模块前缀），如「回忆扫描：第 70 页，已读 204 格」；
@@ -120,7 +132,7 @@ func progress(v *plugin.JobView) string {
 	if v != nil {
 		for i := len(v.Events) - 1; i >= 0; i-- {
 			if e := v.Events[i]; e.Type == "log" {
-				if t := strings.TrimSpace(logPrefix.ReplaceAllString(e.Text, "")); t != "" {
+				if t := tidyProgress(e.Text); t != "" {
 					return t
 				}
 			}
