@@ -151,14 +151,44 @@ def attach_ids(inv: dict) -> dict:
     return inv
 
 
+# 「お知らせ」详情框底下有「一覧に戻る」，整屏 OCR 会被当成详情页的「一覧」（G1 第 3 轮 11-26：
+# 回忆扫完回首页，游戏弹出新公告，扫偶像卡以为进了详情页，最后报「找不到決定」）
+NOT_MARKS = ("戻る",)
+
+
+def _hit(text: str, marks) -> bool:
+    return any(m in text for m in marks) and not any(n in text for n in NOT_MARKS)
+
+
 def page_seen(img, ocr, marks, crop=None, crop_ocr=None) -> bool:
     """img 上认得出 marks 里任意一个字：先看整屏 OCR（ocr(img) → [(文字, 框)]），没有再对 crop 那块放大读（crop_ocr(块) → [(文字, …)]）。"""
-    if any(m in t for t, _ in ocr(img) for m in marks):
+    if any(_hit(t, marks) for t, _ in ocr(img)):
         return True
     if crop is None or crop_ocr is None or img is None:
         return False
     x1, y1, x2, y2 = crop
-    return any(m in t for t, *_ in crop_ocr(img[y1:y2, x1:x2]) for m in marks)
+    return any(_hit(t, marks) for t, *_ in crop_ocr(img[y1:y2, x1:x2]))
+
+
+def close_info_popups(shoot, tap, ocr, *, sleep=_sleep, rounds: int = 3, settle: float = 1.0) -> int:
+    """把「お知らせ」「〜獲得」这类只有「閉じる」的说明框关掉（判据同日常 hiro.daily_guard.classify_popup，含ジュエル的框只认キャンセル）。
+    回首页后游戏可能过一两秒才弹新公告，所以没看到框也再等 settle 秒看一眼，连着两眼都没有才算干净。返回关掉了几个。"""
+    from hiro.daily_guard import classify_popup
+
+    closed = quiet = 0
+    for _ in range(rounds + 2):
+        hit = classify_popup([(t, 1.0, r) for t, r in ocr(shoot())])
+        if hit is None:
+            quiet += 1
+            if quiet >= 2 or closed >= rounds:
+                break
+        else:
+            quiet = 0
+            logger.info("关掉弹窗（%s）", hit[0])
+            tap(*hit[1])
+            closed += 1
+        sleep(settle)
+    return closed
 
 
 def main() -> int:
@@ -190,8 +220,10 @@ def main() -> int:
     ):  # 底栏「アイドル」按坐标点，先确保在首页（G1-F1：上一个扫描停在メモリー編成页，盲点后 12 秒失败）
         print("停下：游戏不在首页，也没能自己退回首页；回到首页后再扫一次", flush=True)
         return 3
+    close_info_popups(d.screenshot, d.tap, ocr)  # 回首页后弹出的新公告（G1 第 3 轮）
     d.tap(*NAV_IDOL)
     _sleep(2.0)
+    close_info_popups(d.screenshot, d.tap, ocr, rounds=2, settle=0.5)
     d.tap(*NAV_P_IDOL)
     if not has(DETAIL_MARKS, DETAIL_CROP):
         print("停下：没进到偶像详情页（找不到「一覧」）", flush=True)

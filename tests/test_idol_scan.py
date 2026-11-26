@@ -125,3 +125,31 @@ def test_import_retries_memory_card_name(monkeypatch):
     )
     rows = normalize_memories({"entries": [{"card": None, "card_text": "200％スマイル＋", "stats": {}}]})
     assert (rows[0]["card_id"], rows[0]["card"]) == ("p_card-02-act-3_001", "200%スマイル")
+
+
+def test_page_seen_ignores_notice_back_button():
+    """G1 第 3 轮：「お知らせ」详情框的「一覧に戻る」不算详情页的「一覧」。"""
+    notice = [("お知らせ", (40, 90, 200, 130)), ("一覧に戻る", (60, 1110, 220, 1150))]
+    assert not m.page_seen(None, lambda img: notice, m.DETAIL_MARKS)
+    assert m.page_seen(None, lambda img: [("一覧", (40, 860, 110, 900))], m.DETAIL_MARKS)
+
+
+def test_close_info_popups_closes_late_notice_then_waits_for_quiet():
+    """回首页后公告晚一拍才弹：第一眼干净、第二眼有框 → 点「閉じる」，之后连着两眼干净才收手。"""
+    home = [("ホーム", (300, 1180, 420, 1220))]
+    notice = [
+        ("お知らせ", (40, 90, 200, 130)),
+        ("一覧に戻る", (60, 1110, 220, 1150)),
+        ("閉じる", (300, 1180, 420, 1220)),
+    ]
+    screens = iter([home, notice, home, home, home])
+    taps = []
+    n = m.close_info_popups(lambda: next(screens), lambda x, y: taps.append((x, y)), lambda s: s, sleep=lambda s: None)
+    assert n == 1 and taps == [(360, 1200)]
+
+
+def test_close_info_popups_never_touches_jewel_confirm():
+    jewel = [("ジュエルを消費して回復しますか", (40, 500, 680, 540)), ("回復する", (420, 1180, 600, 1220))]
+    taps = []
+    n = m.close_info_popups(lambda: jewel, lambda x, y: taps.append((x, y)), lambda s: s, sleep=lambda s: None)
+    assert n == 0 and taps == []
