@@ -302,3 +302,50 @@ def test_selected_tab_unreadable_still_switches():
     p.tab = "sort"  # 弹窗打开时停在「ソート」页（实机）
     mf.apply_slice(p, "logic:nia")
     assert p.sort == "入手" and checked_in(p, 890, 1091) == ["ロジック"]
+
+
+def _toast_picker(text, appear_after=0):
+    """点「決定」后弹窗不关；appear_after 帧之后才出现提示 text（模拟提示条晚到 / 读错字）。"""
+    p = FakePicker()
+    orig_click, orig_visible = p.click, p._visible
+    p.toast, p.looks, p.snaps = False, 0, []
+
+    def click(x, y):
+        hit = next((t for t, (x1, y1, x2, y2) in p._visible() if x1 <= x <= x2 and y1 <= y <= y2), None)
+        if hit == "決定" and p.popup:
+            p.toast = True
+            return
+        orig_click(x, y)
+
+    def visible():
+        out = orig_visible()
+        if p.toast:
+            p.looks += 1
+            if p.looks > appear_after and text:
+                out = out + [(text, (200, 600, 520, 625))]
+        return out
+
+    p.click, p._visible = click, visible
+    p.snap = lambda img, tag: p.snaps.append(tag)
+    return p
+
+
+def test_empty_slice_toast_misread_still_empty(monkeypatch):
+    """N53（G1 第 4 轮 11-26 Mac，RapidOCR）：提示读错一个字也认成空片，不当设筛选出错。"""
+    monkeypatch.setattr(mf, "CONFIRM_GAP", 0)
+    with pytest.raises(mf.EmptySlice):
+        mf.apply_slice(_toast_picker("条件に当てはまるメモリーがありまぜん"), "common:hif")
+
+
+def test_empty_slice_toast_arrives_late(monkeypatch):
+    monkeypatch.setattr(mf, "CONFIRM_GAP", 0)
+    with pytest.raises(mf.EmptySlice):
+        mf.apply_slice(_toast_picker("条件に当てはまるメモリーがありません", appear_after=2), "common:hif")
+
+
+def test_popup_stays_without_toast_snaps_frame(monkeypatch):
+    monkeypatch.setattr(mf, "CONFIRM_GAP", 0)
+    p = _toast_picker("")
+    with pytest.raises(mf.MemoryFilterError, match="弹窗没关") as e:
+        mf.apply_slice(p, "common:hif")
+    assert not isinstance(e.value, mf.EmptySlice) and p.snaps == ["filter-confirm-popup-stays"]

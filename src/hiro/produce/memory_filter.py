@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 from hiro.state.memory_slices import PLAN_LABELS, PRODUCE_LABELS
-from hiro.vision.textnorm import fold
+from hiro.vision.textnorm import contains, fold
 
 SORTS = ("プロデュースクリアランク", "入手", "アイドル", "タグ")
 PILL = (485, 1051)
@@ -31,6 +31,8 @@ DIR_ICON = (
     1072,
 )  # 按钮图标（x1, y1, x2, y2）：左边是箭头，↓ = 新的在前（缺省），↑ = 旧的在前（11-26 实机）  # 「ソート」页 4 个单选所在的高度（选项前有单选圆点，OCR 读成「•入手」，按包含找）  # 认不出按钮文字时点这里
 OPEN_TRIES = 3
+CONFIRM_LOOKS, CONFIRM_GAP = 3, 0.6  # 点「決定」后看几帧、每帧间隔（N53）
+EMPTY_WORDS = ("条件に当てはまる", "メモリーがありません")
 SCROLL_TRIES = 10
 TOP_SWIPES = 6
 
@@ -141,12 +143,21 @@ def _confirm(p) -> None:
     if not _popup_open(_boxes(p)):
         raise MemoryFilterError("要点「決定」时弹窗已经不在了，没点")
     _tap(p, "決定", y_min=1100, why="（确认）")
-    p.sleep(1.0)
-    boxes = _boxes(p)
-    if _popup_open(boxes):
-        if _find(boxes, "条件に当て") or _find(boxes, "メモリーがありません"):
+    # 空片的提示条一闪就没、RapidOCR 也常读错字（N53，G1 第 4 轮 11-26 Mac：sense:hif 疑似空片被当成设筛选出错）：
+    # 连看几帧、容错认「条件に当てはまる」「メモリーがありません」；还判不出就存一帧再报
+    img = None
+    for _ in range(CONFIRM_LOOKS):
+        p.sleep(CONFIRM_GAP)
+        img = p.shoot()
+        boxes = [(fold(t), (int(b[0]), int(b[1]), int(b[2]), int(b[3]))) for t, _, b in p.ocr(img)]
+        if not _popup_open(boxes):
+            return
+        if any(contains(t, w) for t, _ in boxes for w in EMPTY_WORDS):
             raise EmptySlice("条件に当てはまるメモリーがありません")
-        raise MemoryFilterError("点了決定，弹窗没关")
+    snap = getattr(p, "snap", None)
+    if callable(snap) and img is not None:
+        snap(img, "filter-confirm-popup-stays")
+    raise MemoryFilterError("点了決定，弹窗没关")
 
 
 def close_popup(p) -> bool:
