@@ -15,6 +15,7 @@ WAIT = Decision(Action.ui(ActionKind.WAIT, why="决策器异常"), "ACTION_SELEC
 def _st(monkeypatch, decisions):
     monkeypatch.setattr(hif, "sleep", lambda s: None)
     monkeypatch.setattr(hif, "device", NS(screenshot=lambda: None))
+    monkeypatch.setattr("hiro.vision.ocr.ocr_health", lambda: None)  # Wait 停机前的 OCR 自检（G1-F7）：单测不跑真 OCR
     st = HifCore.__new__(HifCore)
     st.s = NS(state=GameState(), img=None, observe_complete=lambda *a, **k: NS(fields={}), observe=lambda **k: NS(fields={}),
               record=lambda *a, **k: None, recover=lambda *a: None, note=lambda *a: None)  # fmt: skip

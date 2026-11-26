@@ -91,7 +91,29 @@ def _vision_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, floa
     request.setRecognitionLevel_(0)  # accurate
     request.setRecognitionLanguages_(list(languages))
     request.setUsesLanguageCorrection_(False)
-    handler.performRequests_error_([request], None)
+    ok, err = handler.performRequests_error_([request], None)
+    if not ok and hasattr(request, "setUsesCPUOnly_"):
+        # 失败时换 CPU 重试一次（神经引擎 / GPU 的推理上下文坏了时 CPU 往往还能用）
+        retry = Vision.VNRecognizeTextRequest.alloc().init()
+        retry.setRecognitionLevel_(0)
+        retry.setRecognitionLanguages_(list(languages))
+        retry.setUsesLanguageCorrection_(False)
+        retry.setUsesCPUOnly_(True)
+        handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(
+            NSData.dataWithBytes_length_(buf.tobytes(), len(buf)), None
+        )
+        ok2, err2 = handler.performRequests_error_([retry], None)
+        if ok2:
+            logger.warning("文字识别：Apple Vision 请求失败（%s），改用 CPU 重试成功", err)
+            ok, request = True, retry
+        else:
+            err = err2 or err
+    if not ok:
+        # 原来不看返回值：请求失败时 results() 是 None，静默当成「没有字」（G1-F7 11-26：同一进程里 Vision 坏掉后
+        # 选行动页 options / 体力 / P 点 / 牌组张数全读空，决策 Wait 三次停机；重开进程同一画面正常）
+        _note_vision(str(err) if err is not None else "performRequests 返回 False")
+        return []
+    _note_vision(None)
     out = []
     for obs in request.results() or []:
         cand = obs.topCandidates_(1)[0]
@@ -105,6 +127,59 @@ def _vision_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, floa
             )
         )
     return out
+
+
+_vision_fail: dict = {"streak": 0, "error": None}  # Apple Vision 连续失败次数和最后一次错误（ocr_health 用）
+
+
+def _note_vision(error: str | None) -> None:
+    if error is None:
+        _vision_fail["streak"] = 0
+        return
+    _vision_fail["streak"] += 1
+    _vision_fail["error"] = error
+    if _vision_fail["streak"] in (1, 10, 100):
+        logger.warning("文字识别：Apple Vision 请求失败（第 %d 次连续）：%s", _vision_fail["streak"], error)
+    if _vision_fail["streak"] >= VISION_FALLBACK_AFTER and _rapid_ready():
+        # 同一进程里 Vision 坏了重开进程才好（G1-F6 / F7 / F8）：别再悄悄读空，这个进程余下的识别改用 RapidOCR
+        global _engine
+        _engine = "rapidocr"
+        logger.error(
+            "文字识别：Apple Vision 连续 %d 次失败（%s），这个进程改用 RapidOCR", _vision_fail["streak"], error
+        )
+
+
+VISION_FALLBACK_AFTER = 3
+
+
+def _rapid_ready() -> bool:
+    """RapidOCR 能不能接手：包装得上、识别模型在。"""
+    import importlib.util
+
+    if importlib.util.find_spec("rapidocr_onnxruntime") is None:
+        return False
+    return all((RAPID_DIR / name).exists() for name in RAPID_MODELS.values())
+
+
+def _probe_image() -> MatLike:
+    import numpy as np
+
+    img = np.full((60, 200, 3), 255, np.uint8)
+    cv2.putText(img, "123", (10, 45), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 0), 3)
+    return img
+
+
+def ocr_health() -> str | None:
+    """文字识别还能不能用：对一张画好的「123」跑一次 OCR。读得出返回 None；读不出返回原因（Vision 的报错或「自检读空」）。
+    选行动等页面重读仍读空时用它区分「画面真没有」和「本进程 OCR 坏了」（G1-F7）。"""
+    try:
+        text = "".join(t for t, _, _ in ocr_boxes(_probe_image(), scale=1, languages=("en-US",)))
+    except Exception as e:  # noqa: BLE001  后端抛异常也算坏了
+        return f"{type(e).__name__}: {e}"
+    if "123" in text.replace(" ", ""):
+        return None
+    err = _vision_fail["error"] if engine() == "vision" and _vision_fail["streak"] else None
+    return f"自检图读成 {text!r}" + (f"（Vision：{err}）" if err else "")
 
 
 RAPID_DIR = Path(__file__).resolve().parents[3] / "cache" / "rapidocr"

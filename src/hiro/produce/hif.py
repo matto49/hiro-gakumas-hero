@@ -80,6 +80,10 @@ class UnhandledPage(ResumeBlocked):
     """我们没有接管的页面 / 钩子，或读不出、决策不合法：停下、存帧、报警（不重试，不交给 KAA 默认）。"""
 
 
+class OcrUnavailable(UnhandledPage):
+    """本进程的文字识别坏了（自检图都读不出，G1-F7）：停下；画面和逻辑没问题，重开进程续跑即可（调度层可据此自动重开一次）。"""
+
+
 class PageLeft(Exception):
     """页内循环里发现画面已经离开这一页（Session.left_page）：退出循环，交回主循环。"""
 
@@ -286,6 +290,14 @@ class HifCore:
             buttons = self._with_page_buttons(available_actions(device.screenshot()))
             d = self.deciders.decide("ACTION_SELECT", self.s.state)
         if d.action.kind is ActionKind.WAIT:
+            from hiro.vision.ocr import ocr_health
+
+            fields = (self.s.state.page_fields if self.s is not None else None) or {}
+            if not fields.get("options") and (bad := ocr_health()):
+                # G1-F7：画面上明明有按钮，但本进程文字识别坏了（选项 / 体力 / P 点都靠 OCR，属性数值走字体比对照样读得出）。
+                # 重读不会好（同一进程每次都读空），重开进程续跑可恢复：报成单独的原因，不当「没有可选的行动」
+                self._stop("ACTION_SELECT", f"文字识别失效（{bad}），选项读不出；重开进程续跑", obs=obs, decision=d,
+                           exc=OcrUnavailable)  # fmt: skip
             self._stop(
                 "ACTION_SELECT",
                 f"选行动重读 {self.ACTION_WAIT_RETRIES} 次决策仍是 Wait（{d.reason}），不交给 KAA 盲选",
@@ -1365,7 +1377,15 @@ class HifCore:
             self._stop("DECK_LIST", "主动查看牌组后一览没关掉")
 
     # ---------------------------------------------------------------- 兜底总开关（用户规则 3f）
-    def _stop(self, page: str, why: str, *, obs=None, decision: Decision | None = None):
+    def _stop(
+        self,
+        page: str,
+        why: str,
+        *,
+        obs=None,
+        decision: Decision | None = None,
+        exc: type[UnhandledPage] = UnhandledPage,
+    ):
         """没有接管 / 读不出 / 决策不合法：存帧、记 recover:unhandled、报警，停止运行。绝不交给 KAA 默认（弃赛刷奖励的 commit(0)）。"""
         if obs is None:
             obs = self.s.observe(scene=page, fields=False, save_frame=True)
@@ -1374,7 +1394,7 @@ class HifCore:
         self.s.recover("unhandled", f"{page}：{why}")
         self.s.record(obs, decision=decision)
         logger.error("未接管的页面 / 钩子：%s：%s。已存帧，停止运行", page, why)
-        raise UnhandledPage(f"{page}：{why}。已存帧，停止运行，需要补逻辑")
+        raise exc(f"{page}：{why}。已存帧，停止运行，需要补逻辑")
 
     def _note_fallback(self, page: str, d: Decision) -> None:
         """决策器走了社区模板兜底（source=fallback）：记 recover:llm_invalid，理由取 warnings 第一条。"""
