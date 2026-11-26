@@ -7,7 +7,7 @@
 !macro HiroEnsureClosed UN WHAT
   Push "$INSTDIR"
   Call ${UN}CloseApp
-  ; 标签在每个函数里只出现一次（这个宏在 .onInit、un.onInit 里各插一次），不会重名
+  ; 标签在每个函数里只出现一次（这个宏在隐藏 Section、un.onInit 里各插一次），不会重名
   IfFileExists "$INSTDIR\初星助手.exe" 0 hiro_closed
   ClearErrors
   FileOpen $0 "$INSTDIR\初星助手.exe" a ; 正在运行的 exe 打不开写，打开失败就是还在跑
@@ -20,12 +20,7 @@
   hiro_closed:
 !macroend
 
-; 安装（含升级覆盖）：mygo 把 customInit 放进 .onInit
-!macro customInit
-  !insertmacro HiroEnsureClosed "" "安装"
-!macroend
-
-; 目录页上可能改了安装位置（#151 review）：写文件前对最终的 $INSTDIR 再查一次。
+; 安装（含升级覆盖）：等目录页选定位置后、写文件前，对最终的 $INSTDIR 查（#151 review：不在 .onInit 里查缺省目录）。
 ; 这个片段在 mygo 主 Section 之前被包含，隐藏 Section（名字以 - 开头）按顺序先跑
 Section "-HiroEnsureClosed"
   !insertmacro HiroEnsureClosed "" "安装"
