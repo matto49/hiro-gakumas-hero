@@ -4,7 +4,7 @@
 读数在 hiro.vision.schedule_list；结果写进局面 produce.schedule（{weeks: [{week, kind, options, faded, done, chosen?, exam?}…],
 current_week, total}），reduce 在选行动页放进 page_fields.schedule；续跑时跟着上一段 trace 的 produce 打底，不重读。
 
-开关 HIRO_SCHEDULE_PROBE=1（默认关）。做法：
+开关 HIRO_SCHEDULE_PROBE=1 开、=0 关；没设时，选行动交给 GKMS 插件就开（它要整局日程，2026-11-26）。做法：
 1. 点 ENTRY → 等画面停稳（至少 OPEN_MIN_S；面板弹出比点击晚，协调 11-18 初 MASTER：原来马上判「没变 = 入口不对」，面板随后盖上来，
    选行动读不到选项停机）→ 认出日程列表（底部「スケジュール」tab）才算打开；
 2. 读当前一屏，往后面的周滑（手指往下拖），再往前面的周滑，每次停稳再读，周数不再增加或到头就停；
@@ -40,7 +40,13 @@ CLOSE_TRIES = 2
 
 
 def enabled() -> bool:
-    return os.environ.get("HIRO_SCHEDULE_PROBE") == "1"
+    """HIRO_SCHEDULE_PROBE=1 开、=0 关；没设时，选行动交给 GKMS 插件（它要整局日程）就开（GKMS 插件 spec 4.7）。"""
+    env = os.environ.get("HIRO_SCHEDULE_PROBE")
+    if env in ("0", "1"):
+        return env == "1"
+    from hiro import strategy
+
+    return strategy.current().produce_for("ACTION_SELECT") == "gkms"
 
 
 def _thumb(img) -> np.ndarray:

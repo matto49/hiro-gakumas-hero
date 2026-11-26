@@ -59,6 +59,25 @@ PRODUCE_PAGES = (
 _KEYS = {"version", "sources", "exam", "produce", "timeouts"} | {f"exam.{m}" for m in EXAM_MODES}
 
 
+# 随包育成插件默认接管的页面（插件 id → 页面）。插件本机用不了（没装 GKMS、HIRO_GKMS=0）时不生效
+DEFAULT_PRODUCE: dict[str, tuple[str, ...]] = {
+    "gkms": ("ACTION_SELECT", "SELECT_CARD", "SKILL_CARD_CHANGE_1", "SKILL_CARD_CHANGE_2", "SKILL_CARD_REMOVAL",
+             "SKILL_CARD_ENHANCE", "CONSULT", "HIF_ROUND_INTERVAL"),
+}  # fmt: skip
+
+
+def default_produce(page: str) -> str | None:
+    """没在 strategy.json 里写的育成页面默认用哪个随包插件；没有 / 用不了为 None。"""
+    from hiro import plugins
+
+    for pid, pages in DEFAULT_PRODUCE.items():
+        if pid == "gkms" and os.environ.get("HIRO_GKMS") == "0":
+            continue
+        if page in pages and plugins.get_by_id("produce_advisor", pid) is not None:
+            return pid
+    return None
+
+
 def _id(v: Any) -> str | None:
     if not isinstance(v, str) or not v.strip() or v.strip() == BUILTIN:
         return None
@@ -70,12 +89,19 @@ class Strategy:
     sources: list[str] = field(default_factory=list)
     exam: dict[str, str] = field(default_factory=dict)  # "" = 所有模式；"hif" 等 = 按模式覆盖
     produce: dict[str, str] = field(default_factory=dict)
+    produce_builtin: set[str] = field(default_factory=set)  # 显式写了 builtin 的育成页面（盖掉随包插件的默认启用）
     timeouts: dict[str, float] = field(default_factory=dict)
     warnings: list[str] = field(default_factory=list)
     raw: dict[str, Any] = field(default_factory=dict)  # 合成后的原样配置（写进 plugins.json / plugins list）
 
     def produce_for(self, page: str) -> str | None:
-        return self.produce.get(page)
+        """这一页用哪个育成插件：配了 id 用它；写了 builtin 用内置；都没写时，随包插件把这一页列为默认页面、且本机能用时用它
+        （2026-11-26 GKMS 插件 spec 4.4：装了 GKMS 就默认启用）。"""
+        if page in self.produce:
+            return self.produce[page]
+        if page in self.produce_builtin:
+            return None
+        return default_produce(page)
 
     def exam_for(self, mode: str | None) -> str | None:
         """这个模式的考试出招插件 id；没配或写了 builtin 为 None。按模式写的 builtin 能盖掉全局的 exam。"""
@@ -95,6 +121,13 @@ class Strategy:
             out["exam" + (f".{k}" if k else "")] = v
         for k, v in self.produce.items():
             out[f"produce.{k}"] = v
+        defaults = []
+        for page in PRODUCE_PAGES:
+            if page not in self.produce and page not in self.produce_builtin and (pid := default_produce(page)) is not None:
+                out[f"produce.{page}"] = pid
+                defaults.append(f"produce.{page}")
+        if defaults:
+            out["defaults"] = defaults  # 没在 strategy.json 里写、由随包插件默认接管的决策点
         return out
 
 
@@ -142,7 +175,9 @@ def from_dict(d: Any) -> Strategy:
             continue
         if (p := _id(pid)) is not None:
             s.produce[page] = p
-        elif not (isinstance(pid, str) and pid.strip() == BUILTIN):
+        elif isinstance(pid, str) and pid.strip() == BUILTIN:
+            s.produce_builtin.add(page)
+        else:
             s.warnings.append(f"strategy.json 的 produce.{page} 应该是插件 id，收到 {pid!r}，这一页用内置")
     timeouts = d.get("timeouts") if d.get("timeouts") is not None else {}
     if not isinstance(timeouts, dict):

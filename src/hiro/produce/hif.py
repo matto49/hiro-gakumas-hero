@@ -338,7 +338,7 @@ class HifCore:
     _schedule_probed = False  # 日程列表探针每个进程只跑一次
 
     def _maybe_probe_schedule(self) -> None:
-        """开关 HIRO_SCHEDULE_PROBE=1（默认关）：初 / N.I.A 第一次到选行动页时点开日程列表读整局日程（hiro.produce.schedule_probe），
+        """开关见 schedule_probe.enabled()（HIRO_SCHEDULE_PROBE；没设时 GKMS 插件接管选行动就开）：初 / N.I.A 第一次到选行动页时点开日程列表读整局日程（hiro.produce.schedule_probe），
         写进 produce.schedule；局面里已经有了（续跑打底）就不再读。"""
         from hiro.produce import schedule_probe
         from hiro.state.modes import HAJIME, NIA, family

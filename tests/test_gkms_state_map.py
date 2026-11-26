@@ -89,11 +89,12 @@ def test_option_for_maps_back():
     assert sm.option_for("lesson_vo", opts) is None
 
 
-def test_real_route_maps_back_to_screen():
+def test_real_route_maps_back_to_screen(monkeypatch):
     import pytest
 
     from hiro.gkms import client, locate
 
+    monkeypatch.delenv("HIRO_GKMS", raising=False)  # conftest 默认关
     inst = locate.find()
     if inst is None:
         pytest.skip(f"本机没装 GKMS：{locate.problem()}")

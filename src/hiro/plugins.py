@@ -176,6 +176,8 @@ KINDS: dict[str, tuple[type, str, str | None]] = {
 }
 BUILTIN = "builtin"  # 内置实现的 id，保留不给插件用
 GROUP = "hiro_gakumas.plugins"
+# 随包插件：仓库里自带、不用另装入口点的实现（种类, id）→ "模块:类" 或工厂。创建时抛异常 = 本机用不了（原因进 available()）
+BUNDLED: dict[tuple[str, str], Any] = {("produce_advisor", "gkms"): "hiro.gkms.advisor:GkmsProduceAdvisor"}
 _registered: dict[str, Callable[[], Any]] = {}
 _registered_ids: dict[tuple[str, str], Callable[[], Any]] = {}
 _cache: dict[str, Any] = {}
@@ -189,7 +191,7 @@ class PluginInfo:
 
     id: str
     kind: str
-    origin: str  # register / entry_point
+    origin: str  # register / entry_point / bundled
     ok: bool
     version: str | None = None
     error: str | None = None
@@ -273,6 +275,13 @@ def get_by_id(kind: str, id: str) -> Any | None:
     if key in _errors:
         return None
     factory = _registered_ids.get(key)
+    if factory is None and key in BUNDLED:
+        b = BUNDLED[key]
+        try:
+            factory = _load(b) if isinstance(b, str) else b
+        except Exception as e:  # noqa: BLE001
+            _errors[key] = f"加载失败：{type(e).__name__}: {e}"
+            return None
     if factory is None:
         ep = _id_entry_points(kind).get(id)
         if ep is None:
@@ -305,6 +314,9 @@ def available(kind: str) -> list[PluginInfo]:
             ids[i] = "register"
     for i in _id_entry_points(kind):
         ids.setdefault(i, "entry_point")
+    for k, i in BUNDLED:
+        if k == kind:
+            ids.setdefault(i, "bundled")
     out = []
     for i, origin in sorted(ids.items()):
         obj = get_by_id(kind, i)

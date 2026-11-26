@@ -20,6 +20,7 @@ def _clean(monkeypatch):
     plugins.reset()
     for _, env, _ in plugins.KINDS.values():
         monkeypatch.delenv(env, raising=False)
+    monkeypatch.setattr(plugins, "BUNDLED", {})  # 随包插件（gkms）另有 tests/test_gkms_default.py；这里只测注册 / 入口点
     yield
     plugins.reset()
 

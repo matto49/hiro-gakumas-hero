@@ -18,7 +18,10 @@ import pytest
 
 TESTS = Path(__file__).parent
 FIXTURES = TESTS / "fixtures"
-os.environ.setdefault("HIRO_GUIDES_FETCH", "0")  # 测试不联网下载偶像卡攻略包（hiro.brain.guides.refresh_if_stale）
+os.environ.setdefault("HIRO_GUIDES_FETCH", "0")
+# 本机装了 GKMS 时它的育成插件会默认接管（hiro.strategy.DEFAULT_PRODUCE）：测试默认关掉，结果不随机器变；
+# 测 GKMS 本身的用例自己 monkeypatch.delenv("HIRO_GKMS")
+os.environ.setdefault("HIRO_GKMS", "0")  # 测试不联网下载偶像卡攻略包（hiro.brain.guides.refresh_if_stale）
 if not FIXTURES.exists() and os.environ.get("HIRO_FIXTURES") and Path(os.environ["HIRO_FIXTURES"]).is_dir():
     try:
         FIXTURES.symlink_to(Path(os.environ["HIRO_FIXTURES"]).resolve(), target_is_directory=True)

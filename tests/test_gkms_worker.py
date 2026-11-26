@@ -14,7 +14,8 @@ DATA = Path(__file__).parent / "data"
 
 
 @pytest.fixture
-def real():
+def real(monkeypatch):
+    monkeypatch.delenv("HIRO_GKMS", raising=False)  # conftest 默认关
     inst = locate.find()
     if inst is None:
         pytest.skip(f"本机没装 GKMS：{locate.problem()}")
