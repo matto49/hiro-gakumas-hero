@@ -172,11 +172,13 @@ def finish_produce_end(rt, *, go_home: bool = False, timeout: float = FINISH_TIM
                 texts=lambda: _texts(rt.screen.shot())
             )  # HIRO_PHOTO_PICK=stop：停下等人自己选照片（用户 11-21）
             return None
-        if any("メモリーにするフォト" in s for s in texts):
+        if photo_pick.is_photo_page(texts):
+            logger.info("结算：选回忆照片页，用选中的那张点「次へ」")  # N50：这两个分支原来不写日志，卡住时看不出点没点
             nxt = first(f, ("次へ",))
             rt.device.tap(*(nxt.rect.center if nxt is not None else (360, 1157)))  # 选回忆照片：默认第一张
             return None
-        if any("メモリーとして保存しますか" in s for s in texts):
+        if photo_pick.is_photo_confirm(texts):
+            logger.info("结算：回忆照片保存确认框，点「決定」")
             ok = first(f, ("決定",))
             rt.device.tap(*(ok.rect.center if ok is not None else (500, 1157)))
             return None

@@ -60,9 +60,29 @@ def goto_home(rt, timeout: float = HOME_TIMEOUT):
             return None
         if (b := tower_back(f)) is not None:
             rt.device.tap(*b.rect.center)
+            return None
+        if (xy := _photo_step(f)) is not None:
+            rt.device.tap(*xy)
         return None
 
     return rt.drive(step, timeout, "回首页")
+
+
+def _photo_step(f):
+    """上一局结算停在选回忆照片页 / 保存确认框时（N50：G3 第 3 轮收尾没走完，下一个任务回首页 60 秒失败）：
+    用已选中的那张（缺省第一张）点「次へ」，确认框点「決定」。玩家设了自己选照片（HIRO_PHOTO_PICK=stop / HIRO_LIVE=watch|pick）就不替他点。"""
+    from hiro.runtime import photo_pick
+
+    texts = [t.text.replace(" ", "") for t in f.texts]
+    if photo_pick.mode() == "stop":
+        return None
+    if photo_pick.is_photo_confirm(texts):
+        ok = next((t for t in f.texts if "決定" in t.text and t.rect.center.y > 1000), None)
+        return ok.rect.center if ok is not None else (500, 1157)
+    if photo_pick.is_photo_page(texts):
+        nxt = next((t for t in f.texts if t.text.replace(" ", "") == "次へ"), None)
+        return nxt.rect.center if nxt is not None else (360, 1157)
+    return None
 
 
 def back_home(device, timeout: float = HOME_TIMEOUT) -> bool:
