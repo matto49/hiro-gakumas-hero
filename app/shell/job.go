@@ -207,7 +207,8 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 			text = "「" + name + "」做完了。"
 			// N31（G1 第 3 轮 11-26）：第一次三项扫描都做完后对话停在「做完了」，没说下一步能做什么。
 			// 扫描类做完、后面没有排队的扫描了，补一句（notify 在 continueBatch 之前调，这时还看得到排队）
-			if strings.HasPrefix(kind, "scan-") && kind != "scan-formations" && !a.queuedAfter(id) {
+			// N59（G1 第 5 轮 11-26）：一键全收集（collect-all）做完也要给下一步，原来只认 scan- 开头的
+			if (strings.HasPrefix(kind, "scan-") && kind != "scan-formations" || kind == "collect-all") && !a.queuedAfter(id) {
 				if a.hasModel() {
 					text += "扫描都做完了，现在可以直接说「打一把初」（或者 N.I.A），初星助手会按你的卡出编成方案、给你确认后开局。"
 					// N27（G3 第 3 轮 11-26：开局要点输入框、打字、回车 3 下）：给两个按钮，点一下就把话发出去（照样出确认卡）
@@ -225,8 +226,13 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 		} else {
 			text = "「" + name + "」出错停下了，日志里没写原因；可以到游戏运行现状看最后的画面。"
 		}
-		// G1-F2（11-26）：扫描这类任务出错后只有一句话，没有下一步；给「再试一次」（照样走权限 / 确认）。培育类不给，免得误开新一局
-		if v.Job != nil && kind != "" && !produceKind(kind) {
+		// G1-F2（11-26）：扫描这类任务出错后只有一句话，没有下一步；给「再试一次」（照样走权限 / 确认）。培育类不给，免得误开新一局——
+		// 但停在开局前准备（写编成）、游戏还没开局的，重试不会多用一次培育（N61，G1 第 5 轮 11-27：只能在对话里自己打「再试一次」）
+		preStart := v.Job != nil && produceKind(kind) && failedBeforeStart(v.Job.Params, v.Events)
+		if preStart {
+			text += "游戏还没开局（停在开局前写编成），可以点「再试一次」。"
+		}
+		if v.Job != nil && kind != "" && (!produceKind(kind) || preStart) {
 			params := v.Job.Params
 			if kind == "collect-all" {
 				params = resumeCollectAll(params, v.Events)
@@ -264,6 +270,21 @@ func (a *App) queuedAfter(id string) bool {
 }
 
 // produceKind 是培育类任务（打完有成绩和复盘）。
+// failedBeforeStart：带开局前准备（prepare）的开局任务停在准备阶段、还没开局——日志里没有 prepare_start 交给开局命令前的
+// 「开局前准备做完，开局」。这时重试不会多用一次培育（N61）。
+func failedBeforeStart(params map[string]any, events []plugin.JobEvent) bool {
+	if params["prepare"] != true {
+		return false
+	}
+	for _, e := range events {
+		// 交给开局命令了，或者已经有对局步骤：都算开了局（多一道保险，不靠一句日志）
+		if strings.Contains(e.Text, "开局前准备做完") || e.Type == "step" {
+			return false
+		}
+	}
+	return true
+}
+
 func produceKind(kind string) bool {
 	switch kind {
 	case "hajime", "nia", "tower", "hif":

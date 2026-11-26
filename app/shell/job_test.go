@@ -2,6 +2,7 @@ package shell
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -611,6 +612,82 @@ func TestScanDoneOffersStartButtons(t *testing.T) {
 	}
 }
 
+// N59（G1 第 5 轮 11-26）：一键全收集做完也给「打一把初」「打一把 N.I.A」。
+func TestCollectAllDoneOffersStartButtons(t *testing.T) {
+	ask := func(_ context.Context, _ []Turn, text, _ string, _ func(string, string)) (Reply, error) {
+		return Reply{Text: "好"}, nil
+	}
+	call := liveCall("running")
+	a, run := newTestApp(newMem(), call, ask, nil)
+	a.NewThread()
+	ownJob(a, "j7")
+	a.PollJobs()
+	run.Drain()
+	call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"collect-all","state":"done","summary":"一键全收集","started_at":1}]}`)
+	call.resp["run events"] = ok(`{"state":"done","events":[]}`)
+	for i := 0; i < 3; i++ {
+		a.PollJobs()
+		run.Drain()
+	}
+	var labels []string
+	for _, m := range a.Current().Messages {
+		for _, c := range m.Cards {
+			if c["type"] == "next" {
+				labels = append(labels, c["label"].(string))
+			}
+		}
+	}
+	if strings.Join(labels, ",") != "打一把初,打一把 N.I.A" {
+		t.Fatalf("一键全收集做完应给开局按钮：%v", labels)
+	}
+}
+
+// N61（G1 第 5 轮 11-27）：开局任务停在开局前准备（写编成）、游戏还没开局，给「再试一次」；开了局的不给。
+func TestPreStartFailureOffersRetry(t *testing.T) {
+	retryAfter := func(params, events string) (plugin.Card, string) {
+		call := liveCall("running")
+		call.resp["run events"] = ok(`{"state":"running","events":[]}`) // 开局前准备阶段还没有对局步骤
+		a, run := newTestApp(newMem(), call, nil, viewReg())
+		a.NewThread()
+		ownJob(a, "j7")
+		a.PollJobs()
+		run.Drain()
+		call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"hajime","state":"failed","summary":"开一局初","started_at":1,"params":` + params + `,"reason":"认不出排序方向"}]}`)
+		call.resp["run events"] = ok(`{"state":"failed","events":` + events + `}`)
+		for i := 0; i < 3; i++ {
+			a.PollJobs()
+			run.Drain()
+		}
+		var text string
+		for _, m := range a.Current().Messages {
+			text = m.Text
+			for _, c := range m.Cards {
+				if c["type"] == "retry" {
+					return c, text
+				}
+			}
+		}
+		return nil, text
+	}
+	prep := `{"idol":"i_card-x","prepare":true,"prepare_note":"把编成方案写进回忆编成 13 号"}`
+	c, text := retryAfter(prep, `[{"seq":1,"type":"log","text":"写编成没成功，没有开局"}]`)
+	if c == nil || !strings.Contains(text, "还没开局") {
+		t.Fatalf("开局前准备出错应给重试：%v %q", c, text)
+	}
+	if args := strings.Join(toStrings(c["args"]), " "); !strings.Contains(args, "--prepare") || !strings.Contains(args, "hajime") {
+		t.Errorf("重试命令 %q", args)
+	}
+	if c, _ := retryAfter(prep, `[{"seq":1,"type":"log","text":"[x] [INFO] [__main__] 开局前准备做完，开局"}]`); c != nil {
+		t.Errorf("已经开局的不该给重试：%v", c)
+	}
+	if c, _ := retryAfter(prep, `[{"seq":1,"type":"step","text":"レッスン","step":1}]`); c != nil {
+		t.Errorf("有对局步骤的不该给重试：%v", c)
+	}
+	if c, _ := retryAfter(`{"idol":"i_card-x"}`, `[]`); c != nil {
+		t.Errorf("没有开局前准备的培育不该给重试：%v", c)
+	}
+}
+
 // N41（G2 11-26）：一键全收集第 3 步出错，「再试一次」从第 3 步接着做，不再从首页数值重扫。
 func TestCollectAllRetryResumesFromFailedStep(t *testing.T) {
 	ev := []plugin.JobEvent{{Type: "log", Text: "一键全收集：第 1/5 步 首页数值"}, {Type: "log", Text: "一键全收集：第 2/5 步 偶像卡"},
@@ -628,4 +705,18 @@ func TestCollectAllRetryResumesFromFailedStep(t *testing.T) {
 	if got := resumeCollectAll(map[string]any{"only": "account"}, nil); got["only"] != "account" {
 		t.Errorf("读不出第几步时原样：%v", got)
 	}
+}
+
+func toStrings(v any) []string {
+	switch x := v.(type) {
+	case []string:
+		return x
+	case []any:
+		out := make([]string, 0, len(x))
+		for _, s := range x {
+			out = append(out, fmt.Sprint(s))
+		}
+		return out
+	}
+	return nil
 }
