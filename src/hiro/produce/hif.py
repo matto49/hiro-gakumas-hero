@@ -825,14 +825,18 @@ class HifCore:
         held = pf.get("held")  # 识别 0f58dc4：底栏已有饮料 [{index, drink_id, name, center}]
         produce = self.s.state.produce or {}
         # 用户 2026-11-02：按「换进来之后的持有组合」挑候选（hiro.brain.drinks），不再用单瓶静态排名
-        flow_of = getattr(self.deciders, "_drink_flow", None)  # 初 / N.I.A 按偶像流派（D12）；替身决策器没有就不按流派
-        flow = flow_of(self.deciders.produce_state(self.s.state)) if callable(flow_of) else {}
+        # 初 / N.I.A 按偶像流派（D12）；替身决策器没有 _drink_flow 就不按流派
+        buff = None
+        flow_of = getattr(self.deciders, "_drink_flow", None)
+        if callable(flow_of) and self.s is not None:
+            flow = flow_of(self.deciders.produce_state(self.s.state))
+            buff = flow.get("buff") if isinstance(flow, dict) else None
         best = dk.best_incoming(
             cands,
             held,
             dk.stage_of(produce.get("mode")),
             produce.get("drink_capacity") or max(3, len(held or [])),
-            **({"buff": flow["buff"]} if flow.get("buff") else {}),
+            **({"buff": buff} if buff else {}),
         )
         d = self.deciders.decide(
             "PDRINK_MAX",
