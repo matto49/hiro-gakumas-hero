@@ -142,7 +142,16 @@ def lesson_turns_shown(img: np.ndarray) -> bool:
 
     if img is None:
         return False
-    return _hud_int(img, hif.BOX_TURNS, box("InProduce.InLesson.BoxRemainingTurns")) is not None
+    n = _hud_int(img, hif.BOX_TURNS, box("InProduce.InLesson.BoxRemainingTurns"))
+    if n is None or n < 1:
+        return False  # 课程里剩余回合最少是 1；读成 0 是别的画面（N37：选卡页左上的白底课程标签读出「0」）
+    # 回合框是深色半透明底（实机 109–154）；课程结束后同一位置是白底课程标签（选卡 / 拿卡页 180–221）或选行动页（246–248），
+    # 数字模板在那上面也会读出数（G1 第 3 轮 11-26 N37：PERFECT 提前结束后一直当成「课程没结束」，空等 181 秒超时）
+    x1, y1, x2, y2 = hif.BOX_TURNS
+    return float(cv2.cvtColor(img[y1:y2, x1:x2], cv2.COLOR_BGR2GRAY).mean()) < TURNS_BOX_MAX_GRAY
+
+
+TURNS_BOX_MAX_GRAY = 175.0
 
 
 def read_lesson_hud(img: np.ndarray) -> dict | None:

@@ -96,3 +96,41 @@ def test_real_frames_selected_card_keeps_turns_hud():
         img = cv2.imread(os.path.join(d, name))
         assert hv.lesson_goal(img) == goal, name
         assert hv.lesson_turns_shown(img) is shown, name
+
+
+def test_turns_box_zero_or_bright_is_not_lesson(monkeypatch):
+    """N37（G1 第 3 轮 11-26）：PERFECT 提前结束后，选卡页左上同一位置是白底课程标签，数字模板读出「0」，
+    被当成「剩余回合还在」，ended 一直不成立，空等 181 秒。读成 0、或者这块是亮底，都不算剩余回合。"""
+    from hiro.exec import exam
+    from hiro.vision import hajime as hv
+    from hiro.vision import hif
+
+    import numpy as np
+
+    x1, y1, x2, y2 = hif.BOX_TURNS
+    dark = np.full((1280, 720, 3), 40, np.uint8)
+    bright = dark.copy()
+    bright[y1:y2, x1:x2] = 230
+    monkeypatch.setattr(exam, "_hud_int", lambda img, b, t: 3)
+    assert hv.lesson_turns_shown(dark) is True
+    assert hv.lesson_turns_shown(bright) is False  # 选卡页 / 选行动页的亮底
+    monkeypatch.setattr(exam, "_hud_int", lambda img, b, t: 0)
+    assert hv.lesson_turns_shown(dark) is False  # 课程里剩余回合最少是 1
+
+
+def test_real_frames_perfect_end_is_seen(monkeypatch):
+    """实机帧（N37，私有）：课程里读得出剩余回合；PERFECT 结束后的选卡 / 拿卡 / 选行动页都不算。"""
+    import os
+
+    from hiro.vision import hajime as hv
+
+    import cv2
+
+    d = os.environ.get("N37_FRAMES")
+    if not d:
+        pytest.skip("要 N37_FRAMES 指向 G1 第 3 轮的 n37-frames 目录")
+    for name, shown in [("00565-173436-tap-360-330.jpg", True), ("00572-173447-tap-332-1010.jpg", True),
+                        ("00581-173501-tap-114-1009.jpg", True), ("00586-173505-tap-360-330.jpg", False),
+                        ("00597-173803-SELECT_CARD.jpg", False), ("00600-173816-ACQUIRE.jpg", False),
+                        ("00140-172555-ACTION_SELECT.jpg", False), ("00338-172908-ACTION_SELECT.jpg", False)]:  # fmt: skip
+        assert hv.lesson_turns_shown(cv2.imread(os.path.join(d, name))) is shown, name
