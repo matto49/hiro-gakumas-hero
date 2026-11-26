@@ -88,3 +88,16 @@ func TestTitleFirstLine(t *testing.T) {
 		t.Errorf("%q", got)
 	}
 }
+
+// N38（G1 第 3 轮 11-26）：成绩区不露出内部考试标签。
+func TestExam(t *testing.T) {
+	for in, want := range map[string]string{
+		"hajime-final": "最终考试", "hajime-mid1": "中间考试", "hajime-lesson-vo-hard": "追い込み Vo 课程",
+		"hajime-lesson-da": "Da 课程", "hajime-lesson-vi-sp": "SP Vi 课程", "hajime-lesson": "课程",
+		"nia-mid2": "第 2 次中间考试", "nia-final#2": "最终考试", "r1": "第 1 场选拔", "tower-12": "第 12 层", "weird": "weird",
+	} {
+		if got := Exam(in); got != want {
+			t.Errorf("Exam(%q) = %q，要 %q", in, got, want)
+		}
+	}
+}

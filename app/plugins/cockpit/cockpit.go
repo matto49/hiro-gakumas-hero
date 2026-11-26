@@ -498,7 +498,7 @@ func (s *state) jobView(c *ui.Context, h plugin.Host, id string) {
 			}
 			ui.Text(c, progress(v)).FontSize(kit.FNote).TextColor(kit.Ink2).Wrap()
 		}
-		if st := v.Steps(); len(st) > 0 {
+		if st := v.Steps(); len(st) > 0 && v.Live() { // 打完了不写「现在 考试中」（N38）
 			kv("现在", labels.Page(st[len(st)-1].Page))
 		}
 	})
@@ -615,6 +615,7 @@ func scoreStrip(c *ui.Context, exams []plugin.ExamScore) {
 			if j := strings.Index(label, "#"); j >= 0 {
 				label = label[:j]
 			}
+			label = labels.Exam(label)
 			if label == "" {
 				label = fmt.Sprintf("第 %d 场", i+1)
 			}

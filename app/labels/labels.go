@@ -328,3 +328,46 @@ func Predict(s string) string {
 	}
 	return ""
 }
+
+// Exam 是考试 / 课程标签（hajime-final、hajime-lesson-vo-hard、nia-mid2、r1、tower-12…）给玩家看的说法；认不出原样返回。
+// N38（G1 第 3 轮 11-26）：游戏运行现状的成绩区直接露出 hajime-lesson-vo-hard / hajime-mid1 / hajime-final。
+func Exam(label string) string {
+	l := strings.ToLower(strings.TrimSpace(label))
+	if i := strings.IndexByte(l, '#'); i >= 0 {
+		l = l[:i]
+	}
+	stage := map[string]string{"mid": "中间考试", "mid1": "中间考试", "mid2": "第 2 次中间考试", "final": "最终考试"}
+	for _, mode := range []string{"hajime-", "nia-"} {
+		if rest, ok := strings.CutPrefix(l, mode); ok {
+			if v, ok := stage[rest]; ok {
+				return v
+			}
+			if lesson, ok := strings.CutPrefix(rest, "lesson"); ok {
+				parts := strings.Split(strings.TrimPrefix(lesson, "-"), "-")
+				attr := map[string]string{"vo": "Vo", "da": "Da", "vi": "Vi"}[parts[0]]
+				out := strings.TrimSpace(attr + " 课程")
+				if len(parts) > 1 {
+					switch parts[1] {
+					case "hard":
+						out = "追い込み " + out
+					case "sp":
+						out = "SP " + out
+					}
+				}
+				return out
+			}
+		}
+	}
+	switch {
+	case l == "r1":
+		return "第 1 场选拔"
+	case l == "r2":
+		return "第 2 场选拔"
+	case strings.HasPrefix(l, "tower-"):
+		if n := strings.TrimPrefix(l, "tower-"); n != "" && n != "x" {
+			return "第 " + n + " 层"
+		}
+		return "偶像之路"
+	}
+	return label
+}
