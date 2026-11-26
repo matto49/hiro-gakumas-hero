@@ -1,0 +1,716 @@
+{
+ "mode": "produce",
+ "page": {
+  "name": "ACTION_SELECT",
+  "area": "produce",
+  "since_seq": 8,
+  "stable": true,
+  "frames": 2
+ },
+ "produce": {
+  "mode": "produce-002",
+  "schedule": {
+   "weeks": [
+    {
+     "week": 1,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "training",
+       "attr": "Vo"
+      },
+      {
+       "option": "training",
+       "attr": "Da"
+      },
+      {
+       "option": "training",
+       "attr": "Vi"
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 2,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "class",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 3,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "shop",
+       "attr": null
+      },
+      {
+       "option": "allowance",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 4,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "training",
+       "attr": "Vo"
+      },
+      {
+       "option": "training",
+       "attr": "Da"
+      },
+      {
+       "option": "training",
+       "attr": "Vi"
+      },
+      {
+       "option": "class",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 5,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "outing",
+       "attr": null
+      },
+      {
+       "option": "allowance",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 7,
+     "kind": "exam",
+     "options": [],
+     "faded": [],
+     "exam": {
+      "stage": "mid1",
+      "line": 150
+     },
+     "done": false
+    },
+    {
+     "week": 8,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "outing",
+       "attr": null
+      },
+      {
+       "option": "allowance",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 9,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "class",
+       "attr": null
+      },
+      {
+       "option": "shop",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 10,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "training",
+       "attr": "Vo"
+      },
+      {
+       "option": "training",
+       "attr": "Da"
+      },
+      {
+       "option": "training",
+       "attr": "Vi"
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 11,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "class",
+       "attr": null
+      },
+      {
+       "option": "shop",
+       "attr": null
+      },
+      {
+       "option": "allowance",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 12,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "training",
+       "attr": "Vo"
+      },
+      {
+       "option": "training",
+       "attr": "Da"
+      },
+      {
+       "option": "training",
+       "attr": "Vi"
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 13,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "training",
+       "attr": "Vo"
+      },
+      {
+       "option": "training",
+       "attr": "Da"
+      },
+      {
+       "option": "training",
+       "attr": "Vi"
+      },
+      {
+       "option": "class",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 14,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "outing",
+       "attr": null
+      },
+      {
+       "option": "shop",
+       "attr": null
+      },
+      {
+       "option": "allowance",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 15,
+     "kind": "oikomi",
+     "options": [
+      {
+       "option": "training",
+       "attr": null,
+       "oikomi": true
+      }
+     ],
+     "faded": [
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 16,
+     "kind": "exam",
+     "options": [],
+     "faded": [],
+     "exam": {
+      "stage": null,
+      "line": 450
+     },
+     "done": false
+    }
+   ],
+   "current_week": 1,
+   "total": 16
+  },
+  "stamina": 22,
+  "max_stamina": 36,
+  "produce_point": 419,
+  "params": {
+   "Vo": 378,
+   "Da": 264,
+   "Vi": 797
+  },
+  "growth_permil": {
+   "Vo": 1122,
+   "Da": 1466,
+   "Vi": 1325
+  },
+  "param_cap": 1500,
+  "drinks": [
+   "pdrink_02-2-006"
+  ],
+  "deck_size": 23,
+  "items": [
+   "pitem_00-3-054-0",
+   "pitem_00-3-053-0",
+   "pitem_02-3-005-0"
+  ],
+  "step": 11
+ },
+ "page_fields": {
+  "schedule": {
+   "weeks": [
+    {
+     "week": 1,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "training",
+       "attr": "Vo"
+      },
+      {
+       "option": "training",
+       "attr": "Da"
+      },
+      {
+       "option": "training",
+       "attr": "Vi"
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 2,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "class",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 3,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "shop",
+       "attr": null
+      },
+      {
+       "option": "allowance",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 4,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "training",
+       "attr": "Vo"
+      },
+      {
+       "option": "training",
+       "attr": "Da"
+      },
+      {
+       "option": "training",
+       "attr": "Vi"
+      },
+      {
+       "option": "class",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 5,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "outing",
+       "attr": null
+      },
+      {
+       "option": "allowance",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 7,
+     "kind": "exam",
+     "options": [],
+     "faded": [],
+     "exam": {
+      "stage": "mid1",
+      "line": 150
+     },
+     "done": false
+    },
+    {
+     "week": 8,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "outing",
+       "attr": null
+      },
+      {
+       "option": "allowance",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 9,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "class",
+       "attr": null
+      },
+      {
+       "option": "shop",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 10,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "training",
+       "attr": "Vo"
+      },
+      {
+       "option": "training",
+       "attr": "Da"
+      },
+      {
+       "option": "training",
+       "attr": "Vi"
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 11,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "class",
+       "attr": null
+      },
+      {
+       "option": "shop",
+       "attr": null
+      },
+      {
+       "option": "allowance",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 12,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "training",
+       "attr": "Vo"
+      },
+      {
+       "option": "training",
+       "attr": "Da"
+      },
+      {
+       "option": "training",
+       "attr": "Vi"
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 13,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "training",
+       "attr": "Vo"
+      },
+      {
+       "option": "training",
+       "attr": "Da"
+      },
+      {
+       "option": "training",
+       "attr": "Vi"
+      },
+      {
+       "option": "class",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 14,
+     "kind": "normal",
+     "options": [
+      {
+       "option": "outing",
+       "attr": null
+      },
+      {
+       "option": "shop",
+       "attr": null
+      },
+      {
+       "option": "allowance",
+       "attr": null
+      }
+     ],
+     "faded": [
+      false,
+      false,
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 15,
+     "kind": "oikomi",
+     "options": [
+      {
+       "option": "training",
+       "attr": null,
+       "oikomi": true
+      }
+     ],
+     "faded": [
+      false
+     ],
+     "done": false
+    },
+    {
+     "week": 16,
+     "kind": "exam",
+     "options": [],
+     "faded": [],
+     "exam": {
+      "stage": null,
+      "line": 450
+     },
+     "done": false
+    }
+   ],
+   "current_week": 1,
+   "total": 16
+  },
+  "advice": "Pポイントがありますね先生に相談して、準備を整えてみませんか？",
+  "options": [
+   {
+    "option": "rest",
+    "attr": null,
+    "hp_cost": null,
+    "hp_gain": 14,
+    "center": [
+     646,
+     865
+    ]
+   },
+   {
+    "option": "class",
+    "attr": null,
+    "hp_cost": null,
+    "hp_gain": null,
+    "center": [
+     198,
+     1008
+    ]
+   },
+   {
+    "option": "shop",
+    "attr": null,
+    "hp_cost": null,
+    "hp_gain": null,
+    "center": [
+     360,
+     1010
+    ]
+   },
+   {
+    "option": "allowance",
+    "attr": null,
+    "hp_cost": null,
+    "hp_gain": null,
+    "center": [
+     522,
+     1010
+    ]
+   }
+  ],
+  "exam_next": "final",
+  "weeks_left": 5,
+  "complete": true
+ },
+ "exam_session": {
+  "label": null,
+  "turn": 0,
+  "last_remaining": null,
+  "brief_permil": null,
+  "brief_exam_no": null,
+  "lesson": null
+ },
+ "version": "1.2"
+}
