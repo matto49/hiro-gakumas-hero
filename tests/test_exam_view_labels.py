@@ -63,7 +63,7 @@ def test_step_head_has_no_question_marks():
 def test_template_has_no_placeholder_question_marks_for_turn_tags():
     assert '剩 " + (t.rem ?? "?")' not in HTML
     assert 'rem ?? "?"' not in HTML
-    assert "e.name || m[e.label] || e.label" in HTML  # 考试名用 build 写进去的中文说法（选拔标签照旧优先，#174 review）
+    assert "m[e.label] || e.name || e.label" in HTML  # 考试名用 build 写进去的中文说法（选拔标签照旧优先，#174 review）
 
 
 def test_build_writes_exam_name(tmp_path):

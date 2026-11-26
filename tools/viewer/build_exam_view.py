@@ -59,9 +59,9 @@ def exam_name(label: str | None) -> str:
                     return label
             return out
     if low == "r1":
-        return "第 1 场选拔"
+        return "本战 R1"  # H.I.F 本战两轮（选拔是 qualify-N）
     if low == "r2":
-        return "第 2 场选拔"
+        return "本战 R2"
     if low.startswith("tower-"):
         n = low[len("tower-") :]
         return f"第 {n} 层" if n and n != "x" else "偶像之路"

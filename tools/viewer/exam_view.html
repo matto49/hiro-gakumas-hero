@@ -376,7 +376,7 @@ const stepHeadText = s => {
 const examName = e => {
   const m = { r1: "本战 R1", r2: "本战 R2" };
   const q = /qualify-(\d)/.exec(e.label);
-  const base = q ? `选拔${"①②③④"[q[1] - 1]}` : (e.name || m[e.label] || e.label);  // 构建器写的 name 优先（#174 review）
+  const base = q ? `选拔${"①②③④"[q[1] - 1]}` : (m[e.label] || e.name || e.label);  // 本战 r1/r2、选拔优先，其余用构建器写的 name（#174 review）
   const same = DATA.exams.filter(x => x.label === e.label).length;
   return same > 1 ? `${base} · 第${e.attempt}次` : base;
 };
