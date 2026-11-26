@@ -114,13 +114,18 @@ func kindOf(v *plugin.JobView) string {
 
 // 进度行给玩家看：去掉工具日志里的本机路径（「→ /Users/…/out.json」）和「(complete=True)」这类内部字段（N8，11-26 G1 第 2 轮）。
 var (
-	progressPath  = regexp.MustCompile(`\s*(→|->)?\s*(/|[A-Za-z]:\\)\S+`)
+	// 「→ 路径」：从箭头删到括号或行尾（路径里可能有空格：C:\Users\Jane Doe\…）
+	progressArrowPath = regexp.MustCompile(`\s*(?:→|->)\s*(?:/|[A-Za-z]:\\)[^（(]*`)
+	// 行首或空白后面的绝对路径（不碰「总 36/60」这种数字中间的斜杠）
+	progressPath  = regexp.MustCompile(`(^|\s)(?:/[^\s/]+/|[A-Za-z]:\\)\S*`)
 	progressField = regexp.MustCompile(`\s*[（(]\s*\w+=\w+\s*[)）]`)
 )
 
 func tidyProgress(text string) string {
 	t := logPrefix.ReplaceAllString(text, "")
-	t = progressField.ReplaceAllString(progressPath.ReplaceAllString(t, ""), "")
+	t = progressArrowPath.ReplaceAllString(t, "")
+	t = progressPath.ReplaceAllString(t, "$1")
+	t = progressField.ReplaceAllString(t, "")
 	return strings.TrimSpace(t)
 }
 
