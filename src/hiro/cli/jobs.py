@@ -15,6 +15,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -783,10 +784,13 @@ class Job:
     def _pump(self) -> None:
         assert self.proc and self.proc.stdout
         tail: list[str] = []  # 出错原因从这里找（「停下：」/ ERROR 都在日志里）
+        # 最后几行原样留着：句尾写「…，停下」的工具（G1-F2）和没接住的异常（traceback 尾行，游戏没开）不带上面的标记（#130 review）
+        recent: deque[str] = deque(maxlen=20)
         for line in self.proc.stdout:
             line = line.rstrip("\n")
             if line:
                 self.emit("log", line)
+                recent.append(line)
                 if line.startswith("停下：") or "[ERROR]" in line or "[CRITICAL]" in line:
                     tail = [*tail[-19:], line]
         code = self.proc.wait()
@@ -806,7 +810,7 @@ class Job:
             self.emit("done", "完成")
             self.state = "done"
         else:
-            self.reason = failure_reason(tail)
+            self.reason = failure_reason([*tail, *recent])
             text = f"出错停下：{self.reason}" if self.reason else f"任务出错退出（代码 {code}），看上面的日志"
             self.emit("failed", text, exit_code=code, reason=self.reason)
             self.state = "failed"
