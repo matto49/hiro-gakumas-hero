@@ -84,7 +84,7 @@ def _full_hint(mode: str, what: str, rows: list) -> str:
         f"{MODE_NAME[mode]}的{LABEL[what]}编成 {span}都有卡，没有空着的可以放编成方案（初星助手不替你覆盖自己配的编成）"
     )
     if ours:
-        msg += f"。其中 {'、'.join(map(str, ours))} 号是初星助手自己写过的，覆盖它不动你配的"
+        msg += f"。其中 {'、'.join(map(str, ours))} 号曾由初星助手写入，覆盖前请确认后来没有手动改过"
     return msg + f"。要覆盖哪一号，在对话里说「{LABEL[what]}编成用 N 号覆盖」；也可以先在游戏里清空一组再开局"
 
 

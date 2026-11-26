@@ -107,7 +107,7 @@ def test_all_full_stops_without_writing(home, calls, monkeypatch, capsys):
     err = capsys.readouterr().err
     # N34（G1 第 3 轮）：说清有哪几号、在对话里怎么说
     assert (
-        "停下：「初」的支援卡编成 1–20 号都有卡" in err and "「支援卡编成用 N 号覆盖」" in err and "自己写过" not in err
+        "停下：「初」的支援卡编成 1–20 号都有卡" in err and "「支援卡编成用 N 号覆盖」" in err and "曾由初星助手写入" not in err
     )
 
 
@@ -123,7 +123,7 @@ def test_all_full_names_sets_we_wrote(home, calls, monkeypatch, capsys):
     monkeypatch.setattr(ps, "_survey", lambda mode: {"scanned_at": "x", "mode": mode, "complete": True,
                         "sets": [{"kind": k, "set": n, "filled": 3, "cards": []} for k in ("support", "memory") for n in range(1, 21)]})  # fmt: skip
     assert ps.main(["--mode", "hajime", "--", "x"]) != 0
-    assert "其中 18 号是初星助手自己写过的" in capsys.readouterr().err
+    assert "其中 18 号曾由初星助手写入" in capsys.readouterr().err
 
 
 def test_write_failure_does_not_start(home, calls, monkeypatch):
