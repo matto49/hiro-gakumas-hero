@@ -297,11 +297,14 @@ def pick_memory(picker, target: dict, *, decide=PICKER_DECIDE) -> None:
     want_core, want_ab = _core(target["key"]), _abilities_text(target["key"])
     tried = 0
 
+    reached = {"max": -1}  # 列表实际走到的最大行号（数行对不上时 iter_rows 提前结束，走不到目标行）
+
     def walk(accept, rows) -> bool:
         """从顶往下按精确行号走（memory_picker.iter_rows），只点开 rows 里这些行同一列的格子读详情（滑动只对齐、不读详情）。"""
         nonlocal tried
         last = max(rows)
         for g, r in iter_rows(picker):
+            reached["max"] = max(reached["max"], g)
             if g > last:
                 return False
             if g not in rows:
@@ -332,6 +335,12 @@ def pick_memory(picker, target: dict, *, decide=PICKER_DECIDE) -> None:
         logger.warning("回忆选择页：第 %d 行附近没有能力文字也对得上的，选了第一份卡 / 强化 / 时机一致的", row)
         return
     picker.cancel()
+    if reached["max"] < row - SEARCH_ROWS:
+        # G3（11-26）：列表在第 5 行就数乱了，原来也报「库存可能过期，请重扫」（回忆 10 分钟前刚扫完）
+        raise FormationWriteError(
+            f"回忆选择列表往下翻到第 {reached['max'] + 1} 行时行号对不上，没翻到要写的第 {row} 行，没写成；"
+            "可以再试一次，或者在游戏里手动把这份回忆放进编成后再开局"
+        )
     raise FormationWriteError(
         f"回忆选择页第 {row} 行上下 {SEARCH_ROWS} 行里没找到方案里的回忆（试了 {tried} 格），库存可能过期，请重扫"
     )

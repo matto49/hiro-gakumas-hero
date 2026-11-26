@@ -148,7 +148,10 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("开局前准备：把编成方案写进游戏（%s）", "、".join(LABEL[w] for w in todo))
         rc = _write(mode, todo, guard)
         if rc != 0:
-            return _stop("写编成没成功，没有开局（原因见上面的日志）", rc)
+            # 具体原因写编成那一步已经以「停下：…」打过（任务失败原因取最后一条「停下」）：这里只记一行普通日志，不再盖掉它
+            # （G3 11-26：对话卡只显示「写编成没成功，没有开局（原因见上面的日志）」，界面里看不到日志）
+            print("写编成没成功，没有开局", file=sys.stderr, flush=True)
+            return rc
         rec["wrote"] = True
     if opts.out:
         Path(opts.out).write_text(json.dumps(rec, ensure_ascii=False), encoding="utf-8")

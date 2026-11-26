@@ -134,3 +134,26 @@ def test_stale_memory_inventory_stops_before_writing(home, calls, monkeypatch, c
     assert ps.main(["--mode", "hajime", "--", "x"]) != 0
     assert not any(c[0] in ("write", "exec") for c in calls)
     assert "回忆库存扫描之后又打过培育" in capsys.readouterr().err
+
+
+def test_write_failure_reason_is_the_specific_one(home, calls, monkeypatch, capsys):
+    """G3（11-26）：写编成失败时对话卡只显示「写编成没成功，没有开局（原因见上面的日志）」，界面里看不到日志。
+    外层不再打「停下：」，任务失败原因就是写编成那一步给的具体原因。"""
+    from hiro.cli.jobs import failure_reason
+
+    _plan(home, sets=(4, 5))
+
+    def write(mode, what=(), blank_only=()):
+        import sys
+
+        print(
+            "停下：回忆选择列表往下翻到第 6 行时行号对不上，没翻到要写的第 110 行，没写成（截图在 C:\\x）",
+            file=sys.stderr,
+        )
+        return 3
+
+    monkeypatch.setattr(ps, "_write", write)
+    assert ps.main(["--mode", "hajime", "--", "x"]) == 3
+    err = capsys.readouterr().err
+    why = failure_reason(err.splitlines())
+    assert why is not None and why.startswith("回忆选择列表往下翻到第 6 行") and "原因见上面的日志" not in err

@@ -568,3 +568,27 @@ def test_restore_filter_does_not_tap_when_page_unknown(monkeypatch):
     log.clear()
     fw._restore_filter(dev, Pk, fw.STEP3_SLOTS[0], {"sort": "アイドル"}, read_icons=lambda img: [{"known": True}] * 4)
     assert ("click", *fw.STEP3_SLOTS[0]) in log
+
+
+def test_pick_memory_says_list_drift_not_stale_inventory(monkeypatch):
+    """G3（11-26 Windows，账号 1 回忆 814 份）：回忆选择列表在第 5 行就数乱了（iter_rows 提前结束），目标在第 110 行，
+    原来报「库存可能过期，请重扫」（刚扫完，误导）。没翻到目标行时照实说。"""
+    from types import SimpleNamespace as NS
+
+    from hiro.produce import memory_picker
+
+    monkeypatch.setattr(
+        memory_picker,
+        "iter_rows",
+        lambda p: ((g, [{"row": g, "col": c, "center": (0, 0)} for c in range(3)]) for g in range(6)),
+    )
+    picker = NS(
+        select=lambda c: None,
+        read_selected=dict,
+        click=lambda *a: None,
+        sleep=lambda s: None,
+        cancel=lambda: None,
+    )
+    with pytest.raises(FormationWriteError) as e:
+        fw.pick_memory(picker, {"cell": [110, 1], "key": "act-3_039|x"})
+    assert "行号对不上" in str(e.value) and "第 110 行" in str(e.value) and "重扫" not in str(e.value)
