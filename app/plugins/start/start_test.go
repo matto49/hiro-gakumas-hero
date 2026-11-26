@@ -311,3 +311,26 @@ func TestExplainPlanWithoutSetWhenPreparing(t *testing.T) {
 		t.Error("应画出方案里的卡")
 	}
 }
+
+// N35（G1 第 3 轮 11-26）：写编成卡要写明写进第几号、会不会换掉原来的卡。
+func TestWriteFormationCardNamesSets(t *testing.T) {
+	h, p := host(), New()
+	pd := hiroapi.Pending{Command: "run start", Plan: planSnap(t, planJSON), Access: "overwrite",
+		Args: map[string]any{"kind": "write-formation", "scenario": "hajime", "support_set": 18, "memory_set": 12}}
+	e, _ := p.Explain(h, pd)
+	if len(e.Rows) != 1 || e.Rows[0][0] != "写进" || e.Rows[0][1] != "支援卡编成 18 号、回忆编成 12 号（原来有卡的位会被换掉）" {
+		t.Errorf("写编成卡的编成号行 %+v", e.Rows)
+	}
+	// 没给编成号：用方案里的；只写回忆
+	pd2 := hiroapi.Pending{Command: "run start", Plan: planSnap(t, `{"idol":{"name":"x"},"support":{"set":9,"own":[],"rental":null},"memory":{"set":8,"chosen":[]}}`),
+		Access: "blank", Args: map[string]any{"kind": "write-formation", "scenario": "hajime", "what": "memory"}}
+	e2, _ := p.Explain(h, pd2)
+	if len(e2.Rows) != 1 || e2.Rows[0][1] != "回忆编成 8 号（都是空着的位）" {
+		t.Errorf("只写回忆 %+v", e2.Rows)
+	}
+	// 只看差异：不出这一行
+	e3, _ := p.Explain(h, hiroapi.Pending{Command: "run start", Args: map[string]any{"kind": "write-formation", "dry_run": true, "support_set": 3}})
+	if len(e3.Rows) != 0 {
+		t.Errorf("dry-run 不该有写进行 %+v", e3.Rows)
+	}
+}

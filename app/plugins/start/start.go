@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -255,8 +256,14 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 		if sc := r.Flags["scenario"]; sc != "" {
 			e.Subtitle = modeName(sc) + " 的编成"
 		}
-		if pl := planOf(p); pl != nil {
+		pl := planOf(p)
+		if pl != nil {
 			e.Groups = pl.groups(h, cat)
+		}
+		if !dry {
+			if row, ok := writeSetsRow(r.Flags, pl, p.Access); ok {
+				e.Rows = append(e.Rows, row)
+			}
 		}
 		return e, true
 	case r.Kind == "main-task":
@@ -317,6 +324,45 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 		}
 	}
 	return e, true
+}
+
+// writeSetsRow 是写编成确认卡上「写进第几号、会不会换掉原来的卡」那一行（N35，G1 第 3 轮 11-26：
+// 卡上只有方案内容，写进第几号要翻待确认文件才知道；D23 那次就是靠查文件确认回忆写的是空着的 12 号）。
+func writeSetsRow(flags map[string]string, pl *planBrief, access string) ([2]string, bool) {
+	set := func(flag string, fromPlan *int) string {
+		if v := flags[flag]; v != "" {
+			return v
+		}
+		if fromPlan != nil {
+			return strconv.Itoa(*fromPlan)
+		}
+		return ""
+	}
+	var sup, mem string
+	if pl != nil {
+		sup, mem = set("support-set", pl.Support.Set), set("memory-set", pl.Memory.Set)
+	} else {
+		sup, mem = set("support-set", nil), set("memory-set", nil)
+	}
+	what := flags["what"]
+	var parts []string
+	if sup != "" && (what == "" || strings.Contains(what, "support")) {
+		parts = append(parts, "支援卡编成 "+sup+" 号")
+	}
+	if mem != "" && (what == "" || strings.Contains(what, "memory")) {
+		parts = append(parts, "回忆编成 "+mem+" 号")
+	}
+	if len(parts) == 0 {
+		return [2]string{}, false
+	}
+	text := strings.Join(parts, "、")
+	switch access {
+	case "overwrite":
+		text += "（原来有卡的位会被换掉）"
+	case "blank":
+		text += "（都是空着的位）"
+	}
+	return [2]string{"写进", text}, true
 }
 
 func or(s, d string) string {
