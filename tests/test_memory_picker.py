@@ -781,3 +781,15 @@ def test_read_selected_checks_picker_still_open(monkeypatch):
 
     with pytest.raises(mp.PickerClosed):
         Pk().read_selected()
+
+
+def test_to_page_checks_picker_before_flipping(monkeypatch):
+    """#116 第三轮：点翻页箭头前要对同一帧核对选择页还开着；选择页已经关了、编成页上的字被读成页码时，不能在编成页上点。"""
+    import numpy as np
+
+    clicks, t = [], iter(range(10**6))
+    p = mp.Picker(lambda: np.zeros((1280, 720, 3), np.uint8), lambda x, y: clicks.append((x, y)), lambda *a: None,
+                  ocr=lambda im: [("1/2", 1.0, (330, 525, 390, 545))], sleep=lambda s: None, clock=lambda: next(t))  # fmt: skip
+    with pytest.raises(mp.PickerClosed):
+        p.to_page(2)  # 整屏没有キャンセル / 決定：选择页不在了
+    assert clicks == []

@@ -64,6 +64,16 @@ CREATE TABLE IF NOT EXISTS meta (
 """
 
 
+def _same_context(a: dict, b: dict) -> bool:
+    """两次回忆读数是不是同一个编成上下文（属性的偏移一样，签名才对得上）：都从空编成读（偏移 0）；
+    或者都带偏移、而且模式、编成号、其余几格的卡都一样（#116 第三轮审查）。"""
+    if bool(a.get("empty")) != bool(b.get("empty")):
+        return False
+    if a.get("empty"):
+        return True
+    return all(a.get(k) == b.get(k) for k in ("mode", "formation_set", "cards"))
+
+
 def _at_slot(e: dict, i: int) -> dict:
     """回忆记录放到列表第 i 格（每行 3 格）。"""
     return {**e, "slot": i, "cell": [i // 3, i % 3]}
@@ -189,13 +199,13 @@ class Store:
         old = self.slice_entries(slice_key)
         replace = mode == "full" and complete
         prev = self.slice_coverage().get(slice_key) or {}
-        same_ctx = bool((prev.get("context") or {}).get("empty")) == bool((context or {}).get("empty"))
+        same_ctx = _same_context(prev.get("context") or {}, context or {})
         if not replace and old and not same_ctx:
             # 编成上下文不同（一个从空编成读、一个带偏移）又不是完整全读：签名对不上，合并会重复入库。不合并，旧数据和上下文不动，
-            # 标成下次要全读（full_at 清空、complete=False）（#116 第二轮审查重要 3）
+            # 只标最近一次没读完（complete=0：下次全读），完整全读时间保留，原来的数据照样能用（#116 第二轮 / 第三轮审查）
             with self.db:
                 self.db.execute(
-                    "UPDATE slice_coverage SET scanned_at=?, full_at=NULL, mode=?, complete=0, read=?, added=0 WHERE account=? AND slice=?",
+                    "UPDATE slice_coverage SET scanned_at=?, mode=?, complete=0, read=?, added=0 WHERE account=? AND slice=?",
                     (at, mode, len(entries), acc, slice_key),
                 )
             return {"read": len(entries), "added": 0}

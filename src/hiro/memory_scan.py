@@ -21,6 +21,18 @@ FORMATION_CHANGED_EXIT = (
 )
 
 
+def scan_context(where: dict, rows: list[dict]) -> dict:
+    """这次从哪个编成进的选择页（入库时比上下文用，设计 5.3 / D11）：empty=True 时属性是回忆本身的；
+    否则带着那套编成其余几格的偏移，记下模式、编成号和那套编成里的卡（编成快照里的），偏移一样才能合并（#116 第三轮）。"""
+    mode = where.get("used_mode") or where.get("mode")
+    n = where.get("used") or where.get("set")
+    ctx = {"mode": mode, "formation_set": n, "empty": bool(where.get("empty"))}
+    if not ctx["empty"]:
+        row = next((r for r in rows if r.get("mode") == mode and r.get("kind") == "memory" and r.get("set") == n), None)
+        ctx["cards"] = list((row or {}).get("cards") or [])
+    return ctx
+
+
 def pick_empty_set(rows: list[dict], mode: str | None) -> tuple[str, int] | None:
     """编成快照里全空的回忆编成 → (模式, 编成号)，取号最大的；当前模式有就用当前模式的，没有就用别的模式的
     （11-26 实机：「初」没有全空的回忆编成；回忆列表各模式一样，切过去扫、扫完切回）。都没有返回 None（设计 5.3）。"""
@@ -238,7 +250,7 @@ def main():
     # 慢滑、终点停住再抬起：列表不带惯性滚动，扫描靠行重叠核对不漏行（以前只在 MaaTools 上停，现在各设备一样）
     picker = Picker(d.screenshot, d.tap,
                     lambda x1, y1, x2, y2: d.swipe(x1, y1, x2, y2, duration=SWIPE_DURATION, hold=SWIPE_HOLD), calib_dir=calib)  # fmt: skip
-    where = None
+    where, rows = None, []
     keep_scene = False  # 编成可能被改了：保留现场给人核对，收尾不再点
     try:
         if args.from_home:
@@ -256,11 +268,7 @@ def main():
         ctx = None
         if where is not None:
             # 从哪个编成进去的：empty=True 时属性是回忆本身的；否则带着其余 3 格的常数偏移（设计 5.3 / D11）
-            ctx = {
-                "mode": where["mode"],
-                "formation_set": where["used"] or where["set"],
-                "empty": bool(where.get("empty")),
-            }
+            ctx = scan_context(where, rows)
         if args.command == "explore":
             out = Path(f"reports/live/memory-explore/{stamp}")
             explore(picker, out)

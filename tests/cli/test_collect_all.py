@@ -91,3 +91,31 @@ def test_failed_step_still_imports_partial_output(tmp_path):
 
     assert collect_all.run(tmp_path, ["memories"], runner=runner, importer=importer) == 3
     assert imported == [("memories", {"slices": [{"key": "sense:hif"}]})]
+
+
+def test_import_failure_fails_the_job(tmp_path, capsys):
+    """#116 第三轮：导入抛错不能吞掉、最后还报完成：任务以非 0 结束，写明哪一步没入库。"""
+    _calls, _imported, runner, _ = _fake()
+
+    def bad_importer(kind, inv, source):
+        raise ValueError("坏数据")
+
+    assert collect_all.run(tmp_path, ["idols"], runner=runner, importer=bad_importer) != 0
+    out = capsys.readouterr().out
+    assert "没能入库" in out and "完成" not in out.split("没能入库")[-1]
+
+
+def test_partial_whole_list_scan_not_imported(tmp_path):
+    """#116 第三轮：按片关着（缺省）时回忆是整表扫描，出错时的半截结果不能存成最新快照；只有带 slices 的（按片逐片落盘）才导入。"""
+    imported = []
+
+    def runner(argv, env=None):
+        out = argv[argv.index("--out") + 1]
+        with open(out, "w", encoding="utf-8") as f:
+            json.dump({"entries": [{"x": 1}], "complete": False}, f)
+        return R(3)
+
+    collect_all.run(
+        tmp_path, ["memories"], runner=runner, importer=lambda kind, inv, source: imported.append(inv) or {"count": 1}
+    )
+    assert imported == []

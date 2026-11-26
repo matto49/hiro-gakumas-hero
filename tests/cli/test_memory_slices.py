@@ -180,7 +180,24 @@ def test_merge_with_different_context_does_not_duplicate(st):
     assert r["added"] == 0
     assert [e["stats"]["Vi"] for e in st.slice_entries("sense:hif")] == [64]
     cov = st.slice_coverage()["sense:hif"]
-    assert cov["context"] == {"empty": True} and cov["full_at"] is None and cov["complete"] is False
+    # 不合并：旧数据、上下文、完整全读时间都保留（#116 第三轮：清掉 full_at 会让好好的片用不了），只标最近一次没读完
+    assert cov["context"] == {"empty": True} and cov["full_at"] and cov["complete"] is False
     # 完整全读照旧整片替换（换成这次的上下文）
     st.save_slice("sense:hif", [_e("a", vi=79)], mode="full", complete=True, context={"empty": False})
     assert st.slice_coverage()["sense:hif"]["context"] == {"empty": False}
+
+
+def test_offset_contexts_compared_by_formation_and_cards(st):
+    """#116 第三轮：两次都带偏移读（empty 都是 False）时，编成号或其余几格不同，偏移就不同：同样不合并、上下文不改。"""
+    a = {"empty": False, "mode": "hajime", "formation_set": 10, "cards": ["x", "y", "z"]}
+    st.save_slice("sense:hif", [_e("a", vi=79)], mode="full", complete=True, context=a)
+    r = st.save_slice(
+        "sense:hif", [_e("a", vi=90)], mode="incremental", complete=True, context={**a, "formation_set": 11}
+    )
+    assert r["added"] == 0 and st.slice_coverage()["sense:hif"]["context"] == a
+    r = st.save_slice(
+        "sense:hif", [_e("a", vi=90)], mode="incremental", complete=True, context={**a, "cards": ["x", "y", "w"]}
+    )
+    assert r["added"] == 0
+    r = st.save_slice("sense:hif", [_e("b", vi=79)], mode="incremental", complete=True, context=dict(a))
+    assert r["added"] == 1  # 同一个上下文照常合并

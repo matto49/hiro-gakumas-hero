@@ -55,3 +55,17 @@ def test_main_exits_formation_changed_even_if_scan_raises(monkeypatch, tmp_path)
     monkeypatch.setattr(sys, "argv", ["memory_scan", "scan", "--no-calib", "--out", str(tmp_path / "o.json")])
     assert memory_scan.main() == memory_scan.FORMATION_CHANGED_EXIT
     del memory_picker
+
+
+def test_scan_context_records_formation_cards_when_not_empty():
+    """带偏移读时（没从空编成进），上下文要记模式、编成号和那套编成里的卡，入库时才比得出偏移是不是同一个（#116 第三轮）。"""
+    rows = [{"mode": "hajime", "kind": "memory", "set": 10, "filled": 4, "cards": ["a", "b", "c", "d"]}]
+    where = {"mode": "hajime", "set": 10, "used": None, "used_mode": None, "empty": False}
+    assert memory_scan.scan_context(where, rows) == {
+        "mode": "hajime",
+        "formation_set": 10,
+        "empty": False,
+        "cards": ["a", "b", "c", "d"],
+    }
+    where = {"mode": "hajime", "set": 10, "used": 19, "used_mode": "hif", "empty": True}
+    assert memory_scan.scan_context(where, rows) == {"mode": "hif", "formation_set": 19, "empty": True}

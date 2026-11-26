@@ -40,17 +40,23 @@ def run(job_dir: Path, only: list[str] | None, *, runner=None, importer=None) ->
         print(f"一键全收集：第 {i}/{len(STEPS)} 步 {label}", flush=True)
         r = runner(k.argv({"full": True} if kind == "memories" else {}, d), env={**os.environ, **k.env})
         out = d / "out.json"
-        # 出错时回忆这一步已经逐片写好的部分也入库（设计 I2，#116 第二轮审查）；别的步骤出错的结果不可信，不入
-        if k.output and out.is_file() and (r.returncode == 0 or kind == "memories"):
+        if k.output and out.is_file():
             try:
                 inv = json.loads(out.read_text(encoding="utf-8"))
-                res = importer(k.output, inv, source=f"collect:{job_dir.name}:{kind}")
+            except (OSError, ValueError) as e:
+                print(f"一键全收集：第 {i} 步（{label}）的结果读不出来，没能入库：{e}", flush=True)
+                return r.returncode or 1
+            # 出错时只导入按片逐片落盘的回忆（带 slices）；整表扫描的半截结果不存成最新快照（设计 I2，#116 第三轮）
+            if r.returncode == 0 or (kind == "memories" and "slices" in inv):
+                try:
+                    res = importer(k.output, inv, source=f"collect:{job_dir.name}:{kind}")
+                except (OSError, ValueError, KeyError) as e:  # 导入失败让任务失败，不能吞掉后报完成（#116 第三轮）
+                    print(f"一键全收集：第 {i} 步（{label}）没能入库：{e}", flush=True)
+                    return r.returncode or 1
                 print(
                     f"一键全收集：{label}已入库 {res.get('count')} 条" + ("（没做完的部分）" if r.returncode else ""),
                     flush=True,
                 )
-            except (OSError, ValueError, KeyError) as e:
-                print(f"一键全收集：{label}的结果没能入库：{e}", flush=True)
         if r.returncode != 0:
             print(f"一键全收集：第 {i} 步（{label}）出错停下（退出码 {r.returncode}），前面几步已经入库", flush=True)
             return r.returncode or 1

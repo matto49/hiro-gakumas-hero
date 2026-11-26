@@ -351,6 +351,8 @@ class Picker:
                 img = self.shoot()
                 boxes = self._detail_ocr(img)
                 continue
+            # 点翻页箭头前对同一帧核对选择页还开着（整屏 OCR）：选择页关了时编成页上的字可能被读成页码，不能在编成页上点（#116 第三轮）
+            self.ensure_open(img=img)
             self.click(*(PAGE_NEXT if cur < page else PAGE_PREV))
             _, img = self._wait_change(img, DETAIL_ROI)
             boxes = self._detail_ocr(img)
