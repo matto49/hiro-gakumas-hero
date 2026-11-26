@@ -12,6 +12,7 @@
 识别还没提供的页面字段（相談货架、授業 / 外出选项、轮间可买项）缺失时，决策器给出保守动作并写 warnings，不臆测。
 """
 
+import copy
 import json
 import logging
 import math
@@ -184,6 +185,8 @@ class ProduceDeciders:
         # 2026-11-25 插件架构：strategy.json 给这一页配了育成插件时先问它；它不管 / 不合格就走下面的内置逻辑
         from hiro.brain import plugin_gate
 
+        if page in MIXED_PAGES and (mixed := self._mixed_page(page, state, fn, n_options, kw, t0)) is not None:
+            return mixed
         pd, plugin_why = plugin_gate.produce_decide(
             page, state, n_options, kw, context=lambda: self._plugin_context(state), invalid=_invalid_decision
         )
@@ -204,6 +207,64 @@ class ProduceDeciders:
         d.seconds = round(time.monotonic() - t0, 3)
         self._prewarm(state)
         return d
+
+    def _mixed_page(self, page: str, state: GameState, fn, n_options: int | None, kw: dict, t0: float) -> Decision | None:
+        """相談 / 轮间交给声明了 card_scope_pages 的插件时（GKMS 插件 spec 4.5）：内置决策器先看去掉卡的页面（饮料、回体力照它做）；
+        它要结束时问插件这一页的卡怎么办，预算 = P 点 − 预留。这一页没交给这种插件时返回 None，走原来的流程。"""
+        from hiro import plugins, strategy
+        from hiro.brain import plugin_gate
+
+        pid = strategy.current().produce_for(page)
+        plugin = plugins.get_by_id("produce_advisor", pid) if pid else None
+        if plugin is None or page not in (getattr(plugin, "card_scope_pages", None) or ()):
+            return None
+        view = replace(state, page_fields=_hide_cards(page, state.page_fields))
+        try:
+            d = fn(view, **kw)
+            why = _invalid_decision(page, d, n_options, kw)
+        except Exception as e:  # noqa: BLE001
+            logger.exception("决策器 %s 异常", page)
+            d, why = None, f"决策器异常 {type(e).__name__}: {e}"
+        if why is not None:
+            d = self._page_fallback(page, view, n_options, why, prior=d, **kw)
+        if d.action.kind not in (ActionKind.SHOP_END, ActionKind.INTERVAL_END):
+            d.reason += f"（这一页的卡交给插件 {pid}）"
+            d.seconds = round(time.monotonic() - t0, 3)
+            return d
+        p = (state.page_fields or {}).get("produce_point")
+        if p is None:
+            p = (state.produce or {}).get("produce_point")
+        reserve, reserve_why = self._card_reserve(page, state)
+        budget = max(0, int(p or 0) - reserve)
+        pd, plugin_why = plugin_gate.produce_decide(page, state, n_options, kw, context=lambda: self._plugin_context(state),
+                                                    invalid=_invalid_decision, card_budget=budget)  # fmt: skip
+        if pd is not None:
+            if reserve:
+                pd.reason += f"（预算 {budget}P：{reserve_why}）"
+            pd.seconds = round(time.monotonic() - t0, 3)
+            return pd
+        if plugin_why is not None:
+            d.warnings.append(plugin_why)
+        d.seconds = round(time.monotonic() - t0, 3)
+        return d
+
+    def _card_reserve(self, page: str, state: GameState) -> tuple[int, str]:
+        """混合页里卡能花的钱之外要留的 P 点：H.I.F 選抜的相談留特別指導的钱，H.I.F 本戦的相談给轮间留 INTERVAL_DRINK_RESERVE，其余不留。"""
+        from hiro.state.produce import FINALS
+
+        mode = (state.produce or {}).get("mode")
+        if page != "CONSULT":
+            return 0, ""
+        if mode == FINALS:
+            return INTERVAL_DRINK_RESERVE, f"本戦相談给轮间留 {INTERVAL_DRINK_RESERVE}P"
+        if mode == "produce-007":
+            ps = self.produce_state(state)
+            if ps is not None:
+                try:
+                    return self._guidance_reserve(ps, bool(ps.deck))
+                except Exception:  # noqa: BLE001  算不出预留就不留
+                    logger.exception("特別指導预留算不出")
+        return 0, ""
 
     def _plugin_context(self, state: GameState) -> dict:
         """育成插件 begin 拿到的本局上下文（spec 4.5）。"""
@@ -4220,6 +4281,23 @@ def _budget_text(budget: dict) -> str:
         else f"每页最多 1 次，预留 {budget.get('reserve')} 次给第 5 天确定强化 / 本战（次数随回忆带进本战 [wiki]）"
     )
     return f"{one('reroll', '刷新')}，{one('exclude', '禁用')}；{note}"
+
+
+MIXED_PAGES = ("CONSULT", "HIF_ROUND_INTERVAL")  # 卡可以交给插件、饮料 / 回体力仍由内置决定的页面（GKMS 插件 spec 4.5）
+
+
+def _hide_cards(page: str, pf: dict | None) -> dict:
+    """混合页去掉卡的那份页面字段：相談去掉货架上的卡和删卡 / 强化服务，轮间去掉卡格、换卡格和强化。"""
+    pf = copy.deepcopy(dict(pf or {}))
+    if page == "CONSULT":
+        pf["shelf"] = [it for it in pf.get("shelf") or [] if it.get("kind") != "card"]
+        pf["services"] = {k: v for k, v in (pf.get("services") or {}).items() if k not in ("delete", "upgrade")}
+    elif page == "HIF_ROUND_INTERVAL" and isinstance(pf.get("interval"), dict):
+        iv = dict(pf["interval"])
+        iv["cards"], iv["changes"] = [], []
+        iv.pop("upgrade", None)
+        pf["interval"] = iv
+    return pf
 
 
 def _invalid_decision(page: str, d: Decision, n: int | None, kw: dict) -> str | None:

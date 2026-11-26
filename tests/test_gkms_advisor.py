@@ -12,26 +12,9 @@ from hiro.contracts import ActionKind, GameState
 from hiro.gkms.advisor import GkmsProduceAdvisor
 from hiro.gkms.client import GkmsError
 
+from gkms_fakes import FakeClient, values  # noqa: E402
+
 RAW = json.loads((Path(__file__).parent / "data" / "gkms-hajime-pro-w11.json").read_text())
-HELLO = {"format": "gkms.pickv.v1", "algo": 2, "tau": 0.05, "reroll_gain": 0.1}
-
-
-class FakeClient:
-    def __init__(self, **replies):
-        self.replies = {"hello": HELLO, **replies}
-        self.calls = []
-
-    def call(self, op, *, timeout=None, **args):
-        self.calls.append((op, args))
-        r = self.replies.get(op)
-        if isinstance(r, Exception):
-            raise r
-        return r(args) if callable(r) else copy.deepcopy(r)
-
-    def close(self):
-        pass
-
-
 def make(page, mode="produce-002", page_fields=None, deck=None, **produce):
     d = copy.deepcopy(RAW)
     d["page"]["name"] = page
@@ -84,10 +67,6 @@ def test_action_select_plan_not_on_screen_defers():
 
 
 CANDS = [{"index": 0, "card_id": "p_card-a"}, {"index": 1, "card_id": "p_card-b"}, {"index": 2, "card_id": "p_card-c"}]
-
-
-def values(take, reroll_gain=None, held=None, up=None, state="ok"):
-    return {"state": state, "take": take, "held": held or {}, "up": up or {}, "reroll_gain": reroll_gain}
 
 
 def test_select_card_takes_highest_v():

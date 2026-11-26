@@ -111,8 +111,11 @@ def produce_decide(
     *,
     context: Callable[[], dict[str, Any]],
     invalid: Callable[[str, Decision, int | None, dict], str | None],
+    card_budget: int | None = None,
 ) -> tuple[Decision | None, str | None]:
-    """这一页配了插件时让插件先定。返回 (插件的决定, None) 或 (None, 交回内置的原因；插件只是不管时为 None)。"""
+    """这一页配了插件时让插件先定。返回 (插件的决定, None) 或 (None, 交回内置的原因；插件只是不管时为 None)。
+    card_budget 不为 None：混合页（相談 / 轮间，GKMS 插件 spec 4.5）里内置决策器要结束了，问插件 card_decide 这一页的卡怎么办，
+    预算是这么多 P 点；插件要在 card_scope_pages 里声明这一页。"""
     from hiro import plugins, strategy
     from hiro.plugin_record import RECORD
 
@@ -124,8 +127,10 @@ def produce_decide(
     if plugin is None:
         _warn_once(f"missing:{pid}", f"strategy.json 配了育成插件 {pid!r}，但它没装或不能用，相关页面用内置决策器")
         return None, None
-    if page not in (getattr(plugin, "pages", None) or ()):
-        _warn_once(f"pages:{pid}:{page}", f"育成插件 {pid!r} 没声明接 {page}，这一页用内置决策器")
+    scope = "card_scope_pages" if card_budget is not None else "pages"
+    if page not in (getattr(plugin, scope, None) or ()):
+        if card_budget is None:
+            _warn_once(f"pages:{pid}:{page}", f"育成插件 {pid!r} 没声明接 {page}，这一页用内置决策器")
         return None, None
     lab = plugins.label(plugin)
     if pid not in _begun:
@@ -141,8 +146,12 @@ def produce_decide(
 
     view = copy.deepcopy(state)  # 插件拿副本：超时后它的线程还在跑，也碰不到主循环的状态
     try:
+        if card_budget is not None:
+            fn = lambda: plugin.card_decide(page, view, budget=card_budget, kw=copy.deepcopy(dict(kw)))  # noqa: E731
+        else:
+            fn = lambda: plugin.decide(page, view, n_options=n_options, kw=copy.deepcopy(dict(kw)))  # noqa: E731
         d = call_with_timeout(
-            lambda: plugin.decide(page, view, n_options=n_options, kw=copy.deepcopy(dict(kw))),
+            fn,
             st.current().timeout_for(pid),
             key=f"produce:{pid}",
         )
