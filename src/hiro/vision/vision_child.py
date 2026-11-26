@@ -128,6 +128,8 @@ def serve() -> None:
         data = stdin.read(req["n"])
         img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
         try:
+            if img is None:
+                raise ValueError("收到的图解不开")
             out, err = _vision_request(img, req["w"], req["h"], req["languages"])
         except Exception as e:  # noqa: BLE001  报给父进程，由它决定重启
             out, err = [], f"{type(e).__name__}: {e}"
