@@ -369,3 +369,14 @@ def test_section_missing_with_text_keeps_old_message():
     picker.ocr = lambda img: [("何か", 1.0, (100, 300, 200, 320))]
     with pytest.raises(mf.MemoryFilterError, match="没找到「プラン」那一组"):
         mf._section(picker, "プラン", ("センス",), "スキルカードタイプ")
+
+
+def test_open_on_blank_screen_says_cannot_see_game():
+    """#189 review：打开排序弹窗时每一帧都读不到字，同样报读不到游戏画面；有字但弹窗没出来照旧。"""
+    picker = FakePicker()
+    picker.ocr = lambda img: []
+    with pytest.raises(mf.MemoryFilterError, match="读不到游戏画面"):
+        mf._open(picker)
+    picker.ocr = lambda img: [("何か", 1.0, (100, 300, 200, 320))]
+    with pytest.raises(mf.MemoryFilterError, match="弹窗没出来"):
+        mf._open(picker)

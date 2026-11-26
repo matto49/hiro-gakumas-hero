@@ -88,15 +88,21 @@ def _popup_open(boxes) -> bool:
 
 
 def _open(p) -> None:
+    seen_text = False
     for _ in range(OPEN_TRIES):
         boxes = _boxes(p)
+        seen_text |= bool(boxes)
         if _popup_open(boxes):
             return
         pill = next((b for t, b in boxes if 1030 <= _center(b)[1] <= 1075 and _sort_of(t)), None)
         p.click(*(_center(pill) if pill else PILL))
         p.sleep(1.5)
-        if _popup_open(_boxes(p)):
+        after = _boxes(p)
+        seen_text |= bool(after)
+        if _popup_open(after):
             return
+    if not seen_text:  # N60：每一帧都读不到字（锁屏 / 窗口被挡），别报成弹窗没出来（#189 review）
+        raise MemoryFilterError(BLANK_SCREEN)
     raise MemoryFilterError("点了排序按钮，「ソート・フィルタ」弹窗没出来")
 
 
