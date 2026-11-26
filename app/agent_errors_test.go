@@ -54,10 +54,12 @@ func TestModelOfflineIsPlain(t *testing.T) {
 	if len(ue.Actions) != 1 || ue.Actions[0] != plugin.ActionRetry {
 		t.Fatalf("按钮 %v", ue.Actions)
 	}
+	// 玩家取消（关窗口 / 退出）不算网络问题：保留原始的取消错误，不包成「连不上模型服务」（#129 review）
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := (OpenAICompat{BaseURL: url, Model: "m", Key: "k", Client: http.DefaultClient}).Chat(ctx, nil, nil); errors.As(err, &ue) && ue.Message != "" && errors.Is(err, context.Canceled) == false {
-		// 取消不算网络问题：返回原始错误
+	_, err = OpenAICompat{BaseURL: url, Model: "m", Key: "k", Client: http.DefaultClient}.Chat(ctx, nil, nil)
+	var ce *plugin.UserError
+	if !errors.Is(err, context.Canceled) || errors.As(err, &ce) {
 		t.Fatalf("取消时 %#v", err)
 	}
 }
