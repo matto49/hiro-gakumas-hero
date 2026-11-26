@@ -576,7 +576,14 @@ func (o OpenAICompat) Chat(ctx context.Context, messages []chatMessage, tools []
 		return chatMessage{}, modelError("连不上模型服务：网络不通，或者服务商暂时打不开", "检查一下网络，好了以后点「再试一次」", err)
 	}
 	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	raw, rerr := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if rerr != nil {
+		o.record(ctx, nil, false)
+		if ctx.Err() != nil {
+			return chatMessage{}, rerr // 读到一半玩家取消了：保留取消错误，不说「回答看不懂」（#129 review）
+		}
+		return chatMessage{}, modelError("连不上模型服务：回答收到一半断了", "检查一下网络，好了以后点「再试一次」", rerr)
+	}
 	var out struct {
 		Choices []struct {
 			Message chatMessage `json:"message"`

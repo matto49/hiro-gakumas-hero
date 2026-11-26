@@ -63,3 +63,23 @@ func TestModelOfflineIsPlain(t *testing.T) {
 		t.Fatalf("取消时 %#v", err)
 	}
 }
+
+// 响应头到了、正文读到一半玩家取消：调用方要能认出 context.Canceled（#129 review）。
+func TestModelCancelWhileReadingBody(t *testing.T) {
+	headers := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		_, _ = io.WriteString(w, `{"choices":[`)
+		w.(http.Flusher).Flush()
+		close(headers)
+		<-r.Context().Done() // 正文一直不发完，直到请求被取消
+	}))
+	defer srv.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { <-headers; cancel() }()
+	_, err := OpenAICompat{BaseURL: srv.URL, Model: "m", Key: "k", Client: http.DefaultClient}.Chat(ctx, nil, nil)
+	var ue *plugin.UserError
+	if !errors.Is(err, context.Canceled) || errors.As(err, &ue) {
+		t.Fatalf("读正文时取消 %#v", err)
+	}
+}
