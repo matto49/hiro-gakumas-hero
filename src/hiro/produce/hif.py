@@ -43,9 +43,12 @@ EXAM_END_LOOP_TIMEOUT = 90.0  # 考试结束后点「次へ」/ 结果页的总�
 
 
 def _drink_skip_done(boxes) -> bool:
-    """勾「受け取らない」、点了底部按钮之后：「所持上限」红标没了，或出了「報酬スキップ」确认框，就算点成了。"""
-    texts = [t.text for t in boxes]
-    return any("スキップ" in t for t in texts) or not any("所持上限" in t for t in texts)
+    """勾「受け取らない」、点了底部按钮之后：出了「報酬スキップ」确认框，或画面上读得到字、「所持上限」红标没了，就算点成了。
+    一个字都没读到（转场 / OCR 失败）不算证据，按没点成接着重试（#183 review）。"""
+    texts = [t.text for t in boxes if t.text.strip()]
+    if any("スキップ" in t for t in texts):
+        return True
+    return bool(texts) and not any("所持上限" in t for t in texts)
 
 
 def drink_full_auto() -> bool:

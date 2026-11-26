@@ -139,6 +139,16 @@ def test_skip_not_confirmed_stops_instead_of_recording_ok(monkeypatch, shown):
     assert not getattr(st, "_skip_incoming_drink", False)
 
 
+def test_skip_done_needs_evidence():
+    """#183 review：空读数不算点成了；出了「報酬スキップ」或读到别的页面（没有「所持上限」）才算。"""
+    t = lambda s: Text(s, Box(0, 0, 10, 10))  # noqa: E731
+    assert hif._drink_skip_done([]) is False
+    assert hif._drink_skip_done([t(" ")]) is False
+    assert hif._drink_skip_done([t("Pドリンク所持上限")]) is False
+    assert hif._drink_skip_done([t("Pドリンク所持上限"), t("報酬スキップ")]) is True
+    assert hif._drink_skip_done([t("レッスン")]) is True
+
+
 def test_switch_on_by_default(monkeypatch):
     """用户 11-26 21:4x 定：HIRO_DRINK_FULL_AUTO 缺省开，不设也照 LLM 换饮料；=0 才关。"""
     monkeypatch.delenv("HIRO_DRINK_FULL_AUTO", raising=False)
