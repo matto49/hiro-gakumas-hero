@@ -133,4 +133,6 @@ def test_real_frames_perfect_end_is_seen(monkeypatch):
                         ("00581-173501-tap-114-1009.jpg", True), ("00586-173505-tap-360-330.jpg", False),
                         ("00597-173803-SELECT_CARD.jpg", False), ("00600-173816-ACQUIRE.jpg", False),
                         ("00140-172555-ACTION_SELECT.jpg", False), ("00338-172908-ACTION_SELECT.jpg", False)]:  # fmt: skip
-        assert hv.lesson_turns_shown(cv2.imread(os.path.join(d, name))) is shown, name
+        img = cv2.imread(os.path.join(d, name))
+        assert img is not None, name  # 帧缺了要报出来，不能当成「读不出回合」蒙混过去
+        assert hv.lesson_turns_shown(img) is shown, name
