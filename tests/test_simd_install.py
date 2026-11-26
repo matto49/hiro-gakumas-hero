@@ -510,6 +510,7 @@ def test_simd_ocr_starts_helper_with_dotnet_root_for_the_local_runtime(tmp_path,
     class FakeProc:
         stdin = None
         stdout = iter([json.dumps({"ready": True}) + "\n"])
+        stderr = iter(["[metal] device: Apple M4\n"])
 
         def poll(self):
             return 0
