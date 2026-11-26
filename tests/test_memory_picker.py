@@ -576,6 +576,22 @@ def test_scan_logs_progress_every_few_pages(tmp_path, monkeypatch, caplog):
     assert any("回忆扫描：第 1 页" in r.getMessage() for r in caplog.records)
 
 
+@pytest.mark.fixtures
+def test_scan_progress_says_elapsed_and_first_scan_note(tmp_path, monkeypatch, caplog):
+    """G3（11-26 Windows 小白验收）：回忆多的账号第一次扫描 27 分钟才 86 页，界面只有「第 N 页、已读 M 格」，小白以为卡死。
+    回忆列表不显示总数：进度写上已用几分钟，第一次全量扫描再说一句要多久、会自己停。"""
+    monkeypatch.setattr(mp, "PROGRESS_EVERY", 1)
+    monkeypatch.setattr(mp, "picker_open", lambda boxes: True)
+    caplog.set_level("INFO", logger=mp.logger.name)
+    p = ListPicker(ScrollList())
+    t = iter(range(0, 10**8, 120))  # 每看一次钟过 2 分钟
+    p.clock = lambda: next(t)
+    mp.scan(p, tmp_path / "inv.json")
+    msgs = [r.getMessage() for r in caplog.records if r.getMessage().startswith("回忆扫描：第")]
+    assert msgs and "已用" in msgs[-1] and "分钟" in msgs[-1], msgs
+    assert "回忆多的账号要半小时以上" in msgs[-1], msgs
+
+
 def _pale_row_grid(dip_rows: tuple[int, ...]) -> "np.ndarray":
     """合成回忆格区：3 行（y 586–704 / 723–842 / 861–979，行距同实机），行内饱和度 55；dip_rows 里的 y 行饱和度压到 30
     （浅色卡面：白衣服 / 浅色照片的一条横线，账号 3 11-25 实机里一行被切成好几段）。"""
