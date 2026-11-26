@@ -108,3 +108,28 @@ class Hook:
 - 每一步：trace 里 `decision.plugin` 是「插件 id@版本」；初星助手对局卡上的来源标签显示「插件 id」。
 - 每一段：trace 目录的 `plugins.json`（对应表、每个决策点定了几步 / 交回几步 / 出错几步、加载警告、`uses_hidden`）；`python -m hiro.loop.report <trace>` 的报告里有插件一节。
 - 自检：`hiro doctor` 在配了 `strategy.json` 时核对里面的插件都能用。
+
+## 5. 随包插件：GKMS 育成插件（gkms）
+
+仓库自带一个育成插件 `gkms`（`src/hiro/gkms/`，设计稿 `docs/ryugi/specs/2026-11-26-gkms-produce-plugin-design.md`）。它调用本机装的 [GKMS](https://github.com/yuzeis/GKMSProject)：初的选行动用 GKMS 的路线规划（`hajime_route`），选卡类页面用 GKMS 的选卡包 pickv（每张偶像卡 H.I.F 排行榜前 100 条记录里的卡牌频次 V）。GKMS 的代码不在本仓库里，插件只在 GKMS 自己的 Python 子进程里调用它。
+
+**装了 GKMS 就默认启用**，没装照旧用内置逻辑：
+
+| 页面 | GKMS 插件怎么定 |
+|---|---|
+| `ACTION_SELECT` | 初（四个难度）：GKMS 路线规划从本周排到最后一周，选计划里本周那一项。H.I.F、N.I.A 这一版不管 |
+| `SELECT_CARD` | V 最高的那张；刷新收益超过 pickv 的阈值且还有刷新次数时刷新 |
+| `SKILL_CARD_CHANGE_1` / `_2` | 换入 V 最高的；换出 V 最低的（跳过トラブル、定制过的卡） |
+| `SKILL_CARD_REMOVAL` | 先删トラブル，再删 V 最低的；没有能删的就取消 |
+| `SKILL_CARD_ENHANCE` | 没强化过的卡里「V × 强化率」最高的 |
+| `CONSULT` / `HIF_ROUND_INTERVAL` | 内置先看去掉卡的页面（饮料、回体力照它做）；它要离开时插件按 V 买 / 删 / 强化卡。H.I.F 選抜留出特別指導的钱，本戦的相談给轮间留 200P |
+
+初、N.I.A 没有自己的选卡包，用同一张偶像卡的 H.I.F 包近似，理由里会写「pickv（H.I.F 的包）」。
+
+- **什么算装了**：能找到 GKMS 目录（`HIRO_GKMS_HOME` → Windows `%LOCALAPPDATA%\Programs\GKMS` → `~/github/_ext/GKMSProject`），里面有 `GakumasCLI/produce/{hajime_route,nia_route,pickv}.py` 和主数据目录。Python 用 GKMS 自带的（安装版 `python/`、克隆的 `.venv`），没有就用 hiro 自己的；`HIRO_GKMS_PYTHON` 可以指定。`hiro plugins list` 会写清能不能用、为什么。
+- **选卡包**：从 GKMS 网站公开接口下载（默认 `http://m5.ctymc.cn:23331`，设 `GKMS_HUB_URL` 可换），缓存在 GKMS 目录里；第一次用到某张偶像卡最多等 10 秒，下不到这一步就交回内置。
+- **日程列表**：GKMS 接管选行动时，初 / N.I.A 第一次到选行动页会自动点开日程列表读整局日程（`HIRO_SCHEDULE_PROBE=0` 关掉；关掉后选行动拿不到日程，这一步交回内置）。
+- **关掉**：某页在 `strategy.json` 写 `"builtin"`（例如 `"produce": {"ACTION_SELECT": "builtin"}`）只关这一页；`HIRO_GKMS=0` 整个关。
+- **记录**：每步的理由写明用的是「GKMS 路线」还是「pickv」；trace 目录的 `gkms.jsonl` 记每步的输入摘要、GKMS 的输出和不管的原因；`plugins.json` 的 `mapping.defaults` 列出默认接管的决策点。
+- **离线对比**：`PYTHONPATH=src python tools/gkms_compare.py <trace 目录…> [--idol-default <偶像卡>]`，在记录过的局面上问 GKMS 插件、和当时的选择比，报告写到 `reports/gkms-compare/`。
+- **测试**：`tests/conftest.py` 默认设 `HIRO_GKMS=0`，免得本机装没装 GKMS 影响其余测试；`tests/test_gkms_*.py` 里要真 GKMS 的用例在没装时跳过（`HIRO_GKMS_HOME` 指过去就跑）。
