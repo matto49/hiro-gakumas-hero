@@ -295,7 +295,8 @@ def _classify_page(img: MatLike) -> tuple[str, dict] | None:
         return "HIF_FINALS_START", read_finals_start(boxes, img)  # 本战开始确认：当前选中的选拔回忆
     if _has(boxes, "現在順位", (100, 300)):
         return "HIF_FINALS_RANKING", read_finals_ranking_page(img, boxes)  # 本战开考前 / 各轮之后的名次页（识别-05）
-    if _has(boxes, "スター性獲得", (280, 520)):
+    # Vision 会把大标题拆成两框、前半读歪（「不冬」「-性獲得」，A16 11-26 star_gain-00178）：后半「性獲得」在标题带里也算
+    if _has(boxes, "スター性獲得", (280, 520)) or _has(boxes, "性獲得", (280, 520)):
         return "STAR_GAIN", read_star_gain(img)
     if (_has(boxes, "突破ライン") and _has(boxes, "合格条件")) or _has(boxes, "優勝条件"):
         return "HIF_EXAM_BRIEFING", read_exam_briefing(img, boxes)
@@ -394,7 +395,9 @@ def _transition_kind(boxes) -> str | None:
         return "exam_title"
     # 考场入场的「選抜試験1」大字：RapidOCR 常读不出艺术字数字，只剩「選抜試験」（大字高度和位置已经够区分）
     if any(
-        re.fullmatch(r"選抜試験\d?", t) and b[3] - b[1] >= 40 and 560 <= (b[1] + b[3]) // 2 <= 720 for t, b in boxes
+        # Vision 把艺术字后面的装饰读成「/」（「選抜試験1/」，A16 11-26）
+        re.fullmatch(r"選抜試験\d?[/／|｜]?", t) and b[3] - b[1] >= 40 and 560 <= (b[1] + b[3]) // 2 <= 720
+        for t, b in boxes
     ):
         return "exam_title"
     if any(t in ("突破", "敗退") and b[3] - b[1] >= 60 and 820 <= (b[1] + b[3]) // 2 <= 1000 for t, b in boxes):

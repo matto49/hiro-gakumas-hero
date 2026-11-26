@@ -344,7 +344,14 @@ def _layers_fields(img: np.ndarray, boxes) -> dict:
 
 
 PT_RE = r"(\d{1,3}(?:,\d{3})+|\d+)[Pp][tTlI1]?"  # 「105,438Pt」「54,009pt」；高亮那行（自己）的 Pt 常读成「P1」（Mac 不合格页 11-14）
-RANK_RE = r"([1-6IlS])(st|nd|rd|th)"  # 名次标签：「1st」常读成「Ist」、「5th」读成「Sth」
+RANK_RE = (
+    r"([1-6IlS])(st|nd|rd|th)[lI1|]?"  # 名次标签：「1st」常读成「Ist」、「5th」读成「Sth」、「2nd」后面多读一个「l」
+)
+_SUFFIX_RANK = {"st": 1, "nd": 2, "rd": 3}  # 后缀能定名次：Vision 把「3rd」读成「Srd」（A16 11-26），S 不能一律当 5
+
+
+def _rank_label(m) -> int:
+    return _SUFFIX_RANK.get(m.group(2)) or {"I": 1, "l": 1, "S": 5}.get(m.group(1)) or int(m.group(1))
 
 
 def _ranking_fields(boxes) -> dict:
@@ -357,8 +364,9 @@ def _ranking_fields(boxes) -> dict:
         ((b[1], int(m.group(1).replace(",", ""))) for t, b in boxes if (m := re.fullmatch(PT_RE, t))),
         key=lambda x: x[0],
     )
-    labels = [(_center(b)[1], {"I": 1, "l": 1, "S": 5}.get(m.group(1)) or int(m.group(1))) for t, b in boxes
-              if _center(b)[0] < 150 and (m := re.fullmatch(RANK_RE, t))]  # fmt: skip
+    labels = [
+        (_center(b)[1], _rank_label(m)) for t, b in boxes if _center(b)[0] < 150 and (m := re.fullmatch(RANK_RE, t))
+    ]
     names = sorted(((b[1], t) for t, b in boxes if 200 <= _center(b)[0] <= 400 and not re.fullmatch(PT_RE, t) and not re.search(r"\d", t)
                     and _center(b)[1] > 300), key=lambda x: x[0])  # fmt: skip
     rows = []
@@ -382,7 +390,10 @@ def tower_dialog(dialog: dict, boxes) -> tuple[str, dict] | None:
         import re
 
         # 星按名次给：1 位 ★★★、2 位以上 ★★、3 位以上 ★（8a3a1e7 11-14）；条件原文交 8a3a1e7 按表查（26 / 27 层★3 另有通关时条件）
-        conds = sorted(((b[1], t.lstrip("・•").strip()) for t, b in boxes if "クリア" in t), key=lambda x: x[0])
+        # 条件前面的星图标会读成杂字（Vision：「★（・3位以上でクリア」，A16 11-26）：去掉开头的星、括号、点
+        conds = sorted(
+            ((b[1], re.sub(r"^[・•★☆（(\s]+", "", t).strip()) for t, b in boxes if "クリア" in t), key=lambda x: x[0]
+        )
         rows = [{"star": 4 - int(m.group(1)) if (m := re.search(r"(\d)位", t)) else None, "text": t} for _, t in conds]
         return "TOWER_LAYER_INFO", {"conditions": rows,
                                      "close": _center(c) if (c := _find(boxes, "閉じる", (1080, 1260))) else None}  # fmt: skip

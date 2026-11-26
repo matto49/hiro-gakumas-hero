@@ -336,6 +336,21 @@ def _icon_attr(img, y: int) -> str | None:
     return a if cnt[a] >= 40 else None
 
 
+SALES_TEXT_X = (112, 660)  # 话题按钮里文字的横向范围：左边 x≈75–105 是属性图标
+
+
+def _option_text(img, y: int, text: str) -> str:
+    """话题按钮的文字：整屏 OCR 会把左边的属性图标读成一个字粘在前面（Vision：「日学生時代の話」「& 学生時代の話」
+    「gアドバイスをもらう」，A16 11-26）。只裁图标右边的文字区再读一次，读到了就用它；读不到保留原来的。"""
+    if img is None:
+        return text
+    from hiro.vision.ocr import ocr
+
+    crop = img[max(0, y - 24) : y + 24, SALES_TEXT_X[0] : SALES_TEXT_X[1]]
+    again = "".join(t for t, _ in ocr(crop, scale=2)).replace(" ", "")
+    return again if len(again) >= 3 else text
+
+
 def read_sales_event(texts, img=None) -> dict | None:
     tx = _t(texts)
     if not any(s == "営業" and x < 180 and y < 140 for s, x, y in tx):
@@ -348,7 +363,8 @@ def read_sales_event(texts, img=None) -> dict | None:
     if len(opts) < 2:
         return None
     choices = [
-        {"index": i, "text": s, "attr": _icon_attr(img, y), "center": [360, y]} for i, (y, s, x) in enumerate(opts)
+        {"index": i, "text": _option_text(img, y, s), "attr": _icon_attr(img, y), "center": [360, y]}
+        for i, (y, s, x) in enumerate(opts)
     ]
     for c in choices:
         if c["attr"] is None:  # 图标认不出时按文字（「ボーカル / ダンス / ビジュアル」）
@@ -388,7 +404,8 @@ def _audition_stage(tx) -> str | None:
 def read_audition_select(texts, img=None) -> dict | None:
     tx = _t(texts)
     prompt = any("オーディションを選択" in s for s, _, _ in tx)
-    start = next(((x, y) for s, x, y in tx if "オーディション開始" in s), None)
+    # Vision 会把前半读歪（「オテデイション開始」「オーディシヨン開始」，A16 11-26 nia-audition-select-*-chosen）：认后半，小ョ也可能读成ヨ
+    start = next(((x, y) for s, x, y in tx if re.search(r"シ[ョヨ]ン開始", s)), None)
     if not (prompt or start):
         return None
     labels = []

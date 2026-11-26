@@ -254,7 +254,8 @@ def test_fields_reach_real_decider_through_session(tmp_path):
         now[0] += 3.0
         if p.on_sales_place(rt, None, NS(fields=fields)) is DONE:
             break
-    assert taps and taps[0][1] in (740, 878, 1016)
+    # 点的是 OCR 框中心：不同 OCR 引擎的框会差一两个像素（Vision 1017 / RapidOCR 1016），按 ±4 像素比
+    assert taps and any(abs(taps[0][1] - y) <= 4 for y in (740, 878, 1016))
 
 
 @pytest.mark.parametrize(("name", "kinds", "costs"), [
@@ -323,7 +324,8 @@ def test_final_result_is_show_page(tmp_path):
     assert hit.name == "NIA_AUDITION_RESULT" and hit.fields["stage"] == "final"
     core, _ = _core(0)
     rt, _, taps = _rt()
-    assert NiaPages(core).on_audition_result(rt, None, hit) is DONE and taps == [(361, 1147)]
+    assert NiaPages(core).on_audition_result(rt, None, hit) is DONE and len(taps) == 1
+    assert abs(taps[0][0] - 361) <= 4 and abs(taps[0][1] - 1147) <= 4  # OCR 框中心，引擎之间差一两个像素
 
 
 def test_exam_stage_survives_resume(tmp_path):

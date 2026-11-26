@@ -102,11 +102,14 @@ def dialog_cancelable(img: MatLike) -> bool | None:
     只有居中的「強化 / 削除」（x≈350，P 道具等触发的必选强化 / 删除，第三十三局本战 #70 #81）→ False；两样都没读到 → None。"""
     from hiro.vision.ocr import ocr
 
-    texts = [t.replace(" ", "") for t, _ in ocr(img[CARD_DIALOG_BUTTON_ROW[0] : CARD_DIALOG_BUTTON_ROW[1]], scale=2)]
-    if any("キャンセル" in t for t in texts):
-        return True
-    if any("強化" in t or "削除" in t for t in texts):
-        return False
+    row = img[CARD_DIALOG_BUTTON_ROW[0] : CARD_DIALOG_BUTTON_ROW[1]]
+    # macOS 27.2.1 的 Vision 放大 2 倍时把居中的「強化」读成「→點」（A16 11-26，forced-main33-00070），原尺寸读得对：两档都试
+    for scale in (2, 1):
+        texts = [t.replace(" ", "") for t, _ in ocr(row, scale=scale)]
+        if any("キャンセル" in t for t in texts):
+            return True
+        if any("強化" in t or "削除" in t for t in texts):
+            return False
     return None
 
 
