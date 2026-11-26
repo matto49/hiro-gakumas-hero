@@ -313,6 +313,8 @@ func TestProgressHidesPaths(t *testing.T) {
 		"406 份回忆 → C:\\Users\\Jane Doe\\hiro\\out.json（complete=True）":                       "406 份回忆",
 		"初星課題：总 36/60，这次做了 3 个":                                                              "初星課題：总 36/60，这次做了 3 个",
 		"截图存好了 /tmp/hiro/x.png":                                                              "截图存好了",
+		"截图存好了 C:\\Users\\Jane Doe\\hiro\\x.png":                                             "截图存好了",
+		"74 张偶像卡 → C:\\Program Files (x86)\\hiro\\out.json（complete=True）":                   "74 张偶像卡",
 	} {
 		if got := tidyProgress(in); got != want {
 			t.Errorf("%q → %q，要 %q", in, got, want)
