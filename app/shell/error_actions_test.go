@@ -82,3 +82,30 @@ func TestErrorCardActionsSurviveSave(t *testing.T) {
 		t.Fatalf("存盘读回 %v", got)
 	}
 }
+
+// #121 review：对话助手 panic 时 Send 设的 busy 要清掉、给出能重试的错误卡，之后还能接着发消息。
+func TestAskPanicClearsBusy(t *testing.T) {
+	calls := 0
+	ask := func(ctx context.Context, h []Turn, text, extra string, onTool func(string, string)) (Reply, error) {
+		calls++
+		if calls == 1 {
+			panic("boom")
+		}
+		return Reply{Text: "好的"}, nil
+	}
+	a, run := newTestApp(newMem(), &fakeCall{}, ask, nil)
+	a.Send("帮我领日常奖励")
+	run.Drain()
+	if a.busy {
+		t.Fatal("panic 后 busy 没清")
+	}
+	card := lastCards(a)[0]
+	if card["type"] != "error" || cardStrings(card["actions"])[0] != plugin.ActionRetry {
+		t.Fatalf("错误卡 %+v", card)
+	}
+	a.Send("再来一次")
+	run.Drain()
+	if calls != 2 {
+		t.Fatalf("panic 之后发不出去了：%d", calls)
+	}
+}

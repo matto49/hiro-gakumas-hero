@@ -462,4 +462,3 @@ func summaryText(ctx context.Context, h plugin.Host) string {
 	}
 	return out
 }
-

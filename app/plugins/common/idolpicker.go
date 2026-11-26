@@ -21,10 +21,11 @@ type IdolItem struct {
 
 // IdolPicker 是「选一张偶像卡」：读 info idols（扫描到的），筛选、点选。开局页和编成方案页共用。
 type IdolPicker struct {
-	Query  string
-	Items  []IdolItem
-	Chosen IdolItem // Name 是点选时显示的名字（资料库的中文名）
-	loaded bool
+	Query   string
+	Items   []IdolItem
+	Chosen  IdolItem // Name 是点选时显示的名字（资料库的中文名）
+	loaded  bool
+	loadErr string // 读取偶像卡失败的原因（和「还没扫描过」分开，#121 review）
 }
 
 // Reload 让下次画时重读列表（扫完偶像卡之后）。
@@ -39,8 +40,17 @@ func (p *IdolPicker) load(h plugin.Host) {
 		var d struct {
 			Items []IdolItem `json:"items"`
 		}
-		_ = h.Call(context.Background(), []string{"info", "idols"}).Decode(&d)
-		return func() { p.Items = d.Items }
+		r := h.Call(context.Background(), []string{"info", "idols"})
+		why := ""
+		if !r.OK {
+			why = "读取失败"
+			if r.Error != nil && r.Error.Message != "" {
+				why = r.Error.Message
+			}
+		} else if err := r.Decode(&d); err != nil {
+			why = "读取结果看不懂：" + err.Error()
+		}
+		return func() { p.Items, p.loadErr = d.Items, why }
 	})
 }
 
@@ -61,6 +71,14 @@ func (p *IdolPicker) Draw(c *ui.Context, h plugin.Host, key string) {
 			ui.Icon(c, kit.IcCheck).FontSize(13).TextColor(kit.Good)
 			ui.Text(c, "已选："+p.ChosenName(h)).FontSize(kit.FSmall).TextColor(kit.Ink)
 		})
+	}
+	if p.loadErr != "" {
+		kit.Note(c, "偶像卡列表没读出来："+p.loadErr)
+		if kit.Secondary(c, "重试").Key(key + "-idol-picker-retry").Label("重新读取偶像卡").Clicked() {
+			p.loadErr = ""
+			p.Reload()
+		}
+		return
 	}
 	if len(p.Items) == 0 {
 		kit.Note(c, "还没扫描过偶像卡：在资料库的「扫描」里扫一次偶像卡。")

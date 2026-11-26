@@ -3,6 +3,9 @@ package shell
 
 import (
 	"context"
+	"fmt"
+	"log"
+	"runtime/debug"
 
 	"encoding/json"
 	"github.com/egoist/mygo/ui"
@@ -242,7 +245,7 @@ func (a *App) Send(text string) {
 		extra := plugin.Gather(a.ctx, reg, snap, a.d.Now(), plugin.ContextTimeout)
 		var tools []string
 		// 对话 id 放进 ctx：对话助手记用量时按对话归账
-		reply, err := ask(usagelog.WithThread(a.ctx, t.ID), hist, text, extra, func(name, summary string) {
+		reply, err := safeAsk(ask, usagelog.WithThread(a.ctx, t.ID), hist, text, extra, func(name, summary string) {
 			line := name
 			if summary != "" {
 				line += " · " + summary
@@ -377,3 +380,15 @@ func (s *snapHost) Busy() bool             { return s.busy }
 func (s *snapHost) ChatJob(id string) bool { return s.chat[id] }
 func (s *snapHost) Home() string           { return s.a.d.Home }
 func (s *snapHost) Now() time.Time         { return s.a.d.Now() }
+
+// safeAsk 调对话助手；它 panic 时转成错误返回（#121 review）：SafeWork 接住 panic 后不会执行更新回调，
+// Send 设的 busy 就永远清不掉，之后再也发不了消息。转成错误后照常走错误卡（带「再试一次」）。
+func safeAsk(ask Asker, ctx context.Context, hist []Turn, text, extra string, onTool func(name, summary string)) (reply Reply, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("对话助手出错：%v\n%s", r, debug.Stack())
+			reply, err = Reply{}, fmt.Errorf("对话助手内部出错了（%v）", r)
+		}
+	}()
+	return ask(ctx, hist, text, extra, onTool)
+}

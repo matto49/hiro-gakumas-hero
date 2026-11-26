@@ -166,16 +166,19 @@ func (c *Catalog) Texts(h plugin.Host, ja []string) []string {
 			var d struct {
 				Texts map[string]string `json:"texts"`
 			}
-			_ = h.Call(context.Background(), []string{"catalog", "lookup", "--ids", "", "--texts", strings.Join(miss, "\n"), "--lang", "zh"}).Decode(&d)
+			r := h.Call(context.Background(), []string{"catalog", "lookup", "--ids", "", "--texts", strings.Join(miss, "\n"), "--lang", "zh"})
+			ok := r.OK && r.Decode(&d) == nil
 			return func() {
 				c.mu.Lock()
 				defer c.mu.Unlock()
-				if c.gen != gen || c.texts == nil {
-					return
+				for _, t := range miss {
+					delete(c.inflight, "tx:"+t)
+				}
+				if !ok || c.gen != gen || c.texts == nil {
+					return // 查询失败不缓存空译文，下次再查（#121 review）
 				}
 				for _, t := range miss {
 					c.texts[t] = d.Texts[t]
-					delete(c.inflight, "tx:"+t)
 				}
 			}
 		})
