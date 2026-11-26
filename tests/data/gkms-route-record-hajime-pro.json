@@ -1,0 +1,164 @@
+{
+ "uuid": "spike",
+ "produce_id": "produce-002",
+ "idol_card_id": "i_card-shro-3-007",
+ "occasions": [
+  {
+   "rpc": "Start",
+   "state": {
+    "vocal": 378,
+    "dance": 264,
+    "visual": 797,
+    "stamina": 22,
+    "max_stamina": 36,
+    "produce_point": 419,
+    "vocal_growth_rate_permil": 122,
+    "dance_growth_rate_permil": 466,
+    "visual_growth_rate_permil": 325
+   },
+   "items_gained": [
+    "pitem_00-3-054-0",
+    "pitem_00-3-053-0",
+    "pitem_02-3-005-0"
+   ],
+   "deck": [],
+   "at_step": 10
+  }
+ ],
+ "schedule": [
+  {
+   "step_number": 1,
+   "step_types": [
+    1,
+    4,
+    7,
+    14
+   ]
+  },
+  {
+   "step_number": 2,
+   "step_types": [
+    12,
+    14
+   ]
+  },
+  {
+   "step_number": 3,
+   "step_types": [
+    13,
+    11,
+    14
+   ]
+  },
+  {
+   "step_number": 4,
+   "step_types": [
+    1,
+    4,
+    7,
+    12,
+    14
+   ]
+  },
+  {
+   "step_number": 5,
+   "step_types": [
+    10,
+    11,
+    14
+   ]
+  },
+  {
+   "step_number": 6,
+   "step_types": [
+    3,
+    6,
+    9
+   ]
+  },
+  {
+   "step_number": 7,
+   "step_types": [
+    16
+   ]
+  },
+  {
+   "step_number": 8,
+   "step_types": [
+    10,
+    11,
+    14
+   ]
+  },
+  {
+   "step_number": 9,
+   "step_types": [
+    12,
+    13,
+    14
+   ]
+  },
+  {
+   "step_number": 10,
+   "step_types": [
+    1,
+    4,
+    7,
+    14
+   ]
+  },
+  {
+   "step_number": 11,
+   "step_types": [
+    14,
+    12,
+    13,
+    11
+   ]
+  },
+  {
+   "step_number": 12,
+   "step_types": [
+    1,
+    4,
+    7,
+    14
+   ]
+  },
+  {
+   "step_number": 13,
+   "step_types": [
+    1,
+    4,
+    7,
+    12,
+    14
+   ]
+  },
+  {
+   "step_number": 14,
+   "step_types": [
+    10,
+    13,
+    11,
+    14
+   ]
+  },
+  {
+   "step_number": 15,
+   "step_types": [
+    3,
+    6,
+    9
+   ]
+  },
+  {
+   "step_number": 16,
+   "step_types": [
+    18
+   ]
+  }
+ ],
+ "support_state": [],
+ "activations": []
+}
