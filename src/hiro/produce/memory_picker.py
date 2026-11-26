@@ -628,6 +628,7 @@ def scan(
         raise RuntimeError("不在回忆选择页（没看到 キャンセル / 決定 / 編成詳細）：请先在编成页点开一格回忆")
     if out.exists():
         out.with_suffix(out.suffix + ".bak").write_text(out.read_text(encoding="utf-8"), encoding="utf-8")
+    t0 = picker.clock()  # 已用时间从滑回顶部前算起（#146 review）
     img = to_top(picker)
     inv = {"entries": [], "gaps": [], "scanned_at": None, "complete": False, "new": 0}
     pages = new = 0
@@ -640,7 +641,6 @@ def scan(
         out.write_text(json.dumps(inv, ensure_ascii=False, indent=1), encoding="utf-8")
 
     closed = False
-    t0 = picker.clock()
     try:
         while pages < max_pages:
             picker.snap(img, f"page{pages:03d}")
