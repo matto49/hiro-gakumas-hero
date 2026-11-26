@@ -551,7 +551,9 @@ def iter_rows(picker: "Picker", *, max_pages: int = 600):
         prev = page_rows(prev_img) or rows
         if not prev:
             return
-        dy = prev[-1][0]["rect"][1] - prev[0][0]["rect"][1] if len(prev) > 1 else int(ROW_PITCH)
+        # 滑多远和扫描用同一套（把上一页最后一个完整行滑到 SCROLL_TOP_TARGET 当锚点）：G3（11-26 Windows DMM，账号 1）
+        # 写回忆编成时这里按「最后一行 - 第一行」滑，第 5 行就对不上停了，同一台机器上扫描 814 份却都对得上
+        dy = page_scroll_px(prev)
         moved, img = scroll_moved(picker, prev_img, dy)
         if not moved:
             return  # 到底
@@ -565,6 +567,10 @@ def iter_rows(picker: "Picker", *, max_pages: int = 600):
             logger.warning(
                 "回忆列表：第 %d 行之后对不上（往回滑了 %d 行），行号没法继续数，停", base + len(prev) - 1, back
             )
+            snap = getattr(picker, "snap", None)  # 留证据（同扫描）：G3 这次对不上没留帧，查不了
+            if callable(snap):
+                snap(prev_img, f"iter-row{base + len(prev) - 1:04d}-prev")
+                snap(img, f"iter-row{base + len(prev) - 1:04d}-cur")
             return
         base, start = base + len(prev) - 1 - k, k + 1
 
