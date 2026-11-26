@@ -29,6 +29,9 @@ TB = ["Traceback (most recent call last):", '  File "x.py", line 1, in <module>'
         ("hiro.runtime.loop.ResumeBlocked: 回首页：60s 没完成", "回首页：60s 没完成"),
         ("KeyError: 'step'", "程序出错停下了：'step'"),
         ("Exception: 任务执行失败", "程序出错停下了：任务执行失败"),
+        ("StopIteration", "程序出错停下了（StopIteration）"),
+        ("AssertionError", "程序出错停下了（AssertionError）"),
+        ("StopIteration: 没有下一页了", "程序出错停下了（StopIteration）：没有下一页了"),
         ("OSError: [Errno 28] No space left on device", "磁盘满了"),
     ],
 )

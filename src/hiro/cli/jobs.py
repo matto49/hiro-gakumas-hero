@@ -43,14 +43,28 @@ _EXC_LINE = re.compile(
     r"^(?:[A-Za-z_][\w]*\.)*((?:[A-Za-z_]\w*)?(?:Error|Exception|Gone|Unavailable|Blocked|Page)): (.+)$"
 )
 
+_TB_END = re.compile(r"^(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)(?:: (.*))?$")
+_EXC_SUFFIX = re.compile(r"(?:Error|Exception|Gone|Unavailable|Blocked|Page)$")
+
 
 def failure_reason(lines: list[str]) -> str | None:
     """任务出错时给人看的一句原因：最后一条「停下：…」，没有就最后一条 ERROR 日志（去掉时间 / 级别 / 模块前缀和本机截图路径）。
     11-25 review：failed 事件只写「看上面的日志」，对话和对局卡里看不到原因。"""
     stop = err = exc = None
+    in_tb = False
     for line in lines:
         t = line.strip()
-        if (m := _EXC_LINE.match(t)) and not _LOG_PREFIX.match(t):
+        if t == "Traceback (most recent call last):":
+            in_tb = True
+        elif in_tb and line[:1] not in (" ", "\t") and (m := _TB_END.match(t)):
+            # traceback 后第一行不缩进的就是异常行：异常名不限后缀（StopIteration）、可以没有说明（AssertionError）（#130 review）
+            in_tb = False
+            name, msg = m.group(1), m.group(2)
+            if msg and _EXC_SUFFIX.search(name):
+                exc = f"{name}: {msg}"
+            else:
+                exc = f"程序出错停下了（{name}）" + (f"：{msg}" if msg else "")
+        elif (m := _EXC_LINE.match(t)) and not _LOG_PREFIX.match(t):  # traceback 开头被截掉时（日志只留最后 20 行）
             exc = f"{m.group(1)}: {m.group(2)}"
         if t.startswith("停下："):
             stop = t[len("停下：") :]
