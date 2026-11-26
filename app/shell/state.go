@@ -338,8 +338,13 @@ func (a *App) OpenPanel(pluginID, route string) {
 	a.ui.panelOpen, a.ui.panelPlugin, a.ui.panelRoute = true, pluginID, route
 }
 
-// PanelSession identifies the current opening of the right-hand panel.
-func (a *App) PanelSession() uint64 { return a.panelSession }
+// PanelSession identifies the current opening of the right-hand panel, or zero when closed.
+func (a *App) PanelSession() uint64 {
+	if !a.ui.panelOpen {
+		return 0
+	}
+	return a.panelSession
+}
 
 // snapHost 是给后台线程用的宿主：任务数据是界面线程上拍下的快照；会改界面状态的动作都排回界面线程。
 type snapHost struct {

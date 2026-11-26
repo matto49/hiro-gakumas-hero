@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -31,6 +32,8 @@ type Manager struct {
 	// Permit supplies a host-owned registration gate and optional process environment.
 	// It is called under the manager lock and must not call back into Manager.
 	Permit func(id string) (env []string, allowed bool)
+	// ShowInList can omit packages whose host integration is unavailable.
+	ShowInList func(h plugin.Host, id string) bool
 
 	mu        sync.Mutex
 	installed map[string]*Manifest
@@ -401,6 +404,9 @@ func (m *Manager) Panel(c *ui.Context, h plugin.Host) {
 	}
 	sort.Strings(ids)
 	m.mu.Unlock()
+	if m.ShowInList != nil {
+		ids = slices.DeleteFunc(ids, func(id string) bool { return !m.ShowInList(h, id) })
+	}
 	ui.Text(c, "外部插件").FontSize(15).FontWeight(650).TextColor(kit.Ink)
 	kit.Note(c, PluginTrustNote)
 	if len(ids) == 0 {
@@ -460,13 +466,12 @@ func (m *Manager) Panel(c *ui.Context, h plugin.Host) {
 		})
 	}
 	m.mu.Lock()
-	broken := make([]string, 0, len(m.broken))
-	for d, e := range m.broken {
-		broken = append(broken, d+"："+e)
-	}
+	broken := maps.Clone(m.broken)
 	m.mu.Unlock()
-	for _, b := range broken {
-		ui.Text(c, b).FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
+	for id, reason := range broken {
+		if m.ShowInList == nil || m.ShowInList(h, id) {
+			ui.Text(c, id+"："+reason).FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
+		}
 	}
 	kit.Section(c, "从文件夹安装")
 	ui.Row(c).Gap(8).Children(func() {

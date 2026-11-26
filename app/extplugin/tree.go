@@ -27,12 +27,12 @@ type Node struct {
 	Placeholder string     `json:"placeholder,omitempty"`
 }
 
-// view 是一棵树的画法和交互：事件交给 onEvent（id，值）。
+// view 是一棵树的画法和交互。
 type view struct {
 	dir, home string
 	busy      string // 正在等插件回应的件
 	inputs    map[string]*string
-	onEvent   func(id, value string)
+	onEvent   func(id, value string, edit bool)
 	path      string
 }
 
@@ -87,7 +87,7 @@ func (v *view) render(c *ui.Context, n Node, path string) {
 			b = kit.Secondary(c, n.Text)
 		}
 		if b.Key(key).Disabled(v.busy != "").Clicked() && n.ID != "" {
-			v.onEvent(n.ID, "")
+			v.onEvent(n.ID, "", false)
 		}
 	case "list":
 		ui.Column(c).Key(key).Gap(4).Children(func() {
@@ -137,7 +137,7 @@ func (v *view) render(c *ui.Context, n Node, path string) {
 		ui.Row(c).Key(key).Children(func() {
 			in := ui.TextInput(c, val).Grow(1).Placeholder(n.Placeholder).FontSize(kit.FSmall)
 			if in.Submitted() && n.ID != "" {
-				v.onEvent(n.ID, *val)
+				v.onEvent(n.ID, *val, true)
 			}
 		})
 	case "select":
@@ -147,7 +147,7 @@ func (v *view) render(c *ui.Context, n Node, path string) {
 			ui.Select(c, val, n.Options)
 		})
 		if *val != before && n.ID != "" {
-			v.onEvent(n.ID, *val)
+			v.onEvent(n.ID, *val, true)
 		}
 	default:
 		if n.Text != "" {

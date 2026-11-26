@@ -43,13 +43,15 @@ func (a Approval) Covers(m *Manifest) bool {
 type screen struct {
 	tree    *Node
 	state   json.RawMessage
-	loading bool
 	err     string
 	v       view
 	refresh time.Duration
 	next    time.Time
 	session uint64
+	edits   []screenEdit
 }
+
+type screenEdit struct{ id, value string }
 
 // Ext 是一个已同意的外部插件。
 type Ext struct {
@@ -167,7 +169,7 @@ type rendered struct {
 }
 
 func (s *screen) needsRender(now time.Time, visiblePanel bool, session uint64) bool {
-	if s.loading || s.v.busy != "" {
+	if s.v.busy != "" {
 		return false
 	}
 	return (s.tree == nil && s.err == "") ||
@@ -206,35 +208,72 @@ func (e *Ext) draw(c *ui.Context, h plugin.Host, key, method string, params map[
 	if e.closed.Load() {
 		return
 	}
+	panel := strings.HasPrefix(key, "panel-")
+	if panel && c.WindowHidden() {
+		return
+	}
 	e.host(h)
 	s := e.screen(key)
-	panel := strings.HasPrefix(key, "panel-")
 	var session uint64
+	var panelSession func() uint64
 	if panelHost, ok := h.(interface{ PanelSession() uint64 }); panel && ok {
-		session = panelHost.PanelSession()
+		panelSession = panelHost.PanelSession
+		session = panelSession()
+		if session == 0 {
+			return
+		}
 	}
-	if s.needsRender(h.Now(), panel && !c.WindowHidden(), session) {
+	if s.v.busy != "" && s.session != session {
+		kit.Note(c, "正在问插件「"+e.m.Name+"」…")
+		return
+	}
+	if panel && s.session != 0 && s.session != session && s.refresh > 0 {
+		// A reopened live panel must obtain a current view before exposing its old data or controls.
+		s.tree, s.state, s.err, s.v.inputs = nil, nil, "", nil
+	}
+	current := func() bool {
+		return !e.closed.Load() && (panelSession == nil || panelSession() == session)
+	}
+	var sendEvent func(id, value string)
+	request := func(rpcMethod, busy string, rpcParams map[string]any) {
 		s.session = session
-		s.loading = true
-		s.v.busy = "render"
+		s.v.busy = busy
 		h.Go(func() func() {
 			var r rendered
-			err := e.c.Call(context.Background(), method, params, &r)
+			err := e.c.Call(context.Background(), rpcMethod, rpcParams, &r)
 			return func() {
-				if e.closed.Load() {
+				s.v.busy = ""
+				if !current() {
+					// 旧会话的响应与尚未发出的编辑都不进入重新打开的面板。
+					s.tree, s.state, s.err, s.v.inputs, s.edits = nil, nil, "", nil, nil
 					return
 				}
-				s.loading = false
-				s.v.busy = ""
 				if err != nil {
 					s.err = err.Error()
 					s.next = h.Now().Add(s.refresh)
-					return
+				} else {
+					if rpcMethod != "event" {
+						s.err = ""
+					}
+					s.apply(r, h.Now(), panel)
 				}
-				s.err = ""
-				s.apply(r, h.Now(), panel)
+				if len(s.edits) > 0 {
+					edit := s.edits[0]
+					s.edits = s.edits[1:]
+					sendEvent(edit.id, edit.value)
+				}
 			}
 		})
+	}
+	sendEvent = func(id, value string) {
+		p := map[string]any{"id": id, "value": value, "state": s.state}
+		for k, v := range params {
+			p[k] = v
+		}
+		request("event", id, p)
+	}
+	if s.needsRender(h.Now(), panel, session) {
+		request(method, "render", params)
 	}
 	switch {
 	case s.err != "":
@@ -248,31 +287,17 @@ func (e *Ext) draw(c *ui.Context, h plugin.Host, key, method string, params map[
 		kit.Note(c, "正在问插件「"+e.m.Name+"」…")
 		return
 	}
-	s.v.onEvent = func(id, value string) {
-		if s.v.busy != "" || e.closed.Load() {
+	s.v.onEvent = func(id, value string, edit bool) {
+		if !current() {
 			return
 		}
-		s.v.busy = id
-		state := s.state
-		h.Go(func() func() {
-			var r rendered
-			p := map[string]any{"id": id, "value": value, "state": state}
-			for k, v := range params {
-				p[k] = v
+		if s.v.busy != "" {
+			if panel && edit {
+				s.edits = append(s.edits, screenEdit{id, value})
 			}
-			err := e.c.Call(context.Background(), "event", p, &r)
-			return func() {
-				if e.closed.Load() {
-					return
-				}
-				s.v.busy = ""
-				if err != nil {
-					s.err = err.Error()
-					return
-				}
-				s.apply(r, h.Now(), panel)
-			}
-		})
+			return
+		}
+		sendEvent(id, value)
 	}
 	s.v.render(c, *s.tree, key)
 }

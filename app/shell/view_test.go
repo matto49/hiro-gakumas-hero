@@ -63,6 +63,27 @@ func TestSlashListsCommandsAndOpensPanel(t *testing.T) {
 	}
 }
 
+func TestPanelSessionChangesOnCloseAndReopen(t *testing.T) {
+	a, _ := newTestApp(newMem(), &fakeCall{}, nil, viewReg())
+	if a.PanelSession() != 0 {
+		t.Fatal("expected a closed panel at startup")
+	}
+	a.OpenPanel("start", "")
+	first := a.PanelSession()
+	a.OpenPanel("start", "")
+	if first == 0 || a.PanelSession() != first {
+		t.Fatal("opening the current panel changed its session")
+	}
+	a.ClosePanel()
+	if a.PanelSession() != 0 {
+		t.Fatal("closed panel kept its session")
+	}
+	a.OpenPanel("start", "")
+	if reopened := a.PanelSession(); reopened == 0 || reopened == first {
+		t.Fatal("reopening reused the previous panel session")
+	}
+}
+
 func TestGateTakesWholeWindow(t *testing.T) {
 	a, _ := newTestApp(newMem(oldThread), &fakeCall{}, nil, viewReg())
 	gated := true
