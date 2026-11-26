@@ -17,7 +17,7 @@ import (
 
 // Settings 和 main 里 Assistant 的 Settings 同形（settings.json）。
 type Settings struct {
-	StationEnabled bool   `json:"station_enabled"`
+	StationEnabled *bool  `json:"station_enabled,omitempty"`
 	StationSubject string `json:"station_subject,omitempty"`
 
 	Provider   string          `json:"provider"`
@@ -63,7 +63,6 @@ type BootStatus struct {
 // Deps 是设置插件要的宿主能力（main 里接 Assistant / Bootstrap / Hiro.SetSecret）。
 type Deps struct {
 	StationPanel func(c *ui.Context, h plugin.Host)
-	StationTick  func(h plugin.Host)
 
 	Settings   func() Settings
 	Save       func(s Settings, key string) error
@@ -242,9 +241,6 @@ func (s *S) deviceContext() string {
 }
 
 func (s *S) footer(c *ui.Context, h plugin.Host) {
-	if s.d.StationTick != nil {
-		s.d.StationTick(h)
-	}
 	if s.deviceOK == nil && !s.probing && s.probedAt.IsZero() && h.LiveJob() == "" {
 		s.Probe(h)
 	}

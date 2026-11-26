@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -15,11 +16,17 @@ import (
 	"github.com/matto49/hiro-gakumas-hero/app/extplugin"
 	"github.com/matto49/hiro-gakumas-hero/app/kit"
 	"github.com/matto49/hiro-gakumas-hero/app/plugin"
+	"github.com/matto49/hiro-gakumas-hero/app/plugins/settings"
 )
 
 const stationPluginID = "gkmsside"
 const stationSchema = "gkms.hiro.station/v1"
-const stationCheckInterval = 5 * time.Second
+const stationCheckInterval = time.Minute
+
+// stationRetryDelays bounds the retries after an inconclusive check of an enabled
+// station that is not mounted yet (offline at startup, a slow interpreter start).
+// A verified result resets them; an explicit revocation or another owner does not retry.
+var stationRetryDelays = []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute}
 
 type stationStatus struct {
 	Schema        string `json:"schema"`
@@ -38,24 +45,22 @@ func (s stationStatus) verified() bool {
 
 // runStation uses the installed station's fixed bridge, independently of the
 // plugin manifest. The bridge owns device credentials and network validation.
-func runStation(verb string) stationStatus {
+func runStation(ctx context.Context, verb string) stationStatus {
 	root, state := stationInstall()
 	if state != "" {
 		return stationStatus{State: state}
 	}
-	python := filepath.Join(root, "python", "python.exe")
-	bridge := filepath.Join(root, "app", "GakumasCLI", "station", "hiro_bridge.py")
-	for _, path := range []string{filepath.Join(root, "install.json"), python, bridge} {
-		info, err := os.Stat(path)
-		if err != nil || !info.Mode().IsRegular() {
-			return stationStatus{State: "stale_install"}
-		}
-	}
-	timeout := 3 * time.Second
+	timeout := 10 * time.Second
 	if verb == "pair" {
 		timeout = 11 * time.Minute // The site's ten-minute confirmation window plus time for HTTP.
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	return runStationAt(ctx, root, verb, timeout)
+}
+
+func runStationAt(ctx context.Context, root, verb string, timeout time.Duration) stationStatus {
+	python := filepath.Join(root, "python", "python.exe")
+	bridge := filepath.Join(root, "app", "GakumasCLI", "station", "hiro_bridge.py")
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, python, "-I", "-B", bridge, verb)
 	cmd.Dir = root
@@ -78,52 +83,187 @@ func runStation(verb string) stationStatus {
 // stationIntegration is updated only on the UI thread. Permit is evaluated
 // when that thread loads, approves or refreshes a desktop plugin.
 type stationIntegration struct {
-	manager  *extplugin.Manager
-	settings *settingsCache
-	probe    func(verb string) stationStatus
-	status   stationStatus
-	busy     bool
-	next     time.Time
-	note     string
+	manager    *extplugin.Manager
+	settings   *settingsCache
+	install    func() (root, state string)
+	probe      func(context.Context, string) stationStatus
+	status     stationStatus
+	active     string // The owner verified for this running session. Never restored from disk alone.
+	cancel     context.CancelFunc
+	wait       context.CancelFunc // A scheduled retry.
+	delays     []time.Duration
+	retries    int
+	generation uint64
+	discovered bool
+	session    uint64
+	present    bool
+	next       time.Time
+	note       string
+}
+
+func stationOn(pref Settings) bool { return pref.StationEnabled != nil && *pref.StationEnabled }
+
+func setupStation(d appDeps, m *extplugin.Manager, cache *settingsCache, sd *settings.Deps) *stationIntegration {
+	s := &stationIntegration{manager: m, settings: cache, install: d.StationInstall, probe: d.StationProbe,
+		delays: stationRetryDelays}
+	if s.install == nil {
+		s.install = stationInstall
+	}
+	if s.probe == nil {
+		s.probe = runStation
+	}
+	m.Permit = s.permit
+	m.ShowInList = func(h plugin.Host, id string) bool {
+		return id != stationPluginID || runtime.GOOS == "windows" && s.available(h)
+	}
+	if runtime.GOOS == "windows" {
+		sd.StationPanel = s.panel
+	}
+	return s
 }
 
 func (s *stationIntegration) permit(id string) ([]string, bool) {
 	if id != stationPluginID {
 		return nil, true
 	}
-	pref := s.settings.Get()
-	if !pref.StationEnabled || !s.status.verified() || pref.StationSubject != s.status.Subject {
+	if s.active == "" {
 		return nil, false
 	}
-	return []string{"GKMS_HIRO_SUBJECT=" + s.status.Subject}, true
+	pref := s.settings.Get()
+	if !stationOn(pref) || pref.StationSubject != s.active {
+		return nil, false
+	}
+	return []string{"GKMS_HIRO_SUBJECT=" + s.active}, true
 }
 
-func (s *stationIntegration) tick(h plugin.Host) {
-	if s.settings.Get().StationEnabled && !h.Now().Before(s.next) {
+// Discover locally once per opening, including reopening settings after an install or update.
+func (s *stationIntegration) available(h plugin.Host) bool {
+	var session uint64
+	if panel, ok := h.(interface{ PanelSession() uint64 }); ok {
+		session = panel.PanelSession()
+	}
+	if !s.discovered || s.session != session {
+		_, state := s.install()
+		s.discovered, s.session, s.present = true, session, state == ""
+		if state == "not_installed" {
+			s.forget()
+		}
+	}
+	return s.present
+}
+
+func (s *stationIntegration) forget() {
+	s.generation++
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil
+	}
+	if s.wait != nil {
+		s.wait()
+		s.wait = nil
+	}
+	s.status, s.next, s.retries = stationStatus{}, time.Time{}, 0
+	s.setActive("")
+}
+
+func (s *stationIntegration) setActive(subject string) {
+	if s.active != subject {
+		s.active = subject
+		s.manager.Refresh(stationPluginID)
+	}
+}
+
+func (s *stationIntegration) observe(status stationStatus) {
+	s.status = status
+	switch {
+	case status.verified():
+		pref := s.settings.Get()
+		if stationOn(pref) && pref.StationSubject == status.Subject {
+			s.setActive(status.Subject)
+		} else {
+			s.setActive("")
+		}
+	case status.Schema == stationSchema && status.State == "identity_invalid", status.State == "not_installed":
+		s.setActive("")
+	}
+}
+
+func (s *stationIntegration) restore(h plugin.Host) {
+	if runtime.GOOS != "windows" {
+		return
+	}
+	if _, approved, _ := s.manager.State(stationPluginID); approved && stationOn(s.settings.Get()) && s.available(h) {
 		s.check(h, false)
 	}
 }
 
 func (s *stationIntegration) check(h plugin.Host, pair bool) {
-	if s.busy {
+	if s.cancel != nil {
 		return
 	}
-	s.busy = true
+	ctx, cancel := context.WithCancel(context.Background())
+	s.cancel = cancel
+	generation := s.generation
 	if pair {
-		// Pause an old account immediately while browser pairing is in progress.
-		s.status = stationStatus{State: "identity_unavailable"}
-		s.manager.Refresh(stationPluginID)
+		s.status = stationStatus{}
+		s.setActive("")
 	}
 	h.Go(func() func() {
-		if pair {
-			s.probe("pair")
+		defer cancel()
+		if pair && ctx.Err() == nil {
+			s.probe(ctx, "pair")
 		}
-		status := s.probe("status")
+		var status stationStatus
+		if ctx.Err() == nil {
+			status = s.probe(ctx, "status")
+		}
 		return func() {
-			s.busy = false
-			s.status = status
+			if generation != s.generation {
+				return
+			}
+			s.cancel = nil
 			s.next = h.Now().Add(stationCheckInterval)
-			s.manager.Refresh(stationPluginID)
+			s.observe(status)
+			s.retryLater(h, status)
+		}
+	})
+}
+
+// retryLater schedules the next bounded retry while an enabled, approved station
+// is still unmounted after an inconclusive result. It never polls once mounted.
+func (s *stationIntegration) retryLater(h plugin.Host, status stationStatus) {
+	if status.verified() {
+		s.retries = 0
+		return
+	}
+	if s.active != "" || s.wait != nil || s.retries >= len(s.delays) || !stationOn(s.settings.Get()) ||
+		status.Schema == stationSchema && status.State == "identity_invalid" || status.State == "not_installed" {
+		return
+	}
+	if _, approved, _ := s.manager.State(stationPluginID); !approved {
+		return
+	}
+	delay := s.delays[s.retries]
+	s.retries++
+	ctx, cancel := context.WithCancel(context.Background())
+	s.wait = cancel
+	generation := s.generation
+	h.Go(func() func() {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-timer.C:
+		}
+		return func() {
+			if generation != s.generation || ctx.Err() != nil {
+				return
+			}
+			s.wait = nil
+			if s.active == "" {
+				s.check(h, false)
+			}
 		}
 	})
 }
@@ -139,26 +279,35 @@ func (s *stationIntegration) setEnabled(enable bool) {
 	} else {
 		pref.StationSubject = ""
 	}
-	pref.StationEnabled = enable
+	pref.StationEnabled = &enable
 	if err := s.settings.Save(pref, ""); err != nil {
 		s.note = "无法保存采集站设置"
 		return
 	}
 	s.note = ""
-	s.manager.Refresh(stationPluginID)
+	if enable {
+		s.setActive(s.status.Subject)
+	} else {
+		s.forget()
+	}
 }
 
 func (s *stationIntegration) panel(c *ui.Context, h plugin.Host) {
+	if c.WindowHidden() || !s.available(h) {
+		return
+	}
 	kit.Section(c, "采集站")
-	if !h.Now().Before(s.next) {
+	pref := s.settings.Get()
+	installed, approved, enabled := s.manager.State(stationPluginID)
+	if stationOn(pref) && approved && !h.Now().Before(s.next) {
 		s.check(h, false)
 	}
-	installed, approved, enabled := s.manager.State(stationPluginID)
-	pref := s.settings.Get()
-	message := "正在核对采集站…"
+	message := "已检测到采集站。检查配对后可启用。"
 	switch s.status.State {
-	case "not_installed":
-		message = "当前 Windows 用户未登记采集站。已安装时，请启动或更新托盘。"
+	case "":
+		if s.cancel != nil {
+			message = "正在核对采集站…"
+		}
 	case "stale_install":
 		message = "采集站安装记录已失效。"
 	case "version_incompatible":
@@ -171,7 +320,7 @@ func (s *stationIntegration) panel(c *ui.Context, h plugin.Host) {
 		switch {
 		case !s.status.verified():
 			message = "采集站配对无法验证。"
-		case pref.StationEnabled && pref.StationSubject != s.status.Subject:
+		case stationOn(pref) && pref.StationSubject != s.status.Subject:
 			message = "采集站配对已更换，请断开后重新启用。"
 		case !installed:
 			message = "请在「管理插件」安装采集站插件。"
@@ -185,17 +334,17 @@ func (s *stationIntegration) panel(c *ui.Context, h plugin.Host) {
 	}
 	kit.Note(c, message)
 	ui.Row(c).Gap(8).Children(func() {
-		if kit.Secondary(c, "重新检查").Key("station-check").Disabled(s.busy).Clicked() {
+		if kit.Secondary(c, "检查配对").Key("station-check").Disabled(s.cancel != nil).Clicked() {
 			s.check(h, false)
 		}
-		if s.status.State == "identity_invalid" && kit.Secondary(c, "在浏览器配对").Key("station-pair").Disabled(s.busy).Clicked() {
+		if s.status.State == "identity_invalid" && kit.Secondary(c, "在浏览器配对").Key("station-pair").Disabled(s.cancel != nil).Clicked() {
 			s.check(h, true)
 		}
-		if pref.StationEnabled {
+		if stationOn(pref) {
 			if kit.Secondary(c, "断开采集站").Key("station-off").Clicked() {
 				s.setEnabled(false)
 			}
-		} else if s.status.verified() && approved && kit.Primary(c, "启用采集站").Key("station-on").Disabled(s.busy).Clicked() {
+		} else if s.status.verified() && approved && kit.Primary(c, "启用采集站").Key("station-on").Disabled(s.cancel != nil || !h.Now().Before(s.next)).Clicked() {
 			s.setEnabled(true)
 		}
 	})

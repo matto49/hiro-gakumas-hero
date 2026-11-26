@@ -2,7 +2,10 @@ module github.com/matto49/hiro-gakumas-hero/app
 
 go 1.27.4
 
-require github.com/egoist/mygo v0.10.0
+require (
+	github.com/egoist/mygo v0.10.0
+	golang.org/x/sys v0.48.0
+)
 
 require (
 	github.com/ProtonMail/go-crypto v1.4.1 // indirect
@@ -15,7 +18,6 @@ require (
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/net v0.59.0 // indirect
-	golang.org/x/sys v0.48.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 )
 

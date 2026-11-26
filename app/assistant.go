@@ -70,7 +70,7 @@ func keyName(id string) string { return id + "-api-key" }
 
 // Settings 是模型设置（不含 Key）。
 type Settings struct {
-	StationEnabled bool   `json:"station_enabled"`
+	StationEnabled *bool  `json:"station_enabled,omitempty"`
 	StationSubject string `json:"station_subject,omitempty"`
 
 	Provider string `json:"provider"`           // Presets 里的一家（缺省 deepseek）/ codex / claude / none（不用模型）
