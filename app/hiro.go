@@ -132,9 +132,6 @@ func (h *Hiro) run(ctx context.Context, args []string, stdin []byte) Result {
 		if msg == "" {
 			msg = strings.TrimSpace(stdout.String())
 		}
-		if len(msg) > 2000 {
-			msg = msg[len(msg)-2000:]
-		}
 		return Result{Exit: exit, Error: &CliError{Code: "bad_output", Message: badOutputMessage(msg),
 			Hint: "运行 hiro doctor 检查环境"}}
 	}
@@ -159,6 +156,9 @@ func badOutputMessage(msg string) string {
 		if last != "" {
 			return "hiro 工具层出错了：" + last
 		}
+	}
+	if len(msg) > 2000 { // 先认 traceback 再截断（#174 review：长 traceback 截掉开头那行就认不出了）
+		msg = msg[len(msg)-2000:]
 	}
 	return "hiro 工具层输出看不懂：" + msg
 }

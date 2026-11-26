@@ -96,3 +96,18 @@ func TestBadOutputMessageKeepsPlainText(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+// #174 review：超过 2000 字节的 traceback 也只显示最后一行异常（先认 traceback 再截断）。
+func TestBadOutputLongTraceback(t *testing.T) {
+	msg := "Traceback (most recent call last):\n" + strings.Repeat("  File \"x.py\", line 1, in f\n    g()\n", 200) + "ZoneInfoNotFoundError: 'No time zone found with key Asia/Shanghai'"
+	if len(msg) <= 2000 {
+		t.Fatal("用例要超过 2000 字节")
+	}
+	got := badOutputMessage(msg)
+	if got != "hiro 工具层出错了：ZoneInfoNotFoundError: 'No time zone found with key Asia/Shanghai'" {
+		t.Errorf("长 traceback：%q", got)
+	}
+	if long := badOutputMessage(strings.Repeat("a", 3000)); len(long) > 2100 {
+		t.Errorf("普通输出照旧截到 2000 字节：%d", len(long))
+	}
+}
