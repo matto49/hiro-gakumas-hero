@@ -836,3 +836,26 @@ def test_iter_rows_saves_frames_when_alignment_fails(monkeypatch):
         "first",
         "after-back",
     ]
+
+
+def test_iter_rows_records_why_it_ended(monkeypatch):
+    """iter_rows 把结束原因记在 picker.iter_end：对不上是 drift（到底是 bottom）。"""
+    frames = iter(range(1000))
+
+    class P:
+        def shoot(self):
+            return next(frames)
+
+        def scroll(self, rows=None, **kw):
+            return next(frames)
+
+    monkeypatch.setattr(mp, "to_top", lambda p: next(frames))
+    monkeypatch.setattr(mp, "page_rows", lambda img: [[{"rect": (0, 600 + 140 * i, 10, 10)}] for i in range(3)])
+    monkeypatch.setattr(mp, "scroll_moved", lambda p, before, px: (True, next(frames)))
+    monkeypatch.setattr(mp, "align", lambda prev, cur: None)
+    p = P()
+    list(mp.iter_rows(p, max_pages=3))
+    assert p.iter_end == "drift"
+    monkeypatch.setattr(mp, "scroll_moved", lambda p, before, px: (False, next(frames)))
+    list(mp.iter_rows(p, max_pages=3))
+    assert p.iter_end == "bottom"

@@ -335,6 +335,12 @@ def pick_memory(picker, target: dict, *, decide=PICKER_DECIDE) -> None:
         logger.warning("回忆选择页：第 %d 行附近没有能力文字也对得上的，选了第一份卡 / 强化 / 时机一致的", row)
         return
     picker.cancel()
+    if reached["max"] < row - SEARCH_ROWS and getattr(picker, "iter_end", None) == "bottom":
+        # 列表真到底了还没到库存记的那一行：回忆比扫描时少了（用掉 / 分解），库存过期（rc.6 发版前审查：原来也报「行号对不上」，重试没用）
+        raise FormationWriteError(
+            f"回忆选择列表只有 {reached['max'] + 1} 行，比库存记的第 {row} 行短，没写成：回忆可能比上次扫描时少了，"
+            "请重扫回忆后再开局"
+        )
     if reached["max"] < row - SEARCH_ROWS:
         # G3（11-26）：列表在第 5 行就数乱了，原来也报「库存可能过期，请重扫」（回忆 10 分钟前刚扫完）
         raise FormationWriteError(

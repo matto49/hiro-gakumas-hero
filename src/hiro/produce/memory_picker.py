@@ -13,6 +13,7 @@
 筛选 / 排序 / 关键词搜索的对话框还没有样本：explore() 负责去拍，拍完再补点击路径。
 """
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -540,7 +541,10 @@ def align(prev: list[list[dict]], cur: list[list[dict]]) -> int | None:
 def iter_rows(picker: "Picker", *, max_pages: int = 600):
     """从顶部往下逐页走，产出 (全局行号, 这一行的格子)，行号按页与页的重叠精确计数（同 scan：读完重截当上一页、align 找上一页最后一行、
     对不上一行一行往回滑），不按滑过的像素估算（11-17 编成菜单：按每屏行数累计会高估，第 70 行 ±30 行都找不到）。
-    调用方可以在拿到一行后点格子读详情；走不下去（到底 / 对不上）就结束。"""
+    调用方可以在拿到一行后点格子读详情；走不下去（到底 / 对不上）就结束。
+    结束原因记在 picker.iter_end：bottom（真到底）/ drift（数行对不上）/ pages（翻满 max_pages）——调用方据此区分
+    「列表比库存记的短（库存过期）」和「行号数乱了」（rc.6 发版前审查）。"""
+    _set_end(picker, None)
     img = to_top(picker)
     base, start = 0, 0
     for _ in range(max_pages):
@@ -550,12 +554,14 @@ def iter_rows(picker: "Picker", *, max_pages: int = 600):
         prev_img = picker.shoot()
         prev = page_rows(prev_img) or rows
         if not prev:
+            _set_end(picker, "bottom")
             return
         # 滑多远和扫描用同一套（把上一页最后一个完整行滑到 SCROLL_TOP_TARGET 当锚点）：G3（11-26 Windows DMM，账号 1）
         # 写回忆编成时这里按「最后一行 - 第一行」滑，第 5 行就对不上停了，同一台机器上扫描 814 份却都对得上
         dy = page_scroll_px(prev)
         moved, img = scroll_moved(picker, prev_img, dy)
         if not moved:
+            _set_end(picker, "bottom")
             return  # 到底
         first = img  # 第一次翻过去的画面：回滑也对不上时和最后一帧一起存，方便对比（#148 review）
         k = align(prev, page_rows(img))
@@ -574,8 +580,15 @@ def iter_rows(picker: "Picker", *, max_pages: int = 600):
                 snap(prev_img, f"{tag}-prev")
                 snap(first, f"{tag}-first")
                 snap(img, f"{tag}-after-back")
+            _set_end(picker, "drift")
             return
         base, start = base + len(prev) - 1 - k, k + 1
+    _set_end(picker, "pages")
+
+
+def _set_end(picker, why: str | None) -> None:
+    with contextlib.suppress(AttributeError):  # 测试替身可能不让设属性
+        picker.iter_end = why
 
 
 def mark_suspects(entries: list[dict]) -> int:

@@ -592,3 +592,23 @@ def test_pick_memory_says_list_drift_not_stale_inventory(monkeypatch):
     with pytest.raises(FormationWriteError) as e:
         fw.pick_memory(picker, {"cell": [110, 1], "key": "act-3_039|x"})
     assert "行号对不上" in str(e.value) and "第 110 行" in str(e.value) and "重扫" not in str(e.value)
+
+
+def test_pick_memory_list_bottom_means_stale_inventory(monkeypatch):
+    """rc.6 发版前审查：列表真到底（iter_end=bottom）还没到库存记的行，是回忆比扫描时少了，要提示重扫，不说「行号对不上」。"""
+    from types import SimpleNamespace as NS
+
+    from hiro.produce import memory_picker
+
+    def rows(p):
+        for g in range(6):
+            yield g, [{"row": g, "col": c, "center": (0, 0)} for c in range(3)]
+        p.iter_end = "bottom"
+
+    monkeypatch.setattr(memory_picker, "iter_rows", rows)
+    picker = NS(
+        select=lambda c: None, read_selected=dict, click=lambda *a: None, sleep=lambda s: None, cancel=lambda: None
+    )
+    with pytest.raises(FormationWriteError) as e:
+        fw.pick_memory(picker, {"cell": [110, 1], "key": "act-3_039|x"})
+    assert "只有 6 行" in str(e.value) and "重扫" in str(e.value) and "行号对不上" not in str(e.value)
