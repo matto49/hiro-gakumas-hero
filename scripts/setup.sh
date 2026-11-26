@@ -6,6 +6,7 @@
 #   scripts/setup.sh --no-data  # 不下载游戏数据（已用 HIRO_KAA_GAME_DATA / HIRO_MASTER_DB 指向别处时）
 #
 # 只装开发 / 测试（不玩实机）不需要这个脚本：uv venv && uv pip install -e ".[dev]"。
+# HIRO_SETUP_EXTRAS：装哪些可选组，缺省 dev,play；桌面版给玩家装时传 play（不装 pytest / ruff / basedpyright 等开发工具）。
 set -euo pipefail
 cd "$(dirname "$0")/.."
 ROOT=$(pwd)
@@ -25,14 +26,15 @@ command -v uv >/dev/null || { echo "需要 uv（https://docs.astral.sh/uv/gettin
 step "1/6 虚拟环境 .venv（Python 3.10）"
 venv_py() { if [ -x .venv/Scripts/python.exe ]; then echo .venv/Scripts/python.exe; else echo .venv/bin/python; fi; }  # Windows / 其他
 if [ ! -x "$(venv_py)" ]; then
-  uv venv --python 3.10 .venv
+  uv venv --quiet --python 3.10 .venv
 else
   echo "已有 .venv（$("$(venv_py)" --version)）"
 fi
 PY="$ROOT/$(venv_py)"
 
-step "2/6 安装本仓库（.[dev,play]）"
-uv pip install --python "$PY" -e ".[dev,play]"
+EXTRAS="${HIRO_SETUP_EXTRAS:-dev,play}"
+step "2/6 安装本仓库（.[$EXTRAS]）"
+uv pip install --python "$PY" -e ".[$EXTRAS]"
 # RapidOCR 后端的识别模型：从本仓库 GitHub Release 下载、校验 SHA256（Mac 缺省用 Vision，下载失败不挡安装）
 "$PY" tools/assets/rapid_models.py || echo "  ⚠ RapidOCR 模型没下好（网络？）：要用 HIRO_OCR=rapidocr 时再跑 python tools/assets/rapid_models.py"
 
@@ -102,5 +104,5 @@ cat <<'MSG'
 
 装好了。开一局（先在游戏里编好支援卡 / 回忆编成）：
   HIRO_SUPPORT_SET=<支援卡编成号> HIRO_MEMORY_SET=<回忆编成号> .venv/bin/python tools/play_game.py --idol <偶像卡 skin id> --main-attr <Vo|Da|Vi>
-离线测试：.venv/bin/python -m pytest -q
 MSG
+case ",$EXTRAS," in *,dev,*) echo "离线测试：.venv/bin/python -m pytest -q" ;; esac

@@ -9,6 +9,7 @@
 #   （DirectML，任意 DX12 显卡；整帧识别约 2 s → 0.4 s，CPU 占用和风扇声下降），没有时运行时自己退回 CPU。缺省不换：识别阈值、放大倍数都是按 CPU 版调的，GPU 版先显式打开、回归一致后再讨论默认开。
 #   运行时再用 HIRO_OCR_DEVICE（auto / cuda / dml / cpu）选，见 hiro.vision.ocr.ocr_device_order。
 #   CUDA 版（onnxruntime-gpu）要和 play 组钉的 1.14 及本机 CUDA 11.x / cuDNN 8 对得上，不自动装。
+# 环境变量 HIRO_SETUP_EXTRAS：装哪些可选组，缺省 dev,play；桌面版给玩家装时传 play（不装 pytest / ruff / basedpyright 等开发工具）。
 # -NoSimd：不装 SIMD 文字识别（下面第 2 步里的可选项）；桌面版安装程序把它当单独一步装，所以传这个开关。
 # Windows 上没有 PlayCover：开局前设 HIRO_DEVICE（adb / mumu / leidian / dmm），见 AGENTS.md「设备」。
 param([switch]$NoData, [switch]$NoSimd, [ValidateSet("auto", "dml", "cpu")][string]$OcrDevice = "cpu")
@@ -27,14 +28,15 @@ Need uv "https://docs.astral.sh/uv/getting-started/installation/"
 Step "1/6 虚拟环境 .venv（Python 3.10）"
 $Py = Join-Path $Root ".venv\Scripts\python.exe"
 if (-not (Test-Path $Py)) {
-    uv venv --python 3.10 .venv
+    uv venv --quiet --python 3.10 .venv
     if ($LASTEXITCODE) { throw "建 .venv 失败" }
 } else {
     Write-Host "已有 .venv（$(& $Py --version)）"
 }
 
-Step "2/6 安装本仓库（.[dev,play]）"
-uv pip install --python $Py -e ".[dev,play]"
+$Extras = if ($env:HIRO_SETUP_EXTRAS) { $env:HIRO_SETUP_EXTRAS } else { "dev,play" }
+Step "2/6 安装本仓库（.[$Extras]）"
+uv pip install --python $Py -e ".[$Extras]"
 if ($LASTEXITCODE) { throw "安装失败" }
 # RapidOCR 后端的识别模型：从本仓库 GitHub Release 下载、校验 SHA256（没装 SIMD 时 Windows 缺省用它）
 & $Py tools\assets\rapid_models.py
@@ -142,4 +144,4 @@ Write-Host ""
 Write-Host "装好了。开一局（先在游戏里编好支援卡 / 回忆编成，缺省用编成 4 / 5；参数见 scripts\play.ps1 开头）："
 Write-Host '  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\play.ps1 -Device mumu -Idol <偶像卡 skin id> -Tag 1'
 Write-Host '  （DMM 版用 -Device dmm，会弹一次 UAC；只打本战加 -MainOnly）'
-Write-Host "离线测试：.venv\Scripts\python.exe -m pytest -q"
+if ($Extras -match "dev") { Write-Host "离线测试：.venv\Scripts\python.exe -m pytest -q" }

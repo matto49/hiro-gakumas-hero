@@ -104,7 +104,8 @@ func PlanBootstrap(e BootEnv) ([]Step, *CliError) {
 		steps = append(steps, Step{ID: "source", Title: "下载初星助手的程序", Dir: e.Home,
 			Run: func(ctx context.Context, say func(string)) error { return FetchSource(ctx, spec, say) }})
 	}
-	env := []string{"PATH=" + uvDir + string(os.PathListSeparator) + os.Getenv("PATH"), "PYTHONUTF8=1"}
+	// HIRO_SETUP_EXTRAS=play：给玩家装，不装 pytest / ruff / basedpyright 等开发工具（G3 11-26：原来装 .[dev,play]）
+	env := []string{"PATH=" + uvDir + string(os.PathListSeparator) + os.Getenv("PATH"), "PYTHONUTF8=1", "HIRO_SETUP_EXTRAS=play"}
 	if e.MirrorCN {
 		env = append(env, "UV_INDEX_URL="+mirrorIndex, "UV_PYTHON_INSTALL_MIRROR="+mirrorPython)
 	}

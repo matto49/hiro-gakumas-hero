@@ -320,3 +320,22 @@ func TestResetRemovesTheMarker(t *testing.T) {
 		t.Fatal("marker still there")
 	}
 }
+
+// G3（11-26 Windows 小白验收）：桌面版装环境只装玩家要的 play 组，不装 pytest / ruff / basedpyright 等开发工具。
+func TestPlanSetupInstallsOnlyPlayExtras(t *testing.T) {
+	for goos, uv := range map[string]string{"darwin": "/r/bin/uv", "windows": "/r/bin/uv.exe"} {
+		steps, err := PlanBootstrap(bootEnv(goos, uv))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var setup *Step
+		for i := range steps {
+			if steps[i].ID == "setup" {
+				setup = &steps[i]
+			}
+		}
+		if setup == nil || !hasEnvPrefix(setup.Env, "HIRO_SETUP_EXTRAS=play") {
+			t.Fatalf("%s: setup 步骤要带 HIRO_SETUP_EXTRAS=play：%+v", goos, setup)
+		}
+	}
+}
