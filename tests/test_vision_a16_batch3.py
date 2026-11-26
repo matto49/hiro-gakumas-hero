@@ -8,14 +8,14 @@ def test_tower_rank_label_uses_suffix():
     """名次标签「3rd」读成「Srd」：后缀 rd 定名次 3，不按 S 当 5；「2ndl」结尾多一个字也认。"""
     from hiro.vision.tower import _ranking_fields
 
-    # 标签顺序故意打乱：按行序兜底会得到 [1, 2, 3, 4, 5]，只有真认出标签才是 [3, 2, 1, 4, 5]（#133 review）
-    rows = [("Srd", 377), ("2ndl", 520), ("Ist", 662), ("4th", 808), ("Sth", 951)]
+    # 标签顺序故意打乱：按行序兜底会得到 [1, 2, 3, 4, 5]，只有真认出标签才是 [3, 1, 5, 2, 4]（#133 review）
+    rows = [("Srd", 377), ("Ist", 520), ("Sth", 662), ("2ndl", 808), ("4th", 951)]  # 每行名次都和行号不同
     boxes = []
     for i, (label, y) in enumerate(rows):
         boxes.append((label, (45, y - 25, 125, y + 25)))
         boxes.append((f"{90000 - i * 10000:,}Pt", (480, y - 5, 640, y + 25)))
     got = [r["rank"] for r in _ranking_fields(boxes)["rows"]]
-    assert got == [3, 2, 1, 4, 5]
+    assert got == [3, 1, 5, 2, 4]
 
 
 def test_tower_conditions_strip_star_icon():
