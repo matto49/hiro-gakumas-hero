@@ -92,3 +92,43 @@ def test_restart_once_then_give_up(tmp_path, monkeypatch):
     with pytest.raises(gc.GkmsError, match="不再用"):
         c.call("hello", timeout=2)
     assert c.starts == 2
+
+
+def test_i7_worker_runs_in_utf8_mode(tmp_path, monkeypatch):
+    """I-7：-I 会让 PYTHONUTF8 失效，要用 -X utf8（Windows 上中文路径 / 报错不崩）。"""
+    inst, script = fake_install(
+        tmp_path,
+        """
+        import sys, json
+        for line in sys.stdin:
+            req = json.loads(line)
+            print(json.dumps({"id": req["id"], "ok": True, "result": {"utf8": sys.flags.utf8_mode}}), flush=True)
+    """,
+    )
+    monkeypatch.setattr(gc, "WORKER", script)
+    c = gc.Client(inst)
+    assert c.call("hello", timeout=5)["utf8"] == 1
+    c.close()
+
+
+def test_i8_pack_failure_cached(monkeypatch):
+    """I-8：选卡包下不到时记一段时间，后面的决策不再每次等 wait_s。"""
+    import importlib
+    import time as _t
+
+    w = importlib.import_module("hiro.gkms.worker")
+    w._PACK_FAIL.clear()
+    calls = []
+
+    class PV:
+        @staticmethod
+        def pack_for(idol):
+            calls.append(idol)
+            return None, "loading"
+
+    t0 = _t.monotonic()
+    assert w._pack(PV, "i_card-x", 0.6) == (None, "loading")
+    assert _t.monotonic() - t0 >= 0.5
+    t1 = _t.monotonic()
+    assert w._pack(PV, "i_card-x", 0.6)[1] == "loading"
+    assert _t.monotonic() - t1 < 0.2

@@ -64,13 +64,14 @@ def record(state) -> tuple[dict | None, str | None]:
         return None, "不知道现在是第几周（produce.step 没读到）"
     sched = p.get("schedule") or {}
     weeks = {int(w["week"]): w for w in sched.get("weeks") or [] if w.get("week")}
-    total = int(sched.get("total") or (max(weeks) if weeks else 0))
-    if not weeks or not total:
+    if not weeks:
         return None, "没有日程列表（日程列表探查没开或没读到）"
+    total = int(sched.get("total") or 0)
+    if not total:
+        return None, "日程列表没读到总周数（尾部缺周时会把中間当成最終）"
     params, growth = p.get("params") or {}, p.get("growth_permil") or {}
     if any(params.get(k) is None for k in GKMS_ATTR) or p.get("stamina") is None or p.get("max_stamina") is None:
         return None, "属性 / 体力没读全"
-    exams = sorted(w for w, x in weeks.items() if x.get("kind") == "exam")
     rows = []
     options_now = (state.page_fields or {}).get("options") or []
     for wk in range(int(step), total + 1):
@@ -82,9 +83,11 @@ def record(state) -> tuple[dict | None, str | None]:
         elif w is None:
             return None, f"日程列表缺第 {wk} 周"
         elif w.get("kind") == "exam":
-            t = ["audition_final" if wk == (exams[-1] if exams else total) else "audition_mid1"]
+            t = ["audition_final" if wk == total else "audition_mid1"]
         elif w.get("kind") == "oikomi":
             t = _lesson(mode, None, hard=True) + ["refresh"]
+        elif not w.get("options"):
+            return None, f"第 {wk} 周的选项没读到"
         else:
             t = _types(mode, w.get("options") or [], current=False)
             if t is None:

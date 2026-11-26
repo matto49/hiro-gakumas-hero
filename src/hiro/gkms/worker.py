@@ -16,8 +16,9 @@ import sys
 import time
 import traceback
 
-HOME = sys.argv[1] if len(sys.argv) > 1 else "."
-sys.path.insert(0, HOME)
+HOME = "."
+PACK_FAIL_TTL_S = 300.0  # 选卡包下不到（none / loading）后这么久里不再在 worker 里等（终审 I-8）
+_PACK_FAIL: dict[str, float] = {}
 
 _OUT = sys.stdout
 _world = None
@@ -64,10 +65,17 @@ def op_route(args):
 
 
 def _pack(PV, idol, wait_s):
+    failed = _PACK_FAIL.get(idol)
+    if failed is not None and time.monotonic() - failed < PACK_FAIL_TTL_S:
+        wait_s = 0  # 刚下过没下到：问一次（后台下载可能已经好了），不再等
     deadline = time.monotonic() + float(wait_s or 0)
     while True:
         pack, state = PV.pack_for(idol)
         if state != "loading" or time.monotonic() >= deadline:
+            if pack is None:
+                _PACK_FAIL.setdefault(idol, time.monotonic())
+            else:
+                _PACK_FAIL.pop(idol, None)
             return pack, state
         time.sleep(0.5)
 
@@ -131,6 +139,9 @@ OPS = {
 
 
 def main() -> None:
+    global HOME
+    HOME = sys.argv[1] if len(sys.argv) > 1 else "."
+    sys.path.insert(0, HOME)
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -148,7 +159,7 @@ def main() -> None:
         except BaseException as e:  # noqa: BLE001  任何错误都回给调用方，worker 继续活着
             traceback.print_exc(file=sys.stderr)
             reply = {"id": rid, "ok": False, "error": f"{type(e).__name__}: {e}"}
-        _OUT.write(json.dumps(reply, ensure_ascii=False, default=str) + "\n")
+        _OUT.write(json.dumps(reply, ensure_ascii=True, default=str) + "\n")  # 只出 ASCII：管道编码对不上也不坏
         _OUT.flush()
 
 

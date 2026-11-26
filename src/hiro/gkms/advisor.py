@@ -28,6 +28,14 @@ PACK_WAIT_S = 10.0  # 第一次用到某张偶像卡的选卡包时，在 worker
 CALL_TIMEOUT_S = 25.0
 
 
+def _upg(c: Any) -> int:
+    return int((c.get("upgrade") if isinstance(c, dict) else getattr(c, "upgrade", 0)) or 0)
+
+
+def _custom(c: Any) -> bool:
+    return bool(c.get("customized") if isinstance(c, dict) else getattr(c, "customized", False))
+
+
 def _cid(c: Any) -> str | None:
     if isinstance(c, dict):
         return c.get("card_id")
@@ -192,8 +200,11 @@ class GkmsProduceAdvisor:
         lab = self._pack_label(state)
         gain, thr = r.get("reroll_gain"), self.hello().get("reroll_gain", 0.1)
         left = pf.get("rerolls_left")
+        prod = state.produce or {}
+        # 和内置同一口径的刷新预留（决策-11：H.I.F 選抜留 1 次给本戦，第 5 天前再多留 1 次；终审 I-4）
+        reserve = (1 + (1 if int(prod.get("step") or 0) < 5 else 0)) if prod.get("mode") == "produce-007" else 0
         listing = "、".join(f"{x.get('card_id')} {r['take'].get(x.get('card_id'))}" for x in cands if x.get("card_id"))
-        if gain is not None and gain > thr and isinstance(left, int) and left > 0:
+        if gain is not None and gain > thr and isinstance(left, int) and left > reserve:
             self._note("SELECT_CARD", reroll=True, gain=gain, take=r["take"])
             return Decision(Action(ActionKind.REROLL), f"{lab}：刷新（新候选的期望最好 V 比现在高 {gain:g} > {thr:g}；现在 {listing}）", "plan", 0.7,
                             decider="gkms_pickv")  # fmt: skip
@@ -299,7 +310,8 @@ class GkmsProduceAdvisor:
         if visit != self._visit:
             self._visit, self._used = visit, set()
         pf = state.page_fields or {}
-        deck = [c for c in ((state.produce or {}).get("deck") or []) if _cid(c)]
+        full_deck = list((state.produce or {}).get("deck") or [])  # card_index 是这个列表的下标（终审 I-1）
+        deck = [c for c in full_deck if _cid(c)]
         if page == "CONSULT":
             shelf = [it for it in pf.get("shelf") or [] if it.get("kind") == "card"]
             services = pf.get("services") or {}
@@ -318,15 +330,7 @@ class GkmsProduceAdvisor:
             return sv if sv.get("price") is not None and sv["price"] <= budget else None
 
         up_sv, del_sv = usable("upgrade"), usable("delete")
-        up_ids = (
-            list(
-                dict.fromkeys(
-                    _cid(c) for c in deck if not (c.get("upgrade") if isinstance(c, dict) else getattr(c, "upgrade", 0))
-                )
-            )
-            if up_sv
-            else []
-        )
+        up_ids = list(dict.fromkeys(_cid(c) for c in deck if not _upg(c))) if up_sv else []
         if not shelf and not up_ids and not del_sv:
             return None
         r = self._values(state, offer=[it["card_id"] for it in shelf], upgrade=up_ids)
@@ -336,7 +340,7 @@ class GkmsProduceAdvisor:
         lab = self._pack_label(state)
         opts: list[tuple[float, str, Decision]] = []
         if del_sv and deck:
-            order = self._removal_order(state, deck)
+            order = self._removal_order(state, full_deck)
             if order:
                 cid, idx, is_trouble = order
                 v = r["held"].get(cid)
@@ -354,11 +358,7 @@ class GkmsProduceAdvisor:
             ups = [(r["up"].get(cid), cid) for cid in up_ids if r["up"].get(cid) is not None]
             if ups:
                 v, cid = max(ups)
-                idx = next(
-                    i
-                    for i, c in enumerate(deck)
-                    if _cid(c) == cid and not (c.get("upgrade") if isinstance(c, dict) else 0)
-                )
+                idx = next(i for i, c in enumerate(full_deck) if _cid(c) == cid and not _upg(c))
                 if v >= tau:
                     opts.append((v, "upgrade", Decision(Action(up_kind, {"card_index": idx}),
                                                         f"{lab}：强化 {cid}（V × 强化率 {v:g}；{up_sv['price']}P）", "plan", 0.8, decider="gkms_pickv")))  # fmt: skip
@@ -371,21 +371,18 @@ class GkmsProduceAdvisor:
         return d
 
     def _removal_order(self, state: Any, deck: list) -> tuple[str, int, bool] | None:
-        """删卡的第一候选（pickv.removal_by_v 顺序里第一张没定制过的）：(card_id, 牌组下标, 是不是トラブル)。"""
+        """删卡的第一候选（pickv.removal_by_v 顺序里第一张没定制过的）：(card_id, produce.deck 下标, 是不是トラブル)。"""
         from hiro.brain.deciders import _is_trouble_card
 
-        cards = [{"card_id": _cid(c), "upgrade": (c.get("upgrade") if isinstance(c, dict) else getattr(c, "upgrade", 0)) or 0,
-                  "customized": bool(c.get("customized") if isinstance(c, dict) else getattr(c, "customized", False))} for c in deck]  # fmt: skip
-        r = self.client.call(
-            "removal",
-            idol=self._idol(state),
-            deck=cards,
-            allow_trouble=True,
-            wait_s=PACK_WAIT_S,
-            timeout=CALL_TIMEOUT_S,
-        )
+        cards = [
+            (i, {"card_id": _cid(c), "upgrade": _upg(c), "customized": _custom(c)})
+            for i, c in enumerate(deck)
+            if _cid(c)
+        ]
+        r = self.client.call("removal", idol=self._idol(state), deck=[c for _, c in cards], allow_trouble=True, wait_s=PACK_WAIT_S,
+                             timeout=CALL_TIMEOUT_S)  # fmt: skip
         for want in r.get("order") or []:
-            for i, c in enumerate(cards):
+            for i, c in cards:
                 if (
                     c["card_id"] == want["card_id"]
                     and not c["customized"]

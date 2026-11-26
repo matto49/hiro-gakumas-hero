@@ -48,7 +48,7 @@ class Client:
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
         env.setdefault("GKMS_HUB_URL", DEFAULT_HUB)
         self.proc = subprocess.Popen(
-            [self.install.python, "-I", "-u", str(WORKER), str(self.install.home)],
+            [self.install.python, "-I", "-X", "utf8", "-u", str(WORKER), str(self.install.home)],  # -I 会忽略 PYTHONUTF8（终审 I-7）
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=log, cwd=str(self.install.home),
             text=True, encoding="utf-8", env=env,
         )  # fmt: skip
@@ -58,9 +58,13 @@ class Client:
     @staticmethod
     def _pump(proc: subprocess.Popen, q: queue.Queue) -> None:
         assert proc.stdout is not None
-        for line in proc.stdout:
-            q.put(line)
-        q.put(None)  # 子进程退出
+        try:
+            for line in proc.stdout:
+                q.put(line)
+        except (OSError, ValueError, UnicodeDecodeError):
+            pass
+        finally:
+            q.put(None)  # 子进程退出 / 读不下去了
 
     def _kill(self) -> None:
         if self.proc is not None:

@@ -163,3 +163,62 @@ def test_skin_idol_id_normalized():
     adv.begin({"idol": None})
     adv.decide("SELECT_CARD", s, n_options=1, kw={})
     assert next(a for op, a in client.calls if op == "values")["idol"] == "i_card-shro-3-007"
+
+
+def test_i2_declined_options_not_chosen():
+    """I-2：游戏弹过警告、取消掉的选项（declined_options），插件也不能再选。"""
+    from hiro import plugins, strategy
+    from hiro.brain.deciders import ProduceDeciders
+
+    route = copy.deepcopy(ROUTE)
+    route["plan"]["route"][0][1] = "shop"
+    s = make("ACTION_SELECT")
+    s.page_fields["declined_options"] = ["shop"]
+    adv = GkmsProduceAdvisor(client=FakeClient(route=route))
+    plugins.reset()
+    strategy.reset()
+    plugins.register("produce_advisor", lambda: adv, id="gkms")
+    import os
+
+    old = os.environ.pop("HIRO_GKMS", None)
+    try:
+        d = ProduceDeciders(None).decide("ACTION_SELECT", s)
+    finally:
+        if old is not None:
+            os.environ["HIRO_GKMS"] = old
+        plugins.reset()
+        strategy.reset()
+    assert d.action.args["option"] != "shop"
+
+
+def test_i4_reroll_keeps_selection_reserve():
+    """I-4：H.I.F 選抜第 5 天前刷新留 2 次（同内置的预留，决策-11）。"""
+    adv = GkmsProduceAdvisor(
+        client=FakeClient(values=values({"p_card-a": 0.1, "p_card-b": 0.1, "p_card-c": 0.1}, reroll_gain=0.3))
+    )
+    s = make("SELECT_CARD", mode="produce-007", page_fields={"candidates": CANDS, "rerolls_left": 2}, step=3)
+    d = run(adv, "SELECT_CARD", s, n=3)
+    assert d.action.kind is ActionKind.ACTIVATE_EFFECT
+    s3 = make("SELECT_CARD", mode="produce-007", page_fields={"candidates": CANDS, "rerolls_left": 3}, step=3)
+    assert run(adv, "SELECT_CARD", s3, n=3).action.kind is ActionKind.REROLL
+
+
+def test_i5_consult_used_cleared_on_action_select(monkeypatch):
+    """I-5：选行动交给插件时，内置的「这一次相談用过的服务」也要清空。"""
+    from hiro.brain.deciders import ProduceDeciders
+
+    dec = ProduceDeciders(None)
+    dec.consult_used = {"delete"}
+    adv = GkmsProduceAdvisor(client=FakeClient(route=ROUTE))
+    from hiro import plugins, strategy
+
+    plugins.reset()
+    strategy.reset()
+    monkeypatch.delenv("HIRO_GKMS", raising=False)
+    plugins.register("produce_advisor", lambda: adv, id="gkms")
+    try:
+        dec.decide("ACTION_SELECT", make("ACTION_SELECT"))
+    finally:
+        plugins.reset()
+        strategy.reset()
+    assert dec.consult_used == set()

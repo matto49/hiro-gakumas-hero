@@ -172,3 +172,36 @@ def test_without_gkms_builtin_sees_whole_page(monkeypatch):
     ProduceDeciders(None).decide("CONSULT", consult())
     assert len(seen[0]["shelf"]) == 3 and "delete" in seen[0]["services"]
     strategy.reset()
+
+
+# ---------------------------------------------------------------- 终审修复
+def test_c1_plugin_cannot_compute_builtin_sees_whole_page(gkms, monkeypatch):
+    """C-1：选卡包不可用时，内置要用完整页面再定一次（不能整局没人管卡）。"""
+    gkms["client"] = FakeClient(values=values({}, state="stale"))
+    seen = builtin_spy(monkeypatch, END)
+    ProduceDeciders(None).decide("CONSULT", consult())
+    assert len(seen) == 2 and len(seen[1]["shelf"]) == 3 and "delete" in seen[1]["services"]
+
+
+def test_i1_upgrade_index_in_unfiltered_deck(gkms, monkeypatch):
+    """I-1：card_index 是 produce.deck 的原下标（前面有没认出的格、已强化的卡也算）。"""
+    gkms["client"] = FakeClient(values=values({}, held={"p_card-d": 0.5, "p_card-e": 0.6}, up={"p_card-e": 0.4}))
+    builtin_spy(monkeypatch, END)
+    s = consult(shelf=[], services={"upgrade": {"price": 80, "available": True}})
+    s.produce["deck"] = [
+        {"card_id": None},
+        {"card_id": "p_card-d", "upgrade": 1},
+        {"card_id": "p_card-e", "upgrade": 0},
+    ]
+    d = ProduceDeciders(None).decide("CONSULT", s)
+    assert d.action.kind is ActionKind.SHOP_UPGRADE_CARD and d.action.args["card_index"] == 2
+
+
+def test_i3_cards_before_builtin_reroll(gkms, monkeypatch):
+    """I-3：内置要刷新货架时，先让插件把值得买的卡买掉，再刷新。"""
+    gkms["client"] = FakeClient(
+        values=values({"p_card-a": 0.9, "p_card-b": 0.1}, held={"p_card-d": 0.5, "p_card-e": 0.6})
+    )
+    builtin_spy(monkeypatch, Decision(Action(ActionKind.REROLL), "内置：刷新货架", "rule", 0.8))
+    d = ProduceDeciders(None).decide("CONSULT", consult(services={}))
+    assert d.action.kind is ActionKind.SHOP_BUY and d.action.args == {"index": 0}

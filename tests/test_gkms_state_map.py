@@ -107,3 +107,19 @@ def test_real_route_maps_back_to_screen(monkeypatch):
         c.close()
     now = dict(r["plan"]["route"])[11]
     assert sm.option_for(now, s.page_fields["options"]) is not None
+
+
+def test_i9_no_total_defers():
+    s = state()
+    s.produce["schedule"].pop("total")
+    rec, why = sm.record(s)
+    assert rec is None and "总周数" in why
+
+
+def test_i9_empty_week_defers():
+    s = state()
+    for w in s.produce["schedule"]["weeks"]:
+        if w["week"] == 13:
+            w["options"] = []
+    rec, why = sm.record(s)
+    assert rec is None and "第 13 周" in why

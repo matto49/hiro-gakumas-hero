@@ -187,8 +187,15 @@ class ProduceDeciders:
 
         if page in MIXED_PAGES and (mixed := self._mixed_page(page, state, fn, n_options, kw, t0)) is not None:
             return mixed
+        if page == "ACTION_SELECT":
+            self.consult_used = set()  # 回到选行动页：上一次相談结束了（选行动交给插件时内置不会走到这一步）
         pd, plugin_why = plugin_gate.produce_decide(
-            page, state, n_options, kw, context=lambda: self._plugin_context(state), invalid=_invalid_decision
+            page,
+            self._plugin_view(page, state),
+            n_options,
+            kw,
+            context=lambda: self._plugin_context(state),
+            invalid=_invalid_decision,
         )
         if pd is not None:
             pd.seconds = round(time.monotonic() - t0, 3)
@@ -207,6 +214,19 @@ class ProduceDeciders:
         d.seconds = round(time.monotonic() - t0, 3)
         self._prewarm(state)
         return d
+
+    def _plugin_view(self, page: str, state: GameState) -> GameState:
+        """给插件看的局面：选行动页去掉执行器做不了的选项（unavailable_options）和这一周游戏弹过警告、已经取消掉的选项
+        （page_fields.declined_options），和内置决策器同一口径（全被排除时照旧全部可选）。"""
+        if page != "ACTION_SELECT":
+            return state
+        pf = dict(state.page_fields or {})
+        declined = set(pf.get("declined_options") or ())
+        opts = [
+            o for o in pf.get("options") or [] if o.get("option") and o.get("option") not in self.unavailable_options
+        ]
+        pf["options"] = [o for o in opts if o["option"] not in declined] or opts
+        return replace(state, page_fields=pf)
 
     def _mixed_page(
         self, page: str, state: GameState, fn, n_options: int | None, kw: dict, t0: float
@@ -230,7 +250,8 @@ class ProduceDeciders:
         if why is not None:
             d = self._page_fallback(page, view, n_options, why, prior=d, **kw)
         assert d is not None
-        if d.action.kind not in (ActionKind.SHOP_END, ActionKind.INTERVAL_END):
+        # 内置要刷新货架（REROLL）时也先让插件把值得买的卡买掉（刷新会把卡刷掉，终审 I-3）
+        if d.action.kind not in (ActionKind.SHOP_END, ActionKind.INTERVAL_END, ActionKind.REROLL):
             d.reason += f"（这一页的卡交给插件 {pid}）"
             d.seconds = round(time.monotonic() - t0, 3)
             return d
@@ -246,8 +267,21 @@ class ProduceDeciders:
                 pd.reason += f"（预算 {budget}P：{reserve_why}）"
             pd.seconds = round(time.monotonic() - t0, 3)
             return pd
-        if plugin_why is not None:
-            d.warnings.append(plugin_why)
+        cannot = plugin_why or getattr(plugin, "last_why", None)
+        if cannot:
+            # 插件算不了（选卡包不可用、出错、超时、输出不合法）：卡不能没人管，内置用完整页面再定一次（终审 C-1）
+            try:
+                full = fn(state, **kw)
+                why = _invalid_decision(page, full, n_options, kw)
+            except Exception as e:  # noqa: BLE001
+                logger.exception("决策器 %s 异常", page)
+                full, why = None, f"决策器异常 {type(e).__name__}: {e}"
+            if why is not None:
+                full = self._page_fallback(page, state, n_options, why, prior=full, **kw)
+            assert full is not None
+            full.warnings.append(f"插件 {pid} 管不了这一页的卡（{cannot}），这一步按内置完整页面定")
+            full.seconds = round(time.monotonic() - t0, 3)
+            return full
         d.seconds = round(time.monotonic() - t0, 3)
         return d
 
