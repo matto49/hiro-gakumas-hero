@@ -1,7 +1,7 @@
 {
   "name": "初星助手",
   "identifier": "top.matto.hiro-console",
-  "version": "0.1.1-rc.7",
+  "version": "0.1.1-rc.8",
   "i18n": { "dir": "locales", "source": "zh-Hans" },
   "out": "build",
   "windows": { "installerInclude": "installer.nsh" }
