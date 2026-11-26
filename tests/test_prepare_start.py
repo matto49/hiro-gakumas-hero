@@ -178,3 +178,18 @@ def test_write_failure_reason_is_the_specific_one(home, calls, monkeypatch, caps
     err = capsys.readouterr().err
     why = failure_reason(err.splitlines())
     assert why is not None and why.startswith("回忆选择列表往下翻到第 6 行") and "原因见上面的日志" not in err
+
+
+def test_exec_on_windows_waits_for_child_and_returns_its_code(monkeypatch):
+    """N51（G3 第 3 轮 11-26 Windows）：os.execvp 在 Windows 上另起新进程、本进程立刻以 0 退出，任务层报「完成」。
+    Windows 上改成起子进程等它结束，原样返回退出码；POSIX 照旧 exec。"""
+    import subprocess
+
+    called = []
+    monkeypatch.setattr(subprocess, "call", lambda argv: called.append(argv) or 3)
+    monkeypatch.setattr(ps.os, "execvp", lambda *a: called.append(("execvp", *a)))
+    assert ps._exec(["python", "-m", "hiro.runtime.hajime", "new"], platform="win32") == 3
+    assert called == [["python", "-m", "hiro.runtime.hajime", "new"]]
+    called.clear()
+    ps._exec(["python", "-m", "x"], platform="darwin")
+    assert called and called[0][0] == "execvp"

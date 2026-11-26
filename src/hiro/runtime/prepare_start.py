@@ -64,10 +64,16 @@ def _check_memory_freshness(plan_file: Path, home: Path) -> None:
     check(plan_file, home)
 
 
-def _exec(argv: list[str]) -> int:
+def _exec(argv: list[str], *, platform: str = sys.platform) -> int:
+    """接着跑原来的开局命令（hiro.cli.jobs 拼的）。POSIX 用 exec 换掉本进程（退出码、停止信号都直接到对局进程）。
+    Windows 不能 exec：os.execvp 在 Windows 上是另起新进程、本进程立刻以 0 退出——任务层等到 0 就报「完成」，
+    对局出错也一样；停止时 taskkill /T 也找不到真正在打的那个进程（N51，G3 第 3 轮 11-26：收尾超时 180 秒仍报完成）。
+    Windows 上改成起子进程等它结束，原样返回它的退出码；子进程在本进程的进程树里，停止任务时一起结束。"""
     sys.stdout.flush()
     sys.stderr.flush()
-    os.execvp(argv[0], argv)  # noqa: S606  原来的开局命令（hiro.cli.jobs 拼的）
+    if platform == "win32":
+        return subprocess.call(argv)  # noqa: S603
+    os.execvp(argv[0], argv)  # noqa: S606
     return 0  # 只在测试替身里走到
 
 
