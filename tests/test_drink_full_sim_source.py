@@ -125,9 +125,16 @@ def test_skip_not_confirmed_stops_instead_of_recording_ok(monkeypatch, shown):
     monkeypatch.setattr(hif, "sleep", lambda s: None)
     st.s.record = lambda obs, **k: recorded.append(k.get("execution"))
     st.s.note = lambda *a: None
+    clicks = []
+    monkeypatch.setattr(hif, "device", NS(screenshot=lambda: None, click=lambda x, y: clicks.append((x, y))))
     with pytest.raises(UnhandledPage) as e:
         st._drink_full_skip()
     assert "受け取らない" in str(e.value) and "手动" in str(e.value)
+    if len(shown) > 1:  # 勾选框只点一次（再点会取消勾选），重试只补点底部按钮
+        assert clicks == [(360, 1006), (360, 1097), (360, 1097)]
+        assert "画面没变" in str(e.value)
+    else:
+        assert clicks == [] and "勾选框" in str(e.value) and "底部按钮" in str(e.value)
     assert recorded and recorded[-1].ok is False and recorded[-1].retries == 1
     assert not getattr(st, "_skip_incoming_drink", False)
 

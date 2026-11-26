@@ -881,11 +881,13 @@ class HifCore:
             return True
         # #183 review：勾选框 / 底部按钮都点到、而且画面变了（「所持上限」没了，或出了「報酬スキップ」确认）才算跳过成功；
         # 缺省开以后这条路更常走到，点空了还记成功、设 _skip_incoming_drink，会把后面的确认放行错。没变就再来一次，还不行就停下说清楚
-        missing = ""
+        missing, ticked = "", False
         for _ in range(self.DRINK_SKIP_TRIES):
-            box = next((t for t in boxes if "受け取らない" in t.text), None)
+            # 勾选框只点一次：重试时再点会把已经勾上的取消掉（#183 review），重试只补点底部按钮
+            box = None if ticked else next((t for t in boxes if "受け取らない" in t.text), None)
             if box is not None:
                 device.click(*box.rect.center)
+                ticked = True
                 sleep(0.8)
             btn = next(
                 (
@@ -902,7 +904,9 @@ class HifCore:
             if _drink_skip_done(boxes):
                 break
             missing = (
-                "、".join(x for x, hit in (("「受け取らない」勾选框", box), ("底部按钮", btn)) if hit is None)
+                "、".join(
+                    x for x, hit in (("「受け取らない」勾选框", ticked or None), ("底部按钮", btn)) if hit is None
+                )
                 or "画面没变"
             )
         else:
