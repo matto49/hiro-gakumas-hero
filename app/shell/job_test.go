@@ -644,7 +644,7 @@ func TestCollectAllDoneOffersStartButtons(t *testing.T) {
 
 // N61（G1 第 5 轮 11-27）：开局任务停在开局前准备（写编成）、游戏还没开局，给「再试一次」；开了局的不给。
 func TestPreStartFailureOffersRetry(t *testing.T) {
-	retryAfterState := func(params, events, evState string) (plugin.Card, string) {
+	retryAfterState := func(params, events, evState string) (plugin.Card, string) { //nolint:unparam
 		call := liveCall("running")
 		call.resp["run events"] = ok(`{"state":"running","events":[]}`) // 开局前准备阶段还没有对局步骤
 		a, run := newTestApp(newMem(), call, nil, viewReg())
@@ -675,9 +675,28 @@ func TestPreStartFailureOffersRetry(t *testing.T) {
 	}
 	retryAfter := func(params, events string) (plugin.Card, string) { return retryAfterState(params, events, "failed") }
 	prep := `{"idol":"i_card-x","prepare":true,"prepare_note":"把编成方案写进回忆编成 13 号"}`
-	// 终态事件没读到（事件接口还停在 running，只有准备阶段的旧日志）：不判断、不给重试（#194 CodeRabbit）
-	if c, _ := retryAfterState(prep, `[{"seq":1,"type":"log","text":"开局前准备：把编成方案写进游戏"}]`, "running"); c != nil {
-		t.Errorf("没读到终态事件时不该给重试：%v", c)
+	// 终态那一轮读事件失败、手里只有准备阶段的旧日志（其实后来开了局）：不判断、不给重试（#194 CodeRabbit）
+	{
+		call := liveCall("running")
+		call.resp["run events"] = ok(`{"state":"running","events":[{"seq":1,"type":"log","text":"开局前准备：把编成方案写进游戏"}]}`)
+		a, run := newTestApp(newMem(), call, nil, viewReg())
+		a.NewThread()
+		ownJob(a, "j7")
+		a.PollJobs()
+		run.Drain()
+		call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"hajime","state":"failed","summary":"开一局初","started_at":1,"params":` + prep + `,"exit_code":1,"reason":"考试里出错"}]}`)
+		call.resp["run events"] = hiroapi.Result{OK: false, Error: &hiroapi.CliError{Code: "service_down", Message: "读不到"}}
+		for i := 0; i < 3; i++ {
+			a.PollJobs()
+			run.Drain()
+		}
+		for _, m := range a.Current().Messages {
+			for _, c := range m.Cards {
+				if c["type"] == "retry" {
+					t.Errorf("没读到终态事件时不该给重试：%v", c)
+				}
+			}
+		}
 	}
 	c, text := retryAfter(prep, `[{"seq":1,"type":"log","text":"写编成没成功，没有开局"}]`)
 	if c == nil || !strings.Contains(text, "还没开局") {
