@@ -380,10 +380,16 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str],
     a["prepare_note"] = "；".join(steps) + (
         "（写完回读核对）" if agreed else "（只写空着的或初星助手自己写过的编成位，写完回读核对）"
     )
-    if (
-        agreed
-    ):  # 规范写法传给 prepare_start；用不上同意的（空位 / 自己写过的 / 已经写进去的）不放，确认卡就不会多写「会覆盖」
-        a["overwrite"] = ",".join(f"{w}={n}" for w, n in sorted(agreed.items()))
+    # 玩家点名的号（这次真要写的）照样传给任务：任务开始时方案改用这个号，确认卡和任务用同一个号（#192 CodeRabbit：
+    # 点名的是空位 / 初星助手写过的号时，原来把 overwrite 删了，任务读磁盘上的旧号开局）。要不要靠同意才能写，
+    # 由 prepare_start 按方案号核对；确认卡说明里「你同意覆盖」只写给 agreed 里的
+    targets = {
+        w: n
+        for w, n in parse_overwrite(a.get("overwrite")).items()
+        if (plan.get(w) or {}).get("set") == n and w in fp.unwritten(plan, kind, todo)
+    }
+    if targets:
+        a["overwrite"] = ",".join(f"{w}={n}" for w, n in sorted(targets.items()))
     else:
         a.pop("overwrite", None)
     return True

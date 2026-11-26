@@ -305,14 +305,31 @@ def test_declined_consent_leaves_plain_start_unchanged(run_cli, hiro_home, on):
     assert code == 3 and not env["data"]["pending"]["args"].get("prepare"), env
 
 
-def test_consent_on_blank_or_written_slot_is_not_shown_as_overwrite(run_cli, hiro_home, on):
-    """#192 review：同意的号其实是空位（或已经写进去了）用不上同意：参数里不带 overwrite，卡上不写「会覆盖」。"""
+def test_named_blank_slot_keeps_number_for_job(run_cli, hiro_home, on, tmp_path, monkeypatch):
+    """#192 CodeRabbit：玩家点名的 14 号其实是空位（用不上同意）：号码照样传给任务，确认卡和任务都用 14 号；
+    卡上说明不写「你同意覆盖」。任务开始时 prepare_start 把方案改成 14 号、写回忆。"""
+    from hiro.cli import jobs
+    from hiro.runtime import prepare_start as ps
+
     _plan(hiro_home, sets=(4, 12), written=True)
     _formations("hajime", {4: 5}, {12: 4, 14: 0})
     code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN, "--overwrite", "memory=14")
     assert code == 3, env
-    args = env["data"]["pending"]["args"]
-    assert args["prepare"] is True and "overwrite" not in args and "同意覆盖" not in args["prepare_note"]
+    pend = env["data"]["pending"]
+    args = pend["args"]
+    assert args["prepare"] is True and args["overwrite"] == "memory=14" and "同意覆盖" not in args["prepare_note"]
+    assert "回忆编成 14 号" in args["prepare_note"] and pend["plan"]["memory"]["set"] == 14  # 确认卡用的号
+    argv = jobs.KINDS["hajime"].argv(args, tmp_path)
+    i = argv.index("hiro.runtime.prepare_start")
+    sep = argv.index("--", i)
+    calls = []
+    monkeypatch.setattr(ps, "_write", lambda mode, what=(), blank_only=(): calls.append(("write", tuple(what))) or 0)
+    monkeypatch.setattr(ps, "_exec", lambda argv: 0)
+    monkeypatch.setattr(ps, "_check_memory_freshness", lambda plan_path, home: None)
+    monkeypatch.setenv("HIRO_FORMATION_PLAN", str(hiro_home / "formation-plan.json"))
+    assert ps.main([*argv[i + 1 : sep + 1], "x"]) == 0
+    per = json.loads((hiro_home / "plans" / "hajime" / f"{KOTONE}.json").read_text(encoding="utf-8"))
+    assert per["memory"]["set"] == 14 and ("write", ("memory",)) in calls  # 任务准备的号和卡上一样
 
 
 def test_player_slot_without_consent_still_refused(run_cli, hiro_home, on):

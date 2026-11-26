@@ -332,11 +332,11 @@ func TestExplainOverwriteConsentRow(t *testing.T) {
 	}
 	with := base()
 	with["overwrite"] = "memory=13"
-	if got := rowsOf(with)["会覆盖"]; !strings.Contains(got, "回忆编成 13 号") || !strings.Contains(got, "同意") || strings.Contains(got, "支援卡") {
-		t.Errorf("会覆盖 %q", got)
+	if got := rowsOf(with)["点名的编成位"]; !strings.Contains(got, "回忆编成 13 号") || !strings.Contains(got, "换掉") || strings.Contains(got, "支援卡") {
+		t.Errorf("点名的编成位 %q", got)
 	}
-	if got, ok := rowsOf(base())["会覆盖"]; ok {
-		t.Errorf("没同意也出了会覆盖：%q", got)
+	if got, ok := rowsOf(base())["点名的编成位"]; ok {
+		t.Errorf("没点名也出了这一行：%q", got)
 	}
 }
 

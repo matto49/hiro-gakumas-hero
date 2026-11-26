@@ -368,7 +368,7 @@ func writeSetsRow(flags map[string]string, pl *planBrief, access string) ([2]str
 	return [2]string{"写进", text}, true
 }
 
-// overwriteRow 是开局确认卡上「会覆盖」那一行（N65，G1 第 5 轮 11-27）：玩家在对话里点名同意覆盖（--overwrite memory=13），
+// overwriteRow 是开局确认卡上「点名的编成位」那一行（N65，G1 第 5 轮 11-27）：玩家在对话里点名同意覆盖（--overwrite memory=13），
 // 卡上要写明会换掉第几号编成里原来的卡，玩家点确认才写。号码只认 --overwrite 里写的，不从别处猜。
 func overwriteRow(flags map[string]string) ([2]string, bool) {
 	ov := flags["overwrite"]
@@ -387,7 +387,7 @@ func overwriteRow(flags map[string]string) ([2]string, bool) {
 	if len(parts) == 0 {
 		return [2]string{}, false
 	}
-	return [2]string{"会覆盖", strings.Join(parts, "、") + "里原来的卡（你在对话里同意覆盖的）"}, true
+	return [2]string{"点名的编成位", strings.Join(parts, "、") + "（你在对话里点名的；里面原来的卡会被换掉）"}, true
 }
 
 func or(s, d string) string {
