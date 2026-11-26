@@ -64,6 +64,8 @@ def failure_reason(lines: list[str]) -> str | None:
                 exc = f"{name}: {msg}"
             else:
                 exc = f"程序出错停下了（{name}）" + (f"：{msg}" if msg else "")
+            # 崩溃在后：之前的 ERROR 日志（比如「Vision 连续 3 次失败，改用 RapidOCR」，已经恢复了）不是原因（N40，G2 11-26）
+            err = None
         elif (m := _EXC_LINE.match(t)) and not _LOG_PREFIX.match(t):  # traceback 开头被截掉时（日志只留最后 20 行）
             exc = f"{m.group(1)}: {m.group(2)}"
         if t.startswith("停下："):

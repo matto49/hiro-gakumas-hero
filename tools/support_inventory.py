@@ -64,6 +64,7 @@ LIST_SWIPE = (
     685,
 )  # 网格内上滑约 2 行（行距 137.5）：每张卡至少有一屏落在中间完整可见（上滑 2.5 行时有 3 张只出现在被盖住的首末行）
 LIST_SETTLE, LIST_MAX_SCREENS = 1.2, 40
+CONTROL_RETRIES = 3  # 读不到列表按钮时重截重读几次（N40）
 
 
 def aggregate_list(screens: list[dict]) -> dict:
@@ -104,7 +105,19 @@ def list_scan() -> list[dict]:
 
     d = open_tool_device()
     screens, seen = [], set()
-    r = read_support_list(d.screenshot())
+
+    def read():
+        """读一屏；读出来缺「次へ / キャンセル」按钮（文字识别那一帧读空，比如 Vision 刚坏、正在换 RapidOCR）就重截重读几次。
+        N40（G2 11-26 Mac rc.7）：翻页时这一帧读空，controls 是 None，直接 r["controls"]["next"] 崩了。"""
+        got = read_support_list(d.screenshot())
+        for _ in range(CONTROL_RETRIES):
+            if got is None or got.get("controls"):
+                break
+            time.sleep(1.0)
+            got = read_support_list(d.screenshot())
+        return got
+
+    r = read()
     if r is None:
         print("停下：不在支援卡「選択」列表", flush=True)
         return screens
@@ -112,7 +125,7 @@ def list_scan() -> list[dict]:
     for page in range(1, pages + 1):
         idle = 0
         for _ in range(LIST_MAX_SCREENS):
-            r = read_support_list(d.screenshot())
+            r = read()
             if r is None:
                 break
             screens.append(r)
@@ -130,9 +143,15 @@ def list_scan() -> list[dict]:
             d.swipe(*LIST_SWIPE, duration=1.0, hold=LIST_HOLD_S)  # 终点停住再松手：不带惯性
             time.sleep(LIST_SETTLE)
         if page < pages:
+            if r is None or not (r.get("controls") or {}).get("next"):
+                print(
+                    f"停下：第 {page} 页扫完了，但读不到翻页按钮「次へ」（文字识别可能出了问题）；已认出的 {len(seen)} 张照样入库，可以再扫一次",
+                    flush=True,
+                )
+                return screens
             d.tap(*r["controls"]["next"])
             time.sleep(2.0)
-    if r is not None:
+    if r is not None and (r.get("controls") or {}).get("cancel"):
         d.tap(*r["controls"]["cancel"])  # 只读：不点決定
     return screens
 
