@@ -554,8 +554,7 @@ def iter_rows(picker: "Picker", *, max_pages: int = 600):
         prev_img = picker.shoot()
         prev = page_rows(prev_img) or rows
         if not prev:
-            _set_end(picker, "bottom")
-            return
+            return  # 读不出行不等于到底：结束原因留空，调用方照旧报（#159 review）
         # 滑多远和扫描用同一套（把上一页最后一个完整行滑到 SCROLL_TOP_TARGET 当锚点）：G3（11-26 Windows DMM，账号 1）
         # 写回忆编成时这里按「最后一行 - 第一行」滑，第 5 行就对不上停了，同一台机器上扫描 814 份却都对得上
         dy = page_scroll_px(prev)
