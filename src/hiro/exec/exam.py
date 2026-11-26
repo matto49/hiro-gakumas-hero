@@ -1676,7 +1676,9 @@ def run_exam(
                     session.recover("tap_no_effect", f"{d.action} {missed}")
                     session.note(f"blunder:play_missed_turn_end D34 {d.action}")
             elif changed:
-                progress_t = time.monotonic()
+                if todo.kind != "play" or PLAY_RESULT["confirmed"]:
+                    # 没看到 SELECT、没点确认的出牌：画面变了可能只是卡停在选中态（G1-F6），不算进展；真打出去了剩余回合会变
+                    progress_t = time.monotonic()
                 brain.commit(state, memory, d)
                 source.executed(Action.from_legal(d.action), result)
                 if not WAIT_INFO["select"] and not UNPLAYABLE.get("hit"):

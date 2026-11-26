@@ -133,6 +133,18 @@ def lesson_turns(img: np.ndarray) -> int | None:
     return tpl_v
 
 
+def lesson_turns_shown(img: np.ndarray) -> bool:
+    """左上「残りターン数」的数字还读得出（只用数字模板，不走 OCR）。卡停在选中态时正中「CLEARまで」换成分数预览、
+    lesson_goal 认不出，但这里还在：练习课没结束（G1-F6 11-26）。课程真结束后这里也没了（帧 00177–00199）。"""
+    from hiro.exec.exam import _hud_int
+    from hiro.vision import hif
+    from hiro.vision.ui_templates import box
+
+    if img is None:
+        return False
+    return _hud_int(img, hif.BOX_TURNS, box("InProduce.InLesson.BoxRemainingTurns")) is not None
+
+
 def read_lesson_hud(img: np.ndarray) -> dict | None:
     """练习课 HUD → {goal: clear / perfect, left: 离目标还差多少, param: 当前属性值}；不在练习课 None。读不到的项给 None。
     课程分实时加在右上的属性值上：满分线 = (当前属性值 − 开课时属性值) + PERFECTまで 的数（帧 00512：204 − 155 + 1 = 50）。"""

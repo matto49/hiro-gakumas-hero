@@ -33,6 +33,10 @@ MODES = {"regular": "produce-001", "pro": "produce-002", "master": "produce-003"
 DIFFICULTY_WORDS = {"regular": ("レギュラー", "REGULAR"), "pro": ("プロ", "PRO"), "master": ("マスター", "MASTER")}
 DEFAULT_OUT = Path(".temp") / "hajime-mac" / "frames"  # 相对仓库根目录（已被 .gitignore 挡住）
 LESSON_END_S = 2.0  # 练习课 HUD（CLEARまで / PERFECTまで）连续消失这么久算练习课结束（出牌动画不会盖住它）
+LESSON_REENTER_S = (
+    8.0  # 判了练习课结束、PRACTICE（CLEAR / PERFECT HUD）却一直还在这么久：当误判，重进这一节（G1-F6 11-26）
+)
+LESSON_REENTER_MAX = 2  # 同一节最多重进几次，再多停机交人
 RESULT_WAIT_S = 12.0  # 考试打完后等结算名次页出来
 FINAL_LABEL = "hajime-final"
 
@@ -194,19 +198,38 @@ def hajime_core(scenario_mode: str):
         # ---------------------------------------------------------------- 选行动
         def on_action_select(self, ctx=None):
             self._lesson_done = False
+            self._lesson_done_at, self._lesson_reentries = None, 0
             return super().on_action_select(ctx)
 
         # ---------------------------------------------------------------- 练习课
         def on_practice_entered(self, ctx):
+            from hiro.runtime.loop import STAY, stop
+
+            reenter = False
             if self._lesson_done:
-                return
+                done_at = getattr(self, "_lesson_done_at", None) or time.monotonic()
+                self._lesson_done_at = done_at
+                if time.monotonic() - done_at < LESSON_REENTER_S:
+                    return STAY  # 刚打完的残帧：不算「有操作」，主循环的空闲看门狗照常计时
+                n = (getattr(self, "_lesson_reentries", 0) or 0) + 1
+                if n > LESSON_REENTER_MAX:
+                    return stop(f"练习课判了结束，课程 HUD 一直还在，重进 {n - 1} 次仍没打完")
+                self._lesson_reentries = n
+                logger.warning("初练习课：判了结束 %.0fs 后课程 HUD 还在，当误判，重进这一节（第 %d 次）",
+                               time.monotonic() - done_at, n)  # fmt: skip
+                recover = getattr(getattr(self, "s", None), "recover", None)
+                if callable(recover):
+                    recover("page_misjudged", f"练习课误判结束，HUD 还在，重进（第 {n} 次）")
+                self._lesson_done, reenter = False, True
             img = active.device.screenshot()
             label = lesson_label(hv.lesson_attr(img), self.last_action_choice, self.last_action_options)
-            self.lesson_count += 1
-            type(self).lessons_done = self.lesson_count
             key = "-".join(str(x) for x in lesson_kind(label))
             counts = self.__dict__.setdefault("_lesson_counts", {})
-            counts[key] = counts.get(key, 0) + 1
+            if not reenter:  # 重进同一节：不重复计数
+                self.lesson_count += 1
+                type(self).lessons_done = self.lesson_count
+                counts[key] = counts.get(key, 0) + 1
+            counts.setdefault(key, 1)
             prod = self.s.state.produce or {}
             info = LessonInfo(
                 label,
@@ -230,7 +253,8 @@ def hajime_core(scenario_mode: str):
                     if info.feed(goal, hv.read_lesson_hud(shot), turns):
                         self.s.state.exam_session.lesson = dict(info.d)
                         logger.info("初练习课读数：%s", info.d)
-                if goal is not None:
+                if goal is not None or hv.lesson_turns_shown(shot):
+                    # 左上剩余回合还在：卡停在选中态（正中换成分数预览）之类，课程没结束（G1-F6）
                     gone["since"] = None
                     return False
                 now = time.monotonic()
@@ -241,7 +265,7 @@ def hajime_core(scenario_mode: str):
             run_exam(self.brain, label, self.rec, ended, session=self.s, advisor=self.advisor)
             self.rec.log("exam_end", image=active.device.screenshot(), exam=label, lesson=info.d)
             self.s.note(f"初练习课 {label}：{info.d}")
-            self._lesson_done = True
+            self._lesson_done, self._lesson_done_at = True, time.monotonic()
 
         def _lesson_from_trace(self, label: str) -> dict | None:
             """上一段 trace 停在这一节课里（最后一步的 exam_session.label 就是它、带课程读数）：返回那份读数；否则 None。"""

@@ -24,8 +24,10 @@ def make_handlers(core) -> dict[str, Callable]:
     def page(fn) -> Callable:
         def handler(rt, frame, hit) -> Outcome:
             gate["exam_done"] = False
-            fn(None)
-            return DONE
+            out = fn(None)
+            return (
+                out if isinstance(out, Outcome) else DONE
+            )  # 处理器明说 STAY（没做事）/ stop 就照办，不一律当「有操作」
 
         handler.__name__ = f"handle_{fn.__name__}"
         return handler
