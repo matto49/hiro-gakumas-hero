@@ -610,3 +610,22 @@ func TestScanDoneOffersStartButtons(t *testing.T) {
 		t.Error("点了应把「打一把初」发出去")
 	}
 }
+
+// N41（G2 11-26）：一键全收集第 3 步出错，「再试一次」从第 3 步接着做，不再从首页数值重扫。
+func TestCollectAllRetryResumesFromFailedStep(t *testing.T) {
+	ev := []plugin.JobEvent{{Type: "log", Text: "一键全收集：第 1/5 步 首页数值"}, {Type: "log", Text: "一键全收集：第 2/5 步 偶像卡"},
+		{Type: "log", Text: "一键全收集：第 3/5 步 支援卡"}, {Type: "log", Text: "一键全收集：第 3 步（支援卡）出错停下（退出码 1），前面几步已经入库"}}
+	got := resumeCollectAll(map[string]any{"only": "account,idols,supports,formations,memories"}, ev)
+	if got["only"] != "supports,formations,memories" {
+		t.Errorf("应从第 3 步接着做：%v", got)
+	}
+	if got := resumeCollectAll(map[string]any{"only": "idols,memories"}, ev); got["only"] != "memories" {
+		t.Errorf("原来只做几步时取交集：%v", got)
+	}
+	if got := resumeCollectAll(map[string]any{}, ev); got["only"] != "supports,formations,memories" {
+		t.Errorf("没给 only（全做）时也从第 3 步接着：%v", got)
+	}
+	if got := resumeCollectAll(map[string]any{"only": "account"}, nil); got["only"] != "account" {
+		t.Errorf("读不出第几步时原样：%v", got)
+	}
+}

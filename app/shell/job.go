@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -226,7 +227,11 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 		}
 		// G1-F2（11-26）：扫描这类任务出错后只有一句话，没有下一步；给「再试一次」（照样走权限 / 确认）。培育类不给，免得误开新一局
 		if v.Job != nil && kind != "" && !produceKind(kind) {
-			cards = []plugin.Card{{"type": "retry", "summary": name, "args": common.StartArgv(kind, v.Job.Params)}}
+			params := v.Job.Params
+			if kind == "collect-all" {
+				params = resumeCollectAll(params, v.Events)
+			}
+			cards = []plugin.Card{{"type": "retry", "summary": name, "args": common.StartArgv(kind, params)}}
 		}
 	case "stopped":
 		text = "「" + name + "」已停止。"
@@ -412,4 +417,44 @@ func (a *App) pinned(c *ui.Context) {
 			a.OpenPanel("cockpit", "job:"+a.live)
 		}
 	})
+}
+
+// collectAllSteps 是一键全收集的步骤顺序（同 hiro.collect_all.STEPS）。
+var collectAllSteps = []string{"account", "idols", "supports", "formations", "memories"}
+
+var reCollectStep = regexp.MustCompile(`一键全收集：第 (\d+)/\d+ 步`)
+
+// resumeCollectAll：一键全收集出错后「再试一次」从出错的那一步接着做，前面做完、已入库的几步不再重扫
+// （N41，G2 11-26：第 3 步支援卡出错，重试又从首页数值、偶像卡做起，白扫 8 分钟）。读不出第几步时原样返回。
+func resumeCollectAll(params map[string]any, events []plugin.JobEvent) map[string]any {
+	at := 0
+	for _, e := range events {
+		if m := reCollectStep.FindStringSubmatch(e.Text); m != nil {
+			at, _ = strconv.Atoi(m[1])
+		}
+	}
+	if at < 1 || at > len(collectAllSteps) {
+		return params
+	}
+	want := map[string]bool{}
+	if only, _ := params["only"].(string); only != "" {
+		for _, k := range strings.Split(only, ",") {
+			want[strings.TrimSpace(k)] = true
+		}
+	}
+	var left []string
+	for i, k := range collectAllSteps {
+		if i+1 >= at && (len(want) == 0 || want[k]) {
+			left = append(left, k)
+		}
+	}
+	if len(left) == 0 {
+		return params
+	}
+	out := map[string]any{}
+	for k, v := range params {
+		out[k] = v
+	}
+	out["only"] = strings.Join(left, ",")
+	return out
 }
