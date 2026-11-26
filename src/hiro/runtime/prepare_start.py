@@ -71,6 +71,23 @@ def _exec(argv: list[str]) -> int:
     return 0  # 只在测试替身里走到
 
 
+def _full_hint(mode: str, what: str, rows: list) -> str:
+    """编成位都满了时说清楚：有哪几号、哪些是初星助手自己写过的（覆盖它不动玩家配的）、在对话里怎么说。
+    G1 第 3 轮 11-26（N34）：原来只说「告诉初星助手用哪一号覆盖」，小白不知道有哪些号、哪个能覆盖。"""
+    from hiro.cli.cmd_run import slot_written_by_us
+    from hiro.cli.home import hiro_home
+
+    nums = sorted(int(r["set"]) for r in rows if r.get("kind") == what)
+    span = f"{nums[0]}–{nums[-1]} 号" if nums else ""
+    ours = [n for n in nums if slot_written_by_us(hiro_home(), mode, what, n)]
+    msg = (
+        f"{MODE_NAME[mode]}的{LABEL[what]}编成 {span}都有卡，没有空着的可以放编成方案（初星助手不替你覆盖自己配的编成）"
+    )
+    if ours:
+        msg += f"。其中 {'、'.join(map(str, ours))} 号是初星助手自己写过的，覆盖它不动你配的"
+    return msg + f"。要覆盖哪一号，在对话里说「{LABEL[what]}编成用 N 号覆盖」；也可以先在游戏里清空一组再开局"
+
+
 def _stop(why: str, code: int) -> int:
     print(f"停下：{why}", file=sys.stderr, flush=True)
     return code
@@ -116,9 +133,7 @@ def main(argv: list[str] | None = None) -> int:
         for w in missing:
             blanks = sorted(int(r["set"]) for r in rows if r.get("kind") == w and r.get("filled") == 0)
             if not blanks:
-                return _stop(
-                    f"{MODE_NAME[mode]}的{LABEL[w]}编成位都满了，没有空着的可以放编成方案；告诉初星助手用哪一号覆盖", 4
-                )
+                return _stop(_full_hint(mode, w, rows), 4)
             rec["picked"][w] = blanks[0]
             plan[w] = dict(plan.get(w) or {}, set=blanks[0])
         cid = (plan.get("idol") or {}).get("idol_card_id")
