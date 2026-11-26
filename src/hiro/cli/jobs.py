@@ -47,6 +47,11 @@ _TB_END = re.compile(r"^(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)(?:: (.*))?$")
 _EXC_SUFFIX = re.compile(r"(?:Error|Exception|Gone|Unavailable|Blocked|Page)$")
 
 
+# 已经自己恢复了的 ERROR（N40，G2 11-26：「Apple Vision 连续 3 次失败…这个进程改用 RapidOCR」之后程序因别的原因崩了，
+# 对话里的原因却是这条），不当作任务失败的原因
+_RECOVERED = re.compile(r"改用 RapidOCR|改到子进程里跑")
+
+
 def failure_reason(lines: list[str]) -> str | None:
     """任务出错时给人看的一句原因：最后一条「停下：…」，没有就最后一条 ERROR 日志（去掉时间 / 级别 / 模块前缀和本机截图路径）。
     11-25 review：failed 事件只写「看上面的日志」，对话和对局卡里看不到原因。"""
@@ -64,8 +69,6 @@ def failure_reason(lines: list[str]) -> str | None:
                 exc = f"{name}: {msg}"
             else:
                 exc = f"程序出错停下了（{name}）" + (f"：{msg}" if msg else "")
-            # 崩溃在后：之前的 ERROR 日志（比如「Vision 连续 3 次失败，改用 RapidOCR」，已经恢复了）不是原因（N40，G2 11-26）
-            err = None
         elif (m := _EXC_LINE.match(t)) and not _LOG_PREFIX.match(t):  # traceback 开头被截掉时（日志只留最后 20 行）
             exc = f"{m.group(1)}: {m.group(2)}"
         if t.startswith("停下："):
@@ -74,7 +77,7 @@ def failure_reason(lines: list[str]) -> str | None:
             stop = t[: -len("停下")].rstrip(
                 "，, "
             )  # 工具把「停下」写在句尾（G1-F2：扫偶像卡「没进到偶像详情页（…），停下」）
-        elif (m := _LOG_PREFIX.match(t)) and m.group(1) in ("ERROR", "CRITICAL"):
+        elif (m := _LOG_PREFIX.match(t)) and m.group(1) in ("ERROR", "CRITICAL") and not _RECOVERED.search(t):
             err = t[m.end() :]
     why = stop or err or exc
     if not why:
