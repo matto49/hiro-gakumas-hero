@@ -365,6 +365,29 @@ def _filled(kind: str, read) -> bool:
     return (support_row(read) if kind == "support" else memory_row(read))[0] > 0
 
 
+def _cards(kind: str, read) -> list | None:
+    """这一页每格是什么卡（回忆：认出的卡 ID / 空格 None；支援卡：卡 ID）；读不到返回 None。"""
+    if read is None:
+        return None
+    if kind == "memory":
+        return [r.get("card") if r.get("known") else ("?" if not r.get("empty") else None) for r in read]
+    return [s.get("support_card_id") for s in read.get("slots") or []]
+
+
+def _undo_if_unchanged(undo, before, read_after) -> None:
+    """写编成中途失败：回读这一页和动手前一样（一格都没改成），就撤掉动手前记的「初星助手写过」（N63 review）。
+    回读不了或已经变了：保留记录（写了一半的，重试时要能接着覆盖）。"""
+    if undo is None:
+        return
+    try:
+        after = read_after()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("写编成失败后回读这一页没成功，保留「初星助手写过」的记录：%s", e)
+        return
+    if after is not None and after == before:
+        undo()
+
+
 def write_memory(
     dev: Device, plan: dict, make_picker, *, dry_run: bool = False, blank_only: bool = False, on_write=None
 ) -> list[dict]:
@@ -379,11 +402,15 @@ def write_memory(
     if dry_run or not moves:
         done = []
     else:
-        if on_write is not None:
-            on_write()
-        done = fix_memory(
-            dev, plan, read_icons=lambda img: read_memory_icons(img), make_picker=make_picker, slots=MEMORY_TILES
-        )
+        undo = on_write() if on_write is not None else None
+        before = _cards("memory", reads)
+        try:
+            done = fix_memory(
+                dev, plan, read_icons=lambda img: read_memory_icons(img), make_picker=make_picker, slots=MEMORY_TILES
+            )
+        except Exception:  # 写编成和设筛选（MemoryFilterError）的错都算：判断完照样往上抛
+            _undo_if_unchanged(undo, before, lambda: _cards("memory", _settle_icons(dev)))
+            raise
     if not dry_run:
         left = memory_diff(plan, _settle_icons(dev))
         if left:
@@ -419,9 +446,17 @@ def write_support(
         raise FormationWriteError(f"支援卡{NOT_BLANK}")
     if dry_run:
         return [{"slot": s, "to": k, "dry_run": True} for s, k in moves]
-    if moves and on_write is not None:
-        on_write()
-    done = fix_support(dev, plan, read_formation=read_formation, read_list=read_list, view="formation") if moves else []
+    done = []
+    if moves:
+        undo = on_write() if on_write is not None else None
+        before = _cards("support", page)
+        try:
+            done = fix_support(dev, plan, read_formation=read_formation, read_list=read_list, view="formation")
+        except Exception:  # 写编成和设筛选（MemoryFilterError）的错都算：判断完照样往上抛
+            _undo_if_unchanged(
+                undo, before, lambda: _cards("support", _settled_step2(dev, read_formation, view="formation"))
+            )
+            raise
     page = _settled_step2(dev, read_formation, view="formation")
     left = support_diff(plan, page) if page is not None else ["读不到"]
     if left:

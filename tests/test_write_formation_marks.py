@@ -80,3 +80,25 @@ def test_slot_recorded_before_write_even_if_write_fails(setup, monkeypatch):
     assert _run(["--mode", "hajime", "--what", "memory"], monkeypatch) == 3
     assert fp.recorded_slots(cur.parent, "hajime", "memory") == [9]
     assert "written" not in json.loads(cur.read_text(encoding="utf-8"))  # 没写完不算 written
+
+
+def test_on_write_undo_only_removes_new_records(setup, monkeypatch):
+    """#191 review：撤销只撤这次新记的号；本来就记着的号（以前写过）不撤。"""
+    import hiro.produce.formation_menu as fm
+    from hiro.brain import formation_plan as fp
+
+    cur, _per, _result = setup
+    fp.record_slots(cur.parent, "hajime", {"support": 16})
+    undos = {}
+
+    def run(*a, on_write=None, **k):
+        undos["support"] = on_write("support", 16)
+        undos["memory"] = on_write("memory", 9)
+        return {"support": [], "memory": []}
+
+    monkeypatch.setattr(fm, "run", run)
+    assert _run(["--mode", "hajime"], monkeypatch) == 0
+    assert undos["support"] is None and callable(undos["memory"])
+    undos["memory"]()
+    assert fp.recorded_slots(cur.parent, "hajime", "memory") == []
+    assert fp.recorded_slots(cur.parent, "hajime", "support") == [16]

@@ -443,6 +443,15 @@ def record_slots(root: str | Path, fam: str, sets: dict) -> None:
     _write_json(path, data)
 
 
+def forget_slot(root: str | Path, fam: str, what: str, n: int) -> None:
+    """撤掉 record_slots 记的一个号（N63 review：动手前记了号，结果一格都没改就失败，不能留着「初星助手写过」的记录）。"""
+    path = Path(root) / USED_SLOTS
+    data = load(path) or {}
+    nums = [x for x in ((data.get(fam) or {}).get(what) or ()) if int(x) != int(n)]
+    data.setdefault(fam, {})[what] = sorted({int(x) for x in nums})
+    _write_json(path, data)
+
+
 def recorded_slots(root: str | Path, fam: str, what: str) -> list[int]:
     """record_slots 记过的这个模式的支援卡 / 回忆编成号（从小到大）。"""
     rec = ((load(Path(root) / USED_SLOTS) or {}).get(fam) or {}).get(what) or ()
