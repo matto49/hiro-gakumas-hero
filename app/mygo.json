@@ -1,7 +1,7 @@
 {
   "name": "初星助手",
   "identifier": "top.matto.hiro-console",
-  "version": "0.1.1-rc.2",
+  "version": "0.1.1-rc.3",
   "i18n": { "dir": "locales", "source": "zh-Hans" },
   "out": "build"
 }
