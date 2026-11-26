@@ -260,6 +260,7 @@ func TestJobNoticeTexts(t *testing.T) {
 		{"hajime", "failed", ``, `[{"seq":1,"t":1,"type":"log","text":"[2026-11-24 01:31:04,918] [ERROR] [hiro.runtime.play] new 开局要编成号"},{"seq":2,"t":2,"type":"failed","text":"任务出错退出（代码 1），看上面的日志"}]`, "出错停下了：new 开局要编成号", "最后几步"},
 		{"hajime", "stopped", ``, `[]`, "已停止", "原因"},
 		{"scan-memories", "done", ``, `[]`, "做完了", "成绩和复盘"},
+		{"scan-idols", "done", ``, `[]`, "扫描都做完了，要开局点侧栏", ""},
 		{"write-formation", "done", `"params":{"scenario":"hajime"}`, `[]`, "点侧栏", ""},
 		{"hajime", "done", ``, `[]`, "成绩和复盘", ""},
 	}
@@ -529,5 +530,35 @@ func TestWriteFormationDoneOffersStart(t *testing.T) {
 		if !found {
 			t.Error("点了应把话发出去")
 		}
+	}
+}
+
+// N31（G1 第 3 轮 11-26）：扫描做完、后面还有排队的扫描时不提示下一步；最后一项做完才提示。
+func TestScanDoneHintOnlyWhenNothingQueued(t *testing.T) {
+	call := liveCall("running")
+	a, run := newTestApp(newMem(), call, nil, nil)
+	a.NewThread()
+	ownJob(a, "j7")
+	a.add("agent", "", []plugin.Card{{"type": "confirm", "queueJob": "j7", "queue": []any{map[string]any{"id": "p2", "summary": "扫描回忆"}}}})
+	if !a.queuedAfter("j7") {
+		t.Fatal("合并卡记着 j7 后面还有一项")
+	}
+	a.PollJobs()
+	run.Drain()
+	call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"scan-supports","state":"done","summary":"扫描支援卡","started_at":1}]}`)
+	call.resp["run events"] = ok(`{"state":"done","events":[]}`)
+	a.PollJobs()
+	run.Drain()
+	done := false
+	for _, m := range a.Current().Messages {
+		if strings.Contains(m.Text, "「扫描支援卡」做完了") {
+			done = true
+		}
+		if strings.Contains(m.Text, "扫描都做完了") {
+			t.Errorf("后面还有排队的扫描，不该提示：%q", m.Text)
+		}
+	}
+	if !done {
+		t.Error("做完的通知应该发了")
 	}
 }

@@ -3,6 +3,7 @@ package shell
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/ui"
@@ -203,6 +204,15 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 			}
 		default:
 			text = "「" + name + "」做完了。"
+			// N31（G1 第 3 轮 11-26）：第一次三项扫描都做完后对话停在「做完了」，没说下一步能做什么。
+			// 扫描类做完、后面没有排队的扫描了，补一句（notify 在 continueBatch 之前调，这时还看得到排队）
+			if strings.HasPrefix(kind, "scan-") && kind != "scan-formations" && !a.queuedAfter(id) {
+				if a.hasModel() {
+					text += "扫描都做完了，现在可以直接说「打一把初」（或者 N.I.A），初星助手会按你的卡出编成方案、给你确认后开局。"
+				} else {
+					text += "扫描都做完了，要开局点侧栏的「开局」。"
+				}
+			}
 		}
 	case "failed":
 		// 11-25 review：原因直接写出来（原来只说「在最后几步里」，可对局卡只画步骤，原因在日志里）
@@ -226,6 +236,23 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 	}
 	a.addTo(t, "agent", text, cards)
 	a.save(t)
+}
+
+// queuedAfter：这个任务后面还有排队等着做的（「全部开始」的合并确认卡记着 queueJob = 它、queue 还没空）。
+func (a *App) queuedAfter(id string) bool {
+	for _, t := range a.threads {
+		for _, m := range t.Messages {
+			for _, card := range m.Cards {
+				if card["type"] != "confirm" || card["queueJob"] != id {
+					continue
+				}
+				if q, _ := card["queue"].([]any); len(q) > 0 {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // produceKind 是培育类任务（打完有成绩和复盘）。
