@@ -441,10 +441,7 @@ KINDS: dict[str, Kind] = {
             str(d),
             *(["--only", p["only"]] if p.get("only") else []),
         ],
-        lambda p: (
-            "一键全收集：首页数值 → 偶像卡 → 支援卡 → 编成 → 回忆（12 片全读）（只读，不改编成）"
-            + (f"（只做 {p['only']}）" if p.get("only") else "")
-        ),
+        lambda p: _collect_all_summary(p.get("only")),
         pausable=False,
     ),
     "scan-idols": Kind(
@@ -855,3 +852,13 @@ class Job:
             self.proc.wait(STOP_GRACE)
         except subprocess.TimeoutExpired:
             _signal_tree(self.proc, kill=True)
+
+
+def _collect_all_summary(only: str | None) -> str:
+    """一键全收集的标题：只列要做的几步（中文），不露出 --only 的英文参数（N39，G2 11-26：标题里写着
+    「（只做 account,idols,supports,formations,memories）」）。"""
+    from hiro.collect_all import STEPS
+
+    want = {w.strip() for w in (only or "").split(",") if w.strip()}
+    names = [("回忆（12 片全读）" if k == "memories" else label) for k, _, label in STEPS if not want or k in want]
+    return "一键全收集：" + " → ".join(names or ["（没有要做的）"]) + "（只读，不改编成）"

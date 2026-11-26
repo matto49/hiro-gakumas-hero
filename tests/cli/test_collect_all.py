@@ -64,7 +64,9 @@ def test_collect_all_kind_is_read_only_job(tmp_path):
 
 def test_run_start_collect_all_passes_only(run_cli, hiro_home):
     code, env = run_cli("run", "start", "collect-all", "--only", "idols,memories")
-    assert code == 3 and "只做 idols,memories" in env["data"]["pending"]["summary"]
+    pend = env["data"]["pending"]
+    assert code == 3 and pend["args"]["only"] == "idols,memories"
+    assert pend["summary"] == "一键全收集：偶像卡 → 回忆（12 片全读）（只读，不改编成）"  # N39：标题只列中文步骤
 
 
 def test_memory_step_is_whole_list_scan_when_slices_off(tmp_path, monkeypatch):
@@ -119,3 +121,14 @@ def test_partial_whole_list_scan_not_imported(tmp_path):
         tmp_path, ["memories"], runner=runner, importer=lambda kind, inv, source: imported.append(inv) or {"count": 1}
     )
     assert imported == []
+
+
+def test_summary_lists_steps_in_chinese_not_only_param():
+    """N39（G2 11-26）：标题不露出 --only 的英文参数，只列要做的几步。"""
+    from hiro.cli.jobs import KINDS
+
+    full = KINDS["collect-all"].summary({})
+    assert full == "一键全收集：首页数值 → 偶像卡 → 支援卡 → 编成 → 回忆（12 片全读）（只读，不改编成）"
+    assert KINDS["collect-all"].summary({"only": "account,idols,supports,formations,memories"}) == full
+    part = KINDS["collect-all"].summary({"only": "memories,idols"})
+    assert part == "一键全收集：偶像卡 → 回忆（12 片全读）（只读，不改编成）" and "memories" not in part
