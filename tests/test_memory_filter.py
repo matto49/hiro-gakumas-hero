@@ -437,3 +437,49 @@ def test_direction_unreadable_off_picker_does_not_click_blind():
     with pytest.raises(mf.MemoryFilterError):
         mf.ensure_newest_first(p)
     assert p.dir_clicks == 0
+
+
+class _TogglePicker(FakePicker):
+    """升降序按钮真会翻方向；点完前 lag 帧还显示点之前的方向（渲染慢）。"""
+
+    def __init__(self, start, lag=0):
+        super().__init__(sort="入手")
+        self.dir, self.lag, self.shown_old = start, lag, 0
+        self.dir_clicks = 0
+        self.old = start
+
+    def shoot(self):
+        if self.shown_old > 0:
+            self.shown_old -= 1
+            return _icon_frame(self.old)
+        return _icon_frame(self.dir)
+
+    def click(self, x, y):
+        if (x, y) == mf.DIR_BTN and not self.popup:
+            self.dir_clicks += 1
+            self.old, self.dir = self.dir, ("desc" if self.dir == "asc" else "asc")
+            self.shown_old = self.lag
+            return
+        FakePicker.click(self, x, y)
+
+
+def test_direction_asc_flips_once_to_desc():
+    p = _TogglePicker("asc")
+    mf.ensure_newest_first(p)
+    assert p.dir == "desc" and p.dir_clicks == 1
+
+
+def test_direction_slow_render_does_not_flip_back():
+    """N62 review：点完第一帧还显示旧方向（asc）。要两帧一致才算，不能据此再点一下把方向翻回 asc。"""
+    p = _TogglePicker("asc", lag=1)
+    mf.ensure_newest_first(p)
+    assert p.dir == "desc" and p.dir_clicks == 1
+
+
+def test_restore_reads_direction_over_several_frames(monkeypatch):
+    """恢复时第一帧认不出方向，也要多看几帧再决定要不要把方向改回玩家原来的。"""
+    p = _TogglePicker("desc")
+    real, calls = mf.sort_direction, []
+    monkeypatch.setattr(mf, "sort_direction", lambda img: calls.append(1) or (None if len(calls) == 1 else real(img)))
+    mf.restore(p, {"sort": "入手", "dir": "asc"})
+    assert p.dir == "asc" and p.dir_clicks == 1

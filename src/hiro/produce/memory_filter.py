@@ -74,8 +74,7 @@ def _sort_of(text: str) -> str | None:
 
 def read_state(p) -> dict:
     """选择页上当前的排序名和升降序（弹窗没开时读按钮）。"""
-    img = p.shoot()
-    d = sort_direction(img)
+    d, img = _look_direction(p)  # 一帧认不出就多看几帧（N62 review：扫描开始时读成 None，恢复时就不会把方向改回去）
     for t, _, b in p.ocr(img):
         x, y = _center(b)
         if 1030 <= y <= 1075 and 380 <= x <= 620 and (s := _sort_of(t)):
@@ -206,15 +205,19 @@ DIR_LOOKS, DIR_GAP = 3, 0.5  # 读升降序图标：一帧认不出就隔一会�
 DIR_FLIPS = 2  # 认不出 / 方向反了时最多点几次升降序按钮（两次就把 asc、desc 都过了一遍）
 
 
-def _look_direction(p) -> tuple[str | None, object]:
-    """连看 DIR_LOOKS 帧，返回第一个认得出的方向和那一帧；都认不出返回 (None, 最后一帧)。"""
-    img = None
-    for i in range(DIR_LOOKS):
+def _look_direction(p, *, stable: bool = False) -> tuple[str | None, object]:
+    """连看 DIR_LOOKS 帧，返回第一个认得出的方向和那一帧；都认不出返回 (None, 最后一帧)。
+    stable：刚点过按钮时用——要连着两帧读到同一个方向才算（N62 review：渲染慢时第一帧可能还是点之前的方向，
+    据此再点一下会把方向又翻回去）。"""
+    img, prev = None, None
+    for i in range(DIR_LOOKS + (1 if stable else 0)):
         if i:
             p.sleep(DIR_GAP)
         img = p.shoot()
-        if (d := sort_direction(img)) is not None:
+        d = sort_direction(img)
+        if d is not None and (not stable or d == prev):
             return d, img
+        prev = d
     return None, img
 
 
@@ -231,7 +234,7 @@ def ensure_newest_first(p) -> None:
             break  # 连排序按钮都读不到：不一定还在选择页，别盲点那个位置
         p.click(*DIR_BTN)
         p.sleep(1.5)
-        d, img = _look_direction(p)
+        d, img = _look_direction(p, stable=True)
         seen.append(d)
     if d == "desc":
         return
@@ -272,7 +275,7 @@ def restore(p, state: dict, *, report: dict | None = None) -> bool:
     if report is not None:
         report["filter_reset"] = True  # 点了重置并且弹窗关了：筛选确实回到默认（#116 第二轮审查：没重置时别说重置了）
     want = state.get("dir")
-    if want and sort_direction(p.shoot()) not in (want, None):
+    if want and _look_direction(p)[0] not in (want, None):
         p.click(*DIR_BTN)
         p.sleep(1.5)
     now = read_state(p)
