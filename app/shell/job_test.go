@@ -644,7 +644,7 @@ func TestCollectAllDoneOffersStartButtons(t *testing.T) {
 
 // N61（G1 第 5 轮 11-27）：开局任务停在开局前准备（写编成）、游戏还没开局，给「再试一次」；开了局的不给。
 func TestPreStartFailureOffersRetry(t *testing.T) {
-	retryAfter := func(params, events string) (plugin.Card, string) {
+	retryAfterState := func(params, events, evState string) (plugin.Card, string) {
 		call := liveCall("running")
 		call.resp["run events"] = ok(`{"state":"running","events":[]}`) // 开局前准备阶段还没有对局步骤
 		a, run := newTestApp(newMem(), call, nil, viewReg())
@@ -657,7 +657,7 @@ func TestPreStartFailureOffersRetry(t *testing.T) {
 			code = "4"
 		}
 		call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"hajime","state":"failed","summary":"开一局初","started_at":1,"params":` + params + `,"exit_code":` + code + `,"reason":"认不出排序方向"}]}`)
-		call.resp["run events"] = ok(`{"state":"failed","events":` + events + `}`)
+		call.resp["run events"] = ok(`{"state":"` + evState + `","events":` + events + `}`)
 		for i := 0; i < 3; i++ {
 			a.PollJobs()
 			run.Drain()
@@ -673,7 +673,12 @@ func TestPreStartFailureOffersRetry(t *testing.T) {
 		}
 		return nil, text
 	}
+	retryAfter := func(params, events string) (plugin.Card, string) { return retryAfterState(params, events, "failed") }
 	prep := `{"idol":"i_card-x","prepare":true,"prepare_note":"把编成方案写进回忆编成 13 号"}`
+	// 终态事件没读到（事件接口还停在 running，只有准备阶段的旧日志）：不判断、不给重试（#194 CodeRabbit）
+	if c, _ := retryAfterState(prep, `[{"seq":1,"type":"log","text":"开局前准备：把编成方案写进游戏"}]`, "running"); c != nil {
+		t.Errorf("没读到终态事件时不该给重试：%v", c)
+	}
 	c, text := retryAfter(prep, `[{"seq":1,"type":"log","text":"写编成没成功，没有开局"}]`)
 	if c == nil || !strings.Contains(text, "还没开局") {
 		t.Fatalf("开局前准备出错应给重试：%v %q", c, text)

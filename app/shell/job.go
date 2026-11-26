@@ -228,7 +228,8 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 		}
 		// G1-F2（11-26）：扫描这类任务出错后只有一句话，没有下一步；给「再试一次」（照样走权限 / 确认）。培育类不给，免得误开新一局——
 		// 但停在开局前准备（写编成）、游戏还没开局的，重试不会多用一次培育（N61，G1 第 5 轮 11-27：只能在对话里自己打「再试一次」）
-		preStart := v.Job != nil && produceKind(kind) && failedBeforeStart(v.Job.Params, v.Events) && retryHelps(v.Job.ExitCode)
+		// 只认任务结束后读到的完整事件（v.Final）：读事件失败、手里只有准备阶段的旧日志时不判断，不给重试（#194 CodeRabbit）
+		preStart := v.Job != nil && v.Final && produceKind(kind) && failedBeforeStart(v.Job.Params, v.Events) && retryHelps(v.Job.ExitCode)
 		if preStart {
 			text += "游戏还没开局（停在开局前写编成），可以点「再试一次」。"
 		}
