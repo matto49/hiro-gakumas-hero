@@ -312,6 +312,34 @@ func TestExplainPlanWithoutSetWhenPreparing(t *testing.T) {
 	}
 }
 
+// N65（G1 第 5 轮 11-27）：玩家在对话里同意覆盖（--overwrite），开局确认卡写明会换掉第几号编成里原来的卡；没同意不出这一行。
+func TestExplainOverwriteConsentRow(t *testing.T) {
+	h, p := host(), New()
+	rowsOf := func(args map[string]any) map[string]string {
+		e, ok := p.Explain(h, hiroapi.Pending{Command: "run start", Plan: planSnap(t, planJSON), Args: args})
+		if !ok {
+			t.Fatal("没认出")
+		}
+		rows := map[string]string{}
+		for _, r := range e.Rows {
+			rows[r[0]] = r[1]
+		}
+		return rows
+	}
+	base := func() map[string]any {
+		return map[string]any{"kind": "hajime", "idol": "i_card-skin-ttmr-3-0012", "prepare": true,
+			"support_set": 18, "memory_set": 13, "prepare_note": "把编成方案写进支援卡编成 18 号、回忆编成 13 号"}
+	}
+	with := base()
+	with["overwrite"] = "memory"
+	if got := rowsOf(with)["会覆盖"]; !strings.Contains(got, "回忆编成 13 号") || !strings.Contains(got, "同意") || strings.Contains(got, "支援卡") {
+		t.Errorf("会覆盖 %q", got)
+	}
+	if got, ok := rowsOf(base())["会覆盖"]; ok {
+		t.Errorf("没同意也出了会覆盖：%q", got)
+	}
+}
+
 // N35（G1 第 3 轮 11-26）：写编成卡要写明写进第几号、会不会换掉原来的卡。
 func TestWriteFormationCardNamesSets(t *testing.T) {
 	h, p := host(), New()

@@ -245,3 +245,16 @@ def test_exec_on_windows_waits_for_child_and_returns_its_code(monkeypatch):
     called.clear()
     ps._exec(["python", "-m", "x"], platform="darwin")
     assert called and called[0][0] == "execvp"
+
+
+def test_overwrite_consent_drops_blank_guard(home, calls):
+    """N65（G1 第 5 轮 11-27）：玩家说了「回忆 13 号可以覆盖」（--overwrite memory），回忆不加「只写空位」的闸；支援卡照旧。"""
+    _plan(home, sets=(4, 13))
+    assert ps.main(["--mode", "hajime", "--overwrite", "memory", "--", "x"]) == 0
+    assert ("blank_only", "support") in calls
+
+
+def test_no_consent_keeps_blank_guard(home, calls):
+    _plan(home, sets=(4, 13))
+    assert ps.main(["--mode", "hajime", "--", "x"]) == 0
+    assert ("blank_only", "support,memory") in calls

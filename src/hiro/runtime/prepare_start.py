@@ -121,6 +121,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--what", default="support,memory", help="准备哪几样（support / memory；开局命令里指定了编成号的那样不用管）"
     )
+    ap.add_argument(
+        "--overwrite",
+        default="",
+        help="玩家同意覆盖的那几样（support / memory，逗号分隔）：写编成时不要求编成位是空的（N65）",
+    )
     opts = ap.parse_args(args[:i])
     inner = args[i + 1 :]
     if not inner:
@@ -187,7 +192,16 @@ def main(argv: list[str] | None = None) -> int:
         from hiro.cli.cmd_run import slot_written_by_us
         from hiro.cli.home import hiro_home
 
-        guard = [w for w in todo if not slot_written_by_us(hiro_home(), mode, w, (plan.get(w) or {}).get("set"))]
+        # N65（G1 第 5 轮 11-27）：玩家在对话里说了「N 号可以覆盖」（--overwrite），那几样也不加闸；原来同意只写在确认卡的说明里，
+        # 任务照样按「只写空位」拒绝，报错又让玩家「告诉初星助手可以覆盖哪一号」，绕不出去
+        consent = {w.strip() for w in opts.overwrite.split(",") if w.strip()}
+        guard = [w for w in todo
+                 if w not in consent and not slot_written_by_us(hiro_home(), mode, w, (plan.get(w) or {}).get("set"))]  # fmt: skip
+        if consent & set(todo):
+            logger.info(
+                "开局前准备：玩家同意覆盖 %s",
+                "、".join(f"{LABEL[w]}编成 {(plan.get(w) or {}).get('set')} 号" for w in todo if w in consent),
+            )
         logger.info("开局前准备：把编成方案写进游戏（%s）", "、".join(LABEL[w] for w in todo))
         rc = _write(mode, todo, guard)
         if rc != 0:

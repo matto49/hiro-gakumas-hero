@@ -319,6 +319,9 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 		if note := r.Flags["prepare-note"]; note != "" && r.Flags["prepare"] == "true" {
 			e.Rows = append(e.Rows, [2]string{"开局前", note})
 		}
+		if row, ok := overwriteRow(r.Flags, planOf(p)); ok {
+			e.Rows = append(e.Rows, row)
+		}
 		if a := r.Flags["main-attr"]; a != "" {
 			e.Rows = append(e.Rows, [2]string{"主属性", labels.Attr(a)})
 		}
@@ -363,6 +366,37 @@ func writeSetsRow(flags map[string]string, pl *planBrief, access string) ([2]str
 		text += "（都是空着的位）"
 	}
 	return [2]string{"写进", text}, true
+}
+
+// overwriteRow 是开局确认卡上「会覆盖」那一行（N65，G1 第 5 轮 11-27）：玩家在对话里同意覆盖（--overwrite），
+// 卡上要写明会换掉第几号编成里原来的卡，玩家点确认才写。
+func overwriteRow(flags map[string]string, pl *planBrief) ([2]string, bool) {
+	ov := flags["overwrite"]
+	if ov == "" || flags["prepare"] != "true" {
+		return [2]string{}, false
+	}
+	set := func(flag string, fromPlan func() *int) string {
+		if v := flags[flag]; v != "" {
+			return v
+		}
+		if pl != nil {
+			return intOr(fromPlan())
+		}
+		return "?"
+	}
+	var parts []string
+	for _, w := range strings.Split(ov, ",") {
+		switch strings.TrimSpace(w) {
+		case "support":
+			parts = append(parts, "支援卡编成 "+set("support-set", func() *int { return pl.Support.Set })+" 号")
+		case "memory":
+			parts = append(parts, "回忆编成 "+set("memory-set", func() *int { return pl.Memory.Set })+" 号")
+		}
+	}
+	if len(parts) == 0 {
+		return [2]string{}, false
+	}
+	return [2]string{"会覆盖", strings.Join(parts, "、") + "里原来的卡（你在对话里同意覆盖的）"}, true
 }
 
 func or(s, d string) string {

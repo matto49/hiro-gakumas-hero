@@ -251,6 +251,8 @@ def _with_prepare(mode: str, build):
         if not p.get("prepare") or (p.get("command") or "new") != "new":
             return inner
         what = ["--what", p["prepare_what"]] if p.get("prepare_what") else []
+        if p.get("overwrite"):  # N65：玩家同意覆盖的那几样，写编成时不加「只写空位」的检查
+            what += ["--overwrite", str(p["overwrite"])]
         return [
             _PY,
             "-m",

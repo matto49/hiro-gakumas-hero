@@ -265,3 +265,15 @@ def test_unread_kind_in_snapshot_is_surveyed_not_full(run_cli, hiro_home, on):
     assert "回忆编成 2 号" in pend["summary"] and "先读一遍" in pend["summary"] and "支援卡编成位" in pend["summary"]
     per = json.loads((hiro_home / "plans" / "hajime" / f"{KOTONE}.json").read_text(encoding="utf-8"))
     assert per["support"]["set"] is None and per["memory"]["set"] == 2
+
+
+def test_overwrite_reaches_prepare_start_argv(tmp_path):
+    """N65：玩家同意覆盖（overwrite）随任务参数传到 prepare_start；没有就不加。"""
+    from hiro.cli import cmd_run, jobs
+
+    assert cmd_run._params({"overwrite": "memory", "prepare": True})["overwrite"] == "memory"
+    argv = jobs.KINDS["hajime"].argv({"idol": KOTONE, "prepare": True, "overwrite": "memory"}, tmp_path)
+    i = argv.index("hiro.runtime.prepare_start")
+    assert argv[argv.index("--overwrite", i) + 1] == "memory" and argv.index("--overwrite") < argv.index("--")
+    plain = jobs.KINDS["hajime"].argv({"idol": KOTONE, "prepare": True}, tmp_path)
+    assert "--overwrite" not in plain

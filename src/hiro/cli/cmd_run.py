@@ -40,6 +40,7 @@ PARAMS = (
     "prepare",
     "prepare_note",
     "prepare_what",
+    "overwrite",
 )
 
 
@@ -609,6 +610,11 @@ def _first_reason(out: str) -> str:
         ),
         Arg("--prepare-note", "开局前准备做什么（开局检查填，给确认卡看）"),
         Arg("--prepare-what", "开局前准备哪几样（support / memory，逗号分隔；开局检查按没指定编成号的填）"),
+        Arg(
+            "--overwrite",
+            "玩家在对话里同意覆盖的编成（support / memory，逗号分隔）：开局前写编成时这几样不要求编成位是空的、也不管是不是初星助手写过的。"
+            "只有玩家亲口说了「N 号可以覆盖」才填，确认卡上会写明要覆盖；不要自己填",
+        ),
     ),
     confirm_summary=_summary,
     precheck=_precheck,
