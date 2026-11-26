@@ -163,7 +163,9 @@ def live(n: int) -> list[dict]:
             break  # 翻了一圈回到起点
         seen.add(r["number"])
         out.append(r)
-        filled = sum(1 for s in r["slots"] if s.get("name"))
+        from hiro.produce.formation_survey import support_row
+
+        filled = support_row(r)[0]  # 同编成位调查：认出卡或读得到等级就算有卡（认不出的卡 name 是 None，#145 review）
         print(f"支援卡编成 {r['number']} 号（{r['name']}）：{filled} 格有卡", flush=True)
         logger.debug("读数 %s", [(s["name"], s["level"], s["breaks"]) for s in r["slots"]])
         d.tap(*r["arrows"]["next"])
