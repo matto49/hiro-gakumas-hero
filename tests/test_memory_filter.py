@@ -330,11 +330,14 @@ def _toast_picker(text, appear_after=0):
     return p
 
 
-def test_empty_slice_toast_misread_still_empty(monkeypatch):
-    """N53（G1 第 4 轮 11-26 Mac，RapidOCR）：提示读错一个字也认成空片，不当设筛选出错。"""
+@pytest.mark.parametrize("misread", ["条件に当てはまゐ", "メモリーがありまぜん"])
+def test_empty_slice_toast_misread_still_empty(monkeypatch, misread):
+    """N53（G1 第 4 轮 11-26 Mac，RapidOCR）：两段提示各自读错一个字也认成空片，不当设筛选出错。
+    每次只放一段、且只有错字版本（#181 review：不能让精确子串那一段兜住）。"""
     monkeypatch.setattr(mf, "CONFIRM_GAP", 0)
+    assert all(w not in misread for w in mf.EMPTY_WORDS)
     with pytest.raises(mf.EmptySlice):
-        mf.apply_slice(_toast_picker("条件に当てはまるメモリーがありまぜん"), "common:hif")
+        mf.apply_slice(_toast_picker(misread), "common:hif")
 
 
 def test_empty_slice_toast_arrives_late(monkeypatch):
