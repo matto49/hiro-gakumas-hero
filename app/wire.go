@@ -223,5 +223,6 @@ func settingsDeps(d appDeps, cache *settingsCache) settings.Deps {
 			}
 			return d.Hiro.SetSecret(ctx, name, value)
 		},
+		RelaunchAdmin: relaunchAdmin,
 	}
 }

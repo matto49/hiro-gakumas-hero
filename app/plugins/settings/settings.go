@@ -72,6 +72,9 @@ type Deps struct {
 	OnWizardDone func()
 	// PluginsPanel 画「管理插件」页（外部插件，见 extplugin）。
 	PluginsPanel func(c *ui.Context, h plugin.Host)
+	// RelaunchAdmin 以管理员身份重新打开初星助手（Windows：DMM 游戏是管理员运行时普通权限截不到画面，G3）；
+	// 先关后台服务再提权重开、关掉当前窗口。nil 表示这个系统不需要（Mac）。
+	RelaunchAdmin func() error
 }
 
 var providerName = map[string]string{
@@ -98,6 +101,8 @@ type S struct {
 	step      int
 	sound     bool
 	modelOK   bool
+	// relaunchErr 是「以管理员身份重新打开」没成的原因（取消了「是否允许」等）
+	relaunchErr string
 
 	// 模型表单
 	formFor  string // 表单是按哪次读到的设置填的
@@ -125,11 +130,12 @@ type S struct {
 }
 
 type doctorItem struct {
-	ID     string `json:"id"`
-	Title  string `json:"title"`
-	OK     *bool  `json:"ok"`
-	Detail string `json:"detail"`
-	Next   string `json:"next"`
+	ID        string `json:"id"`
+	Title     string `json:"title"`
+	OK        *bool  `json:"ok"`
+	Detail    string `json:"detail"`
+	Next      string `json:"next"`
+	NeedAdmin bool   `json:"need_admin"` // 游戏比初星助手权限高（Windows DMM 版），要以管理员身份重新打开
 }
 
 // New 建设置插件。
@@ -417,6 +423,17 @@ func (s *S) deviceLine(c *ui.Context) {
 	ui.Text(c, text).FontSize(kit.FSmall).TextColor(col)
 	if it, ok := s.doctor["platform"]; ok && it.OK != nil && !*it.OK {
 		kit.Note(c, it.Detail+"　"+it.Next)
+		if it.NeedAdmin && s.d.RelaunchAdmin != nil {
+			if kit.Secondary(c, "以管理员身份重新打开").Key("relaunch-admin").Label("以管理员身份重新打开").Clicked() {
+				s.relaunchErr = ""
+				if err := s.d.RelaunchAdmin(); err != nil {
+					s.relaunchErr = err.Error()
+				}
+			}
+			if s.relaunchErr != "" {
+				kit.Note(c, s.relaunchErr)
+			}
+		}
 	}
 }
 

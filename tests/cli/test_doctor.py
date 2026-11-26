@@ -91,3 +91,38 @@ def test_doctor_simd_missing_is_optional_and_never_blocks_ready(run_cli, monkeyp
     assert ocr["ok"] is False and ocr["optional"] is True
     blockers = [i["id"] for i in env["data"]["items"] if i["ok"] is False and not i["optional"] and i["id"] != "scan"]
     assert "ocr" not in blockers
+
+
+def _dead_device(exc):
+    class Dead:
+        def connect(self):
+            raise exc
+
+    return lambda name=None: Dead()
+
+
+def test_platform_says_need_admin_when_game_is_elevated(monkeypatch):
+    """G3（11-26 Windows 小白验收）：DMM 游戏以管理员运行、初星助手不是，PrintWindow 报 WinError 5：
+    给白话原因并标 need_admin（界面据此给「以管理员身份重新打开」按钮）。"""
+    import hiro.devices
+    from hiro.cli import cmd_doctor
+    from hiro.devices.base import DeviceUnavailable
+
+    monkeypatch.setattr(cmd_doctor.sys, "platform", "win32")
+    monkeypatch.delenv("HIRO_DEVICE", raising=False)
+    monkeypatch.setattr(cmd_doctor, "_is_admin", lambda: False)
+    err = DeviceUnavailable("截图失败（printwindow）：[WinError 5] PrintWindow 失败（错误码 5）")
+    monkeypatch.setattr(hiro.devices, "open_device", _dead_device(err))
+    it = cmd_doctor._platform(True)
+    assert it["ok"] is False and it.get("need_admin") is True
+    assert "管理员" in it["detail"] and "WinError" not in it["detail"]
+
+    # 已经是管理员还连不上：不是权限问题，照旧给原文和提示，不标 need_admin
+    monkeypatch.setattr(cmd_doctor, "_is_admin", lambda: True)
+    it = cmd_doctor._platform(True)
+    assert not it.get("need_admin")
+
+    # 别的错误（游戏没开）：不标 need_admin
+    monkeypatch.setattr(cmd_doctor, "_is_admin", lambda: False)
+    monkeypatch.setattr(hiro.devices, "open_device", _dead_device(DeviceUnavailable("找不到游戏窗口")))
+    assert not cmd_doctor._platform(True).get("need_admin")

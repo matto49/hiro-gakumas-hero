@@ -26,6 +26,10 @@ TB = ["Traceback (most recent call last):", '  File "x.py", line 1, in <module>'
             "游戏画面截出来是全黑的",
         ),
         ("hiro.devices.base.DeviceGone: adb 设备 127.0.0.1:5555 不在了：offline", "和游戏设备的连接出了问题"),
+        (
+            "hiro.devices.base.DeviceUnavailable: 截图失败（printwindow）：[WinError 5] PrintWindow 失败（错误码 5）",
+            "游戏是以管理员身份运行的",
+        ),
         ("hiro.runtime.loop.ResumeBlocked: 回首页：60s 没完成", "回首页：60s 没完成"),
         ("KeyError: 'step'", "程序出错停下了：'step'"),
         ("Exception: 任务执行失败", "程序出错停下了：任务执行失败"),

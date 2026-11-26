@@ -2,6 +2,7 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -396,5 +397,43 @@ func TestMemorySlicesToggle(t *testing.T) {
 	tt.Frame()
 	if !f.s.MemorySlices {
 		t.Fatalf("勾上后应保存：%+v", f.s)
+	}
+}
+
+// G3（11-26 Windows 小白验收）：DMM 游戏是管理员运行、初星助手不是时，连游戏这一步给「以管理员身份重新打开」，点了就调 RelaunchAdmin；
+// 「是否允许」点了「否」时把原因显示出来。没有 need_admin 或这个系统不需要（RelaunchAdmin 为 nil）时没有这个按钮。
+func TestWizardConnectOffersRelaunchAsAdmin(t *testing.T) {
+	item := `{"id":"platform","ok":false,"detail":"Windows · DMM 版：游戏是以管理员身份运行的，初星助手现在不是管理员，截不到游戏画面","next":"点「以管理员身份重新打开」","need_admin":true}`
+	f := &fake{secrets: map[string]string{}, ready: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`, "doctor --probe": `{"items":[` + item + `]}`})
+	calls := 0
+	d := f.deps()
+	d.RelaunchAdmin = func() error {
+		calls++
+		return errors.New("没有以管理员身份重新打开：「是否允许」里点了「否」")
+	}
+	s := New(d)
+	tt := ui.NewTester(func(c *ui.Context) { s.Gate(c, h) }, 1280, 900)
+	tt.Frame()
+	s.step = 1
+	tt.Frame()
+	tt.Frame()
+	if err := tt.Click("以管理员身份重新打开"); err != nil {
+		t.Fatalf("%v %q", err, tt.Texts())
+	}
+	tt.Frame()
+	if calls != 1 || !tt.HasText("没有以管理员身份重新打开：「是否允许」里点了「否」") {
+		t.Fatalf("点了应调 RelaunchAdmin 并显示原因：calls=%d %q", calls, tt.Texts())
+	}
+
+	// Mac：RelaunchAdmin 为 nil，不出按钮
+	s2 := New(f.deps())
+	tt2 := ui.NewTester(func(c *ui.Context) { s2.Gate(c, h) }, 1280, 900)
+	tt2.Frame()
+	s2.step = 1
+	tt2.Frame()
+	tt2.Frame()
+	if tt2.HasText("以管理员身份重新打开") && tt2.Click("以管理员身份重新打开") == nil {
+		t.Fatal("没有 RelaunchAdmin 时不该有按钮")
 	}
 }

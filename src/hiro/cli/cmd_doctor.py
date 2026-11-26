@@ -77,6 +77,14 @@ def _platform(probe: bool) -> dict:
         img = d.screenshot()
         d.close()
     except Exception as e:  # noqa: BLE001 连不上的原因都转成白话
+        if sys.platform == "win32" and _access_denied(e) and not _is_admin():
+            # G3（11-26 Windows 小白验收）：DMM 版游戏以管理员身份运行，安装包装的初星助手是普通权限，PrintWindow 报 WinError 5。
+            # 原来只显示技术原文，小白要自己关掉再右键「以管理员身份运行」；现在说清楚，界面据 need_admin 给「以管理员身份重新打开」按钮
+            it = _item("platform", "游戏平台", False,
+                       f"{label}{suffix}：游戏是以管理员身份运行的，初星助手现在不是管理员，截不到游戏画面",
+                       "点「以管理员身份重新打开」，在弹出的「是否允许」里点「是」")  # fmt: skip
+            it["need_admin"] = True
+            return it
         hint = {
             "darwin": "确认游戏开着、用的是 hguandl 分支 PlayCover、游戏设置里打开了 maaTools",
             "win32": "确认 DMM 版游戏开着、窗口没最小化；程序要以管理员身份运行",
@@ -84,6 +92,22 @@ def _platform(probe: bool) -> dict:
         return _item("platform", "游戏平台", False, f"{label}{suffix}：连不上游戏（{e}）", hint)
     h, w = img.shape[:2]
     return _item("platform", "游戏平台", True, f"{label}{suffix}：已连上，画面 {w}×{h}")
+
+
+def _access_denied(e: BaseException) -> bool:
+    """截图 / 发输入被系统拒绝（WinError 5：拒绝访问，DMM 游戏比初星助手权限高时就是这个）。"""
+    text = str(e)
+    return isinstance(e, PermissionError) or "WinError 5]" in text or "错误码 5）" in text or "拒绝访问" in text
+
+
+def _is_admin() -> bool:
+    """当前进程是不是管理员（Windows；判断不了时当作不是）。"""
+    try:
+        import ctypes
+
+        return bool(ctypes.windll.shell32.IsUserAnAdmin())  # pyright: ignore[reportAttributeAccessIssue]
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _settings() -> dict:
