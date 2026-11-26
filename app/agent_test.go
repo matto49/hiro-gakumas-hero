@@ -149,6 +149,17 @@ func TestInfoCardsDroppedWhenTurnEndsWithConfirm(t *testing.T) {
 	if len(r.Cards) != 1 || r.Cards[0]["type"] != "confirm" {
 		t.Fatalf("只该有确认卡：%v", r.Cards)
 	}
+	h3, _ := recordingHiro(t)
+	srv3, _ := fakeLLM(t,
+		`{"role":"assistant","content":"","tool_calls":[{"id":"c1","type":"function","function":{"name":"info_supports","arguments":"{}"}}]}`,
+		`{"role":"assistant","content":"好的。","tool_calls":[{"id":"c2","type":"function","function":{"name":"run_start","arguments":"{\"kind\":\"daily\"}"}}]}`)
+	r3, err := newTestAgent(h3, srv3.URL).Ask(context.Background(), nil, "看看我的支援卡，再帮我领日常")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r3.Cards) != 2 {
+		t.Fatalf("玩家说了要看，资料卡要留着：%v", r3.Cards)
+	}
 	h2, _ := recordingHiro(t)
 	srv2, _ := fakeLLM(t,
 		`{"role":"assistant","content":"","tool_calls":[{"id":"c1","type":"function","function":{"name":"info_supports","arguments":"{}"}}]}`,

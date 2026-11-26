@@ -228,7 +228,7 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 		}
 		// G1-F2（11-26）：扫描这类任务出错后只有一句话，没有下一步；给「再试一次」（照样走权限 / 确认）。培育类不给，免得误开新一局——
 		// 但停在开局前准备（写编成）、游戏还没开局的，重试不会多用一次培育（N61，G1 第 5 轮 11-27：只能在对话里自己打「再试一次」）
-		preStart := v.Job != nil && produceKind(kind) && failedBeforeStart(v.Job.Params, v.Events)
+		preStart := v.Job != nil && produceKind(kind) && failedBeforeStart(v.Job.Params, v.Events) && retryHelps(v.Job.ExitCode)
 		if preStart {
 			text += "游戏还没开局（停在开局前写编成），可以点「再试一次」。"
 		}
@@ -273,7 +273,8 @@ func (a *App) queuedAfter(id string) bool {
 // failedBeforeStart：带开局前准备（prepare）的开局任务停在准备阶段、还没开局——日志里没有 prepare_start 交给开局命令前的
 // 「开局前准备做完，开局」。这时重试不会多用一次培育（N61）。
 func failedBeforeStart(params map[string]any, events []plugin.JobEvent) bool {
-	if params["prepare"] != true {
+	// 一条事件都没读到（读失败、任务在两次轮询之间就结束）：没法判断，按开了局算，不给重试（#194 review）
+	if params["prepare"] != true || len(events) == 0 {
 		return false
 	}
 	for _, e := range events {
@@ -281,6 +282,19 @@ func failedBeforeStart(params map[string]any, events []plugin.JobEvent) bool {
 		if strings.Contains(e.Text, "开局前准备做完") || e.Type == "step" {
 			return false
 		}
+	}
+	return true
+}
+
+// retryHelps：开局前准备这几种停法照原样重试也没用，不提示重试（#194 review）——2 没有方案、4 编成位都满了（要玩家说覆盖哪一号）、
+// 5 回忆库存不新鲜（要先重扫）。写编成没成功（3 / 程序出错）这类重试可能就过了。
+func retryHelps(code *int) bool {
+	if code == nil {
+		return true
+	}
+	switch *code {
+	case 2, 4, 5:
+		return false
 	}
 	return true
 }

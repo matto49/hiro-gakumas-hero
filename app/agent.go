@@ -320,10 +320,10 @@ func (a *Agent) Ask(ctx context.Context, history []Turn, text string) (Reply, er
 			}
 		}
 		if chose && len(pendings) == 0 {
-			return Reply{Text: strings.TrimSpace(m.Content), Cards: withoutInfo(cards)}, nil
+			return Reply{Text: strings.TrimSpace(m.Content), Cards: withoutInfo(cards, text)}, nil
 		}
 		if len(pendings) > 0 {
-			cards = withoutInfo(cards)
+			cards = withoutInfo(cards, text)
 			var b strings.Builder
 			if strings.TrimSpace(m.Content) != "" {
 				b.WriteString(strings.TrimSpace(m.Content) + "\n")
@@ -339,8 +339,13 @@ func (a *Agent) Ask(ctx context.Context, history []Turn, text string) (Reply, er
 
 // withoutInfo 去掉这一轮的资料卡（info_* 查询结果）：这一轮要出选偶像卡或开局确认卡时，查偶像卡只是为了拿编号，
 // 卡片跟着确认卡一起出来就是刷屏（N64，G1 第 5 轮 11-27：说「回忆编成可以覆盖13号」，确认卡上方挂了 74 条偶像卡）。
-// 玩家单纯问资料（没有确认卡、选择卡）时照常给。
-func withoutInfo(cards []map[string]any) []map[string]any {
+// 玩家单纯问资料（没有确认卡、选择卡）时照常给；这句话里明确说了要看（「看看」「有哪些」「列一下」）也照常给（#194 review）。
+func withoutInfo(cards []map[string]any, said string) []map[string]any {
+	for _, w := range []string{"看", "哪些", "列", "资料", "有什么"} {
+		if strings.Contains(said, w) {
+			return cards
+		}
+	}
 	out := cards[:0:0]
 	for _, c := range cards {
 		if c["type"] != "info" {

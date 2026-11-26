@@ -652,7 +652,11 @@ func TestPreStartFailureOffersRetry(t *testing.T) {
 		ownJob(a, "j7")
 		a.PollJobs()
 		run.Drain()
-		call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"hajime","state":"failed","summary":"开一局初","started_at":1,"params":` + params + `,"reason":"认不出排序方向"}]}`)
+		code := "3"
+		if strings.Contains(events, "都满了") {
+			code = "4"
+		}
+		call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"hajime","state":"failed","summary":"开一局初","started_at":1,"params":` + params + `,"exit_code":` + code + `,"reason":"认不出排序方向"}]}`)
 		call.resp["run events"] = ok(`{"state":"failed","events":` + events + `}`)
 		for i := 0; i < 3; i++ {
 			a.PollJobs()
@@ -682,6 +686,12 @@ func TestPreStartFailureOffersRetry(t *testing.T) {
 	}
 	if c, _ := retryAfter(prep, `[{"seq":1,"type":"step","text":"レッスン","step":1}]`); c != nil {
 		t.Errorf("有对局步骤的不该给重试：%v", c)
+	}
+	if c, _ := retryAfter(prep, `[{"seq":1,"type":"log","text":"停下：「初」的支援卡编成 1–20 号都满了"}]`); c != nil {
+		t.Errorf("编成位都满了（退出码 4）重试也没用，不该给：%v", c)
+	}
+	if c, _ := retryAfter(prep, `[]`); c != nil {
+		t.Errorf("一条事件都没读到时按开了局算，不该给重试：%v", c)
 	}
 	if c, _ := retryAfter(`{"idol":"i_card-x"}`, `[]`); c != nil {
 		t.Errorf("没有开局前准备的培育不该给重试：%v", c)
