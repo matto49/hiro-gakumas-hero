@@ -28,6 +28,12 @@ LIST_BUTTON = (75, 880)  # 偶像详情页左下「一覧」
 BACK = (85, 1210)  # 一览页左下「<<」：不点決定直接退出
 HOME = (75, 1215)  # 偶像详情页左下「⌂」
 COL_X = (105, 275, 445, 615)
+# 到没到偶像详情页 / 一览页：认出其中任意一个字就算（G3 11-26 Windows DMM：游戏窗口 540x960，整屏 OCR 读不出左下带图标的小字「一覧」，
+# 其实已经在详情页，扫描却停下）；整屏读不出时再把按钮那一小块放大读一次
+DETAIL_MARKS = ("一覧", "才能開花", "特訓", "おすすめ効果")
+DETAIL_CROP = (10, 845, 230, 915)  # 详情页左下「一覧」按钮附近（LIST_BUTTON (75, 880)）
+LIST_MARKS = ("決定",)
+LIST_CROP = (150, 1060, 570, 1230)  # 一览页底部「決定」附近
 GRID_TOP, GRID_BOTTOM = 590, 960  # 卡片网格可见区（上面是「現在状態」，下面是筛选按钮和「決定」）
 # 滑完卡片不一定停在固定位置（带惯性，实测挪动约为手指距离的 1.5 倍），所以每屏按 4 个高度把可见区点一遍；
 # 点到卡片之间的缝没反应，点到同一张卡靠卡名去重
@@ -145,6 +151,16 @@ def attach_ids(inv: dict) -> dict:
     return inv
 
 
+def page_seen(img, ocr, marks, crop=None, crop_ocr=None) -> bool:
+    """img 上认得出 marks 里任意一个字：先看整屏 OCR（ocr(img) → [(文字, 框)]），没有再对 crop 那块放大读（crop_ocr(块) → [(文字, …)]）。"""
+    if any(m in t for t, _ in ocr(img) for m in marks):
+        return True
+    if crop is None or crop_ocr is None or img is None:
+        return False
+    x1, y1, x2, y2 = crop
+    return any(m in t for t, *_ in crop_ocr(img[y1:y2, x1:x2]) for m in marks)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="偶像卡库存扫描（只读，从首页开始）")
     ap.add_argument("--out", default="reports/live/idol-inventory.json")
@@ -152,6 +168,7 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s")
 
     from hiro.tool_device import open_tool_device
+    from hiro.vision.ocr import ocr as ocr_crop
     from hiro.vision.ocr import screen_texts
 
     d = open_tool_device()
@@ -159,10 +176,9 @@ def main() -> int:
     def ocr(img):
         return [(t.text, tuple(int(v) for v in t.rect)) for t in screen_texts(img)]
 
-    def has(words, tries=8):
+    def has(marks, crop, tries=8):
         for _ in range(tries):
-            texts = [t for t, _ in ocr(d.screenshot())]
-            if all(any(w in t for t in texts) for w in words):
+            if page_seen(d.screenshot(), ocr, marks, crop, lambda im: ocr_crop(im, scale=3)):
                 return True
             _sleep(0.8)
         return False
@@ -177,11 +193,11 @@ def main() -> int:
     d.tap(*NAV_IDOL)
     _sleep(2.0)
     d.tap(*NAV_P_IDOL)
-    if not has(["一覧"]):
+    if not has(DETAIL_MARKS, DETAIL_CROP):
         print("停下：没进到偶像详情页（找不到「一覧」）", flush=True)
         return 3
     d.tap(*LIST_BUTTON)
-    if not has(["決定"]):
+    if not has(LIST_MARKS, LIST_CROP):
         print("停下：没打开偶像一览（找不到「決定」）", flush=True)
         return 3
     inv = attach_ids(scan(d.screenshot, d.tap, lambda x1, y1, x2, y2: d.swipe(x1, y1, x2, y2, duration=0.6), ocr))
