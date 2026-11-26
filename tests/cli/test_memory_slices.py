@@ -223,3 +223,21 @@ def test_newer_whole_snapshot_beats_older_slices(st, monkeypatch):
         st.save_slice(k, [_e(k)], mode="full", complete=True, scanned_at="2026-11-27 09:00:00")
     assert st.memories_for_plan("sense")["source"] == "slices"
     assert cmd_info._memories({"timing": None, "card": None})["source"] == "slices"
+
+
+def test_incomplete_slice_rescan_does_not_bring_back_deleted_memory(st, monkeypatch):
+    """#173 review：整表里已经没有 A；之后某片重扫没读完（scanned_at 更新、full_at 不变），不能改用片数据把 A 带回来。"""
+    from hiro.cli import cmd_info
+
+    for k in msl.SLICES:
+        st.save_slice(
+            k, [_e("A" if k == "sense:hif" else k)], mode="full", complete=True, scanned_at="2026-11-25 10:00:00"
+        )
+    st.save_snapshot("memories", [{"card": "B"}], "collect:whole", scanned_at="2026-11-26 19:30:00", complete=True,
+                     raw={"entries": [_e("B")], "complete": True, "scanned_at": "2026-11-26 19:30:00"})  # fmt: skip
+    for k in msl.SLICES:  # 每片都重扫了一遍但都没读完
+        st.save_slice(k, [], mode="full", complete=False, scanned_at="2026-11-27 09:00:00")
+    ids = [e["card"]["card_id"] for e in st.memories_for_plan("sense")["entries"]]
+    assert "A" not in ids and ids == ["B"]
+    monkeypatch.setattr(cmd_info, "open_store", lambda: st)
+    assert cmd_info._memories({"timing": None, "card": None}).get("source") != "slices"
