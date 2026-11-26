@@ -381,7 +381,8 @@ def _installer(tool, monkeypatch, tmp_path, *, rc=0, creates=True, has_dotnet=la
     def run(cmd, **kw):
         calls.append(("run", cmd, kw.get("timeout")))
         if creates:
-            target = Path(cmd[cmd.index("-InstallDir") + 1])
+            flag = "-InstallDir" if "-InstallDir" in cmd else "--install-dir"
+            target = Path(cmd[cmd.index(flag) + 1])
             target.mkdir(parents=True, exist_ok=True)
             (target / tool.simd_deps.local_dotnet(tmp_path).name).write_bytes(b"")
         return type("R", (), {"returncode": rc})()
@@ -398,6 +399,7 @@ def _installer(tool, monkeypatch, tmp_path, *, rc=0, creates=True, has_dotnet=la
 
 
 def test_install_dotnet_uses_the_official_script_without_admin_or_path(tool, tmp_path, monkeypatch):
+    monkeypatch.setattr(tool.sys, "platform", "win32")
     calls = _installer(tool, monkeypatch, tmp_path)
     assert tool.install_dotnet(tmp_path / "deps") is True
     (_, url), (_, cmd, timeout) = calls
@@ -415,7 +417,21 @@ def test_install_dotnet_is_skipped_when_a_runtime_exists(tool, tmp_path, monkeyp
     assert tool.install_dotnet(tmp_path) is False
 
 
+def test_install_dotnet_on_mac_uses_the_sh_script(tool, tmp_path, monkeypatch):
+    """11-26 起 Mac 也装 SIMD：用官方 dotnet-install.sh，同样装到 deps/dotnet、不改 PATH、不要管理员权限。"""
+    monkeypatch.setattr(tool.sys, "platform", "darwin")
+    calls = _installer(tool, monkeypatch, tmp_path)
+    assert tool.install_dotnet(tmp_path / "deps") is True
+    (_, url), (_, cmd, _timeout) = calls
+    assert url == "https://dot.net/v1/dotnet-install.sh"
+    assert cmd[0] == "bash" and "--no-path" in cmd
+    assert cmd[cmd.index("--runtime") + 1] == "dotnet" and cmd[cmd.index("--channel") + 1] == "10.0"
+    assert Path(cmd[cmd.index("--install-dir") + 1]) == tmp_path / "deps" / "dotnet"
+    assert not (tmp_path / "deps/tmp/dotnet-install.sh").exists()
+
+
 def test_install_dotnet_failures_become_install_errors(tool, tmp_path, monkeypatch):
+    monkeypatch.setattr(tool.sys, "platform", "win32")
     _installer(tool, monkeypatch, tmp_path, rc=1)
     with pytest.raises(tool.InstallError, match="退出码 1"):
         tool.install_dotnet(tmp_path / "deps")
@@ -435,9 +451,9 @@ def test_install_dotnet_failures_become_install_errors(tool, tmp_path, monkeypat
 # ---------------------------------------------------------------- 入口：失败只返回非零，不抛
 
 
-def test_main_does_nothing_off_windows(tool, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(tool.sys, "platform", "darwin")
-    monkeypatch.setattr(tool, "run", lambda *a, **k: pytest.fail("Mac 上什么都不装"))
+def test_main_does_nothing_off_windows_and_mac(tool, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(tool.sys, "platform", "linux")
+    monkeypatch.setattr(tool, "run", lambda *a, **k: pytest.fail("Linux 上什么都不装"))
     assert tool.main(["--deps", str(tmp_path)]) == 0
     assert "跳过" in capsys.readouterr().out
     assert list(tmp_path.iterdir()) == []

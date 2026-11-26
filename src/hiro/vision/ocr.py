@@ -48,14 +48,14 @@ def _vision_available() -> bool:
     return True
 
 
-def _simd_usable() -> bool:
-    """Windows 上 SIMD 能不能用：辅助程序、模型、.NET 10 都在且能启动（启动一次，之后复用同一个进程）。不能用时日志写明原因。"""
+def _simd_usable(fallback: str = "RapidOCR") -> bool:
+    """SIMD 能不能用：辅助程序、模型、.NET 10 都在且能启动（启动一次，之后复用同一个进程）。不能用时日志写明原因和改用什么。"""
     from hiro.vision import simd_ocr
 
     try:
         simd_ocr.simd_engine()
     except Exception as e:  # noqa: BLE001  缺文件、没装 .NET、启动超时都退回 RapidOCR
-        logger.warning("文字识别：SIMD 用不了（%s），用 RapidOCR", e)
+        logger.warning("文字识别：SIMD 用不了（%s），用 %s", e, fallback)
         return False
     return True
 
@@ -68,10 +68,14 @@ def engine() -> str:
         if want not in ENGINES:
             raise ValueError(f"HIRO_OCR={want!r} 不认识；可选：{', '.join(ENGINES)}")
         if want == "auto":
-            if sys.platform == "darwin" and _vision_available():
-                want = "vision"
-            elif sys.platform == "win32" and _simd_usable():
+            # Mac 也先用 SIMD（用户 11-26 21:4x：Mac 上 Apple Vision 在 macOS 27.2.1 里每个进程只能读一次，N29），
+            # 没装好再用 Vision，都不行用 RapidOCR；Windows 先 SIMD 再 RapidOCR
+            if sys.platform in ("darwin", "win32") and _simd_usable(
+                fallback="Apple Vision" if sys.platform == "darwin" else "RapidOCR"
+            ):
                 want = "simd"
+            elif sys.platform == "darwin" and _vision_available():
+                want = "vision"
             else:
                 want = "rapidocr"
         _engine = want

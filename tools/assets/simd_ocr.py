@@ -1,8 +1,8 @@
-"""装 Windows 缺省的文字识别后端 SIMD PaddleOCR（PP-OCRv6 medium）：辅助程序、模型、.NET 10 Runtime。
+"""装缺省的文字识别后端 SIMD PaddleOCR（PP-OCRv6 medium）：辅助程序、模型、.NET 10 Runtime（Windows 和 macOS）。
 
 usage: python tools/assets/simd_ocr.py [--deps DIR] [--no-dotnet] [--force]
 
-只在 Windows 上做事（macOS 用 Apple Vision，什么都不装；其他系统用 RapidOCR）。装的东西都在依赖目录 deps 下
+Windows 和 macOS 上做事（11-26 起 Mac 也缺省用 SIMD：Apple Vision 在 macOS 27.2.1 里每个进程只能读一次；其他系统用 RapidOCR）。装的东西都在依赖目录 deps 下
 （HIRO_SIMD_DEPS，缺省仓库根的 .deps），不要管理员权限、不改系统 PATH：
 1. 辅助程序 + 模型：本仓库 GitHub Release ocr-simd-v1 的一个 zip（tools/assets/pack_simd_ocr.py 打的），下载、校验 SHA256、解压到
    deps/simd-ocr 和 deps/SimdPaddleOCR/models；已经装好且是同一个版本就不重复下载。
@@ -34,6 +34,7 @@ URL = f"https://github.com/matto49/hiro-gakumas-hero/releases/download/{TAG}/{AS
 # 资产还没发布：发了 Release 之后，把 pack_simd_ocr.py 打印的 SHA256 填到这里（填之前下载会直接跳过，识别用 RapidOCR）
 SHA256 = "0812bc5457e23c24bf30b6b0a8ca356fec95763fc6f5e6f322471b189edc5c8f"  # Release ocr-simd-v1（11-26 发）
 DOTNET_INSTALL_URL = "https://dot.net/v1/dotnet-install.ps1"
+DOTNET_INSTALL_SH_URL = "https://dot.net/v1/dotnet-install.sh"  # macOS
 DOTNET_CHANNEL = "10.0"
 TOP_DIRS = ("simd-ocr", "SimdPaddleOCR")  # zip 里的两个顶层目录；顶层的文件（NOTICE、许可证）装好后放进 deps/simd-ocr
 STAMP = ".simd-asset-sha256"  # 装好的资产的 SHA256，写在 deps 根（不在会被整个换掉的两个目录里）；和 SHA256 对得上就不重复下载
@@ -202,19 +203,34 @@ def install_dotnet(deps: Path, *, timeout: float = DOTNET_TIMEOUT) -> bool:
     if simd_deps.find_dotnet(deps) is not None:
         return False
     target = deps / "dotnet"
-    script = deps / "tmp" / "dotnet-install.ps1"
-    print(f"下载 {DOTNET_INSTALL_URL}（.NET {DOTNET_CHANNEL} Runtime 约 30 MB）", flush=True)
-    _download_retry(DOTNET_INSTALL_URL, script, deadline=120)
-    cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)]
-    cmd += ["-Runtime", "dotnet", "-Channel", DOTNET_CHANNEL, "-InstallDir", str(target), "-NoPath"]
+    win = sys.platform == "win32"
+    url = DOTNET_INSTALL_URL if win else DOTNET_INSTALL_SH_URL
+    script = deps / "tmp" / ("dotnet-install.ps1" if win else "dotnet-install.sh")
+    print(f"下载 {url}（.NET {DOTNET_CHANNEL} Runtime 约 30 MB）", flush=True)
+    _download_retry(url, script, deadline=120)
+    if win:
+        cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)]
+        cmd += ["-Runtime", "dotnet", "-Channel", DOTNET_CHANNEL, "-InstallDir", str(target), "-NoPath"]
+    else:  # macOS：官方 dotnet-install.sh，同样装到 deps/dotnet、不改 PATH、不要管理员权限
+        cmd = [
+            "bash",
+            str(script),
+            "--runtime",
+            "dotnet",
+            "--channel",
+            DOTNET_CHANNEL,
+            "--install-dir",
+            str(target),
+            "--no-path",
+        ]
     try:
         r = subprocess.run(cmd, timeout=timeout, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except (OSError, subprocess.SubprocessError) as e:
-        raise InstallError(f"dotnet-install.ps1 没能跑完：{e}") from e
+        raise InstallError(f"{script.name} 没能跑完：{e}") from e
     finally:
         script.unlink(missing_ok=True)
     if r.returncode:
-        raise InstallError(f"dotnet-install.ps1 退出码 {r.returncode}")
+        raise InstallError(f"{script.name} 退出码 {r.returncode}")
     if simd_deps.find_dotnet(deps) is None:
         raise InstallError(f"装完了但在 {target} 里找不到能用的 .NET {DOTNET_CHANNEL} Runtime")
     return True
@@ -244,8 +260,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-dotnet", action="store_true", help="不装 .NET 10 Runtime（只装辅助程序和模型）")
     ap.add_argument("--force", action="store_true", help="已经装好也重新下载")
     args = ap.parse_args(argv)
-    if sys.platform != "win32":
-        print("SIMD OCR 只在 Windows 上装（macOS 用 Apple Vision，其他系统用 RapidOCR）：跳过")
+    if sys.platform not in ("win32", "darwin"):
+        print("SIMD OCR 只在 Windows / macOS 上装（其他系统用 RapidOCR）：跳过")
         return 0
     deps = Path(args.deps) if args.deps else simd_deps.deps_dir()
     problems = run(deps, dotnet=not args.no_dotnet, force=args.force)

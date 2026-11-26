@@ -37,6 +37,11 @@ step "2/6 安装本仓库（.[$EXTRAS]）"
 uv pip install --python "$PY" -e ".[$EXTRAS]"
 # RapidOCR 后端的识别模型：从本仓库 GitHub Release 下载、校验 SHA256（Mac 缺省用 Vision，下载失败不挡安装）
 "$PY" tools/assets/rapid_models.py || echo "  ⚠ RapidOCR 模型没下好（网络？）：要用 HIRO_OCR=rapidocr 时再跑 python tools/assets/rapid_models.py"
+if [ "$(uname -s)" = "Darwin" ]; then
+  # Mac 缺省文字识别也用 SIMD（11-26：Apple Vision 在 macOS 27.2.1 里每个进程只能读一次）。可选：装不上不让安装失败，退回 Apple Vision
+  echo "  SIMD 文字识别（Mac 缺省，可选；约 100 MB，另需 .NET 10 Runtime）…"
+  "$PY" tools/assets/simd_ocr.py || echo "  ⚠ SIMD 文字识别没装上（原因见上面几行）：识别用 Apple Vision，不影响使用；网络好了重跑本脚本即可"
+fi
 
 step "3/6 识别用的游戏原图（本仓库 Release game-images-b9577da：技能卡 / 偶像卡 / 饮料 → resources/game_data，约 125 MB）"
 if [ "$DATA" = 0 ]; then
