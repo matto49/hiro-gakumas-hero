@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/matto49/hiro-gakumas-hero/app/plugin"
 	"github.com/matto49/hiro-gakumas-hero/app/usagelog"
 )
 
@@ -535,7 +536,19 @@ func (o OpenAICompat) record(ctx context.Context, u *openAIUsage, ok bool) {
 }
 
 // ErrUnauthorized 是 Key 不对。
-var ErrUnauthorized = errors.New("API Key 不对或已失效")
+var ErrUnauthorized = &plugin.UserError{
+	Message: "模型的 API Key 不对或已失效",
+	Hint:    "到设置里重新填一个 Key，填好后再说一次",
+	Actions: []string{plugin.ActionSettings},
+}
+
+// modelError 是模型服务出错时给玩家看的话：断网、余额不足、服务商出错都能「再试一次」。
+func modelError(msg, hint string, err error, actions ...string) error {
+	if len(actions) == 0 {
+		actions = []string{plugin.ActionRetry}
+	}
+	return &plugin.UserError{Message: msg, Hint: hint, Actions: actions, Err: err}
+}
 
 func (o OpenAICompat) Chat(ctx context.Context, messages []chatMessage, tools []toolDef) (chatMessage, error) {
 	body := map[string]any{"model": o.Model, "messages": messages}
@@ -556,7 +569,11 @@ func (o OpenAICompat) Chat(ctx context.Context, messages []chatMessage, tools []
 	resp, err := client.Do(req)
 	if err != nil {
 		o.record(ctx, nil, false)
-		return chatMessage{}, fmt.Errorf("连不上模型服务：%w", err)
+		if ctx.Err() != nil {
+			return chatMessage{}, err // 玩家自己取消 / 程序退出：不当成网络问题
+		}
+		// G1 §8 错误文案：原来把 Go 的原始报错（dial tcp: lookup …: no such host）直接给玩家
+		return chatMessage{}, modelError("连不上模型服务：网络不通，或者服务商暂时打不开", "检查一下网络，好了以后点「再试一次」", err)
 	}
 	defer resp.Body.Close()
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
@@ -572,16 +589,19 @@ func (o OpenAICompat) Chat(ctx context.Context, messages []chatMessage, tools []
 	case resp.StatusCode == 401 || resp.StatusCode == 403:
 		return chatMessage{}, ErrUnauthorized
 	case resp.StatusCode == 402:
-		return chatMessage{}, errors.New("模型账户余额不足，去服务商那里充值")
+		return chatMessage{}, modelError("模型账户余额不足", "去服务商那里充值，充好后点「再试一次」；也可以到设置里换一个模型",
+			errors.New("HTTP 402"), plugin.ActionRetry, plugin.ActionSettings)
 	case resp.StatusCode >= 300:
 		msg := string(raw)
 		if len(msg) > 300 {
 			msg = msg[:300]
 		}
-		return chatMessage{}, fmt.Errorf("模型服务出错（%d）：%s", resp.StatusCode, msg)
+		return chatMessage{}, modelError(fmt.Sprintf("模型服务出错了（%d）", resp.StatusCode), "多半是服务商那边临时的问题，过一会儿点「再试一次」",
+			fmt.Errorf("HTTP %d：%s", resp.StatusCode, msg))
 	}
 	if jerr != nil || len(out.Choices) == 0 {
-		return chatMessage{}, errors.New("模型服务的回答看不懂")
+		return chatMessage{}, modelError("模型服务的回答看不懂", "可能是模型名填错了，或者服务商临时出错；点「再试一次」，还不行到设置里换个模型",
+			jerr, plugin.ActionRetry, plugin.ActionSettings)
 	}
 	return out.Choices[0].Message, nil
 }

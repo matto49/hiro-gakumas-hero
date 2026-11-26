@@ -254,7 +254,7 @@ func (a *App) Send(text string) {
 		return func() {
 			a.busy, a.tools = false, nil
 			if err != nil {
-				m := a.addTo(t, "agent", "", []plugin.Card{{"type": "error", "error": map[string]any{"code": "agent", "message": err.Error()}}})
+				m := a.addTo(t, "agent", "", []plugin.Card{errorCardFor(err, text)})
 				m.Tools = tools
 			} else {
 				m := a.addTo(t, "agent", reply.Text, tidyCards(reply.Cards))

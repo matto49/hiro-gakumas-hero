@@ -144,3 +144,21 @@ func (p *Plugin) Navs() []NavItem {
 	}
 	return []NavItem{{Label: p.Name, Icon: p.Icon}}
 }
+
+// 对话里错误卡上能点的动作（UserError.Actions）。
+const (
+	ActionSettings = "settings" // 打开设置（Key 不对、没配模型）
+	ActionRetry    = "retry"    // 把刚才那句再发一次（断网、余额不足、服务商出错）
+)
+
+// UserError 是要给玩家看的出错：白话原因、下一步提示和能点的动作（GOAL §8：每条错误都要有白话原因和可点的下一步）。
+// Err 是原始错误，只进日志，不显示。
+type UserError struct {
+	Message string
+	Hint    string
+	Actions []string
+	Err     error
+}
+
+func (e *UserError) Error() string { return e.Message }
+func (e *UserError) Unwrap() error { return e.Err }

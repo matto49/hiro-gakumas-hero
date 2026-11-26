@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -105,7 +106,7 @@ func (a *App) card(c *ui.Context, m *Message, card plugin.Card) {
 		}
 		return
 	case "error":
-		errorCard(c, card)
+		a.errorCard(c, m, card)
 		return
 	case "retry":
 		a.retryCard(c, m, card)
@@ -186,17 +187,78 @@ func (a *App) retryCard(c *ui.Context, m *Message, card plugin.Card) {
 	}
 }
 
-func errorCard(c *ui.Context, card plugin.Card) {
+// errorCardFor 把对话助手出的错变成错误卡（G1 §8 错误文案）：UserError 带白话原因、提示和按钮；
+// 别的错误照原话显示，给「再试一次」。retry_text 是出错的那句话，「再试一次」把它再发一遍。
+func errorCardFor(err error, text string) plugin.Card {
+	e := map[string]any{"code": "agent", "message": err.Error()}
+	actions := []string{plugin.ActionRetry}
+	var ue *plugin.UserError
+	if errors.As(err, &ue) {
+		e["message"] = ue.Message
+		if ue.Hint != "" {
+			e["hint"] = ue.Hint
+		}
+		actions = ue.Actions
+	}
+	return plugin.Card{"type": "error", "error": e, "actions": actions, "retry_text": text}
+}
+
+// cardStrings 读卡里的字符串列表（内存里是 []string，存盘读回来是 []any）。
+func cardStrings(v any) []string {
+	switch x := v.(type) {
+	case []string:
+		return x
+	case []any:
+		var out []string
+		for _, s := range x {
+			if s, ok := s.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+func (a *App) errorCard(c *ui.Context, m *Message, card plugin.Card) {
 	e, _ := card["error"].(map[string]any)
 	msg, _ := e["message"].(string)
 	hint, _ := e["hint"].(string)
+	actions := cardStrings(card["actions"])
+	text, _ := card["retry_text"].(string)
+	used, _ := card["used"].(bool)
 	ui.Row(c).Gap(10).Padding(10, 12).Radius(kit.R12).Background(kit.BadT).MaxWidth(560).Children(func() {
 		ui.Icon(c, kit.IcAlert).FontSize(15).TextColor(kit.Bad)
-		ui.Column(c).Gap(3).Shrink(1).Children(func() {
+		ui.Column(c).Gap(6).Shrink(1).Children(func() {
 			ui.Text(c, msg).FontSize(kit.FSmall).TextColor(kit.Ink).Wrap().Selectable()
 			if hint != "" {
 				ui.Text(c, hint).FontSize(kit.FNote).TextColor(kit.Ink2).Wrap()
 			}
+			if len(actions) == 0 {
+				return
+			}
+			ui.Row(c).Gap(8).Children(func() {
+				for _, act := range actions {
+					switch act {
+					case plugin.ActionSettings:
+						if kit.Secondary(c, "去设置").Key("err-settings-" + m.ID).Label("去设置").Clicked() {
+							a.OpenPanel("settings", "")
+						}
+					case plugin.ActionRetry:
+						if text == "" {
+							continue
+						}
+						if used {
+							ui.Text(c, "已重新发送").FontSize(kit.FNote).TextColor(kit.Ink3)
+							continue
+						}
+						if kit.Secondary(c, "再试一次").Key("err-retry-"+m.ID).Label("再试一次").Disabled(a.busy).Clicked() && !a.busy {
+							card["used"] = true
+							a.Send(text)
+						}
+					}
+				}
+			})
 		})
 	})
 }
