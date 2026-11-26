@@ -170,7 +170,7 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 	a.notified[key] = true
 	name := id
 	if v.Job != nil {
-		name = v.Job.Summary
+		name = labels.Title(v.Job.Summary)
 		if name == "" {
 			name = labels.Kind(v.Job.Kind)
 		}
@@ -351,7 +351,7 @@ func (a *App) pinned(c *ui.Context) {
 		v := a.Job(a.live)
 		title := a.live
 		if v.Job != nil {
-			title = v.Job.Summary
+			title = labels.Title(v.Job.Summary)
 			if title == "" {
 				title = labels.Kind(v.Job.Kind)
 			}

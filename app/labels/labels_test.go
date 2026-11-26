@@ -78,3 +78,13 @@ func TestReasonDropsInternalTerms(t *testing.T) {
 		}
 	}
 }
+
+// N9（11-26 G1）：任务摘要后面跟着「开局前：…」说明时，标题只要第一行。
+func TestTitleFirstLine(t *testing.T) {
+	if got := Title("开一局「初」REGULAR（藤田琴音）\n开局前：先读一遍「初」的编成位"); got != "开一局「初」REGULAR（藤田琴音）" {
+		t.Errorf("%q", got)
+	}
+	if got := Title("扫描偶像卡"); got != "扫描偶像卡" {
+		t.Errorf("%q", got)
+	}
+}

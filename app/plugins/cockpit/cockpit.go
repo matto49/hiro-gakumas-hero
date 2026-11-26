@@ -61,7 +61,7 @@ func jobID(card plugin.Card) string {
 func title(v *plugin.JobView, id string) string {
 	if v != nil && v.Job != nil {
 		if v.Job.Summary != "" {
-			return v.Job.Summary
+			return labels.Title(v.Job.Summary)
 		}
 		return labels.Kind(v.Job.Kind)
 	}
@@ -565,7 +565,7 @@ func (s *state) background(c *ui.Context, h plugin.Host, current string) {
 		ui.Text(c, "刷新失败："+s.recentErr+"。下面是上次读到的，过几秒会自动再试。").FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
 	}
 	for _, j := range jobs {
-		name := j.Summary
+		name := labels.Title(j.Summary)
 		if name == "" {
 			name = labels.Kind(j.Kind)
 		}
@@ -708,7 +708,7 @@ func (s *state) context(ctx context.Context, h plugin.Host) string {
 			if i >= 3 {
 				break
 			}
-			name := j.Summary
+			name := labels.Title(j.Summary)
 			if name == "" {
 				name = labels.Kind(j.Kind)
 			}

@@ -321,3 +321,19 @@ func TestProgressHidesPaths(t *testing.T) {
 		}
 	}
 }
+
+// N9：对局卡标题不带「开局前：…」那句。
+func TestRunCardTitleFirstLine(t *testing.T) {
+	h, p := liveHost(), New()
+	h.Job("j7").Job.Summary = "开一局「初」REGULAR（藤田琴音）\n开局前：先读一遍「初」的编成位"
+	tt := ui.NewTester(func(c *ui.Context) { p.Cards["run"](c, h, plugin.Card{"type": "run", "jobId": "j7"}) }, 760, 600)
+	tt.Frame()
+	for _, s := range tt.Texts() {
+		if strings.Contains(s, "开局前") {
+			t.Errorf("标题不该带开局前说明：%q", s)
+		}
+	}
+	if !tt.HasText("开一局「初」REGULAR（藤田琴音）") {
+		t.Errorf("没有标题：%q", tt.Texts())
+	}
+}

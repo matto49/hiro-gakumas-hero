@@ -189,6 +189,14 @@ func Action(a string) string { return pick(actions, a, "") }
 // Kind 是任务种类（hajime、hif、scan-supports…）的中文。
 func Kind(k string) string { return pick(kinds, k, "") }
 
+// Title 是任务摘要当标题用的那一行：只取第一行（摘要后面可能跟着「开局前：…」说明，N9，11-26 G1）。
+func Title(summary string) string {
+	if i := strings.IndexByte(summary, '\n'); i >= 0 {
+		summary = summary[:i]
+	}
+	return strings.TrimSpace(summary)
+}
+
 // State 是任务状态的中文。
 func State(s string) string { return pick(states, s, "") }
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/matto49/hiro-gakumas-hero/app/hiroapi"
 	"github.com/matto49/hiro-gakumas-hero/app/kit"
+	"github.com/matto49/hiro-gakumas-hero/app/labels"
 	"github.com/matto49/hiro-gakumas-hero/app/plugin"
 )
 
@@ -182,7 +183,7 @@ func (a *App) continueBatch(id string, v *plugin.JobView) {
 					card["queue"] = []any{}
 					name := id
 					if v.Job != nil && v.Job.Summary != "" {
-						name = v.Job.Summary
+						name = labels.Title(v.Job.Summary)
 					}
 					a.addTo(t, "agent", fmt.Sprintf("「%s」没有做完，后面 %d 项没做：%s", name, len(queue), queueNames(queue)), nil)
 					a.save(t)

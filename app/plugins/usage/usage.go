@@ -386,7 +386,7 @@ func tableCard(c *ui.Context, h plugin.Host, card plugin.Card) {
 			}
 			ui.Text(c, "最近每局的模型用量").FontSize(kit.FSmall).FontWeight(600).TextColor(kit.Ink)
 			for i, j := range r.Jobs {
-				row(c, fmt.Sprintf("r-%d", i), jobTime(j.Job)+" "+j.Summary, Line(j.Group))
+				row(c, fmt.Sprintf("r-%d", i), jobTime(j.Job)+" "+labels.Title(j.Summary), Line(j.Group))
 			}
 			pricesNote(c, r.Checked)
 		default:
@@ -557,7 +557,7 @@ func (s *state) homePanel(c *ui.Context, h plugin.Host) {
 		kit.Note(c, a)
 	}
 	for i, j := range x.recent.Jobs {
-		label := jobTime(j.Job) + " " + j.Summary
+		label := jobTime(j.Job) + " " + labels.Title(j.Summary)
 		id := j.Job
 		if kit.RowButton(c, fmt.Sprintf("job-%d", i), label, false).Padding(4, 0).Children(func() {
 			ui.Column(c).Gap(2).Shrink(1).Children(func() {
@@ -692,13 +692,13 @@ func (s *state) jobTitle(h plugin.Host, id string) string {
 	if s.home != nil {
 		for _, j := range s.home.recent.Jobs {
 			if j.Job == id {
-				summary = j.Summary
+				summary = labels.Title(j.Summary)
 			}
 		}
 	}
 	if summary == "" {
 		if v := h.Job(id); v != nil && v.Job != nil {
-			summary = v.Job.Summary
+			summary = labels.Title(v.Job.Summary)
 		}
 	}
 	t := jobTime(id)
