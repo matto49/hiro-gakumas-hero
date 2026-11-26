@@ -269,8 +269,12 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
         meta, rows = open_store().latest("formations")
         fresh = [r for r in rows if r.get("mode") == kind] if meta is not None else []
         if meta is not None and fresh and not _wrote_formation_since(meta.get("scanned_at"), kind):
-            picked = {}
+            picked, unread = {}, []
             for w in missing:
+                if not any(r.get("kind") == w for r in fresh):
+                    # 这一样没读过（开局前准备只读要挑号的那几样，#157 review）：不能当成全满，任务里先读再挑
+                    unread.append(w)
+                    continue
                 blanks = sorted(int(r["set"]) for r in fresh if r.get("kind") == w and r.get("filled") == 0)
                 if not blanks:
                     raise CliError(
@@ -282,8 +286,13 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
                 picked[w] = blanks[0]
             for w, n in picked.items():
                 plan[w] = dict(plan.get(w) or {}, set=n)
-            fp.save_plan(home, plan, kind)
-            steps.append("把编成方案写进空着的" + "、".join(f"{label[w]}编成 {n} 号" for w, n in picked.items()))
+            if picked:
+                fp.save_plan(home, plan, kind)
+                steps.append("把编成方案写进空着的" + "、".join(f"{label[w]}编成 {n} 号" for w, n in picked.items()))
+            if unread:
+                steps.append(
+                    f"先读一遍{_MODE_NAME.get(kind, kind)}的{'、'.join(label[w] for w in unread)}编成位，挑空着的把编成方案写进去"
+                )
         else:
             steps.append(f"先读一遍{_MODE_NAME.get(kind, kind)}的编成位，挑空着的把编成方案写进去")
     elif left := fp.unwritten(plan, kind, todo):

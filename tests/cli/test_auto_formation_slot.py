@@ -233,3 +233,17 @@ def test_given_support_slot_with_player_cards_is_not_auto_written(run_cli, hiro_
     assert not ((env.get("data") or {}).get("pending") or {}).get("args", {}).get("prepare"), env
     per = fp.load(hiro_home / "plans" / "hajime" / f"{KOTONE}.json")
     assert per["memory"]["set"] is None  # 没有留下挑好的回忆编成号
+
+
+def test_unread_kind_in_snapshot_is_surveyed_not_full(run_cli, hiro_home, on):
+    """#157 review：开局前准备只读要挑号的那几样（读到空位就停）。快照里只有回忆、没有支援卡的行时，
+    支援卡不能当成「都满了」报 formations_full，要在任务里先读再挑；回忆照样从快照里挑空位。"""
+    _plan(hiro_home)
+    _formations("hajime", {}, {1: 4, 2: 0})
+    code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
+    assert code == 3, env
+    pend = env["data"]["pending"]
+    assert pend["args"]["prepare"] is True
+    assert "回忆编成 2 号" in pend["summary"] and "先读一遍" in pend["summary"] and "支援卡编成位" in pend["summary"]
+    per = json.loads((hiro_home / "plans" / "hajime" / f"{KOTONE}.json").read_text(encoding="utf-8"))
+    assert per["support"]["set"] is None and per["memory"]["set"] == 2
