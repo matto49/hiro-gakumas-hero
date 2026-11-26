@@ -5,6 +5,8 @@ import hashlib
 import http.server
 import importlib.util
 import json
+import re
+import shutil
 import threading
 import zipfile
 from pathlib import Path
@@ -366,7 +368,9 @@ def test_unusable_reason_names_the_missing_file(tool, tmp_path):
 
 
 def _installer(tool, monkeypatch, tmp_path, *, rc=0, creates=True, has_dotnet=lambda: False):
-    """假的 dotnet-install.ps1：记录命令行；按需在 -InstallDir 里放一个假 dotnet。返回命令记录。"""
+    """假的 dotnet-install.ps1：记录命令行；按需在 -InstallDir 里放一个假 dotnet。返回命令记录。
+    镜像那条路另有测试，这里当镜像没有这个平台（直接走官方脚本）。"""
+    monkeypatch.setattr(tool, "_install_from_mirror", lambda deps: False)
     calls = []
     monkeypatch.setattr(
         tool,
@@ -446,6 +450,90 @@ def test_install_dotnet_failures_become_install_errors(tool, tmp_path, monkeypat
     monkeypatch.setattr(tool.subprocess, "run", timeout)
     with pytest.raises(tool.InstallError, match="没能跑完"):
         tool.install_dotnet(tmp_path / "deps3")
+
+
+# ---------------------------------------------------------------- .NET 镜像（N57：微软 CDN 慢，先从本仓库 Release 下）
+
+
+def _runtime_tar(path: Path, members: dict[str, bytes], *, link: tuple[str, str] | None = None) -> str:
+    import io
+    import tarfile
+
+    with tarfile.open(path, "w:gz") as tf:
+        for name, data in members.items():
+            info = tarfile.TarInfo(name)
+            info.size, info.mode = len(data), 0o755
+            tf.addfile(info, io.BytesIO(data))
+        if link:
+            info = tarfile.TarInfo(link[0])
+            info.type, info.linkname = tarfile.SYMTYPE, link[1]
+            tf.addfile(info)
+    return hashlib.sha512(path.read_bytes()).hexdigest()
+
+
+def _mirror(tool, monkeypatch, tmp_path, *, link=None, sha=None):
+    src = tmp_path / "pkg.tar.gz"
+    real = _runtime_tar(src, {"dotnet": b"bin", "shared/Microsoft.NETCore.App/10.0.15/x.dll": b"x"}, link=link)
+    monkeypatch.setattr(tool.sys, "platform", "darwin")
+    monkeypatch.setattr(tool.platform, "machine", lambda: "arm64")
+    name = tool.DOTNET_MIRROR[("darwin", "arm64")][0]
+    monkeypatch.setitem(tool.DOTNET_MIRROR, ("darwin", "arm64"), (name, sha or real))
+    got = []
+    monkeypatch.setattr(
+        tool,
+        "_download_retry",
+        lambda url, dst, **kw: (got.append(url), dst.parent.mkdir(parents=True, exist_ok=True), shutil.copy(src, dst)),
+    )
+    monkeypatch.setattr(
+        tool.simd_deps, "find_dotnet", lambda deps: ("dotnet", {}) if (deps / "dotnet/dotnet").is_file() else None
+    )
+    return got
+
+
+def test_install_dotnet_uses_the_github_mirror_first(tool, tmp_path, monkeypatch):
+    got = _mirror(tool, monkeypatch, tmp_path)
+    monkeypatch.setattr(tool.subprocess, "run", lambda *a, **k: pytest.fail("镜像装好了不该再跑官方脚本"))
+    deps = tmp_path / "deps"
+    assert tool.install_dotnet(deps) is True
+    assert got == [
+        f"https://github.com/matto49/hiro-gakumas-hero/releases/download/dotnet-runtime-10.0.15/{tool.DOTNET_MIRROR[('darwin', 'arm64')][0]}"
+    ]
+    assert (deps / "dotnet/dotnet").read_bytes() == b"bin" and (
+        deps / "dotnet/shared/Microsoft.NETCore.App/10.0.15/x.dll"
+    ).is_file()
+    assert not (deps / "tmp/dotnet-staging").exists() and not list((deps / "tmp").glob("*.tar.gz"))
+
+
+@pytest.mark.parametrize("bad", ["sha", "link"])
+def test_mirror_problems_fall_back_to_the_official_script(tool, tmp_path, monkeypatch, capsys, bad):
+    """镜像校验对不上、或包里有指向外面的链接：不用它，改跑官方脚本，deps/dotnet 里不留镜像的东西。"""
+    _mirror(
+        tool,
+        monkeypatch,
+        tmp_path,
+        sha="0" * 128 if bad == "sha" else None,
+        link=("evil", "../../outside") if bad == "link" else None,
+    )
+    ran = []
+    monkeypatch.setattr(tool.subprocess, "run", lambda cmd, **k: ran.append(cmd) or type("R", (), {"returncode": 1})())
+    with pytest.raises(tool.InstallError, match="退出码 1"):
+        tool.install_dotnet(tmp_path / "deps")
+    assert ran and "改用微软官方安装脚本" in capsys.readouterr().out
+    assert not (tmp_path / "deps/dotnet/dotnet").exists()
+
+
+def test_mirror_skips_platforms_without_a_package(tool, tmp_path, monkeypatch):
+    monkeypatch.setattr(tool.sys, "platform", "darwin")
+    monkeypatch.setattr(tool.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(tool, "_download_retry", lambda *a, **k: pytest.fail("没有镜像的平台不该下载"))
+    assert tool._install_from_mirror(tmp_path) is False
+
+
+def test_mirror_hashes_match_microsoft_release_notes(tool):
+    """钉的是 releases.json 里的 SHA512（128 位十六进制），两个平台都有。"""
+    assert set(tool.DOTNET_MIRROR) == {("darwin", "arm64"), ("win32", "amd64")}
+    for name, sha in tool.DOTNET_MIRROR.values():
+        assert tool.DOTNET_MIRROR_VERSION in name and re.fullmatch(r"[0-9a-f]{128}", sha)
 
 
 # ---------------------------------------------------------------- 入口：失败只返回非零，不抛
