@@ -203,3 +203,23 @@ def test_offset_contexts_compared_by_formation_and_cards(st):
     assert r["added"] == 0
     r = st.save_slice("sense:hif", [_e("b", vi=79)], mode="incremental", complete=True, context=dict(a))
     assert r["added"] == 1  # 同一个上下文照常合并
+
+
+def test_newer_whole_snapshot_beats_older_slices(st, monkeypatch):
+    """#173 review：按片扫描失败后改用整表扫描（N43），新整表不能被以前全读过的旧片遮住——出方案和「查回忆」都用更新的那份。"""
+    from hiro.cli import cmd_info
+
+    for k in msl.SLICES:
+        st.save_slice(k, [_e(k)], mode="full", complete=True, scanned_at="2026-11-25 10:00:00")
+    st.save_snapshot("memories", [{"card": "new"}], "collect:whole", scanned_at="2026-11-26 19:30:00", complete=True,
+                     raw={"entries": [_e("new")], "complete": True, "scanned_at": "2026-11-26 19:30:00"})  # fmt: skip
+    inv = st.memories_for_plan("sense")
+    assert inv.get("source") != "slices" and [e["card"]["card_id"] for e in inv["entries"]] == ["new"]
+    monkeypatch.setattr(cmd_info, "open_store", lambda: st)
+    out = cmd_info._memories({"timing": None, "card": None})
+    assert out.get("source") != "slices"
+    # 之后又把这几片重新全读了：片比整表新，用片
+    for k in msl.SLICES:
+        st.save_slice(k, [_e(k)], mode="full", complete=True, scanned_at="2026-11-27 09:00:00")
+    assert st.memories_for_plan("sense")["source"] == "slices"
+    assert cmd_info._memories({"timing": None, "card": None})["source"] == "slices"
