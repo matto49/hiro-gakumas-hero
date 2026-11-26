@@ -310,6 +310,7 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 			s.stepLoaded = true
 			if n := s.d.Settings().WizardStep; n > 0 && n < len(steps) {
 				s.step = n
+				s.connectSeen = n > 1 // 重开时已经过了「连游戏」：退回去看不算第一次停留，不自动前进（#154 review）
 			}
 			s.savedStep = s.step
 		}

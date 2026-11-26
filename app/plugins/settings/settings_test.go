@@ -593,3 +593,25 @@ func TestWizardNoAutoAdvanceAfterLeavingConnectStep(t *testing.T) {
 		t.Errorf("离开过再回来重试连上，不该自动前进：step=%d", s.step)
 	}
 }
+
+// #154 review：重开程序从第 3 步之后恢复，退回「连游戏」连上也不自动前进。
+func TestWizardRestoredPastConnectNoAutoAdvance(t *testing.T) {
+	connectedPause = 0
+	defer func() { connectedPause = 1200 * time.Millisecond }()
+	f := &fake{secrets: map[string]string{}, ready: true}
+	f.s.WizardStep = 3
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`, "doctor --probe": `{"items":[{"id":"platform","ok":true,"detail":"学マス（PlayCover）：已连上"}]}`})
+	s := New(f.deps())
+	tt := ui.NewTester(func(c *ui.Context) { s.Gate(c, h) }, 1280, 900)
+	tt.Frame()
+	tt.Frame()
+	if s.step != 3 {
+		t.Fatalf("应恢复到第 4 步：step=%d", s.step)
+	}
+	s.step = 1
+	tt.Frame()
+	tt.Frame()
+	if s.step != 1 {
+		t.Errorf("恢复过的向导退回连游戏不该自动前进：step=%d", s.step)
+	}
+}
