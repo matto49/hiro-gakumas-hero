@@ -220,3 +220,16 @@ def test_support_only_left_does_not_check_memory_freshness(run_cli, hiro_home, o
     _formations("hajime", {4: 0}, {5: 4})
     code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
     assert code == 3 and env["data"]["pending"]["args"]["prepare"] is True, env
+
+
+def test_given_support_slot_with_player_cards_is_not_auto_written(run_cli, hiro_home, on):
+    """#134 review：回忆没定编成号、支援卡定了号但没写进去，且那一位是玩家自己的编成（扫描时有卡）：
+    不自动准备（不保存挑出的回忆编成号），交给玩家确认覆盖。"""
+    from hiro.brain import formation_plan as fp
+
+    _plan(hiro_home, sets=(1, None))
+    _formations("hajime", {1: 5, 2: 0}, {1: 4, 2: 0})
+    _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
+    assert not ((env.get("data") or {}).get("pending") or {}).get("args", {}).get("prepare"), env
+    per = fp.load(hiro_home / "plans" / "hajime" / f"{KOTONE}.json")
+    assert per["memory"]["set"] is None  # 没有留下挑好的回忆编成号

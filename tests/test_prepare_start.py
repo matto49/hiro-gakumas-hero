@@ -38,9 +38,10 @@ def calls(monkeypatch):
         sets += [{"kind": "memory", "set": n, "filled": 4 if n < 7 else 0, "cards": []} for n in range(1, 21)]
         return {"scanned_at": "2026-11-26 03:10:00", "mode": mode, "complete": True, "sets": sets}
 
-    def write(mode, what=("support", "memory")):
+    def write(mode, what=("support", "memory"), blank_only=()):
         log.append(("write", mode))
         log.append(("write_what", ",".join(what)))
+        log.append(("blank_only", ",".join(blank_only)))
         from hiro.brain import formation_plan as fp
 
         fp.mark_written(ps.plan_path(), mode, tuple(what))
@@ -58,7 +59,7 @@ def test_no_sets_surveys_picks_blank_writes_then_starts(home, calls, tmp_path):
     out = tmp_path / "prepare.json"
     rc = ps.main(["--mode", "hajime", "--out", str(out), "--", "python", "-m", "hiro.runtime.hajime", "new"])
     assert rc == 0
-    assert [c[0] for c in calls if c[0] != "write_what"] == ["survey", "write", "exec"]
+    assert [c[0] for c in calls if c[0] not in ("write_what", "blank_only")] == ["survey", "write", "exec"]
     plan = json.loads((home / "formation-plan.json").read_text(encoding="utf-8"))
     assert plan["support"]["set"] == 3 and plan["memory"]["set"] == 7
     from hiro.cli.store import open_store
@@ -72,7 +73,23 @@ def test_no_sets_surveys_picks_blank_writes_then_starts(home, calls, tmp_path):
 def test_sets_known_not_written_only_writes(home, calls):
     _plan(home, sets=(4, 5))
     assert ps.main(["--mode", "hajime", "--", "x"]) == 0
-    assert [c[0] for c in calls if c[0] != "write_what"] == ["write", "exec"]
+    assert [c[0] for c in calls if c[0] not in ("write_what", "blank_only")] == ["write", "exec"]
+    # #134 review：4 / 5 号不是初星助手写过的，写之前要求全空（玩家扫描后自己填了就不覆盖）
+    assert ("blank_only", "support,memory") in calls
+
+
+def test_slot_written_by_us_needs_no_blank_guard(home, calls):
+    """初星助手以前写过的编成位（别的方案 written 记着同一个号）可以直接覆盖，不加全空的闸。"""
+    import hiro.cli.cmd_run as cr
+
+    _plan(home, sets=(4, 5))
+    cr_slot = cr.slot_written_by_us
+    try:
+        cr.slot_written_by_us = lambda h, kind, what, n: what == "support" and n == 4
+        assert ps.main(["--mode", "hajime", "--", "x"]) == 0
+    finally:
+        cr.slot_written_by_us = cr_slot
+    assert ("blank_only", "memory") in calls
 
 
 def test_nothing_to_do_just_starts(home, calls):
@@ -92,7 +109,7 @@ def test_all_full_stops_without_writing(home, calls, monkeypatch, capsys):
 
 def test_write_failure_does_not_start(home, calls, monkeypatch):
     _plan(home, sets=(4, 5))
-    monkeypatch.setattr(ps, "_write", lambda mode, what=(): 3)
+    monkeypatch.setattr(ps, "_write", lambda mode, what=(), blank_only=(): 3)
     assert ps.main(["--mode", "hajime", "--", "x"]) == 3
     assert not any(c[0] == "exec" for c in calls)
 

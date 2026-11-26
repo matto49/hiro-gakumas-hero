@@ -28,6 +28,11 @@ def main() -> int:
     ap.add_argument("--mode", required=True, choices=["hajime", "nia", "hif"])
     ap.add_argument("--what", default="support,memory", help="support / memory，逗号分隔，按顺序写")
     ap.add_argument("--dry-run", action="store_true", help="只报差异，不改")
+    ap.add_argument(
+        "--blank-only",
+        default="",
+        help="support / memory，逗号分隔：这几样只在编成位全空时才写，有卡就停下（开局前自动准备用）",
+    )
     args = ap.parse_args()
     what = tuple(w.strip() for w in args.what.split(",") if w.strip())
     if not what or any(w not in ("support", "memory") for w in what):
@@ -73,7 +78,8 @@ def main() -> int:
 
     try:
         out = formation_menu.run(dev, plan, args.mode, what=what, make_picker=make_picker, read_formation=read_support_formation,
-                                 read_list=read_support_list, dry_run=args.dry_run)  # fmt: skip
+                                 read_list=read_support_list, dry_run=args.dry_run,
+                                 blank_only=tuple(w.strip() for w in args.blank_only.split(",") if w.strip()))  # fmt: skip
     except FormationWriteError as e:
         print(f"停下：{e}（截图在 {calib_dir}）", file=sys.stderr)
         return 3

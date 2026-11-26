@@ -49,9 +49,11 @@ def _survey(mode: str) -> dict:
     return survey(dev, mode, read_formation=read_support_formation)
 
 
-def _write(mode: str, what=("support", "memory")) -> int:
-    """写编成（写完回读核对，通过后 mark_written）。返回退出码。"""
+def _write(mode: str, what=("support", "memory"), blank_only=()) -> int:
+    """写编成（写完回读核对，通过后 mark_written）。返回退出码。blank_only 见 tools/write_formation.py --blank-only。"""
     argv = [sys.executable, str(REPO / "tools" / "write_formation.py"), "--mode", mode, "--what", ",".join(what)]
+    if blank_only:
+        argv += ["--blank-only", ",".join(blank_only)]
     return subprocess.run(argv, check=False).returncode  # noqa: S603
 
 
@@ -138,8 +140,13 @@ def main(argv: list[str] | None = None) -> int:
                 _check_memory_freshness(path, hiro_home())
             except CliError as e:
                 return _stop(f"{e.message}。{e.hint}", 5)
+        # 编成号是之前读数里挑的空位（或沿用的）：初星助手没写过的位，写之前再看一眼，玩家后来填了卡就停下、不覆盖（#134 review）
+        from hiro.cli.cmd_run import slot_written_by_us
+        from hiro.cli.home import hiro_home
+
+        guard = [w for w in todo if not slot_written_by_us(hiro_home(), mode, w, (plan.get(w) or {}).get("set"))]
         logger.info("开局前准备：把编成方案写进游戏（%s）", "、".join(LABEL[w] for w in todo))
-        rc = _write(mode, todo)
+        rc = _write(mode, todo, guard)
         if rc != 0:
             return _stop("写编成没成功，没有开局（原因见上面的日志）", rc)
         rec["wrote"] = True

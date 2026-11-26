@@ -260,6 +260,11 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
     label = {"support": "支援卡", "memory": "回忆"}
     missing = [w for w in todo if (plan.get(w) or {}).get("set") is None]
     steps: list[str] = []
+    # 编成号已经定了、还没写进去的那几样（例如支援卡定了号、回忆没定）：只有空位或初星助手写过的位才自动写，
+    # 玩家自己的编成照旧让玩家确认覆盖；检查放在保存方案之前，免得留下挑好的另一样编成号（#134 review）
+    given = [w for w in fp.unwritten(plan, kind, todo) if w not in missing]
+    if missing and not all(_slot_ours_or_blank(home, kind, w, (plan.get(w) or {}).get("set")) for w in given):
+        return False
     if missing:
         meta, rows = open_store().latest("formations")
         fresh = [r for r in rows if r.get("mode") == kind] if meta is not None else []
@@ -299,12 +304,10 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
     return True
 
 
-def _slot_ours_or_blank(home: Path, kind: str, what: str, n) -> bool:
-    """这个模式的 what（support / memory）n 号编成位能不能直接写：初星助手写过（哪份方案的 written 记着这个号），
-    或者最近一次读的编成位现状（读完没再写过）里它是空的。"""
+def slot_written_by_us(home: Path, kind: str, what: str, n) -> bool:
+    """这个模式的 what n 号编成位是初星助手写过的（哪份方案的 written 记着这个号）。"""
     from hiro.brain import formation_plan as fp
     from hiro.cli import paths
-    from hiro.cli.store import open_store
 
     if n is None:
         return False
@@ -313,6 +316,18 @@ def _slot_ours_or_blank(home: Path, kind: str, what: str, n) -> bool:
         w = ((fp.load(f) or {}).get("written") or {}).get(kind) or {}
         if what in (w.get("what") or ()) and w.get(f"{what}_set") == n:
             return True
+    return False
+
+
+def _slot_ours_or_blank(home: Path, kind: str, what: str, n) -> bool:
+    """这个模式的 what（support / memory）n 号编成位能不能直接写：初星助手写过（哪份方案的 written 记着这个号），
+    或者最近一次读的编成位现状（读完没再写过）里它是空的。"""
+    from hiro.cli.store import open_store
+
+    if n is None:
+        return False
+    if slot_written_by_us(home, kind, what, n):
+        return True
     meta, rows = open_store().latest("formations")
     if meta is None or _wrote_formation_since(meta.get("scanned_at"), kind):
         return False

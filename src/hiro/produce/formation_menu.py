@@ -331,12 +331,19 @@ def memory_diff(plan: dict, reads: list[dict]) -> list[tuple[int, str]]:
     return fix_plan(current, want)
 
 
-def write_memory(dev: Device, plan: dict, make_picker, *, dry_run: bool = False) -> list[dict]:
+NOT_BLANK = "这个编成位已经有卡、又不是初星助手写的：没有覆盖，请换一个空着的编成位，或者告诉初星助手可以覆盖哪一号"
+
+
+def write_memory(
+    dev: Device, plan: dict, make_picker, *, dry_run: bool = False, blank_only: bool = False
+) -> list[dict]:
     """当前停在方案编成号的回忆页：和方案不一致的格子逐个改（fix_memory，格子用 MEMORY_TILES，认卡用上排大图标），
-    写完整页回读，四格都要是方案的卡。dry_run 只报差异。"""
+    写完整页回读，四格都要是方案的卡。dry_run 只报差异。blank_only：要改的时候这一页必须全空，否则停下不写（#134 review）。"""
     reads = _settle_icons(dev)
     moves = memory_diff(plan, reads)
     logger.info("回忆页现状 %s；要改 %s", [r.get("card") if r.get("known") else None for r in reads], moves)
+    if blank_only and moves and not dry_run and any(not r.get("empty") for r in reads):
+        raise FormationWriteError(f"回忆{NOT_BLANK}")
     if dry_run or not moves:
         done = []
     else:
@@ -355,8 +362,11 @@ def support_diff(plan: dict, page: dict) -> list[tuple[int, str]]:
     return fix_plan([s.get("support_card_id") for s in page["slots"]], want)
 
 
-def write_support(dev: Device, plan: dict, *, read_formation, read_list, dry_run: bool = False) -> list[dict]:
-    """当前停在方案编成号的支援卡页：fix_support（view=formation），写完回读 5 格都要是方案的卡（租借格不在菜单里）。"""
+def write_support(
+    dev: Device, plan: dict, *, read_formation, read_list, dry_run: bool = False, blank_only: bool = False
+) -> list[dict]:
+    """当前停在方案编成号的支援卡页：fix_support（view=formation），写完回读 5 格都要是方案的卡（租借格不在菜单里）。
+    blank_only 同 write_memory。"""
     from hiro.produce.formation_writer import _settled_step2
 
     page = _settled_step2(dev, read_formation, view="formation")
@@ -364,6 +374,8 @@ def write_support(dev: Device, plan: dict, *, read_formation, read_list, dry_run
         raise FormationWriteError("不在支援卡编成页")
     moves = support_diff(plan, page)
     logger.info("支援卡页现状 %s；要改 %s", [s.get("support_card_id") for s in page["slots"]], moves)
+    if blank_only and moves and not dry_run and any(not s.get("empty") for s in page["slots"]):
+        raise FormationWriteError(f"支援卡{NOT_BLANK}")
     if dry_run:
         return [{"slot": s, "to": k, "dry_run": True} for s, k in moves]
     done = fix_support(dev, plan, read_formation=read_formation, read_list=read_list, view="formation") if moves else []
@@ -375,8 +387,9 @@ def write_support(dev: Device, plan: dict, *, read_formation, read_list, dry_run
 
 
 def run(dev: Device, plan: dict, mode: str, *, what: tuple[str, ...] = ("support", "memory"), make_picker=None,
-        read_formation=None, read_list=None, dry_run: bool = False) -> dict:  # fmt: skip
-    """进菜单、切模式，按 what 写支援卡 / 回忆（编成号用方案的 support.set / memory.set）。返回 {support: [...], memory: [...]}。"""
+        read_formation=None, read_list=None, dry_run: bool = False, blank_only: tuple[str, ...] = ()) -> dict:  # fmt: skip
+    """进菜单、切模式，按 what 写支援卡 / 回忆（编成号用方案的 support.set / memory.set）。返回 {support: [...], memory: [...]}。
+    blank_only：这几样只在编成位全空时才写（开局前自动准备：编成号是从之前的读数里挑的空位，写之前再看一眼，玩家后来填了就不覆盖）。"""
     menu = Menu(dev)
     menu.open()
     menu.ensure_mode(mode)
@@ -388,9 +401,10 @@ def run(dev: Device, plan: dict, mode: str, *, what: tuple[str, ...] = ("support
         menu.ensure_tab(kind)
         menu.ensure_set(int(number))
         if kind == "memory":
-            out[kind] = write_memory(dev, plan, make_picker, dry_run=dry_run)
+            out[kind] = write_memory(dev, plan, make_picker, dry_run=dry_run, blank_only=kind in blank_only)
         else:
-            out[kind] = write_support(dev, plan, read_formation=read_formation, read_list=read_list, dry_run=dry_run)
+            out[kind] = write_support(dev, plan, read_formation=read_formation, read_list=read_list, dry_run=dry_run,
+                                      blank_only=kind in blank_only)  # fmt: skip
         logger.info("编成菜单：%s 编成 %s %s", kind, number, out[kind] or "不用改")
     return out
 

@@ -414,3 +414,33 @@ def test_open_picker_switches_back_when_picker_never_opens(game, monkeypatch):
     with pytest.raises(FormationWriteError):
         fm.open_picker(dev, "memory", ready=lambda img: False, use_set=lambda mode: ("hif", 19))
     assert (g.mode, g.number) == ("hajime", 10)
+
+
+# ---------------------------------------------------------------- blank_only（#134 review：开局前自动准备不覆盖玩家后来填的编成位）
+def test_write_memory_blank_only_stops_when_slot_has_cards(monkeypatch):
+    reads = [dict(r, empty=r["card"] is None) for r in _reads(["act-9_999", None, None, None])]
+    monkeypatch.setattr(fm, "read_memory_icons", lambda img: reads)
+    monkeypatch.setattr(fm, "fix_memory", lambda *a, **k: pytest.fail("有卡时不该写"))
+    dev = Device(shoot=lambda: None, click=None, swipe=None, sleep=lambda s: None)
+    with pytest.raises(FormationWriteError, match="已经有卡"):
+        fm.write_memory(dev, PLAN, make_picker=None, blank_only=True)
+
+
+def test_write_memory_blank_only_writes_into_empty_slot(monkeypatch):
+    empty = [{"slot": i, "card": None, "known": False, "empty": True} for i in range(4)]
+    it = iter([empty] * 2 + [_reads(["men-2_001", "men-2_002", "men-2_003", "men-2_004"])] * 2)
+    monkeypatch.setattr(fm, "read_memory_icons", lambda img: next(it))
+    monkeypatch.setattr(fm, "fix_memory", lambda dev, plan, **kw: [{"slot": i} for i in range(4)])
+    dev = Device(shoot=lambda: None, click=None, swipe=None, sleep=lambda s: None)
+    assert len(fm.write_memory(dev, PLAN, make_picker=None, blank_only=True)) == 4
+
+
+def test_write_support_blank_only_stops_when_slot_has_cards(monkeypatch):
+    page = {
+        "view": "formation",
+        "slots": [{"support_card_id": "s_card-9", "empty": False}] + [{"support_card_id": None, "empty": True}] * 4,
+    }
+    monkeypatch.setattr(fm, "fix_support", lambda *a, **k: pytest.fail("有卡时不该写"))
+    dev = Device(shoot=lambda: None, click=None, swipe=None, sleep=lambda s: None)
+    with pytest.raises(FormationWriteError, match="已经有卡"):
+        fm.write_support(dev, PLAN, read_formation=lambda img: page, read_list=None, blank_only=True)
