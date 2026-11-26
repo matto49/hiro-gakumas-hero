@@ -122,7 +122,9 @@ def _vision_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, floa
         x1, y1 = bb.origin.x * w, (1 - bb.origin.y - bb.size.height) * h
         out.append(
             (
-                str(cand.string()),
+                # macOS 27.2.1 的 Vision（ja-JP）有时把日文汉字读成简体：「審査基準」读成「審查基準」，
+                # 初的考前说明页判不出（A16 11-26，私有帧 pages/hajime-briefing-fktn.png）。按 _VISION_SIMPLIFIED 换回日文写法
+                str(cand.string()).translate(_VISION_SIMPLIFIED),
                 float(cand.confidence()),
                 (round(x1), round(y1), round(x1 + bb.size.width * w), round(y1 + bb.size.height * h)),
             )
@@ -453,6 +455,8 @@ _SIMPLIFIED = str.maketrans(
         )
     )
 )
+# Vision 用的那份去掉日文里本来就用的字（叶う、机、据える）：Vision 日文读得准，读到这几个字多半就是原文
+_VISION_SIMPLIFIED = {k: v for k, v in _SIMPLIFIED.items() if chr(k) not in "叶机据"}
 _pp: dict = {}
 
 

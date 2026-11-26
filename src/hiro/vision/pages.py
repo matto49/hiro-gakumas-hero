@@ -453,6 +453,38 @@ def _brief_pct(img: MatLike, digits: str, b) -> int | None:
     return next((int(c) for c in (digits, digits[1:]) if len(c) >= 2 and any(r.startswith(c) for r in reads)), None)
 
 
+BRIEF_PCT_COL = (296, 466)  # 倍率列的横坐标（「1413%」框 x 300–461）
+
+
+def _brief_pct_merged(img: MatLike, row, cy: int) -> int | None:
+    """Vision 把一整行连成一个框时（「具1219＞2408%」「（207623029%◎すばらしい！」，A16 11-26 q17-427）：
+    取「%」前面那串数字，在倍率列的固定位置用 ddddocr 再读；取 ddddocr 读数开头对得上的最长后缀（至少两位）。"""
+    from hiro.vision.digits import read_dddd
+
+    runs = [mm.group(1) for t, b in row if b[0] < BRIEF_PCT_COL[1] and b[2] > BRIEF_PCT_COL[0]
+            and (mm := re.search(r"(\d{2,})%", t))]  # fmt: skip
+    if not runs:
+        return None
+    dddd = read_dddd(img, (BRIEF_PCT_COL[0], max(0, cy - 30), BRIEF_PCT_COL[1], cy + 30))
+    if dddd is None:
+        return None
+    reads = (str(dddd), str(dddd)[1:])
+    for digits in runs:
+        for k in range(min(len(digits), 6), 1, -1):
+            c = digits[-k:]
+            if not c.startswith("0") and any(r.startswith(c) for r in reads):
+                return int(c)
+    return None
+
+
+def _cut_box(text: str, end: int, b) -> tuple:
+    """OCR 框里只要前 end 个字（数字 + 「%」）：按字数比例把右边截掉；整框都要时原样返回。"""
+    if end >= len(text) or not text:
+        return tuple(b)
+    x1, y1, x2, y2 = b
+    return (x1, y1, x1 + round((x2 - x1) * end / len(text)), y2)
+
+
 def read_exam_briefing(img: MatLike, boxes) -> dict:
     """考前说明页：{exam_no, rank_line, participants, star, star_ok, params{Vo,Da,Vi}, multiplier_pct{Vo,Da,Vi}, finals}。
     选拔是「合格条件 / 突破ライン」；本战是「優勝条件 / ラウンド1,2合計スコア 1位」（finals=True，exam_no / rank_line 为 None），版式相同。
@@ -470,13 +502,17 @@ def read_exam_briefing(img: MatLike, boxes) -> dict:
     params, mult = {}, {}
     for attr, cy in BRIEF_ROWS.items():
         row = [(t, b) for t, b in boxes if abs((b[1] + b[3]) // 2 - cy) <= 30]
-        p = next((int(t) for t, b in row if re.fullmatch(r"\d{2,4}", t) and b[0] < 230), None)
-        # 「%」可能被漏认（RapidOCR：「1413%」→「1413」）；倍率列靠横坐标 260–340 限定，和左边的属性值（< 230）分得开
-        hit = next(
-            ((mm.group(1), b) for t, b in row if (mm := re.match(r"(\d{2,6})%?$", t.strip())) and 260 <= b[0] <= 340),
-            None,
-        )
-        params[attr], mult[attr] = p, _brief_pct(img, *hit) if hit else None
+        # macOS 27.2.1 的 Vision 会把属性图标读成一个字粘在数字前（「县879」，A16 11-26 briefing-2）
+        p = next((int(mm.group(1)) for t, b in row if (mm := re.fullmatch(r"\D?(\d{2,4})", t)) and b[0] < 230), None)
+        # 「%」可能被漏认（RapidOCR：「1413%」→「1413」）；倍率列靠横坐标限定，和左边的属性值（< 230）分得开。
+        # Vision 会把右边的评价标记连进同一个框（「1085%0」「1962%◎」），框也往左多框进「>>」（「21247% ◎」从 x=235 起）：
+        # 有「%」时只认到「%」为止，框按字数比例截到「%」
+        hit = next(((mm.group(1), _cut_box(t.strip(), mm.end(), b)) for t, b in row
+                    if (mm := re.match(r"(\d{2,6})(?:%|$)", t.strip())) and 230 <= b[0] <= 340), None)  # fmt: skip
+        pct = _brief_pct(img, *hit) if hit else None
+        if pct is None:
+            pct = _brief_pct_merged(img, row, cy)
+        params[attr], mult[attr] = p, pct
     star = next(
         (
             int(t)
