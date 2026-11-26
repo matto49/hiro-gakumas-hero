@@ -438,9 +438,21 @@ def test_write_memory_blank_only_writes_into_empty_slot(monkeypatch):
 def test_write_support_blank_only_stops_when_slot_has_cards(monkeypatch):
     page = {
         "view": "formation",
-        "slots": [{"support_card_id": "s_card-9", "empty": False}] + [{"support_card_id": None, "empty": True}] * 4,
+        # 认不出的卡：support_card_id 是 None，但读得到等级（同编成位调查的口径），也算有卡
+        "slots": [{"support_card_id": None, "level": 40}] + [{"support_card_id": None, "level": None}] * 4,
     }
     monkeypatch.setattr(fm, "fix_support", lambda *a, **k: pytest.fail("有卡时不该写"))
     dev = Device(shoot=lambda: None, click=None, swipe=None, sleep=lambda s: None)
     with pytest.raises(FormationWriteError, match="已经有卡"):
         fm.write_support(dev, PLAN, read_formation=lambda img: page, read_list=None, blank_only=True)
+
+
+def test_write_support_blank_only_writes_into_empty_slot(monkeypatch):
+    """支援卡格没有 empty 字段：全空（认不出卡、也读不到等级）时照常写（#134 review）。"""
+    empty = {"view": "formation", "slots": [{"support_card_id": None, "level": None}] * 5}
+    full = {"view": "formation", "slots": [{"support_card_id": f"s_card-{i}", "level": 40} for i in range(5)]}
+    pages = iter([empty] * 2 + [full] * 2)
+    monkeypatch.setattr(fm, "fix_support", lambda dev, plan, **kw: [{"slot": i} for i in range(5)])
+    dev = Device(shoot=lambda: None, click=None, swipe=None, sleep=lambda s: None)
+    done = fm.write_support(dev, PLAN, read_formation=lambda img: next(pages), read_list=None, blank_only=True)
+    assert len(done) == 5

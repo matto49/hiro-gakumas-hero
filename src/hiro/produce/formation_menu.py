@@ -334,6 +334,14 @@ def memory_diff(plan: dict, reads: list[dict]) -> list[tuple[int, str]]:
 NOT_BLANK = "这个编成位已经有卡、又不是初星助手写的：没有覆盖，请换一个空着的编成位，或者告诉初星助手可以覆盖哪一号"
 
 
+def _filled(kind: str, read) -> bool:
+    """这一页有没有卡：和编成位调查（hiro.produce.formation_survey，自动准备挑空位用的就是它的 filled）同一个口径——
+    支援卡认出了卡或读得到等级（认不出的卡也有等级）、回忆认出了卡或不是空格（#134 review：支援卡格没有 empty 字段）。"""
+    from hiro.produce.formation_survey import memory_row, support_row
+
+    return (support_row(read) if kind == "support" else memory_row(read))[0] > 0
+
+
 def write_memory(
     dev: Device, plan: dict, make_picker, *, dry_run: bool = False, blank_only: bool = False
 ) -> list[dict]:
@@ -342,7 +350,7 @@ def write_memory(
     reads = _settle_icons(dev)
     moves = memory_diff(plan, reads)
     logger.info("回忆页现状 %s；要改 %s", [r.get("card") if r.get("known") else None for r in reads], moves)
-    if blank_only and moves and not dry_run and any(not r.get("empty") for r in reads):
+    if blank_only and moves and not dry_run and _filled("memory", reads):
         raise FormationWriteError(f"回忆{NOT_BLANK}")
     if dry_run or not moves:
         done = []
@@ -374,7 +382,7 @@ def write_support(
         raise FormationWriteError("不在支援卡编成页")
     moves = support_diff(plan, page)
     logger.info("支援卡页现状 %s；要改 %s", [s.get("support_card_id") for s in page["slots"]], moves)
-    if blank_only and moves and not dry_run and any(not s.get("empty") for s in page["slots"]):
+    if blank_only and moves and not dry_run and _filled("support", page):
         raise FormationWriteError(f"支援卡{NOT_BLANK}")
     if dry_run:
         return [{"slot": s, "to": k, "dry_run": True} for s, k in moves]
