@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -259,6 +260,7 @@ func TestJobNoticeTexts(t *testing.T) {
 		{"hajime", "failed", ``, `[{"seq":1,"t":1,"type":"log","text":"[2026-11-24 01:31:04,918] [ERROR] [hiro.runtime.play] new 开局要编成号"},{"seq":2,"t":2,"type":"failed","text":"任务出错退出（代码 1），看上面的日志"}]`, "出错停下了：new 开局要编成号", "最后几步"},
 		{"hajime", "stopped", ``, `[]`, "已停止", "原因"},
 		{"scan-memories", "done", ``, `[]`, "做完了", "成绩和复盘"},
+		{"write-formation", "done", `"params":{"scenario":"hajime"}`, `[]`, "点侧栏", ""},
 		{"hajime", "done", ``, `[]`, "成绩和复盘", ""},
 	}
 	for _, c := range cases {
@@ -458,5 +460,74 @@ func TestRetryKeptWhenResubmitFails(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("已重新发起「扫描偶像卡」") {
 		t.Errorf("发起成功后应变成一行字：%q", tt.Texts())
+	}
+}
+
+// N36（G1 第 3 轮 11-26）：写编成做完后给「用这套编成开局」，点了把话发给对话助手；只看差异的不给。
+func TestWriteFormationDoneOffersStart(t *testing.T) {
+	var asked []string
+	ask := func(_ context.Context, _ []Turn, text, _ string, _ func(string, string)) (Reply, error) {
+		asked = append(asked, text)
+		return Reply{Text: "好"}, nil
+	}
+	done := func(params string, withModel bool) *App {
+		call := liveCall("running")
+		var as Asker
+		if withModel {
+			as = ask
+		}
+		a, run := newTestApp(newMem(), call, as, nil)
+		a.NewThread()
+		ownJob(a, "j7")
+		a.PollJobs()
+		run.Drain()
+		call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"write-formation","state":"done","summary":"把编成方案写进游戏","started_at":1,"params":` + params + `}]}`)
+		call.resp["run events"] = ok(`{"state":"done","events":[]}`)
+		for i := 0; i < 3; i++ {
+			a.PollJobs()
+			run.Drain()
+		}
+		return a
+	}
+	nextOf := func(a *App) plugin.Card {
+		for _, m := range a.Current().Messages {
+			for _, c := range m.Cards {
+				if c["type"] == "next" {
+					return c
+				}
+			}
+		}
+		return nil
+	}
+	if c := nextOf(done(`{"scenario":"hajime","dry_run":true}`, true)); c != nil {
+		t.Errorf("只看差异不该给开局按钮：%v", c)
+	}
+	if c := nextOf(done(`{"scenario":"hajime","dry_run":false}`, false)); c != nil {
+		t.Errorf("没配模型不该给按钮（说点侧栏开局）：%v", c)
+	}
+	a := done(`{"scenario":"hajime","dry_run":false}`, true)
+	c := nextOf(a)
+	{
+		if c == nil || c["say"] != "用刚写好的编成开一局初" {
+			t.Fatalf("写完编成应给开局按钮：%v", c)
+		}
+		tt := ui.NewTester(a.View, 1280, 800)
+		tt.Frame()
+		if err := tt.Click("用这套编成开局"); err != nil {
+			t.Fatal(err)
+		}
+		tt.Frame()
+		if c["used"] != true {
+			t.Error("点过应记成已用")
+		}
+		found := false
+		for _, m := range a.Current().Messages {
+			if m.Role == "user" && m.Text == "用刚写好的编成开一局初" {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("点了应把话发出去")
+		}
 	}
 }

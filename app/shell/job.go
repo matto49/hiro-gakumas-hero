@@ -1,6 +1,7 @@
 package shell
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -187,9 +188,20 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 	case "paused":
 		text = "「" + name + "」已暂停。"
 	case "done":
-		if produceKind(kind) {
+		switch {
+		case produceKind(kind):
 			text = "「" + name + "」打完了，成绩和复盘在游戏运行现状里。"
-		} else {
+		case kind == "write-formation" && v.Job != nil && v.Job.Params["dry_run"] != true:
+			// N36（G1 第 3 轮 11-26）：编成写好后对话停在「做完了」，不接着开局也不说下一步，小白要自己想到再说一次「开局」
+			mode := labels.Kind(fmt.Sprint(v.Job.Params["scenario"]))
+			if a.hasModel() {
+				text = "「" + name + "」做完了，编成已经写进游戏。点下面的按钮就用这套编成开一局" + mode + "（还会给你确认卡）。"
+				say := "用刚写好的编成开一局" + mode
+				cards = []plugin.Card{{"type": "next", "label": "用这套编成开局", "say": say}}
+			} else {
+				text = "「" + name + "」做完了，编成已经写进游戏。要开局点侧栏的「开局」。"
+			}
+		default:
 			text = "「" + name + "」做完了。"
 		}
 	case "failed":

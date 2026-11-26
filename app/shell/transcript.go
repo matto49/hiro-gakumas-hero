@@ -111,6 +111,9 @@ func (a *App) card(c *ui.Context, m *Message, card plugin.Card) {
 	case "retry":
 		a.retryCard(c, m, card)
 		return
+	case "next":
+		a.nextCard(c, m, card)
+		return
 	}
 	if _, v := a.reg.CardView(typ); v != nil {
 		v(c, a, card)
@@ -157,6 +160,20 @@ func (a *App) confirmLine(c *ui.Context, card plugin.Card) {
 }
 
 // retryCard 是任务出错后的「再试一次」：按原参数重新发起（照样走权限档 / 确认卡）；点过一次就变成一行字。
+// nextCard 是任务做完后的「下一步」按钮：点了把 say 当作玩家说的话发给对话助手（N36，写完编成接着开局）。
+func (a *App) nextCard(c *ui.Context, m *Message, card plugin.Card) {
+	label, _ := card["label"].(string)
+	say, _ := card["say"].(string)
+	if used, _ := card["used"].(bool); used || say == "" {
+		ui.Text(c, "已经说了「"+say+"」").FontSize(kit.FNote).TextColor(kit.Ink3)
+		return
+	}
+	if kit.Secondary(c, label).Key("next-"+m.ID).Label(label).Disabled(a.busy).Clicked() && !a.busy {
+		card["used"] = true
+		a.Send(say)
+	}
+}
+
 func (a *App) retryCard(c *ui.Context, m *Message, card plugin.Card) {
 	summary, _ := card["summary"].(string)
 	var args []string
