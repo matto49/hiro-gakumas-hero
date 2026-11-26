@@ -522,6 +522,17 @@ def test_mirror_problems_fall_back_to_the_official_script(tool, tmp_path, monkey
     assert not (tmp_path / "deps/dotnet/dotnet").exists()
 
 
+def test_mirror_os_error_falls_back_to_the_official_script(tool, tmp_path, monkeypatch, capsys):
+    """#187 review：镜像那条路上建目录 / 换目录抛 OSError（磁盘满、被占用）也退回官方脚本。"""
+    _mirror(tool, monkeypatch, tmp_path)
+    monkeypatch.setattr(tool.shutil, "rmtree", lambda *a, **k: (_ for _ in ()).throw(PermissionError("被占用")))
+    ran = []
+    monkeypatch.setattr(tool.subprocess, "run", lambda cmd, **k: ran.append(cmd) or type("R", (), {"returncode": 1})())
+    with pytest.raises(tool.InstallError, match="退出码 1"):
+        tool.install_dotnet(tmp_path / "deps")
+    assert ran and "被占用" in capsys.readouterr().out
+
+
 def test_mirror_skips_platforms_without_a_package(tool, tmp_path, monkeypatch):
     monkeypatch.setattr(tool.sys, "platform", "darwin")
     monkeypatch.setattr(tool.platform, "machine", lambda: "x86_64")

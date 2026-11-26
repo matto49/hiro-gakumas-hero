@@ -289,7 +289,7 @@ def install_dotnet(deps: Path, *, timeout: float = DOTNET_TIMEOUT) -> bool:
     try:
         if _install_from_mirror(deps):
             return True
-    except InstallError as e:
+    except (InstallError, OSError) as e:  # OSError：建目录 / 换目录失败（磁盘满、权限、被占用）
         print(f"  镜像没装成（{e}），改用微软官方安装脚本", flush=True)
     target = deps / "dotnet"
     win = sys.platform == "win32"
