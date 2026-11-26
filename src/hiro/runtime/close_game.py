@@ -19,7 +19,6 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
-import sys
 from collections.abc import Callable, Mapping
 from pathlib import Path
 
@@ -56,11 +55,9 @@ def deferred_to_parent(env: Mapping[str, str] | None = None) -> bool:
 
 
 def device_kind(env: Mapping[str, str] | None = None) -> str:
-    env = env if env is not None else os.environ
-    d = (env.get("HIRO_DEVICE") or "auto").strip().lower()
-    if d == "auto":
-        return "maatools" if sys.platform == "darwin" else "adb"
-    return d
+    from hiro.devices import device_name
+
+    return device_name(env=env if env is not None else os.environ) or "adb"  # Windows 的 auto 是 DMM 版（G3）
 
 
 def _instance(env: Mapping[str, str]) -> int:

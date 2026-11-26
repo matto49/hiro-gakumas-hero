@@ -17,7 +17,6 @@ DMM 客户区 1081x1921 不是严格 9:16，各自换算和截图的拉伸严格
 
 from __future__ import annotations
 
-import sys
 import time
 from collections.abc import Callable
 from typing import Protocol, runtime_checkable
@@ -148,9 +147,9 @@ def platform_meta() -> dict:
     except Exception:  # noqa: BLE001  识别层不可用（离线工具）时不记
         ocr = None
     env = os.environ.get
-    device = (env("HIRO_DEVICE") or "auto").strip().lower()
-    if device == "auto":  # 同 hiro.devices.open_device：auto 只在 macOS 上有意义
-        device = "maatools" if sys.platform == "darwin" else None
+    from hiro.devices import device_name
+
+    device = device_name()
     return {"device": device, "screenshot": env("HIRO_SCREENSHOT") or None, "ocr": ocr, "native": None}
 
 

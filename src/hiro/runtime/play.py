@@ -168,7 +168,9 @@ def fit_dmm_window(device, session) -> str | None:
     实际客户区尺寸记进 trace 备注。HIRO_DMM_FIT=0 不查（非 DMM 设备也不查）。"""
     import os
 
-    if os.environ.get("HIRO_DEVICE") != "dmm" or os.environ.get("HIRO_DMM_FIT") == "0":
+    from hiro.devices import device_name
+
+    if device_name() != "dmm" or os.environ.get("HIRO_DMM_FIT") == "0":
         return None
     from hiro.devices import win_window
 

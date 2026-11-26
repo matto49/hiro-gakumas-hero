@@ -71,12 +71,14 @@ def test_resume_segment_keeps_first_run_and_records_platform(tmp_path, monkeypat
 
 
 def test_platform_meta_resolves_auto_device_on_mac(monkeypatch):
-    import hiro.devices.base as dbase
+    import hiro.devices as devices
     from hiro.devices.base import platform_meta
 
     monkeypatch.delenv("HIRO_DEVICE", raising=False)
-    monkeypatch.setattr(dbase.sys, "platform", "darwin")
+    monkeypatch.setattr(devices.sys, "platform", "darwin")
     assert platform_meta()["device"] == "maatools"
+    monkeypatch.setattr(devices.sys, "platform", "win32")  # G3：Windows 的 auto 是 DMM 版
+    assert platform_meta()["device"] == "dmm"
 
 
 def test_native_png_keeps_the_uncropped_screenshot_for_16_10(tmp_path, monkeypatch):

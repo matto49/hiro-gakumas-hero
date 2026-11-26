@@ -72,7 +72,9 @@ WINDOW_TITLE = "gakumas"  # DMM 版游戏窗口标题（KAA 的 WindowQuery 用�
 
 
 def is_dmm() -> bool:
-    return (os.environ.get("HIRO_DEVICE") or "").strip().lower() == "dmm"
+    from hiro.devices import device_name
+
+    return device_name() == "dmm"  # Windows 上不设 HIRO_DEVICE 也是 DMM 版（G3）
 
 
 def dmm_window_alive(find=None) -> bool | None:

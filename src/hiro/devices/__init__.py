@@ -20,13 +20,23 @@ from .base import LANDSCAPE, PORTRAIT, Device, DeviceError, DeviceGone, DeviceUn
 NAMES = {"maatools": "maatools", "dmm": "dmm-win32", "adb": "adb", "mumu": "adb", "leidian": "adb"}
 
 
-def open_device(name: str | None = None) -> Device:
-    """按名字（缺省 HIRO_DEVICE，auto 在 macOS 上是 maatools）建设备，不连接。"""
-    key = (name or os.environ.get("HIRO_DEVICE") or "auto").strip().lower()
+def device_name(name: str | None = None, env=None) -> str | None:
+    """要用的设备名：name，没有就 HIRO_DEVICE，都没有（或 auto）时按系统定——macOS 是 maatools（PlayCover），
+    Windows 是 dmm（DMM 版）；别的系统认不出返回 None。
+    G3（11-26 Windows 小白验收）：原来 auto 只认 macOS，桌面版在 Windows 上不设 HIRO_DEVICE 时试连显示「已连上」（doctor 把 auto 当 dmm），
+    扫描、开局却抛「这台机器不是 macOS」，小白绕不过去。各处判断「是不是 DMM」都用这里。"""
+    env = env if env is not None else os.environ
+    key = (name or env.get("HIRO_DEVICE") or "auto").strip().lower()
     if key == "auto":
-        if sys.platform != "darwin":
-            raise ValueError("这台机器不是 macOS，请设 HIRO_DEVICE：dmm、adb、mumu、leidian")
-        key = "maatools"
+        return {"darwin": "maatools", "win32": "dmm"}.get(sys.platform)
+    return key
+
+
+def open_device(name: str | None = None) -> Device:
+    """按名字（缺省 HIRO_DEVICE；auto 见 device_name）建设备，不连接。"""
+    key = device_name(name)
+    if key is None:
+        raise ValueError("这个系统认不出用哪种游戏设备：请设 HIRO_DEVICE（maatools、dmm、adb、mumu、leidian）")
     impl = NAMES.get(key)
     if impl is None:
         raise ValueError(

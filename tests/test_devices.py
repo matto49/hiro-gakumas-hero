@@ -357,3 +357,50 @@ def test_every_device_screenshot_goes_through_settled_frame(module):
 
     src = inspect.getsource(importlib.import_module(f"hiro.devices.{module}"))
     assert "settled_frame(" in src and "self.screen.frame(" not in src
+
+
+@pytest.mark.parametrize(
+    ("platform", "env", "want"),
+    [
+        ("darwin", None, "maatools"),
+        (
+            "win32",
+            None,
+            "dmm",
+        ),  # G3（11-26）：Windows 不设 HIRO_DEVICE 就是 DMM 版（同 hiro doctor），原来抛「这台机器不是 macOS」
+        ("linux", None, None),
+        ("win32", "mumu", "mumu"),
+        ("win32", "auto", "dmm"),
+        ("darwin", " DMM ", "dmm"),
+    ],
+)
+def test_device_name_resolves_auto_by_platform(monkeypatch, platform, env, want):
+    import hiro.devices as devices
+
+    monkeypatch.setattr(devices.sys, "platform", platform)
+    e = {} if env is None else {"HIRO_DEVICE": env}
+    assert devices.device_name(env=e) == want
+
+
+def test_open_device_on_windows_without_env_is_dmm(monkeypatch):
+    import hiro.devices as devices
+
+    monkeypatch.setattr(devices.sys, "platform", "win32")
+    monkeypatch.delenv("HIRO_DEVICE", raising=False)
+    assert devices.open_device().name == "dmm-win32"
+    monkeypatch.setattr(devices.sys, "platform", "linux")
+    with pytest.raises(ValueError, match="HIRO_DEVICE"):
+        devices.open_device()
+
+
+def test_is_dmm_and_close_game_follow_windows_auto(monkeypatch):
+    import hiro.devices as devices
+    from hiro.loop import game_app
+    from hiro.runtime import close_game
+
+    monkeypatch.setattr(devices.sys, "platform", "win32")
+    monkeypatch.delenv("HIRO_DEVICE", raising=False)
+    assert game_app.is_dmm()
+    assert close_game.device_kind({}) == "dmm"
+    monkeypatch.setattr(devices.sys, "platform", "darwin")
+    assert not game_app.is_dmm() and close_game.device_kind({}) == "maatools"

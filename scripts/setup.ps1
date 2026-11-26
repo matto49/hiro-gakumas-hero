@@ -125,7 +125,7 @@ print(f"主数据库：{'有' if m.master_db else '没有'}；随仓库素材包
 for p in m.problems:
     print(f"  ⚠ {p}")
 if not os.environ.get("HIRO_DEVICE"):
-    print("  ⚠ 开局用 scripts\\play.ps1 -Device mumu / dmm（会设好 HIRO_DEVICE 等环境变量），见 AGENTS.md「设备」。"
+    print("  设备：没设 HIRO_DEVICE 时按 DMM 版连游戏；用 MuMu 等模拟器时开局用 scripts\\play.ps1 -Device mumu（会设好 HIRO_DEVICE），见 AGENTS.md「设备」。"
           "MuMu 与 DMM 版作者在 Windows 上实机打过；adb / 雷电没有实机验证过")
 from hiro.vision import ocr
 print(f"文字识别后端：{ocr.engine()}")
