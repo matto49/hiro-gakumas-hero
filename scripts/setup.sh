@@ -61,8 +61,10 @@ step "5/6 考试引擎 Rust 后端与考试出牌算法（都可选）"
 # 都不行就用 Python 版（同一套规则，结果相同）
 if command -v cargo >/dev/null 2>&1; then
   echo "  编译考试引擎 Rust 后端（vendor/gakumas-player/gakumas_exam_rs，首次约 1 分钟）…"
+  # 本地编译不成（N45：工具链不全，比如 Windows gnu 工具链没 gcc）就改下预编译包，都不行才用 Python 版
   uv pip install --python "$PY" -q maturin && VIRTUAL_ENV="$PWD/.venv" "$PY" -m maturin develop --release -q -m vendor/gakumas-player/gakumas_exam_rs/Cargo.toml \
-    || echo "  ⚠ Rust 后端没编译成：考试引擎用 Python 版（结果相同，慢一些）"
+    || { echo "  Rust 后端没编译成，改下载预编译包…"; "$PY" scripts/engine_rs.py install --python "$PY"; } \
+    || echo "  ⚠ Rust 后端没装上：考试引擎用 Python 版（结果相同，慢一些）"
 else
   echo "  没有 Rust 工具链（cargo）：下载预编译的 Rust 后端…"
   "$PY" scripts/engine_rs.py install --python "$PY" \
