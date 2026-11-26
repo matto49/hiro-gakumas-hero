@@ -1367,6 +1367,7 @@ class ProduceDeciders:
             sim_context=self._drink_sim_context(ps, stage),
             where="SELECT_DRINK",
             take_on_tie=True,
+            **self._drink_flow(ps),
         )
         return self._drink_decision(res, opts, stage, "select_drink", warn, state)
 
@@ -1404,6 +1405,13 @@ class ProduceDeciders:
         if full and held and state.page_fields.get("full"):
             capacity = len(held)  # 画面说满了：栏就这么大（容量没读到时默认 4 会把空位当成还在）
         return held, max(capacity, len(held or [])), bool(full), warn
+
+    def _drink_flow(self, ps) -> dict:
+        """初 / N.I.A 的饮料按偶像流派定档、同档按社区顺序直接定（D12，11-26 用户：「参考换卡策略完善」）。
+        H.I.F 不变（还是原表 + 模拟）；偶像不明时不按流派（_signature_buff 查不到 → buff None）。"""
+        if ps is None or not _is_hajime_nia(ps.mode):
+            return {}
+        return {"buff": _signature_buff(ps.idol_card_id), "decide_ties": True}
 
     def _drink_sim_context(self, ps, stage: str) -> dict | None:
         """饮料比较的模拟上下文：牌组（状态机记账；没有时 resource 用参考牌组）、体力（下一场考试开考时：选拔开考自动回复，按满体力算）、倍率。"""
@@ -1449,7 +1457,7 @@ class ProduceDeciders:
             r = rows.get(o.key) or {}
             info = {
                 "名字": o.label,
-                "之后持有": dk.describe(list(o.drinks), stage),
+                "之后持有": dk.describe(list(o.drinks), stage, res.get("buff")),
                 "社区档位": r.get("tiers"),
                 "社区排名": r.get("rule_rank"),
             }
@@ -1479,14 +1487,14 @@ class ProduceDeciders:
             r = rows.get(o.key) or {}
             prev = {
                 "选项": o.label,
-                "持有": dk.describe(list(o.drinks), stage),
+                "持有": dk.describe(list(o.drinks), stage, res.get("buff")),
                 "社区档位": r.get("tiers"),
                 "社区排名": r.get("rule_rank"),
             }
             if "sim_gain" in r:
                 prev.update({"模拟期望": r["sim_mean"], "比社区默认": f"{r['sim_gain']:+,} ± {r['sim_gain_se']:,}"})
             cands.append(Candidate(o.action, preview=prev, expected=r.get("sim_mean"), note=o.label))
-        why = f"{res['why']}；之后持有：{dk.describe(list(pick.drinks), stage)}"
+        why = f"{res['why']}；之后持有：{dk.describe(list(pick.drinks), stage, res.get('buff'))}"
         w = list(warn)
         if res.get("deviation"):
             w.append(
@@ -2185,6 +2193,7 @@ class ProduceDeciders:
             sim_context=self._drink_sim_context(ps, stage),
             where="PDRINK_MAX",
             take_on_tie=True,
+            **self._drink_flow(ps),
         )
         return self._drink_decision(res, opts, stage, "drink_overflow", warn, state)
 
@@ -2234,7 +2243,13 @@ class ProduceDeciders:
             )
         stage = dk.stage_of(ps.mode if ps else None, interval=bool(state.page_fields.get("interval")))
         res = dk.choose(
-            opts, stage, cap, sim_context=self._drink_sim_context(ps, stage), where="PDRINK_MAX", take_on_tie=True
+            opts,
+            stage,
+            cap,
+            sim_context=self._drink_sim_context(ps, stage),
+            where="PDRINK_MAX",
+            take_on_tie=True,
+            **self._drink_flow(ps),
         )
         return self._drink_decision(
             res, opts, stage, "drink_overflow", warn + [f"新来 {len(incomings)} 瓶，按持有 + 新来的合起来挑"], state
@@ -2815,12 +2830,19 @@ class ProduceDeciders:
         for it in items:
             opts.append(dk.Option(f"drink{it['index']}", f"买 {it.get('name') or drink_name(it['drink_id'])}", hold + [it["drink_id"]],
                                   Action(ActionKind.SHOP_BUY, {"index": it["index"]}), cost=it["price"], extra={"index": it["index"]}))  # fmt: skip
-        res = dk.choose(opts, stage, capacity, sim_context=self._drink_sim_context(ps, stage), where="CONSULT")
+        res = dk.choose(
+            opts,
+            stage,
+            capacity,
+            sim_context=self._drink_sim_context(ps, stage),
+            where="CONSULT",
+            **self._drink_flow(ps),
+        )
         self._drink_resolve(res, opts, stage, "consult", state)  # 拿不准时 LLM 先定 pick，后面的预算记账按它来
         pick = res["pick"]
         if pick.key == "none":
             return None
-        if fill and dk.tag(pick.drinks, stage)[-1][0] > 3:
+        if fill and dk.tag(pick.drinks, stage, res.get("buff"))[-1][0] > 3:
             return None
         tier = (
             "第一档：补全饮料（事故：" + "、".join(trouble) + "）"

@@ -18,11 +18,13 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 
-from hiro.state.knowledge import BURST_MUST, DRAW_CAP, DRAW_CLASSES, DRINK_CLASSES, drink_class
+from hiro.state.knowledge import BURST_MUST, CLASS_BUFFS, DRAW_CAP, DRAW_CLASSES, DRINK_CLASSES, drink_class
 
 logger = logging.getLogger(__name__)
 
 EMPTY_TIER = 3.5
+FLOW_MATCH_TIER = 2  # 加偶像拿手 buff 的饮料（D12，同 やる気 之于广）
+FLOW_CONFLICT_TIER = 4  # 加冲突 buff 的饮料（同一种プラン里另一种 buff，flows.OTHER_BUFFS；同 好印象 之于广）
 OVERRIDE_SE = 2.0  # 模拟要好过规则默认几个标准误才改（用户更正 2026-11-02：建议 > 2 个标准误，跨档也可以）
 MAX_SIM_OPTIONS = 8
 NOOP = ("keep", "skip", "none")  # 「不动」的候选键  # 一次最多模拟几个候选（按规则排名取前几个）
@@ -38,16 +40,30 @@ def stage_of(mode: str | None, *, interval: bool = False, after_r1: bool = False
     return "r2" if interval or after_r1 else "r1"
 
 
-def tag(drinks: list, stage: str) -> list[tuple]:
-    """每瓶饮料的 (档位, 同档顺序, 类别)，与输入顺序对齐。必留 / 超限按社区默认顺序先到先得。"""
+def class_tier(k: str, buff: str | None = None) -> int | float:
+    """一类饮料的默认档位。buff：偶像拿手 buff（D12，初 / N.I.A 按流派，同换卡 hiro.brain.flows）——加拿手 buff 的提到 2 档，
+    加冲突 buff 的降到 4 档；None 时用 DRINK_CLASSES 原表（原表是按广的 やる気 定的：やる気 2 档、好印象 4 档）。"""
+    tier = DRINK_CLASSES[k]["tier"]
+    if buff and k in CLASS_BUFFS:
+        from hiro.brain.flows import OTHER_BUFFS
+
+        if buff in CLASS_BUFFS[k]:
+            return min(tier, FLOW_MATCH_TIER)
+        if any(b in OTHER_BUFFS.get(buff, ()) for b in CLASS_BUFFS[k]):
+            return FLOW_CONFLICT_TIER
+    return tier
+
+
+def tag(drinks: list, stage: str, buff: str | None = None) -> list[tuple]:
+    """每瓶饮料的 (档位, 同档顺序, 类别)，与输入顺序对齐。必留 / 超限按社区默认顺序先到先得。buff 见 class_tier。"""
     cls = [drink_class(d) for d in drinks]
-    order = sorted(range(len(drinks)), key=lambda i: (DRINK_CLASSES[cls[i]]["tier"], DRINK_CLASSES[cls[i]]["order"], i))
+    order = sorted(range(len(drinks)), key=lambda i: (class_tier(cls[i], buff), DRINK_CLASSES[cls[i]]["order"], i))
     out: list = [None] * len(drinks)
     copies = bursts = draws = 0
     for i in order:
         k = cls[i]
         info = DRINK_CLASSES[k]
-        tier = info["tier"]
+        tier = class_tier(k, buff)
         if k == "copy":
             tier = 0 if copies == 0 else tier
             copies += 1
@@ -62,9 +78,9 @@ def tag(drinks: list, stage: str) -> list[tuple]:
     return out
 
 
-def holding_key(drinks: list, stage: str, capacity: int) -> tuple:
+def holding_key(drinks: list, stage: str, capacity: int, buff: str | None = None) -> tuple:
     """持有组合的比较键（小的好）：档位从好到坏排序的 (档位, 顺序) 列表，空位补 3.5 档。"""
-    keys = sorted((t, o) for t, o, _ in tag(list(drinks), stage))  # None（没认出）按「未知」类算，不当空位
+    keys = sorted((t, o) for t, o, _ in tag(list(drinks), stage, buff))  # None（没认出）按「未知」类算，不当空位
     keys += [(EMPTY_TIER, 0)] * max(0, capacity - len(keys))
     return tuple(keys)
 
@@ -73,11 +89,11 @@ def tiers_of(key: tuple) -> tuple:
     return tuple(t for t, _ in key)
 
 
-def describe(drinks: list, stage: str) -> str:
+def describe(drinks: list, stage: str, buff: str | None = None) -> str:
     from hiro.state.context import drink_name
 
     parts = []
-    for d, (t, _, k) in zip(drinks, tag(drinks, stage)):
+    for d, (t, _, k) in zip(drinks, tag(drinks, stage, buff)):
         parts.append(
             f"{drink_name(d)}〔{DRINK_CLASSES[k]['label']}·{'优先' if t == 0 else ('超限' if t == 4 and k in DRAW_CLASSES else f'{t:g}档')}〕"
         )
@@ -105,12 +121,16 @@ def choose(
     seeds=range(100),
     where: str = "",
     take_on_tie: bool = False,
+    buff: str | None = None,
+    decide_ties: bool = False,
 ) -> dict:
     """规则默认 + 模拟。返回 {pick: Option, rule: Option, rows: [...], why: str, sim: bool, deviation: dict | None, unsure: str | None}。
     sim_context：{deck, hp, max_hp, permil, exam}（hiro.sim.resource.setup_for 的参数）；None 或 SIM=False 时只按规则。
     unsure：规则 / 模拟拿不准的原因（决策点补全：交 LLM 在候选里选）——没有模拟时同档打平、模拟失败、模拟偏向别的候选但在噪声内
-    或输入是参考值不许跨档；社区默认明显最好（别的候选都不如它 / 不同档且没有模拟）时为 None。"""
-    keyed = [(holding_key(o.drinks, stage, capacity), i, o) for i, o in enumerate(options)]
+    或输入是参考值不许跨档；社区默认明显最好（别的候选都不如它 / 不同档且没有模拟）时为 None。
+    buff：偶像拿手 buff，按流派定档（class_tier）。decide_ties：没有模拟时同档打平也按同档内的社区顺序直接定，不交 LLM
+    （D12：初 / N.I.A 没有饮料模拟，原来同档一打平就交 LLM；持有 / 候选里有没认出的饮料时仍交 LLM）。"""
+    keyed = [(holding_key(o.drinks, stage, capacity, buff), i, o) for i, o in enumerate(options)]
     if take_on_tie:
         # 档位打平时收新饮料（用户 11-17：有的卡 / P 道具拿到饮料就得分）：先比档位，同档位时「不动」排后面，再按同档内的社区顺序
         keyed.sort(key=lambda x: (tiers_of(x[0]), x[2].key in NOOP, x[0], x[1]))
@@ -129,7 +149,9 @@ def choose(
         "sim": False,
         "deviation": None,
         "unsure": None,
-        "why": f"社区默认：{rule.label}（档位 {tiers_txt(best_key)}）",
+        "buff": buff,
+        "why": f"社区默认：{rule.label}（档位 {tiers_txt(best_key)}）"
+        + (f"（按偶像拿手 {buff} 定档）" if buff else ""),
     }
     if (
         take_on_tie
@@ -150,7 +172,11 @@ def choose(
         return out
     if not SIM or sim_context is None:
         if tiers_of(others[0][0]) == tiers_of(best_key):
-            out["unsure"] = f"{others[0][1].label} 和社区默认同档（{tiers_txt(best_key)}），没有模拟分开"
+            unknown = any(not d for o in options for d in o.drinks)
+            if decide_ties and not unknown:
+                out["why"] += f"；{others[0][1].label} 同档，按同档内的社区顺序定（没有饮料模拟）"
+            else:
+                out["unsure"] = f"{others[0][1].label} 和社区默认同档（{tiers_txt(best_key)}），没有模拟分开"
         return out
     try:
         from hiro.sim import interval as iv
@@ -243,7 +269,9 @@ def accident(drinks: list, stage: str, capacity: int) -> list[str]:
     return out
 
 
-def best_incoming(cands: list[dict], held: list | None, stage: str, capacity: int) -> dict | None:
+def best_incoming(
+    cands: list[dict], held: list | None, stage: str, capacity: int, buff: str | None = None
+) -> dict | None:
     """栏满时三选一先挑哪瓶去和持有的比（hif 的「所持上限」流程）：每个候选取「丢掉持有里某一瓶换它」能得到的最好持有组合，
     取组合最好的那个候选（之后 PDRINK_MAX 决定丢不丢、丢哪瓶）。held 未知时按单瓶默认档位。"""
     known = [c for c in cands or [] if c.get("drink_id")]
@@ -253,8 +281,10 @@ def best_incoming(cands: list[dict], held: list | None, stage: str, capacity: in
 
     def best_key(c: dict) -> tuple:
         if not hold:
-            t, o, _ = tag([c["drink_id"]], stage)[0]
+            t, o, _ = tag([c["drink_id"]], stage, buff)[0]
             return ((t, o),)
-        return min(holding_key(hold[:j] + [c["drink_id"]] + hold[j + 1 :], stage, capacity) for j in range(len(hold)))
+        return min(
+            holding_key(hold[:j] + [c["drink_id"]] + hold[j + 1 :], stage, capacity, buff) for j in range(len(hold))
+        )
 
     return min(known, key=best_key)

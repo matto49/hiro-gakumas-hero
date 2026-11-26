@@ -187,10 +187,24 @@ DRINK_CLASSES = {
         "order": 1,
         "note": "按当时 好印象 加分：好印象 高时喝，不开局喝",
     },
+    # 初 / N.I.A 的另外两种打法（プラン）的饮料（11-26 D12）：原来都落到「其他」/「平加」/「元気」/「强化手牌」。
+    # 缺省档位按原来的 3 档放，不偶像流派的时候行为不变；hiro.brain.drinks.tag 拿到偶像拿手 buff 时按流派改档（CLASS_BUFFS）
+    "kocho": {"label": "好調", "tier": 3, "order": 5, "note": "好調 / 絶好調：センス 好調流派的资源"},
+    "shuchu": {"label": "集中", "tier": 3, "order": 6, "note": "集中：センス 集中流派的资源"},
+    "anomaly": {"label": "指针", "tier": 3, "order": 7, "note": "強気 / 温存 / 全力値：アノマリー 的资源"},
     # 识别读不出的持有饮料（drink_id=None，第十八局选拔）：按中等价值算——不当空位，也不优先丢它，宁可先丢已知的差饮料（回复 / 好印象 / 超限抽牌）
     "unknown": {"label": "未知", "tier": 2, "order": 9, "note": "识别没认出：按中等价值"},
 }
 DRAW_CLASSES = ("draw", "swap")  # 算进抽牌限量的类
+# 饮料类 → 它加的 buff（D12：初 / N.I.A 按偶像流派定档，和换卡一样看拿手 buff / 冲突 buff，hiro.brain.flows.OTHER_BUFFS）
+CLASS_BUFFS = {
+    "yaruki": ("やる気",),
+    "impression": ("好印象",),
+    "impression_cash": ("好印象",),
+    "kocho": ("好調",),
+    "shuchu": ("集中",),
+    "anomaly": ("強気", "全力"),
+}
 # 抽牌饮料默认上限（用户：最多 1–2 瓶、不能占满饮料栏；模拟显著更好时可调整）：选拔 1 瓶（もなみ：センブリ 带 1 瓶找 せのび）；本战 2 瓶（playbook：R1 一爆发 + 两抽牌、R2 两爆发 + 两抽牌）
 DRAW_CAP = {"selection": 1, "r1": 2, "r2": 2}
 # 必留的爆发瓶数（用户：至少 1 瓶给兑现回合；R2 两瓶爆发 [playbook]）
@@ -236,6 +250,12 @@ def _drink_class(drink_id: str) -> str:
         k = "impression"
     elif "card_play_aggressive" in effs or "やる気" in text:
         k = "yaruki"
+    elif "parameter_buff" in effs:  # 好調（parameter_buff）/ 絶好調（parameter_buff_multiple_per_turn）
+        k = "kocho"
+    elif "lesson_buff" in effs or "集中" in text:
+        k = "shuchu"
+    elif "exam_concentration" in effs or "exam_preservation" in effs or "全力値" in text:
+        k = "anomaly"
     elif "card_move" in effs:
         k = "fetch"
     elif "card_create" in effs or "force_play_card" in effs:
