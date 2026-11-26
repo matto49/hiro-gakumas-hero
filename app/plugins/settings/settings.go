@@ -300,7 +300,8 @@ func (s *S) Gate(c *ui.Context, h plugin.Host) bool {
 	return true
 }
 
-var steps = []string{"装环境", "连游戏", "关游戏声音", "配模型", "账号密码", "第一次扫描"}
+// N27（G3 第 3 轮 11-26：Windows 从安装到开局 15 次）：「账号密码」不放进第一次使用（掉登录时才用，到设置里填），省一次「跳过」
+var steps = []string{"装环境", "连游戏", "关游戏声音", "配模型", "第一次扫描"}
 
 func (s *S) wizard(c *ui.Context, h plugin.Host) {
 	if !s.boot.Ready {
@@ -309,7 +310,7 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 		// G3（11-26）：以管理员身份重新打开后向导从第 1 步重来——步数存进设置，重开接着走
 		if !s.stepLoaded {
 			s.stepLoaded = true
-			if n := s.d.Settings().WizardStep; n > 0 && n < len(steps) {
+			if n := min(s.d.Settings().WizardStep, len(steps)-1); n > 0 { // 旧版存的步数可能多一步（原来有「账号密码」）
 				s.step = n
 				s.connectSeen = n > 1 // 重开时已经过了「连游戏」：退回去看不算第一次停留，不自动前进（#154 review）
 			}
@@ -338,7 +339,7 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 				kit.Logo(c, 24)
 				ui.Text(c, "初星助手").FontSize(15).FontWeight(650).TextColor(kit.Ink)
 			})
-			ui.Text(c, "第一次使用 · 六步").FontSize(kit.FNote).TextColor(kit.Ink3).Padding(0, 0, 6, 0)
+			ui.Text(c, "第一次使用 · 五步").FontSize(kit.FNote).TextColor(kit.Ink3).Padding(0, 0, 6, 0)
 			for i, st := range steps {
 				ui.Row(c).Gap(10).AlignItems(ui.Center).Padding(6, 8).Radius(kit.R8).Background(map[bool]ui.Color{true: kit.BrandT, false: ui.RGBA(0, 0, 0, 0)}[i == s.step]).Children(func() {
 					bg, fg := kit.CardBg, kit.Ink3
@@ -387,9 +388,8 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 				case 3:
 					s.modelSection(c, h)
 				case 4:
-					s.secretsSection(c, h)
-				case 5:
 					kit.Note(c, "点「完成」后，初星助手会自己扫一遍还没扫过的支援卡、回忆和偶像卡（只看画面，不改东西），游戏停在首页就行。也可以现在单独点下面几项。")
+					kit.Note(c, "游戏账号密码现在不用填：游戏掉登录时才用，到「设置」里填。")
 					for _, sc := range [][2]string{{"scan-supports", "扫描支援卡"}, {"scan-memories", "扫描回忆"}, {"scan-account", "读首页数值"}, {"check-settings", "检查游戏设置"}} {
 						if kit.Secondary(c, sc[1]).Clicked() {
 							h.RunArgs(sc[1], []string{"run", "start", sc[0]})
@@ -399,12 +399,12 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 				// N5：模型这一步填了 Key（或已存过）就能点「下一步」：没测通时先存、再测，测通了自己进下一步
 				modelReady := s.modelOK || strings.TrimSpace(s.key) != "" || s.d.Settings().HasKeys[s.provider] ||
 					(s.d.Settings().HasKey && s.d.Settings().Provider == s.provider)
-				canNext := []bool{s.boot.Ready, true, s.sound, modelReady && !s.busy, true, true}[s.step]
+				canNext := []bool{s.boot.Ready, true, s.sound, modelReady && !s.busy, true}[s.step]
 				ui.Row(c).Gap(8).Padding(10, 0, 0, 0).Children(func() {
 					if s.step > 0 && kit.Secondary(c, "上一步").Clicked() {
 						s.step--
 					}
-					if (s.step == 3 || s.step == 4) && kit.Secondary(c, "跳过").Clicked() {
+					if s.step == 3 && kit.Secondary(c, "跳过").Clicked() {
 						s.step++
 					}
 					if s.step < len(steps)-1 && s.step != 2 { // 「关游戏声音」的「关好了，下一步」在正文里

@@ -562,3 +562,51 @@ func TestScanDoneHintOnlyWhenNothingQueued(t *testing.T) {
 		t.Error("做完的通知应该发了")
 	}
 }
+
+// N27（G3 第 3 轮 11-26）：扫描都做完、配了模型时给「打一把初」「打一把 N.I.A」按钮，点了把话发出去。
+func TestScanDoneOffersStartButtons(t *testing.T) {
+	var asked []string
+	ask := func(_ context.Context, _ []Turn, text, _ string, _ func(string, string)) (Reply, error) {
+		asked = append(asked, text)
+		return Reply{Text: "好"}, nil
+	}
+	call := liveCall("running")
+	a, run := newTestApp(newMem(), call, ask, nil)
+	a.NewThread()
+	ownJob(a, "j7")
+	a.PollJobs()
+	run.Drain()
+	call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"scan-idols","state":"done","summary":"扫描偶像卡","started_at":1}]}`)
+	call.resp["run events"] = ok(`{"state":"done","events":[]}`)
+	for i := 0; i < 3; i++ {
+		a.PollJobs()
+		run.Drain()
+	}
+	var labels []string
+	for _, m := range a.Current().Messages {
+		for _, c := range m.Cards {
+			if c["type"] == "next" {
+				labels = append(labels, c["label"].(string))
+			}
+		}
+	}
+	if strings.Join(labels, ",") != "打一把初,打一把 N.I.A" {
+		t.Fatalf("扫描做完应给开局按钮：%v", labels)
+	}
+	tt := ui.NewTester(a.View, 1280, 800)
+	tt.Frame()
+	if err := tt.Click("打一把初"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	run.Drain()
+	found := false
+	for _, m := range a.Current().Messages {
+		if m.Role == "user" && m.Text == "打一把初" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("点了应把「打一把初」发出去")
+	}
+}

@@ -615,3 +615,22 @@ func TestWizardRestoredPastConnectNoAutoAdvance(t *testing.T) {
 		t.Errorf("恢复过的向导退回连游戏不该自动前进：step=%d", s.step)
 	}
 }
+
+// N27（G3 第 3 轮 11-26）：第一次使用不再有「账号密码」这一步（到设置里填），配好模型直接到第一次扫描。
+func TestWizardHasNoAccountStep(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`})
+	_, tt := wizardAt(t, f, h, 4)
+	if tt.HasText("保存游戏账号") || !tt.HasText("完成，去对话") || !tt.HasText("第一次使用 · 五步") {
+		t.Errorf("第 5 步应是第一次扫描、没有账号密码：%q", tt.Texts())
+	}
+	// 旧版存下的步数（原来第一次扫描是第 6 步）：落到最后一步，不越界
+	f.s.WizardStep = 5
+	s2 := New(f.deps())
+	tt2 := ui.NewTester(func(c *ui.Context) { s2.Gate(c, h) }, 1280, 900)
+	tt2.Frame()
+	tt2.Frame()
+	if s2.step != len(steps)-1 {
+		t.Errorf("旧步数应落到最后一步：%d", s2.step)
+	}
+}

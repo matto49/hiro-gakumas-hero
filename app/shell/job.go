@@ -209,6 +209,9 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 			if strings.HasPrefix(kind, "scan-") && kind != "scan-formations" && !a.queuedAfter(id) {
 				if a.hasModel() {
 					text += "扫描都做完了，现在可以直接说「打一把初」（或者 N.I.A），初星助手会按你的卡出编成方案、给你确认后开局。"
+					// N27（G3 第 3 轮 11-26：开局要点输入框、打字、回车 3 下）：给两个按钮，点一下就把话发出去（照样出确认卡）
+					cards = []plugin.Card{{"type": "next", "label": "打一把初", "say": "打一把初"},
+						{"type": "next", "label": "打一把 N.I.A", "say": "打一把 N.I.A"}}
 				} else {
 					text += "扫描都做完了，要开局点侧栏的「开局」。"
 				}
