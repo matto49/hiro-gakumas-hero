@@ -320,9 +320,10 @@ func (a *Agent) Ask(ctx context.Context, history []Turn, text string) (Reply, er
 			}
 		}
 		if chose && len(pendings) == 0 {
-			return Reply{Text: strings.TrimSpace(m.Content), Cards: cards}, nil
+			return Reply{Text: strings.TrimSpace(m.Content), Cards: withoutInfo(cards)}, nil
 		}
 		if len(pendings) > 0 {
+			cards = withoutInfo(cards)
 			var b strings.Builder
 			if strings.TrimSpace(m.Content) != "" {
 				b.WriteString(strings.TrimSpace(m.Content) + "\n")
@@ -334,6 +335,19 @@ func (a *Agent) Ask(ctx context.Context, history []Turn, text string) (Reply, er
 		}
 	}
 	return Reply{Text: "这件事我绕了好几圈还没办完，换个说法再试一次？", Cards: cards}, nil
+}
+
+// withoutInfo 去掉这一轮的资料卡（info_* 查询结果）：这一轮要出选偶像卡或开局确认卡时，查偶像卡只是为了拿编号，
+// 卡片跟着确认卡一起出来就是刷屏（N64，G1 第 5 轮 11-27：说「回忆编成可以覆盖13号」，确认卡上方挂了 74 条偶像卡）。
+// 玩家单纯问资料（没有确认卡、选择卡）时照常给。
+func withoutInfo(cards []map[string]any) []map[string]any {
+	out := cards[:0:0]
+	for _, c := range cards {
+		if c["type"] != "info" {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // choose_idol：让玩家在几张偶像卡里点选（11-25 review：原来是文字列表，玩家只能打字回答）。不经 hiro 命令行，
