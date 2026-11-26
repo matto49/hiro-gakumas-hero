@@ -113,3 +113,28 @@ def test_vision_dead_falls_back_to_rapidocr(monkeypatch, rapid_ok):
     for _ in range(ocr.VISION_FALLBACK_AFTER):
         ocr._vision_raw(img, 10, 10, ("en-US",))
     assert ocr._engine == ("rapidocr" if rapid_ok else "vision")
+
+
+def test_use_cpu_prefers_compute_device_api():
+    """新系统上 setUsesCPUOnly_ 不再起作用：有 computeDevice 接口就按阶段指定 CPU 设备。"""
+
+    class CPU:
+        pass
+
+    class ANE:
+        pass
+
+    set_calls = []
+
+    class Req:
+        def supportedComputeStageDevicesAndReturnError_(self, err):
+            return ({"main": [ANE(), CPU()], "post": [CPU()]}, None)
+
+        def setComputeDevice_forComputeStage_(self, dev, stage):
+            set_calls.append((type(dev).__name__, stage))
+
+        def setUsesCPUOnly_(self, v):
+            set_calls.append(("old", v))
+
+    ocr._use_cpu(Req())
+    assert set_calls == [("CPU", "main"), ("CPU", "post")]

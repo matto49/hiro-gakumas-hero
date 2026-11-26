@@ -92,13 +92,14 @@ def _vision_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, floa
     request.setRecognitionLanguages_(list(languages))
     request.setUsesLanguageCorrection_(False)
     ok, err = handler.performRequests_error_([request], None)
-    if not ok and hasattr(request, "setUsesCPUOnly_"):
-        # 失败时换 CPU 重试一次（神经引擎 / GPU 的推理上下文坏了时 CPU 往往还能用）
+    if not ok and (hasattr(request, "setComputeDevice_forComputeStage_") or hasattr(request, "setUsesCPUOnly_")):
+        # 失败时换 CPU 重试一次：macOS 27.2.1 上神经引擎会报 e5rtError（create_precompiled_compute_operation failed, 13），
+        # CPU 还能用（11-26 实机）。新系统 setUsesCPUOnly_ 不再起作用，要用 setComputeDevice_forComputeStage_ 指定 CPU 设备
         retry = Vision.VNRecognizeTextRequest.alloc().init()
         retry.setRecognitionLevel_(0)
         retry.setRecognitionLanguages_(list(languages))
         retry.setUsesLanguageCorrection_(False)
-        retry.setUsesCPUOnly_(True)
+        _use_cpu(retry)
         handler = Vision.VNImageRequestHandler.alloc().initWithData_options_(
             NSData.dataWithBytes_length_(buf.tobytes(), len(buf)), None
         )
@@ -127,6 +128,22 @@ def _vision_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, floa
             )
         )
     return out
+
+
+def _use_cpu(request) -> None:
+    """让 Vision 请求只用 CPU：有 computeDevice 接口就按阶段指定 CPU 设备，否则退回旧的 setUsesCPUOnly_。"""
+    if hasattr(request, "setComputeDevice_forComputeStage_") and hasattr(
+        request, "supportedComputeStageDevicesAndReturnError_"
+    ):
+        got = request.supportedComputeStageDevicesAndReturnError_(None)
+        devices = got[0] if isinstance(got, tuple) else got
+        for stage, devs in dict(devices or {}).items():
+            cpu = next((d for d in devs if "CPU" in type(d).__name__ or "CPU" in str(d)), None)
+            if cpu is not None:
+                request.setComputeDevice_forComputeStage_(cpu, stage)
+        return
+    if hasattr(request, "setUsesCPUOnly_"):
+        request.setUsesCPUOnly_(True)
 
 
 _vision_fail: dict = {"streak": 0, "error": None}  # Apple Vision 连续失败次数和最后一次错误（ocr_health 用）
