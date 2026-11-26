@@ -202,23 +202,40 @@ def sort_direction(img) -> str | None:
 
 
 DIR_LOOKS, DIR_GAP = 3, 0.5  # 读升降序图标：一帧认不出就隔一会儿再看，最多看几帧
+DIR_SETTLE_LOOKS = 5  # 点完升降序按钮后最多看几帧等它刷新（加上点完先等的 1.5 秒，约 3.5 秒）
 DIR_FLIPS = 2  # 认不出 / 方向反了时最多点几次升降序按钮（两次就把 asc、desc 都过了一遍）
 
 
-def _look_direction(p, *, stable: bool = False) -> tuple[str | None, object]:
-    """连看 DIR_LOOKS 帧，返回第一个认得出的方向和那一帧；都认不出返回 (None, 最后一帧)。
-    stable：刚点过按钮时用——要连着两帧读到同一个方向才算（N62 review：渲染慢时第一帧可能还是点之前的方向，
-    据此再点一下会把方向又翻回去）。"""
-    img, prev = None, None
-    for i in range(DIR_LOOKS + (1 if stable else 0)):
+def _look_direction(p) -> tuple[str | None, object]:
+    """连看 DIR_LOOKS 帧，返回第一个认得出的方向和那一帧；都认不出返回 (None, 最后一帧)。"""
+    img = None
+    for i in range(DIR_LOOKS):
+        if i:
+            p.sleep(DIR_GAP)
+        img = p.shoot()
+        if (d := sort_direction(img)) is not None:
+            return d, img
+    return None, img
+
+
+def _look_after_click(p, before: str | None) -> tuple[str | None, object]:
+    """点完升降序按钮后读方向（N62 review / #190 CodeRabbit：渲染慢时头几帧还是点之前的方向，据此再点会翻回去）。
+    点之前方向已知：和点之前一样的帧当作还没刷新，要读到另一个方向、并且连着两帧一样才算；看满 DIR_SETTLE_LOOKS 帧都还是原来的，
+    返回原来的方向（这一下多半没点上，由调用方再点）。点之前不知道方向：连着两帧一样就算。别的情况返回 None。"""
+    img, prev, unchanged = None, None, True
+    for i in range(DIR_SETTLE_LOOKS):
         if i:
             p.sleep(DIR_GAP)
         img = p.shoot()
         d = sort_direction(img)
-        if d is not None and (not stable or d == prev):
+        if before is not None and d == before:
+            prev = None  # 还没刷新的旧帧不算
+            continue
+        unchanged = False
+        if d is not None and d == prev:
             return d, img
         prev = d
-    return None, img
+    return (before if unchanged else None), img
 
 
 def ensure_newest_first(p) -> None:
@@ -230,11 +247,17 @@ def ensure_newest_first(p) -> None:
     for _ in range(DIR_FLIPS):
         if d == "desc":
             return
-        if d is None and read_state(p)["sort"] is None:
-            break  # 连排序按钮都读不到：不一定还在选择页，别盲点那个位置
+        if d is None:
+            st = read_state(p)  # 再读一遍方向和排序按钮（#190 CodeRabbit：读到 desc 就别再点，会翻回 asc）
+            if st["dir"] == "desc":
+                return
+            if st["sort"] is None:
+                break  # 连排序按钮都读不到：不一定还在选择页，别盲点那个位置
+            d = st["dir"]
+        before = d
         p.click(*DIR_BTN)
         p.sleep(1.5)
-        d, img = _look_direction(p, stable=True)
+        d, img = _look_after_click(p, before)
         seen.append(d)
     if d == "desc":
         return

@@ -469,11 +469,40 @@ def test_direction_asc_flips_once_to_desc():
     assert p.dir == "desc" and p.dir_clicks == 1
 
 
-def test_direction_slow_render_does_not_flip_back():
-    """N62 review：点完第一帧还显示旧方向（asc）。要两帧一致才算，不能据此再点一下把方向翻回 asc。"""
-    p = _TogglePicker("asc", lag=1)
+@pytest.mark.parametrize("lag", [1, 2, 3])
+def test_direction_slow_render_does_not_flip_back(lag):
+    """N62 review / #190 CodeRabbit：点完头几帧还显示旧方向（asc）。旧帧不算，要读到变化且两帧一致，不能据此再点一下翻回 asc。"""
+    p = _TogglePicker("asc", lag=lag)
     mf.ensure_newest_first(p)
     assert p.dir == "desc" and p.dir_clicks == 1
+
+
+def test_direction_dropped_click_is_clicked_again():
+    """点了按钮却一直没变（点击丢了）：看满几帧还是 asc，就再点一次。"""
+    p = _TogglePicker("asc")
+    real_click = p.click
+    drops = [1]
+
+    def click(x, y):
+        if (x, y) == mf.DIR_BTN and drops:
+            drops.pop()
+            return
+        real_click(x, y)
+
+    p.click = click
+    mf.ensure_newest_first(p)
+    assert p.dir == "desc" and p.dir_clicks == 1
+
+
+def test_direction_unknown_but_state_reads_desc_does_not_click(monkeypatch):
+    """#190 CodeRabbit：几帧都认不出，但再读状态时读到 desc，就直接返回，不要盲点（会翻回 asc）。"""
+    p = _TogglePicker("desc")
+    real, calls = mf.sort_direction, []
+    monkeypatch.setattr(
+        mf, "sort_direction", lambda img: calls.append(1) or (None if len(calls) <= mf.DIR_LOOKS else real(img))
+    )
+    mf.ensure_newest_first(p)
+    assert p.dir == "desc" and p.dir_clicks == 0
 
 
 def test_restore_reads_direction_over_several_frames(monkeypatch):
