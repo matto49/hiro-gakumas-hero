@@ -62,3 +62,11 @@ def test_controls_never_read_stops_cleanly(monkeypatch, capsys):
     screens, dev = _run(monkeypatch, reads)
     assert dev.taps == [] and screens
     assert "读不到翻页按钮" in capsys.readouterr().out
+
+
+def test_none_frame_is_reread_too(monkeypatch):
+    """#170 review：那一帧整屏认不出（None）也重读，不直接当成「不在列表」结束这一页。"""
+    reads = [page(["a"]), page(["a"]), None, page([]), page([]),  # 第 1 页中途一帧 None，重读后继续
+             page(["b"]), page(["b"]), page(["b"])]  # fmt: skip
+    _screens, dev = _run(monkeypatch, reads)
+    assert (600, 1100) in dev.taps and dev.taps[-1] == (200, 1200)

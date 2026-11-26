@@ -111,8 +111,8 @@ def list_scan() -> list[dict]:
         N40（G2 11-26 Mac rc.7）：翻页时这一帧读空，controls 是 None，直接 r["controls"]["next"] 崩了。"""
         got = read_support_list(d.screenshot())
         for _ in range(CONTROL_RETRIES):
-            if got is None or got.get("controls"):
-                break
+            if got is not None and got.get("controls"):
+                break  # 读空的帧可能整屏认不出（None），也重截重读（#170 review）
             time.sleep(1.0)
             got = read_support_list(d.screenshot())
         return got
