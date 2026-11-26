@@ -36,12 +36,19 @@ _LOG_PREFIX = re.compile(r"^\[\d{4}-\d\d-\d\d [\d:,.]+\]\s*\[([A-Z]+)\]\s*\[[^\]
 _SHOT_SUFFIX = re.compile(r"（截图在 [^）]*）\s*$")
 
 
+# 没接住的异常：traceback 最后一行「模块.异常名: 说明」（G1 §8 错误文案：游戏没开时任务直接抛 DeviceUnavailable，
+# 日志里没有「停下：」也没有 ERROR，原因是空的）
+_EXC_LINE = re.compile(r"^(?:[A-Za-z_][\w]*\.)*([A-Za-z_]\w*(?:Error|Exception|Gone|Unavailable|Blocked|Page)): (.+)$")
+
+
 def failure_reason(lines: list[str]) -> str | None:
     """任务出错时给人看的一句原因：最后一条「停下：…」，没有就最后一条 ERROR 日志（去掉时间 / 级别 / 模块前缀和本机截图路径）。
     11-25 review：failed 事件只写「看上面的日志」，对话和对局卡里看不到原因。"""
-    stop = err = None
+    stop = err = exc = None
     for line in lines:
         t = line.strip()
+        if (m := _EXC_LINE.match(t)) and not _LOG_PREFIX.match(t):
+            exc = f"{m.group(1)}: {m.group(2)}"
         if t.startswith("停下："):
             stop = t[len("停下：") :]
         elif t.endswith("停下") and not _LOG_PREFIX.match(t) and len(t) > 2:
@@ -50,7 +57,7 @@ def failure_reason(lines: list[str]) -> str | None:
             )  # 工具把「停下」写在句尾（G1-F2：扫偶像卡「没进到偶像详情页（…），停下」）
         elif (m := _LOG_PREFIX.match(t)) and m.group(1) in ("ERROR", "CRITICAL"):
             err = t[m.end() :]
-    why = stop or err
+    why = stop or err or exc
     if not why:
         return None
     why = _SHOT_SUFFIX.sub("", why).strip()
