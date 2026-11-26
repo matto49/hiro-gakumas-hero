@@ -188,9 +188,12 @@ def _hajime(p: _Pick) -> tuple[int, str, list[str]]:
         i = max(_uncapped(p, oikomi), key=lambda k: crit.get(p.opts[k].get("attr"), 0))
         a = p.opts[i].get("attr")
         return p.done(i, f"追い込みレッスン选审查基准最高的 {a}（{crit.get(a, 0):.0%}）")
+    legend = st.difficulty == "legend"
     lost = st.max_stamina - st.stamina
     tired = lost >= TIRED_LOST or st.stamina * 2 <= st.max_stamina
-    if (lessons or p.idx("class")) and tired:
+    if legend and (lessons or p.idx("class")) and tired:
+        p.use("hajime.legend_no_rest")  # LEGEND：累了也照常上课，体力靠早结束课程回 [g8-初L]
+    if (lessons or p.idx("class")) and tired and not legend:
         # 累了：课程、授業让位给外出或休息，没有外出就休息（协调 11-17 初 REGULAR 实机：体力 9/30 选 SP 课，游戏弹「体力が低下しています」）
         p.use("hajime.outing_when")
         p.use("hajime.outing_vs_rest")
@@ -204,6 +207,8 @@ def _hajime(p: _Pick) -> tuple[int, str, list[str]]:
         if st.stamina < LOW_STAMINA and p.idx("rest") and _rest_ok(p):
             return p.done(p.idx("rest")[0], f"课程周体力只剩 {st.stamina}（< {LOW_STAMINA}），先休息")
         p.use("hajime.lesson_first")
+        if legend and any(p.opts[k].get("sp") for k in lessons):
+            p.use("hajime.legend_sp_first")
         i = _lesson(p, _uncapped(p, lessons), "main")
         o = p.opts[i]
         return p.done(i, f"上课程 {o.get('attr')}{' SP' if o.get('sp') else ''}")
@@ -218,6 +223,12 @@ def _hajime(p: _Pick) -> tuple[int, str, list[str]]:
     if st.difficulty == "master" and outing_ok:
         p.use("hajime.master_outing_avoid")
         outing_ok = False
+    if legend:
+        # LEGEND：不休息、不外出，活動支給为主轴 [g8-初L]；体力不够上课时休息由下面的顺序兜底
+        p.use("hajime.legend_allowance")
+        p.use("hajime.legend_no_rest")
+        order = ["allowance", "gift"] + (["shop"] if st.shop_ok else []) + ["rest", "outing", "shop"]
+        return _fallback_order(p, tuple(dict.fromkeys(order)), "没有课程 / 授業（LEGEND：活動支給优先，不外出）")
     if tired:
         p.use("hajime.outing_when")
         p.use("hajime.outing_vs_rest")
@@ -347,6 +358,12 @@ def choose_study(st: Status, choices: list[dict]) -> tuple[int, str, list[str]]:
     if not can and trouble:
         return p.done(trouble[0]["index"], f"体力 {st.stamina} 不够其它项的消耗，只能选トラブル追加")
     pool = can or plain or chs
+    if st.difficulty == "legend" and st.params:
+        p.use("hajime.legend_study_lowest")
+        known = [c for c in pool if _attr_of(c) in st.params]
+        if known:
+            c = min(known, key=lambda c: (st.params[_attr_of(c)], c["index"]))
+            return p.done(c["index"], f"授業补最低的属性 {_attr_of(c)}（{st.params[_attr_of(c)]}）")
     main = st.main()
     c = next((c for c in pool if _attr_of(c) == main), pool[0])
     return p.done(

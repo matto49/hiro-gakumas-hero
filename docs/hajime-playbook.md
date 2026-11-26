@@ -89,6 +89,29 @@
   开局编成方案要按初生成：`python -m hiro.brain.formation_plan --idol i_card-skin-shro-3-007 --mode produce-002 …`；
   `hiro.runtime.hajime` 没给 `--main-attr` 时，只认为初生成的方案，否则按项目默认 Vo〔我们〕。
 
+## LEGEND（produce-006，2026-11-26）
+
+装了 GKMS 时，初各难度的选行动默认走 GKMS 路线规划（docs/plugins.md「GKMS 育成插件」），下面的规则在 GKMS 不可用时生效。规则写在 `src/hiro/defaults/hajime_nia_rules.json`（`hajime.legend_*`）。
+
+几个来源说法一致、已写成规则的：
+
+- 基本不休息、不外出：体力靠早结束课程回，课程周只在体力不够上课（< 8）时才休息。[g8-初L][qa-初L]
+- 活動支給（差し入れ）是主轴：非课程周先选活動支給，外出排最后。[g8-初L][note-初L]
+- SP 课出现就上。[note-初L]
+- 授業补三项里最低的属性。[g8-初L]
+
+还没写成规则、要先读原文再定的（note.com、wikiwiki 这次打不开，只有搜索摘要）：
+
+- 第 6 周的行动和 SP 课的具体周次；
+- 第 13 周选活動支給还是相談（看基本卡是否超过 21 张、要不要补固有技能卡）；
+- 「体力 21 线」指哪场考试；
+- 中間考试是否把饮料全用掉；
+- 广这类主 Vo 偶像的属性比例（没有来源专门讲）。
+
+相談：社区说法是基本卡不用靠相談删（中間后的 P 道具会除外），眠気在最終前删。这部分装了 GKMS 时由 pickv 决定，没装时还是现有的删卡顺序。
+
+调研笔记（来源表、每条的日文原文和取证方式）：`.temp/legend-research/notes.md`（不进仓库）。
+
 ## 来源
 
 - 社区摘录：作者本机整理的 game8 / wikiwiki 原文摘录（不随仓库发布），原文链接：

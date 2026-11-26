@@ -41,6 +41,22 @@
   "ww-初M": {
    "url": "https://wikiwiki.jp/gakumas/%E5%88%9D_%E3%83%9E%E3%82%B9%E3%82%BF%E3%83%BC%E8%82%B2%E6%88%90",
    "title": "wikiwiki「初_マスター育成」（2025-01-26 版）"
+  },
+  "g8-初L": {
+   "url": "https://game8.jp/gakuen-idolmaster/752651",
+   "title": "game8「初レジェンドの攻略と立ち回り」（2026-11-06 更新）"
+  },
+  "mk-初L": {
+   "url": "https://morishimemo.com/gakumasu-memo-32",
+   "title": "morishimemo「『初 レジェンド』攻略メモ」（只读到搜索摘要，原页待核对）"
+  },
+  "qa-初L": {
+   "url": "https://detail.chiebukuro.yahoo.co.jp/qa/question_detail/q11325350646",
+   "title": "Yahoo!知恵袋「初レジェンド お出かけは踏まない方がいい？」（2026-02-14 回答）"
+  },
+  "note-初L": {
+   "url": "https://note.com/makura_1210/n/n62ebd749d370",
+   "title": "まくら（note）「強化月間2026.08 初レジェンド 攻略メモ」（只读到搜索摘要，原页待核对）"
   }
  },
  "rules": [
@@ -558,6 +574,54 @@
    "rule": "循环件按偶像的流派选（「使用回数+1」两张 + 火力一张）",
    "source": "g8-NIAM",
    "quote": "各プランごとのおすすめループパーツになります。"
+  },
+  {
+   "id": "hajime.legend_no_rest",
+   "families": [
+    "hajime"
+   ],
+   "difficulties": [
+    "legend"
+   ],
+   "rule": "LEGEND 基本不休息、不外出：体力靠早结束课程回，课程周只在体力不够上课时才休息",
+   "source": "g8-初L",
+   "quote": "体力調整がレッスンで行えるためできるだけターン数を残してレッスンをクリアするようにしましょう。／（qa-初L）レッスンをさっさと終わらせればNIAより体力管理楽なので行く意味がないです"
+  },
+  {
+   "id": "hajime.legend_allowance",
+   "families": [
+    "hajime"
+   ],
+   "difficulties": [
+    "legend"
+   ],
+   "rule": "LEGEND 以活動支給（差し入れ）为主轴：非课程周先选活動支給，外出排最后",
+   "source": "g8-初L",
+   "quote": "初レジェンドで踏むスケジュールは差し入れ中心がおすすめ／（note-初L）活動支給は全踏み！"
+  },
+  {
+   "id": "hajime.legend_sp_first",
+   "families": [
+    "hajime"
+   ],
+   "difficulties": [
+    "legend"
+   ],
+   "rule": "LEGEND 的 SP 课出现就上（同周有 SP 课时不选普通课）",
+   "source": "note-初L",
+   "quote": "立ち回り①：SPレッスンを落とさず踏む！（搜索摘要）"
+  },
+  {
+   "id": "hajime.legend_study_lowest",
+   "families": [
+    "hajime"
+   ],
+   "difficulties": [
+    "legend"
+   ],
+   "rule": "LEGEND 的授業补三项里最低的属性",
+   "source": "g8-初L",
+   "quote": "授業は3種類のステータスで一番凹むものを選択し底上げするのがおすすめです。"
   }
  ]
 }
