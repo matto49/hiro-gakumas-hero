@@ -352,3 +352,20 @@ def test_popup_stays_without_toast_snaps_frame(monkeypatch):
     with pytest.raises(mf.MemoryFilterError, match="弹窗没关") as e:
         mf.apply_slice(p, "common:hif")
     assert not isinstance(e.value, mf.EmptySlice) and p.snaps == ["filter-confirm-popup-stays"]
+
+
+def test_blank_screen_says_cannot_see_game_not_missing_section(monkeypatch):
+    """N60（G1 第 5 轮 11-26）：锁屏时只有空帧（黑帧），每一帧都读不到字：报「读不到游戏画面」，不报「没找到『プラン』那一组」。"""
+    monkeypatch.setattr(mf, "CONFIRM_GAP", 0)
+    picker = FakePicker()
+    picker.ocr = lambda img: []
+    with pytest.raises(mf.MemoryFilterError) as e:
+        mf._section(picker, "プラン", ("センス",), "スキルカードタイプ")
+    assert "读不到游戏画面" in str(e.value) and "锁屏" in str(e.value)
+
+
+def test_section_missing_with_text_keeps_old_message():
+    picker = FakePicker()
+    picker.ocr = lambda img: [("何か", 1.0, (100, 300, 200, 320))]
+    with pytest.raises(mf.MemoryFilterError, match="没找到「プラン」那一组"):
+        mf._section(picker, "プラン", ("センス",), "スキルカードタイプ")
