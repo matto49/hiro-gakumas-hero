@@ -28,6 +28,33 @@ def _texts(f) -> list[str]:
     return [t.text.replace(" ", "") for t in f.texts]
 
 
+# 标题画面（左上「Ver. x.y.z」「プロデューサーID: タップで表示」、右下「メニュー」）：游戏刚重开时续跑会停在这里
+# （11-26 C1：游戏卡死后重开，续跑 40 秒没进培育，因为不认识标题页）
+TITLE_ID_HINT = "プロデューサーID"
+TITLE_OTHER_HINTS = ("Ver.", "メニュー", "データ連携", "BANDAI")
+
+
+def at_title(texts: list[str]) -> bool:
+    return any(TITLE_ID_HINT in t for t in texts) and any(h in t for t in texts for h in TITLE_OTHER_HINTS)
+
+
+def _leave_title(rt) -> None:
+    """标题页 → 首页，走日切换恢复同一条路（TAP TO START / 空白处、数据下载点确认、登录奖励 / 公告点掉，有购买字样不点）。
+    点进去弹「機種変更…データ連携」框时 recover_to_home 抛 DataLinkBlocked 停机，交给玩家（登录 / 连携是用户本人的事）。"""
+    from hiro.loop import date_change
+    from hiro.produce.ops import ocr_boxes
+    from hiro.runtime.loop import ResumeBlocked
+    from hiro.vision.classify import classify
+
+    logger.info("续跑：游戏在标题页，先回首页")
+
+    ok = date_change.recover_to_home(
+        lambda: rt.screen.shot().img, rt.device.tap, ocr_boxes, lambda img: classify(img).name == "home"
+    )
+    if not ok:
+        raise ResumeBlocked("续跑：游戏停在标题页，没能回到首页")
+
+
 def resume_produce(rt, timeout: float = RESUME_TIMEOUT) -> str:
     """进行中的培育续跑：首页 / 「プロデュース再開」框 → 点「再開する」→ 进培育。返回 resumed（点了再開）/ already（本来就在培育里）。
     活动登录奖励挡在前面时点底部空白翻掉。
@@ -39,6 +66,8 @@ def resume_produce(rt, timeout: float = RESUME_TIMEOUT) -> str:
     from hiro.vision.quick import quick_page
 
     state = {"tapped_resume": False, "clicked_ongoing": False, "unknown_since": None}
+    if at_title([t.text for t in rt.screen.shot().texts]):
+        _leave_title(rt)  # 回首页可能要下载数据，单独计时，不占续跑的 40 秒
 
     def step(f):
         if (btn := rr.resume_button(f.texts)) is not None or (btn := nav.find(f, "Produce.ButtonResume")) is not None:

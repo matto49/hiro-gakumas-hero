@@ -38,6 +38,16 @@ MAX_RECOVER_S = 900.0  # 下载会续时间，但总共不超过 15 分钟
 BLANK_TAP = (360, 220)  # 登录奖励 / 公告：点空白推进（画面上方，避开底部按钮与横幅）
 
 
+# 标题页点进去后要求データ連携的框（11-26 C1 Mac 实机：游戏卡死重开后「機種変更をした場合は、データ連携をして
+# アプリの再起動をお願いします…」，只有「閉じる」「お問い合わせ」）。下面一路点「閉じる」会把它当公告关掉：
+# 登录 / 连携是用户本人的事（GOAL §5 红线），什么都不点，停下。
+DATA_LINK_HINTS = ("機種変更", "データ連携をして")
+
+
+class DataLinkBlocked(Exception):
+    """游戏要求做データ連携（换了设备或登录失效）：程序不处理，停下交给玩家。"""
+
+
 class DateChanged(Exception):
     """游戏日切换：已经（或需要）回到首页，run_hif 应从首页续跑同一局。"""
 
@@ -85,6 +95,10 @@ def recover_to_home(shoot: Callable, click: Callable[[int, int], None], ocr: Cal
             logger.info("日期切换：已回到首页（%.0fs）", clock() - t0)
             return True
         boxes = ocr(img)
+        if any(h in t for t, _, _ in boxes for h in DATA_LINK_HINTS):
+            raise DataLinkBlocked(
+                "游戏要求做「データ連携」（换了设备或登录失效）：这一步要你本人在游戏里处理，处理完再点「接着打」"
+            )
         texts = [(_norm(t), b) for t, _, b in boxes]
         if no_boost := next((_center(b) for t, b in texts if t == MUMU_NO_BOOST), None):
             # MuMu 拉起游戏时的「是否为《学マス》开启 MuMu 加速服务?」：点「不加速」（第十五局、GKMS 第五局都是这么处理的）
