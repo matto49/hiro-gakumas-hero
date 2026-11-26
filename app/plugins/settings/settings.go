@@ -23,6 +23,7 @@ type Settings struct {
 	HasKey     bool            `json:"has_key"`
 	HasKeys    map[string]bool `json:"has_keys,omitempty"`
 	WizardDone bool            `json:"wizard_done,omitempty"`
+	WizardStep int             `json:"wizard_step,omitempty"`
 	// Permission 是操作权限档（ask / read / readwrite / all，空 = read）；AllowAllConfirmed 是第一次切到 all 时确认过。
 	Permission        string `json:"permission,omitempty"`
 	AllowAllConfirmed bool   `json:"allow_all_confirmed,omitempty"`
@@ -103,6 +104,9 @@ type S struct {
 	modelOK   bool
 	// relaunchErr 是「以管理员身份重新打开」没成的原因（取消了「是否允许」等）
 	relaunchErr string
+	// stepLoaded / savedStep：向导步数从设置里读过一次；上次存下的步数（变了才存）
+	stepLoaded bool
+	savedStep  int
 
 	// 模型表单
 	formFor  string // 表单是按哪次读到的设置填的
@@ -237,6 +241,10 @@ func (s *S) footer(c *ui.Context, h plugin.Host) {
 	if st.Model != "" {
 		label += " · " + st.Model
 	}
+	if needsKey(st.Provider) && !st.HasKey {
+		// G3（11-26）：向导里跳过了 Key，这里还显示「DeepSeek · deepseek-flash」，看着像配好了
+		label = "还没配模型 Key · 点这里设置"
+	}
 	if kit.RowButton(c, "model", label, false).Padding(3, 0).Children(func() {
 		ui.Icon(c, kit.IcSparkles).FontSize(12).TextColor(kit.Ink3)
 		ui.Text(c, label).FontSize(kit.FNote).TextColor(kit.Ink2).MaxLines(1).Ellipsis("…")
@@ -277,6 +285,22 @@ var steps = []string{"装环境", "连游戏", "关游戏声音", "配模型", "
 func (s *S) wizard(c *ui.Context, h plugin.Host) {
 	if !s.boot.Ready {
 		s.step = 0
+	} else {
+		// G3（11-26）：以管理员身份重新打开后向导从第 1 步重来——步数存进设置，重开接着走
+		if !s.stepLoaded {
+			s.stepLoaded = true
+			if n := s.d.Settings().WizardStep; n > 0 && n < len(steps) {
+				s.step = n
+			}
+			s.savedStep = s.step
+		}
+		if s.step != s.savedStep {
+			st := s.d.Settings()
+			st.WizardStep = s.step
+			if s.d.Save(st, "") == nil {
+				s.savedStep = s.step
+			}
+		}
 	}
 	ui.Row(c).Fill().Background(kit.Bg).AlignItems(ui.Stretch).Children(func() {
 		ui.Column(c).Width(232).Shrink(0).Background(kit.Side).Padding(22, 18).Gap(6).BorderColor(kit.Line).BorderWidth(0, kit.Hair, 0, 0).Children(func() {
@@ -798,4 +822,13 @@ func (s *S) panel(c *ui.Context, h plugin.Host, route string) {
 			s.installEnv(h)
 		}
 	}
+}
+
+// needsKey：这个服务商要不要 Key（命令行类的 codex / claude 和「不用模型」不要）。
+func needsKey(provider string) bool {
+	switch provider {
+	case "", "none", "codex", "claude":
+		return false
+	}
+	return true
 }

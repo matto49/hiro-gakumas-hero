@@ -87,7 +87,7 @@ func TestSaveKeyGoesToStoreNotChat(t *testing.T) {
 
 func TestDeviceStatusFooterAndContext(t *testing.T) {
 	f := &fake{secrets: map[string]string{}, ready: true}
-	f.s = Settings{Provider: "deepseek", Model: "deepseek-chat", WizardDone: true}
+	f.s = Settings{Provider: "deepseek", Model: "deepseek-chat", HasKey: true, WizardDone: true}
 	h := plugintest.New(map[string]string{"doctor --probe": `{"items":[{"id":"platform","ok":true,"detail":"学マス（PlayCover）：已连上"}]}`})
 	s := New(f.deps())
 	p := s.Plugin()
@@ -192,8 +192,14 @@ func TestWizardModelNextSavesTestsAndAdvances(t *testing.T) {
 	}
 	tt.Frame()
 	tt.Frame()
-	if len(f.saved) != 1 || f.saved[0] != "sk-test-not-real" {
-		t.Errorf("下一步要先存 Key：%v", len(f.saved))
+	var keys []string // 只看存了 Key 的那几次（向导每进一步还会存一次步数，key 为空）
+	for _, k := range f.saved {
+		if k != "" {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) != 1 || keys[0] != "sk-test-not-real" {
+		t.Errorf("下一步要先存 Key：%v", keys)
 	}
 	if s.step != 4 {
 		t.Errorf("测通了应自己进下一步，现在第 %d 步", s.step)
@@ -443,5 +449,45 @@ func TestWizardConnectOffersRelaunchAsAdmin(t *testing.T) {
 	tt2.Frame()
 	if tt2.HasText("以管理员身份重新打开") && tt2.Click("以管理员身份重新打开") == nil {
 		t.Fatal("没有 RelaunchAdmin 时不该有按钮")
+	}
+}
+
+// G3（11-26）：以管理员身份重新打开后向导从第 1 步重来。步数存进设置，新的插件实例（重开程序）从存下的那一步接着走。
+func TestWizardStepSurvivesRestart(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`, "doctor --probe": `{"items":[]}`})
+	_, _ = wizardAt(t, f, h, 2) // 走到第 3 步「关游戏声音」
+	if f.s.WizardStep != 2 {
+		t.Fatalf("步数没存：%d", f.s.WizardStep)
+	}
+	s2 := New(f.deps()) // 重开
+	tt := ui.NewTester(func(c *ui.Context) { s2.Gate(c, h) }, 1280, 900)
+	tt.Frame()
+	tt.Frame()
+	if s2.step != 2 || !tt.HasText("我在游戏里关好了") {
+		t.Fatalf("重开后应接着第 3 步：step=%d %q", s2.step, tt.Texts())
+	}
+}
+
+// G3（11-26）：向导跳过了 Key，左下角不能还显示「DeepSeek · deepseek-flash」像配好了一样。
+func TestFooterSaysWhenKeyMissing(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	f.s = Settings{Provider: "deepseek", Model: "deepseek-flash", WizardDone: true}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`, "doctor --probe": `{"items":[]}`})
+	s := New(f.deps())
+	tt := ui.NewTester(func(c *ui.Context) { s.footer(c, h) }, 400, 200)
+	tt.Frame()
+	if !tt.HasText("还没配模型 Key · 点这里设置") || tt.HasText("DeepSeek · deepseek-flash") {
+		t.Fatalf("没 Key 时要说清楚：%q", tt.Texts())
+	}
+	f.s.HasKey = true
+	tt.Frame()
+	if !tt.HasText("DeepSeek · deepseek-flash") {
+		t.Fatalf("有 Key 时显示服务商和模型：%q", tt.Texts())
+	}
+	f.s = Settings{Provider: "codex", WizardDone: true} // 命令行类不要 Key
+	tt.Frame()
+	if tt.HasText("还没配模型 Key") {
+		t.Fatalf("codex 不要 Key：%q", tt.Texts())
 	}
 }

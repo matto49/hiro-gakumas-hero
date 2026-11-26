@@ -78,6 +78,8 @@ type Settings struct {
 	HasKeys map[string]bool `json:"has_keys,omitempty"`
 	// WizardDone：新手向导走完了（或跳过了），之后打开直接进主窗口。
 	WizardDone bool `json:"wizard_done,omitempty"`
+	// WizardStep：向导走到第几步（0 起）。重开程序（比如以管理员身份重新打开）从这一步接着走，不从头来（G3）
+	WizardStep int `json:"wizard_step,omitempty"`
 	// Permission：操作权限档（ask / read / readwrite / all，空 = read）；AllowAllConfirmed：第一次切到 all 时确认过（只弹一次）。
 	Permission        string `json:"permission,omitempty"`
 	AllowAllConfirmed bool   `json:"allow_all_confirmed,omitempty"`
