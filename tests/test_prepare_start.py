@@ -107,7 +107,9 @@ def test_all_full_stops_without_writing(home, calls, monkeypatch, capsys):
     err = capsys.readouterr().err
     # N34（G1 第 3 轮）：说清有哪几号、在对话里怎么说
     assert (
-        "停下：「初」的支援卡编成 1–20 号都有卡" in err and "「支援卡编成用 N 号覆盖」" in err and "曾由初星助手写入" not in err
+        "停下：「初」的支援卡编成 1–20 号都有卡" in err
+        and "「支援卡编成用 N 号覆盖」" in err
+        and "曾由初星助手写入" not in err
     )
 
 
