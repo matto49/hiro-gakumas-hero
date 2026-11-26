@@ -205,6 +205,12 @@ def _check_formation_plan(a: dict) -> None:
     env_plan = os.environ.get("HIRO_FORMATION_PLAN")
     idol = (a.get("idol") or "").replace("i_card-skin-", "i_card-")
     home = hiro_home()
+    if consent and not idol:
+        raise CliError(
+            "bad_overwrite",
+            "--overwrite 要和 --idol 一起用（按这张偶像卡在这个模式的编成方案写进点名的号）",
+            "带上 --idol <偶像卡编号> 再发起",
+        )  # #192 CodeRabbit：没给偶像时走旧方案文件的核对，同意会被悄悄忽略
     if consent and (env_plan == "off" or (env_plan and Path(env_plan).resolve() != paths.plan_path(home).resolve())):
         raise CliError(
             "bad_overwrite",

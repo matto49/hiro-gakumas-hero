@@ -364,3 +364,17 @@ def test_overwrite_with_explicit_plan_file_is_rejected(run_cli, hiro_home, on, m
     monkeypatch.setenv("HIRO_FORMATION_PLAN", str(other))
     _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN, "--overwrite", "memory=13")
     assert env["error"]["code"] == "bad_overwrite" and "HIRO_FORMATION_PLAN" in env["error"]["message"]
+
+
+def test_overwrite_without_idol_is_rejected(run_cli, hiro_home, on):
+    """#192 CodeRabbit：没给 --idol 时 --overwrite 用不上，不能悄悄忽略、出一张没写编成的确认卡。
+    （新开一局本来就要 --idol，参数检查先拦下；_check_formation_plan 里另有一道 bad_overwrite 给直接调用的情况）"""
+    from hiro.cli import cmd_run
+    from hiro.cli.registry import CliError
+
+    _plan(hiro_home, sets=(4, 12), written=True)
+    _code, env = run_cli("run", "start", "hajime", "--overwrite", "memory=13")
+    assert not env["ok"] and env["error"]["code"] in ("bad_args", "bad_overwrite")
+    with pytest.raises(CliError) as e:
+        cmd_run._check_formation_plan({"kind": "hajime", "command": "new", "overwrite": "memory=13"})
+    assert e.value.code == "bad_overwrite" and "--idol" in e.value.message
