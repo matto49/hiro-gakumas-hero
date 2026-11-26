@@ -203,7 +203,6 @@ def sort_direction(img) -> str | None:
 
 DIR_LOOKS, DIR_GAP = 3, 0.5  # 读升降序图标：一帧认不出就隔一会儿再看，最多看几帧
 DIR_SETTLE_LOOKS = 5  # 点完升降序按钮后最多看几帧等它刷新（加上点完先等的 1.5 秒，约 3.5 秒）
-DIR_FLIPS = 2  # 认不出 / 方向反了时最多点几次升降序按钮（两次就把 asc、desc 都过了一遍）
 
 
 def _look_direction(p) -> tuple[str | None, object]:
@@ -218,53 +217,61 @@ def _look_direction(p) -> tuple[str | None, object]:
     return None, img
 
 
-def _look_after_click(p, before: str | None) -> tuple[str | None, object]:
-    """点完升降序按钮后读方向（N62 review / #190 CodeRabbit：渲染慢时头几帧还是点之前的方向，据此再点会翻回去）。
-    点之前方向已知：和点之前一样的帧当作还没刷新，要读到另一个方向、并且连着两帧一样才算；看满 DIR_SETTLE_LOOKS 帧都还是原来的，
-    返回原来的方向（这一下多半没点上，由调用方再点）。点之前不知道方向：连着两帧一样就算。别的情况返回 None。"""
-    img, prev, unchanged = None, None, True
+def _look_after_click(p) -> tuple[str | None, object]:
+    """点完升降序按钮后读方向：看满 DIR_SETTLE_LOOKS 帧，只认最后两帧、而且两帧一样的读数（N62 review / #190 CodeRabbit）。
+    渲染慢时头几帧还是点之前的样子——取头几帧会把旧方向当结果，点之前方向不知道时连「变没变」都没法判断；
+    等满窗口再看最后两帧，延迟不超过 DIR_SETTLE_LOOKS - 2 帧就一定是点完的样子。读不出、最后两帧不一样返回 None。"""
+    img, reads = None, []
     for i in range(DIR_SETTLE_LOOKS):
         if i:
             p.sleep(DIR_GAP)
         img = p.shoot()
-        d = sort_direction(img)
-        if before is not None and d == before:
-            prev = None  # 还没刷新的旧帧不算
-            continue
-        unchanged = False
-        if d is not None and d == prev:
-            return d, img
-        prev = d
-    return (before if unchanged else None), img
+        reads.append(sort_direction(img))
+    a, b = reads[-2:]
+    return (a if a is not None and a == b else None), img
 
 
 def ensure_newest_first(p) -> None:
     """入手排序要新的在前（增量补扫读到已知就停，反了会读旧回忆就停、漏掉新的，终审 C2；写编成按这个顺序下的行号找格子）。
-    G1 第 5 轮（11-27 Mac rc.9）：写第 3 格回忆时一帧读成 None 就停了（实机图标亮像素上 10 下 28，余量小）。现在连看几帧；
-    方向反了、或几帧都认不出，就点升降序按钮再看，最多点 DIR_FLIPS 次；还不行存帧再停。"""
+    G1 第 5 轮（11-27 Mac rc.9）：写第 3 格回忆时一帧读成 None 就停了（实机图标亮像素上 10 下 28，余量小）。现在：
+    - 连看几帧；还认不出就再读一遍状态（read_state），读到 desc 直接返回；连排序按钮都读不到（不一定在选择页）就停，不盲点。
+    - 还在选择页、方向读不出：点一下，等画面稳定后（_look_after_click）读出现在的方向；还读不出就停。
+    - 方向是 asc：点一下，等稳定后要是 desc；还是 asc 当作没点上，再点一次。
+    认不出、改不过来就存帧再停。"""
     d, img = _look_direction(p)
     seen = [d]
-    for _ in range(DIR_FLIPS):
-        if d == "desc":
-            return
-        if d is None:
-            st = read_state(p)  # 再读一遍方向和排序按钮（#190 CodeRabbit：读到 desc 就别再点，会翻回 asc）
-            if st["dir"] == "desc":
-                return
-            if st["sort"] is None:
-                break  # 连排序按钮都读不到：不一定还在选择页，别盲点那个位置
-            d = st["dir"]
-        before = d
+
+    def stop():
+        snap = getattr(p, "snap", None)
+        if callable(snap) and img is not None:
+            snap(img, "sort-direction-unknown")
+        raise MemoryFilterError(f"认不出 / 改不过来排序方向（读到 {' → '.join(str(x) for x in seen)}），停下，不扫")
+
+    def flip() -> str | None:
+        nonlocal img
         p.click(*DIR_BTN)
         p.sleep(1.5)
-        d, img = _look_after_click(p, before)
-        seen.append(d)
-    if d == "desc":
-        return
-    snap = getattr(p, "snap", None)
-    if callable(snap) and img is not None:
-        snap(img, "sort-direction-unknown")
-    raise MemoryFilterError(f"认不出 / 改不过来排序方向（读到 {' → '.join(str(x) for x in seen)}），停下，不扫")
+        got, img = _look_after_click(p)
+        seen.append(got)
+        return got
+
+    if d is None:
+        st = read_state(p)  # 再读一遍方向和排序按钮（#190 CodeRabbit：读到 desc 就别再点，会翻回 asc）
+        if st["dir"] == "desc":
+            return
+        if st["sort"] is None:
+            stop()  # 连排序按钮都读不到：不一定还在选择页，别盲点那个位置
+        d = st["dir"]
+    if d is None:
+        d = flip()
+        if d is None:
+            stop()
+    if d == "asc":
+        d = flip()
+        if d == "asc":  # 稳定后还是 asc：多半没点上，再点一次
+            d = flip()
+    if d != "desc":
+        stop()
 
 
 def apply_slice(p, slice_key: str) -> None:

@@ -416,20 +416,6 @@ def test_direction_one_unreadable_frame_is_looked_again():
     assert p.dir_clicks == 0
 
 
-def test_direction_unreadable_flips_until_desc():
-    """几帧都认不出（但排序按钮读得到、还在选择页）：点一下再看；原来是 asc 的话第二下就到 desc。"""
-    p = _dir_picker([None], [[None], ["desc"]])
-    mf.ensure_newest_first(p)
-    assert p.dir_clicks == 2
-
-
-def test_direction_never_readable_snaps_and_stops():
-    p = _dir_picker([None], [[None], [None]])
-    with pytest.raises(mf.MemoryFilterError, match="None → None → None"):
-        mf.ensure_newest_first(p)
-    assert p.dir_clicks == mf.DIR_FLIPS and p.snaps == ["sort-direction-unknown"]
-
-
 def test_direction_unreadable_off_picker_does_not_click_blind():
     """连排序按钮都读不到（不一定还在选择页）：不盲点升降序按钮的位置，直接停。"""
     p = _dir_picker([None])
@@ -440,15 +426,25 @@ def test_direction_unreadable_off_picker_does_not_click_blind():
 
 
 class _TogglePicker(FakePicker):
-    """升降序按钮真会翻方向；点完前 lag 帧还显示点之前的方向（渲染慢）。"""
+    """升降序按钮真会翻方向；点完前 lag 帧还显示点之前的方向（渲染慢）。blind：第一次点之前图标读不出（全黑）。
+    never：图标一直读不出。"""
 
-    def __init__(self, start, lag=0):
+    def __init__(self, start, lag=0, *, blind=False, never=False):
         super().__init__(sort="入手")
         self.dir, self.lag, self.shown_old = start, lag, 0
         self.dir_clicks = 0
         self.old = start
+        self.blind, self.never = blind, never
+        self.snaps = []
+
+    def snap(self, img, tag):
+        self.snaps.append(tag)
 
     def shoot(self):
+        import numpy as np
+
+        if self.never or (self.blind and self.dir_clicks == 0):
+            return np.zeros((1280, 720, 3), np.uint8)
         if self.shown_old > 0:
             self.shown_old -= 1
             return _icon_frame(self.old)
@@ -512,3 +508,21 @@ def test_restore_reads_direction_over_several_frames(monkeypatch):
     monkeypatch.setattr(mf, "sort_direction", lambda img: calls.append(1) or (None if len(calls) == 1 else real(img)))
     mf.restore(p, {"sort": "入手", "dir": "asc"})
     assert p.dir == "asc" and p.dir_clicks == 1
+
+
+@pytest.mark.parametrize("start", ["asc", "desc"])
+@pytest.mark.parametrize("lag", [0, 2, 3])
+def test_direction_unknown_before_click_is_verified(start, lag):
+    """#190 CodeRabbit：点之前方向读不出（还在选择页），点完头几帧可能还是旧画面：等画面稳定后再读，最后真的是 desc。
+    start=desc、lag=2 就是 CodeRabbit 说的情况（点完两帧还显示旧的 desc，实际已经是 asc）。"""
+    p = _TogglePicker(start, lag=lag, blind=True)
+    mf.ensure_newest_first(p)
+    assert p.dir == "desc"
+
+
+def test_direction_never_readable_snaps_and_stops():
+    """一直读不出：点一下还读不出就停（不一直盲点），存帧。"""
+    p = _TogglePicker("asc", never=True)
+    with pytest.raises(mf.MemoryFilterError, match="None → None"):
+        mf.ensure_newest_first(p)
+    assert p.dir_clicks == 1 and p.snaps == ["sort-direction-unknown"]
