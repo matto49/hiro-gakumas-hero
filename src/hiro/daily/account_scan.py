@@ -33,13 +33,14 @@ def _cy(b: Box) -> float:
 
 def parse_profile(boxes: list[Box]) -> dict | None:
     """プロフィール页 → {producer_id, name}；不是这一页（找不到 P-ID）返回 None。"""
-    label = next((b for b in boxes if re.search(r"P-?ID", b[0].replace(" ", ""))), None)
+    # 不分大小写：RapidOCR 会读成「P-Id VrrL6gVW」（G1 第 4 轮 11-26 Mac：Vision 坏了换 RapidOCR，30 秒都认不出这一页）
+    label = next((b for b in boxes if re.search(r"P-?ID", b[0].replace(" ", ""), re.I)), None)
     if label is None:
         return None
     pid = None
     row = sorted((b for b in boxes if abs(_cy(b) - _cy(label)) < 15 and b[2][0] >= label[2][0]), key=lambda b: b[2][0])
     for b in row:
-        if m := ID_RE.search(re.sub(r"P-?ID", "", b[0].replace(" ", "").upper())):
+        if m := ID_RE.search(re.sub(r"P-?ID", "", b[0].replace(" ", "").upper())):  # 先转大写再去掉标签
             pid = m.group(1)
             break
     if pid is None:

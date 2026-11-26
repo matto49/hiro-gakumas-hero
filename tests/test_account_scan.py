@@ -79,3 +79,9 @@ def test_scan_account_job_uses_account_scan():
     k = KINDS["scan-account"]
     argv = k.argv({}, Path("/tmp/job"))
     assert "hiro.daily.account_scan" in argv and k.output == "account"
+
+
+def test_parse_profile_rapidocr_mixed_case():
+    """G1 第 4 轮 11-26（Mac，Vision 坏了换 RapidOCR）：这一行读成「P-Id VrrL6gVW」，原来区分大小写认不出，30 秒超时。"""
+    boxes = [(t, 1.0, b) if t != "P-ID VRRL6GVW" else ("P-Id VrrL6gVW", 1.0, b) for t, _, b in PROFILE_BOXES]
+    assert account_scan.parse_profile(boxes)["producer_id"] == "VRRL6GVW"
