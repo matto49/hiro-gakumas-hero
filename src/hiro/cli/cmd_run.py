@@ -241,8 +241,8 @@ def _check_formation_plan(a: dict) -> None:
 
 def _auto_formation() -> bool:
     """D4（11-26）：开局时方案没定编成号 / 没写进游戏，在同一个开局任务里自己挑空白编成位、写好再开局，不再反问玩家。
-    监督代为拍板的缺省行为变化，按规程做成开关、缺省关：HIRO_AUTO_FORMATION=1 打开。"""
-    return os.environ.get("HIRO_AUTO_FORMATION") == "1"
+    D7（11-26 用户本人定）：缺省打开；HIRO_AUTO_FORMATION=0 关掉，回到「报 plan_no_set / plan_not_written，让玩家定编成号、先写编成」。"""
+    return os.environ.get("HIRO_AUTO_FORMATION", "1").strip() != "0"
 
 
 _MODE_NAME = {"hif": "H.I.F", "hajime": "「初」", "nia": "N.I.A"}

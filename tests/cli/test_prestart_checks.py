@@ -144,7 +144,7 @@ def _plan_no_set(home, idol="i_card-fktn-3-000"):
     (home / "formation-plan.json").write_text(json.dumps(plan, ensure_ascii=False), encoding="utf-8")
 
 
-def test_plan_without_set_is_refused_before_confirm(run_cli, hiro_home):
+def test_plan_without_set_is_refused_before_confirm(run_cli, hiro_home, auto_formation_off):
     _plan_no_set(hiro_home)
     _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE)
     assert env["ok"] is False and env["error"]["code"] == "plan_no_set"
@@ -161,7 +161,7 @@ def test_write_formation_without_set_is_refused(run_cli, hiro_home):
     assert env["ok"] is False and env["error"]["code"] == "plan_no_set"
 
 
-def test_only_one_set_given_checks_the_other_in_plan(run_cli, hiro_home):
+def test_only_one_set_given_checks_the_other_in_plan(run_cli, hiro_home, auto_formation_off):
     """CodeRabbit #88：只给了支援卡编成号，回忆编成号还要看方案；方案里也没有就在确认前说。"""
     _plan_no_set(hiro_home)
     _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE, "--support-set", "3")

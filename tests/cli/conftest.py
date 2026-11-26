@@ -25,3 +25,9 @@ def run_cli(capsys):
         return code, json.loads(out)
 
     return _run
+
+
+@pytest.fixture
+def auto_formation_off(monkeypatch):
+    """D7（11-26 用户定）开局前自动挑编成位、写编成缺省打开；测「没定编成号就报错让玩家选」的老路径时关掉。"""
+    monkeypatch.setenv("HIRO_AUTO_FORMATION", "0")

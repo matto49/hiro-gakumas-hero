@@ -1,6 +1,6 @@
 """一句话开局不再卡在「编成位填几号」（G0，11-26 真窗口实测：助手反问玩家支援卡 / 回忆编成用第几号）。
 
-开关 HIRO_AUTO_FORMATION（D4）：开着时，方案没定编成号或还没写进游戏，开局不再报 plan_no_set / plan_not_written 让人去问、去写，
+开关 HIRO_AUTO_FORMATION（D4；D7 用户定缺省打开，=0 关）：开着时，方案没定编成号或还没写进游戏，开局不再报 plan_no_set / plan_not_written 让人去问、去写，
 而是在同一个开局任务里先做准备：方案没定编成号就挑这个模式里空着的编成位（读过编成位的现在就挑；没读过的进游戏先读），
 再把方案写进去（只写空白位，不动玩家已有的编成），然后开局。编成位都满了才停下问。"""
 
@@ -48,11 +48,23 @@ def _formations(mode, support, memory):
     open_store().save_snapshot("formations", rows, "test")
 
 
-def test_off_by_default_still_asks(run_cli, hiro_home):
+def test_switched_off_still_asks(run_cli, hiro_home, monkeypatch):
+    """HIRO_AUTO_FORMATION=0：回到报 plan_no_set、让玩家定编成号。"""
+    monkeypatch.setenv("HIRO_AUTO_FORMATION", "0")
     _plan(hiro_home)
     _formations("hajime", {1: 5, 2: 0}, {1: 4, 2: 0})
     _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
     assert env["error"]["code"] == "plan_no_set"
+
+
+def test_on_by_default(run_cli, hiro_home, monkeypatch):
+    """D7（11-26 用户本人定）：不设开关也会自己挑空白编成位，不报 plan_no_set。"""
+    monkeypatch.delenv("HIRO_AUTO_FORMATION", raising=False)
+    _plan(hiro_home)
+    _formations("hajime", {1: 5, 2: 0}, {1: 4, 2: 0})
+    code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
+    assert code == 3, env  # 出开局确认卡（待确认），不是报错
+    assert env["data"]["pending"]["args"]["prepare"] is True
 
 
 def test_picks_blank_slots_from_last_scan_and_prepares_in_same_job(run_cli, hiro_home, on):

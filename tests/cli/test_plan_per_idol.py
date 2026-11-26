@@ -97,7 +97,7 @@ def test_written_plan_starts(run_cli, hiro_home, fake_build):
     assert sorted(per["written"]["hajime"]["what"]) == ["memory", "support"]
 
 
-def test_auto_plan_without_slot_numbers_says_which_slot(run_cli, hiro_home, fake_build):
+def test_auto_plan_without_slot_numbers_says_which_slot(run_cli, hiro_home, fake_build, auto_formation_off):
     _inventory(run_cli)
     _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
     assert env["error"]["code"] == "plan_no_set"
@@ -110,7 +110,7 @@ def test_no_inventory_still_says_scan_first(run_cli, hiro_home):
     assert env["error"]["code"] == "no_plan" and "扫描" in env["error"]["hint"]
 
 
-def test_plan_per_mode_does_not_leak_to_other_mode(run_cli, hiro_home, fake_build):
+def test_plan_per_mode_does_not_leak_to_other_mode(run_cli, hiro_home, fake_build, auto_formation_off):
     _inventory(run_cli)
     run_cli("plan", "formation", "--idol", KOTONE, "--mode", "nia", "--support-set", "3", "--memory-set", "4")
     from hiro.brain import formation_plan as fp
@@ -156,7 +156,7 @@ def test_current_plan_without_per_mode_copy_is_kept(hiro_home):
     assert not fp.plan_key_path(hiro_home, KOTONE, "_legacy").is_file()
 
 
-def test_auto_plan_with_one_set_given_only_asks_the_other(run_cli, hiro_home, fake_build):
+def test_auto_plan_with_one_set_given_only_asks_the_other(run_cli, hiro_home, fake_build, auto_formation_off):
     """#87 + #88 合流：自动出了方案、开局只给了支援卡编成号，就只问回忆编成位。"""
     _inventory(run_cli)
     _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN, "--support-set", "3")
