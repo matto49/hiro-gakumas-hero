@@ -202,17 +202,43 @@ def sort_direction(img) -> str | None:
     return None
 
 
+DIR_LOOKS, DIR_GAP = 3, 0.5  # 读升降序图标：一帧认不出就隔一会儿再看，最多看几帧
+DIR_FLIPS = 2  # 认不出 / 方向反了时最多点几次升降序按钮（两次就把 asc、desc 都过了一遍）
+
+
+def _look_direction(p) -> tuple[str | None, object]:
+    """连看 DIR_LOOKS 帧，返回第一个认得出的方向和那一帧；都认不出返回 (None, 最后一帧)。"""
+    img = None
+    for i in range(DIR_LOOKS):
+        if i:
+            p.sleep(DIR_GAP)
+        img = p.shoot()
+        if (d := sort_direction(img)) is not None:
+            return d, img
+    return None, img
+
+
 def ensure_newest_first(p) -> None:
-    """入手排序要新的在前（增量补扫读到已知就停，反了会读旧回忆就停、漏掉新的，终审 C2）：不是就点一下按钮再核对；认不出就停。"""
-    d = sort_direction(p.shoot())
-    if d == "desc":
-        return
-    if d == "asc":
+    """入手排序要新的在前（增量补扫读到已知就停，反了会读旧回忆就停、漏掉新的，终审 C2；写编成按这个顺序下的行号找格子）。
+    G1 第 5 轮（11-27 Mac rc.9）：写第 3 格回忆时一帧读成 None 就停了（实机图标亮像素上 10 下 28，余量小）。现在连看几帧；
+    方向反了、或几帧都认不出，就点升降序按钮再看，最多点 DIR_FLIPS 次；还不行存帧再停。"""
+    d, img = _look_direction(p)
+    seen = [d]
+    for _ in range(DIR_FLIPS):
+        if d == "desc":
+            return
+        if d is None and read_state(p)["sort"] is None:
+            break  # 连排序按钮都读不到：不一定还在选择页，别盲点那个位置
         p.click(*DIR_BTN)
         p.sleep(1.5)
-        if sort_direction(p.shoot()) == "desc":
-            return
-    raise MemoryFilterError(f"认不出 / 改不过来排序方向（{d}），停下，不扫")
+        d, img = _look_direction(p)
+        seen.append(d)
+    if d == "desc":
+        return
+    snap = getattr(p, "snap", None)
+    if callable(snap) and img is not None:
+        snap(img, "sort-direction-unknown")
+    raise MemoryFilterError(f"认不出 / 改不过来排序方向（读到 {' → '.join(str(x) for x in seen)}），停下，不扫")
 
 
 def apply_slice(p, slice_key: str) -> None:

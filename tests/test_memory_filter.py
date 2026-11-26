@@ -380,3 +380,60 @@ def test_open_on_blank_screen_says_cannot_see_game():
     picker.ocr = lambda img: [("何か", 1.0, (100, 300, 200, 320))]
     with pytest.raises(mf.MemoryFilterError, match="弹窗没出来"):
         mf._open(picker)
+
+
+# ---------------------------------------------------------------- N62：排序方向一帧认不出就停（G1 第 5 轮 11-27 Mac rc.9，写第 3 格回忆）
+
+
+def _dir_picker(frames_before_click, frames_after_click=None):
+    """shoot 依次给 frames_before_click 里的方向（None = 认不出的帧），点一次升降序按钮后换成 frames_after_click。"""
+    import numpy as np
+
+    p = FakePicker()
+    p.sort = "入手"
+    seq = {"cur": list(frames_before_click), "after": list(frames_after_click or [])}
+    p.dir_clicks, p.snaps = 0, []
+
+    def shoot():
+        d = seq["cur"].pop(0) if len(seq["cur"]) > 1 else seq["cur"][0]
+        return _icon_frame(d) if d else np.zeros((1280, 720, 3), np.uint8)
+
+    def click(x, y):
+        if (x, y) == mf.DIR_BTN:
+            p.dir_clicks += 1
+            seq["cur"] = seq["after"].pop(0) if seq["after"] else seq["cur"]
+            return
+        FakePicker.click(p, x, y)
+
+    p.shoot, p.click = shoot, click
+    p.snap = lambda img, tag: p.snaps.append(tag)
+    return p
+
+
+def test_direction_one_unreadable_frame_is_looked_again():
+    p = _dir_picker([None, "desc"])
+    mf.ensure_newest_first(p)
+    assert p.dir_clicks == 0
+
+
+def test_direction_unreadable_flips_until_desc():
+    """几帧都认不出（但排序按钮读得到、还在选择页）：点一下再看；原来是 asc 的话第二下就到 desc。"""
+    p = _dir_picker([None], [[None], ["desc"]])
+    mf.ensure_newest_first(p)
+    assert p.dir_clicks == 2
+
+
+def test_direction_never_readable_snaps_and_stops():
+    p = _dir_picker([None], [[None], [None]])
+    with pytest.raises(mf.MemoryFilterError, match="None → None → None"):
+        mf.ensure_newest_first(p)
+    assert p.dir_clicks == mf.DIR_FLIPS and p.snaps == ["sort-direction-unknown"]
+
+
+def test_direction_unreadable_off_picker_does_not_click_blind():
+    """连排序按钮都读不到（不一定还在选择页）：不盲点升降序按钮的位置，直接停。"""
+    p = _dir_picker([None])
+    p.ocr = lambda img: []
+    with pytest.raises(mf.MemoryFilterError):
+        mf.ensure_newest_first(p)
+    assert p.dir_clicks == 0
