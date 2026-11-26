@@ -343,15 +343,23 @@ func Exam(label string) string {
 				return v
 			}
 			if lesson, ok := strings.CutPrefix(rest, "lesson"); ok {
+				if lesson == "" {
+					return "课程"
+				}
 				parts := strings.Split(strings.TrimPrefix(lesson, "-"), "-")
-				attr := map[string]string{"vo": "Vo", "da": "Da", "vi": "Vi"}[parts[0]]
-				out := strings.TrimSpace(attr + " 课程")
-				if len(parts) > 1 {
+				attr, ok := map[string]string{"vo": "Vo", "da": "Da", "vi": "Vi"}[parts[0]]
+				if !ok || len(parts) > 2 || !strings.HasPrefix(lesson, "-") {
+					return label // 认不出的格式原样给（#165 review）
+				}
+				out := attr + " 课程"
+				if len(parts) == 2 {
 					switch parts[1] {
 					case "hard":
 						out = "追い込み " + out
 					case "sp":
 						out = "SP " + out
+					default:
+						return label
 					}
 				}
 				return out
