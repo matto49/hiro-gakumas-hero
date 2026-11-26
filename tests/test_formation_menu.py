@@ -196,6 +196,33 @@ def test_ensure_set_retaps_dropped_arrow(game, monkeypatch):
     assert fm.Menu(dev).ensure_set(4)["number"] == 4 and dropped == [1]
 
 
+def test_ensure_tab_retaps_dropped_click(game, monkeypatch):
+    """N52（G3 第 4 轮 11-26 Windows DMM）：切页签那一下点击丢了：没切过去就再点，不是点一次 14 秒就停。"""
+    g, dev = game
+    g.where, g.tab = "menu", "memory"
+    monkeypatch.setattr(fm, "WAIT_TRIES", 2)
+    real, dropped = g.click, []
+
+    def flaky(x, y):
+        if (x, y) == (128, 1092) and not dropped:
+            dropped.append(1)
+            return
+        real(x, y)
+
+    dev.click = flaky
+    assert fm.Menu(dev).ensure_tab("support")["tab"] == "support" and dropped == [1]
+
+
+def test_ensure_tab_gives_up_with_plain_message(game, monkeypatch):
+    g, dev = game
+    g.where, g.tab = "menu", "memory"
+    monkeypatch.setattr(fm, "WAIT_TRIES", 1)
+    dev.click = lambda x, y: None  # 一直没反应
+    with pytest.raises(fm.FormationWriteError, match="支援卡") as e:
+        fm.Menu(dev).ensure_tab("support")
+    assert "support" not in str(e.value)
+
+
 # ---------------------------------------------------------------- 写入 + 回读
 PLAN = {"memory": {"set": 20, "chosen": [{"card_id": f"p_card-02-men-2_00{i}", "cell": [i, 0], "key": "k"} for i in range(1, 5)]},
         "support": {"set": 20, "own": [{"support_card_id": f"s_card-{i}"} for i in range(5)]}}  # fmt: skip

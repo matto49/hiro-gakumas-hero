@@ -31,6 +31,7 @@ MODE_NAMES = {"hajime": "初", "nia": "N.I.A", "hif": "H.I.F"}
 # 切替框里的三条横幅（720x1280，协调 11-17 实机帧 79_switch）：初 / N.I.A / H.I.F 从上到下
 MODE_BANNERS = {"hajime": (360, 410), "nia": (360, 600), "hif": (360, 796)}
 ARROWS = {"prev": (40, 635), "next": (680, 635)}  # 编成号左右箭头（同 support_screens.ARROWS["formation"]）
+TAB_NAMES = {"support": "サポート編成（支援卡）", "memory": "メモリー編成（回忆）"}  # 报错里给人看的页签名
 IDOL_TAB = (236, 1130)  # 主页底栏「アイドル」（OCR 找不到时用）
 # 回忆页：下面 4 张插图（点开进选择页，左上、右上、左下、右下）；上面一排 4 个技能卡大图标（回读用，顺序同格子 01–04）
 MEMORY_TILES = ((197, 730), (522, 730), (197, 861), (522, 861))
@@ -292,8 +293,18 @@ class Menu:
         _, m = self.wait_menu(why="プロデュース編成页")
         if m["tab"] == tab:
             return m
-        self.dev.click(*m["buttons"][f"{tab}_tab"])
-        return self.wait_menu(lambda x: x["tab"] == tab, why=f"{tab} 页签")[1]
+        name = TAB_NAMES.get(tab, tab)
+        for attempt in range(ARROW_RETRIES + 1):
+            # DMM 后台点击偶尔丢一下（同翻编成号）：页签没切过去就再点（N52，G3 第 4 轮 11-26 Windows：只点一次，14 秒就停）
+            self.dev.click(*m["buttons"][f"{tab}_tab"])
+            try:
+                return self.wait_menu(lambda x: x["tab"] == tab, why=f"「{name}」页签")[1]
+            except FormationWriteError:
+                if attempt == ARROW_RETRIES:
+                    raise FormationWriteError(
+                        f"点了 {ARROW_RETRIES + 1} 次「{name}」页签都没切过去（游戏没反应或画面认不出）"
+                    ) from None
+        raise AssertionError("unreachable")
 
     def ensure_set(self, number: int) -> dict:
         """左右箭头翻到编成号 number（每点一下都核对编号变了，不靠首尾循环）。"""
