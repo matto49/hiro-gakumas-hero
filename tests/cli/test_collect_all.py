@@ -132,3 +132,30 @@ def test_summary_lists_steps_in_chinese_not_only_param():
     assert KINDS["collect-all"].summary({"only": "account,idols,supports,formations,memories"}) == full
     part = KINDS["collect-all"].summary({"only": "memories,idols"})
     assert part == "一键全收集：偶像卡 → 回忆（12 片全读）（只读，不改编成）" and "memories" not in part
+
+
+def test_slice_scan_failure_falls_back_to_whole_list(tmp_path, monkeypatch, capsys):
+    """N43（G2 11-26 Mac rc.7）：按片扫描回忆失败（RapidOCR 读不出筛选弹窗），改用整表扫描再做一遍，成功就入库、整个任务算完成。"""
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")
+    calls, imported, runner, importer = _fake(fail_at=1)
+    assert collect_all.run(tmp_path, ["memories"], runner=runner, importer=importer) == 0
+    assert "--slices" in calls[0] and "--slices" not in calls[1] and "hiro.memory_scan" in calls[1]
+    assert imported == ["memories"]
+    out = capsys.readouterr().out
+    assert "改用整表扫描" in out and "（整表扫描）" in out
+    import os
+
+    assert os.environ.get("HIRO_MEMORY_SLICES") == "1"  # 临时关掉的开关要还原
+
+
+def test_whole_list_fallback_failure_still_stops(tmp_path, monkeypatch):
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")
+    calls, imported, _runner, importer = _fake()
+    seq = iter([2, 3])
+
+    def failing(argv, env=None):
+        calls.append(argv)
+        return R(next(seq))
+
+    assert collect_all.run(tmp_path, ["memories"], runner=failing, importer=importer) == 3
+    assert len(calls) == 2 and imported == []

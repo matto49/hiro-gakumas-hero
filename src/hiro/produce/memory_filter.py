@@ -18,6 +18,10 @@ from hiro.vision.textnorm import fold
 
 SORTS = ("プロデュースクリアランク", "入手", "アイドル", "タグ")
 PILL = (485, 1051)
+# 弹窗底部两个页签（720x1280）。选中的页签是橙字白底，RapidOCR 认不出（G2 11-26 Mac rc.7：Vision 坏了换 RapidOCR 后
+# 只读出「-」和「フィルタ」，一直找不到「ソート」）：认不出就按位置点
+TABS = {"ソート": (205, 1029), "フィルタ": (514, 1029)}
+TAB_MARK = {"ソート": "表示順"}  # 已经在这一页的标志：看得到就不用点页签
 SORT_ZONE = (240, 400)
 DIR_BTN = (653, 1051)  # 选择页右下的升降序按钮
 DIR_ICON = (
@@ -96,6 +100,16 @@ def _tap(p, word: str, *, exact: bool = False, y_min: int = 0, y_max: int = 1280
     if b is None:
         raise MemoryFilterError(f"弹窗里找不到「{word}」{why}")
     p.click(*_center(b))
+    p.sleep(0.6)
+
+
+def _tab(p, name: str) -> None:
+    """切到弹窗的某个页签：OCR 认得出就点字；认不出（选中态橙字）时，已经在这一页就不点，否则按位置点。"""
+    boxes = _boxes(p)
+    b = _find(boxes, name, exact=True, y_min=1000)
+    if b is None and (mark := TAB_MARK.get(name)) and _find(boxes, mark, y_max=1000) is not None:
+        return
+    p.click(*(_center(b) if b is not None else TABS[name]))
     p.sleep(0.6)
 
 
@@ -181,9 +195,9 @@ def apply_slice(p, slice_key: str) -> None:
     不筛选（11-26 实机：灰勾不是「全勾」，点一下变橙才是选中）；再在两组里各点目标那一个。"""
     plan, produce = slice_key.split(":")
     _open(p)
-    _tap(p, "ソート", exact=True, y_min=1000, why="（页签）")
+    _tab(p, "ソート")
     _tap(p, "入手", y_min=SORT_ZONE[0], y_max=SORT_ZONE[1], why="（排序）")
-    _tap(p, "フィルタ", exact=True, y_min=1000, why="（页签）")
+    _tab(p, "フィルタ")
     _tap(p, "リセット", y_min=900, y_max=1000, why="（フィルタをリセット）")
     _, got = _section(p, "プラン", tuple(PLAN_LABELS.values()), "スキルカードタイプ")
     p.click(*_center(got[PLAN_LABELS[plan]]))
@@ -199,9 +213,9 @@ def restore(p, state: dict, *, report: dict | None = None) -> bool:
     """排序改回 state["sort"]（不知道就不动），筛选点「フィルタをリセット」。返回按钮上的排序是不是已经恢复。"""
     _open(p)
     if state.get("sort"):
-        _tap(p, "ソート", exact=True, y_min=1000, why="（页签）")
+        _tab(p, "ソート")
         _tap(p, state["sort"], y_min=SORT_ZONE[0], y_max=SORT_ZONE[1], why="（排序）")
-    _tap(p, "フィルタ", exact=True, y_min=1000, why="（页签）")
+    _tab(p, "フィルタ")
     _tap(p, "リセット", y_min=900, y_max=1000, why="（フィルタをリセット）")
     _confirm(p)
     if report is not None:

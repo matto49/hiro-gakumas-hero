@@ -272,3 +272,33 @@ def test_restore_reports_false_when_original_state_unknown():
     p = FakePicker()
     assert mf.restore(p, {"sort": "プロデュースクリアランク", "dir": "desc"}) is True
     del np
+
+
+class SelectedTabUnreadable(FakePicker):
+    """G2 11-26（Mac rc.7，RapidOCR）：选中的页签是橙字白底，RapidOCR 认不出；「ソート」页上看得到「表示順」。"""
+
+    def _visible(self):
+        out = super()._visible()
+        if self.popup:
+            cur = "ソート" if self.tab == "sort" else "フィルタ"
+            out = [(t, b) for t, b in out if t != cur]
+            if self.tab == "sort":
+                out.append(("表示順", (40, 190, 140, 214)))
+        return out
+
+    def click(self, x, y):
+        # 页签按位置点（TABS）时认得出来
+        if self.popup:
+            for name, (tx, ty) in mf.TABS.items():
+                if abs(x - tx) < 60 and abs(y - ty) < 20:
+                    self.clicks.append((x, y))
+                    self.tab = "sort" if name == "ソート" else "filter"
+                    return
+        super().click(x, y)
+
+
+def test_selected_tab_unreadable_still_switches():
+    p = SelectedTabUnreadable()
+    p.tab = "sort"  # 弹窗打开时停在「ソート」页（实机）
+    mf.apply_slice(p, "logic:nia")
+    assert p.sort == "入手" and checked_in(p, 890, 1091) == ["ロジック"]
