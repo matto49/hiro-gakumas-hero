@@ -47,8 +47,9 @@ type BootEnv struct {
 	FreeBytes             func(dir string) (uint64, error) // nil：不查
 }
 
-// needFree 是装环境要的磁盘空间（Python、依赖、游戏数据、下载缓存；2026-11-17 实测装到一半已占 2.5 GB）。
-const needFree = 6 << 30
+// needFree 是装环境要的磁盘空间（Python、依赖、游戏数据、下载缓存）。2026-11-17 装 .[dev,play] 装到一半占 2.5 GB；
+// #139 起只装 play，11-26 G1 第 3 轮实测装完整个数据目录 1.2 GB，原来的 6 GB 把 3.6 GB 空闲的 Mac 拦在门外（N25），留一倍余量取 3 GB。
+const needFree = 3 << 30
 
 // installedMarker 是安装脚本整个跑完后写的标记：setup.sh 第 1 步就建好了 .venv，只看 .venv 会把装了一半当成装好了。
 const installedMarker = ".hiro-installed"
@@ -88,7 +89,7 @@ func PlanBootstrap(e BootEnv) ([]Step, *CliError) {
 	if e.FreeBytes != nil {
 		if free, err := e.FreeBytes(e.Home); err == nil && free < needFree {
 			return nil, &CliError{Code: "disk_full", Message: fmt.Sprintf("磁盘只剩 %.1f GB，装环境要 %d GB 左右", float64(free)/(1<<30), needFree>>30),
-				Hint: "清掉一些大文件（下载、录屏、旧安装包）后再点「安装」"}
+				Hint: "清掉一些大文件（下载、录屏、旧安装包）后点「重新检查」"}
 		}
 	}
 	var steps []Step

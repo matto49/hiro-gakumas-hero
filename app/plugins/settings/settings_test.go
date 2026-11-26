@@ -491,3 +491,36 @@ func TestFooterSaysWhenKeyMissing(t *testing.T) {
 		t.Fatalf("codex 不要 Key：%q", tt.Texts())
 	}
 }
+
+// N25（G1 第 3 轮 11-26）：打开时磁盘不够，清完空间后「安装」一直是灰的，只能关掉重开。现在点「重新检查」重算。
+func TestWizardDiskErrorRechecks(t *testing.T) {
+	f := &fake{secrets: map[string]string{}}
+	free := false
+	d := f.deps()
+	d.BootStatus = func(context.Context) BootStatus {
+		if !free {
+			return BootStatus{Steps: []string{"装 Python 环境"}, Err: "磁盘只剩 1.0 GB，装环境要 3 GB 左右。清掉一些大文件后点「重新检查」"}
+		}
+		return BootStatus{Steps: []string{"装 Python 环境"}}
+	}
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`})
+	s := New(d)
+	tt := ui.NewTester(func(c *ui.Context) { s.Gate(c, h) }, 1280, 900)
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText("磁盘只剩 1.0 GB，装环境要 3 GB 左右。清掉一些大文件后点「重新检查」") {
+		t.Fatalf("应显示磁盘不够：%q", tt.Texts())
+	}
+	free = true
+	if err := plugintest.ClickButton(tt, "重新检查"); err != nil {
+		t.Fatalf("磁盘不够时应有「重新检查」：%v %q", err, tt.Texts())
+	}
+	tt.Frame()
+	tt.Frame()
+	if tt.HasText("重新检查") || s.boot.Err != "" {
+		t.Errorf("清完空间重新检查后错误应消失：%q", tt.Texts())
+	}
+	if err := plugintest.ClickButton(tt, "安装"); err != nil {
+		t.Errorf("重新检查通过后「安装」应能点：%v", err)
+	}
+}

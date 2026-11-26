@@ -498,6 +498,10 @@ func (s *S) envSection(c *ui.Context, h plugin.Host) {
 	if kit.Primary(c, label).Disabled(s.booting || b.Err != "").Clicked() {
 		s.installEnv(h)
 	}
+	// 磁盘不够等错误是打开时算的：清完空间点这里重算，不用关掉重开（N25，G1 第 3 轮 11-26）
+	if b.Err != "" && !s.booting && kit.Secondary(c, "重新检查").Key("boot-recheck").Clicked() {
+		s.Recheck(h)
+	}
 	if n := len(s.bootLines); n > 0 {
 		ui.Text(c, strings.Join(s.bootLines[max(0, n-30):], "\n")).Font(kit.Mono).FontSize(11).TextColor(kit.Ink2).Padding(10).Radius(kit.R8).Background(kit.Surface2).Wrap()
 	}
