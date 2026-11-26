@@ -49,6 +49,21 @@ def _survey(mode: str, kinds=("support", "memory")) -> dict:
     return survey(dev, mode, kinds=tuple(kinds), read_formation=read_support_formation, stop_at_blank=True)
 
 
+def _go_home() -> None:
+    """停下前把游戏退回首页（N48，G2 11-26：读完编成位发现全满停下时游戏留在「メモリー編成」页，下一个任务得从那里起步）。
+    尽力而为：退不回去只记警告，不盖掉停下的原因。"""
+    try:
+        from hiro.daily import Popup, make_runtime
+        from hiro.devices import open_device
+        from hiro.runtime import nav
+
+        dev = open_device()
+        dev.connect()
+        nav.goto_home(make_runtime(dev, popup=Popup()))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("停下前退回首页没成功：%s", e)
+
+
 def _write(mode: str, what=("support", "memory"), blank_only=()) -> int:
     """写编成（写完回读核对，通过后 mark_written）。返回退出码。blank_only 见 tools/write_formation.py --blank-only。"""
     argv = [sys.executable, str(REPO / "tools" / "write_formation.py"), "--mode", mode, "--what", ",".join(what)]
@@ -140,6 +155,7 @@ def main(argv: list[str] | None = None) -> int:
             if not blanks and (ours := own_full_slots(hiro_home(), mode, w, rows)):
                 blanks = reused[w] = ours  # D26：都满了，覆盖初星助手自己写过的号（不动玩家配的）
             if not blanks:
+                _go_home()
                 return _stop(_full_hint(mode, w, rows), 4)
             rec["picked"][w] = blanks[0]
             plan[w] = dict(plan.get(w) or {}, set=blanks[0])

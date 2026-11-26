@@ -51,6 +51,7 @@ def calls(monkeypatch):
     monkeypatch.setattr(ps, "_write", write)
     monkeypatch.setattr(ps, "_exec", lambda argv: log.append(("exec", argv)) or 0)
     monkeypatch.setattr(ps, "_check_memory_freshness", lambda plan_path, home: None)
+    monkeypatch.setattr(ps, "_go_home", lambda: log.append(("home", "")))
     return log
 
 
@@ -92,6 +93,15 @@ def test_slot_written_by_us_needs_no_blank_guard(home, calls):
     assert ("blank_only", "memory") in calls
 
 
+def test_go_home_failure_only_warns(monkeypatch, caplog):
+    """退回首页失败（连不上游戏等）只记警告，不抛、不盖掉停下的原因。"""
+    import hiro.devices as devices
+
+    monkeypatch.setattr(devices, "open_device", lambda: (_ for _ in ()).throw(RuntimeError("连不上")))
+    ps._go_home()
+    assert "退回首页没成功：连不上" in caplog.text
+
+
 def test_nothing_to_do_just_starts(home, calls):
     _plan(home, sets=(4, 5), written=True)
     assert ps.main(["--mode", "hajime", "--", "x"]) == 0
@@ -104,6 +114,7 @@ def test_all_full_stops_without_writing(home, calls, monkeypatch, capsys):
                         "sets": [{"kind": k, "set": n, "filled": 3, "cards": []} for k in ("support", "memory") for n in range(1, 21)]})  # fmt: skip
     rc = ps.main(["--mode", "hajime", "--", "x"])
     assert rc != 0 and not any(c[0] in ("write", "exec") for c in calls)
+    assert ("home", "") in calls  # N48：停下前退回首页，不把游戏留在编成页
     err = capsys.readouterr().err
     # N34（G1 第 3 轮）：说清有哪几号、在对话里怎么说
     assert (
