@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -19,8 +20,16 @@ import (
 // 内部标识 top.matto.hiro-console、数据目录 hiro-console、命令行 hiro 都不随改名变（设置和已存的 Key 不丢）。
 var AppName = locales.AppTitle()
 
+// restartServiceFlag：以管理员身份重新打开时带上（elevate_windows.go），启动时先关掉旧的后台服务。
+const restartServiceFlag = "--restart-service"
+
 func main() {
 	fixPath()
+	for _, a := range os.Args[1:] {
+		if a == restartServiceFlag {
+			shutdownService(5 * time.Second) // 旧窗口留下的普通权限服务：关掉，之后按需拉起本进程权限的
+		}
+	}
 	home := HiroHome()
 	logToHome(home)
 	hiro := &Hiro{}

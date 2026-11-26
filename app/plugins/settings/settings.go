@@ -318,7 +318,7 @@ func (s *S) wizard(c *ui.Context, h plugin.Host) {
 						s.Probe(h)
 					}
 					kit.Note(c, "先把游戏打开、停在首页。Mac 用带 maaTools 的 PlayCover，并在游戏设置里打开 maaTools；Windows 用 DMM 版，窗口不要最小化。")
-					s.deviceLine(c)
+					s.deviceLine(c, h)
 					if kit.Secondary(c, "试连").Disabled(s.probing).Clicked() {
 						s.Probe(h)
 					}
@@ -409,7 +409,7 @@ func (s *S) scanSection(c *ui.Context) {
 	}
 }
 
-func (s *S) deviceLine(c *ui.Context) {
+func (s *S) deviceLine(c *ui.Context, h plugin.Host) {
 	text := s.device
 	if text == "" {
 		text = "还没试连"
@@ -423,7 +423,7 @@ func (s *S) deviceLine(c *ui.Context) {
 	ui.Text(c, text).FontSize(kit.FSmall).TextColor(col)
 	if it, ok := s.doctor["platform"]; ok && it.OK != nil && !*it.OK {
 		kit.Note(c, it.Detail+"　"+it.Next)
-		if it.NeedAdmin && s.d.RelaunchAdmin != nil {
+		if it.NeedAdmin && s.d.RelaunchAdmin != nil && h.LiveJob() == "" { // 有任务在跑时不给（重开会停掉它，#140 review）
 			if kit.Secondary(c, "以管理员身份重新打开").Key("relaunch-admin").Label("以管理员身份重新打开").Clicked() {
 				s.relaunchErr = ""
 				if err := s.d.RelaunchAdmin(); err != nil {
@@ -780,7 +780,7 @@ func (s *S) panel(c *ui.Context, h plugin.Host, route string) {
 	ui.Text(c, "扫描").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
 	s.scanSection(c)
 	ui.Text(c, "游戏连接").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
-	s.deviceLine(c)
+	s.deviceLine(c, h)
 	if kit.Secondary(c, "试连").Key("probe").Disabled(s.probing || h.LiveJob() != "").Clicked() {
 		s.Probe(h)
 	}

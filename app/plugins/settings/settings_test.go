@@ -426,6 +426,14 @@ func TestWizardConnectOffersRelaunchAsAdmin(t *testing.T) {
 		t.Fatalf("点了应调 RelaunchAdmin 并显示原因：calls=%d %q", calls, tt.Texts())
 	}
 
+	// 有任务在跑：重开会停掉它，不给按钮（#140 review）
+	h.Live = "job-1"
+	tt.Frame()
+	if tt.Click("以管理员身份重新打开") == nil {
+		t.Fatal("有任务在跑时不该有按钮")
+	}
+	h.Live = ""
+
 	// Mac：RelaunchAdmin 为 nil，不出按钮
 	s2 := New(f.deps())
 	tt2 := ui.NewTester(func(c *ui.Context) { s2.Gate(c, h) }, 1280, 900)

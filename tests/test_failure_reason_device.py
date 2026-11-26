@@ -28,7 +28,7 @@ TB = ["Traceback (most recent call last):", '  File "x.py", line 1, in <module>'
         ("hiro.devices.base.DeviceGone: adb 设备 127.0.0.1:5555 不在了：offline", "和游戏设备的连接出了问题"),
         (
             "hiro.devices.base.DeviceUnavailable: 截图失败（printwindow）：[WinError 5] PrintWindow 失败（错误码 5）",
-            "游戏是以管理员身份运行的",
+            "系统拒绝了初星助手操作游戏",
         ),
         ("hiro.runtime.loop.ResumeBlocked: 回首页：60s 没完成", "回首页：60s 没完成"),
         ("KeyError: 'step'", "程序出错停下了：'step'"),
