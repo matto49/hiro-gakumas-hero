@@ -79,7 +79,16 @@ def engine() -> str:
 
 
 def _vision_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, float, tuple[int, int, int, int]]]:
-    """img 已放大；框按归一化坐标换回原图尺寸 (w, h)。"""
+    """img 已放大；框按归一化坐标换回原图尺寸 (w, h)。失败记进 _vision_fail（连续失败到 VISION_FALLBACK_AFTER 次换后端）。"""
+    out, err = _vision_request(img, w, h, languages)
+    _note_vision(err)
+    return out
+
+
+def _vision_request(
+    img: MatLike, w: int, h: int, languages
+) -> tuple[list[tuple[str, float, tuple[int, int, int, int]]], str | None]:
+    """跑一次 Vision 识别：返回 (结果, 错误)。不碰进程里的失败计数（Vision 子进程 hiro.vision.vision_child 也用它）。"""
     import Vision
     from Foundation import NSData
 
@@ -112,9 +121,7 @@ def _vision_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, floa
     if not ok:
         # 原来不看返回值：请求失败时 results() 是 None，静默当成「没有字」（G1-F7 11-26：同一进程里 Vision 坏掉后
         # 选行动页 options / 体力 / P 点 / 牌组张数全读空，决策 Wait 三次停机；重开进程同一画面正常）
-        _note_vision(str(err) if err is not None else "performRequests 返回 False")
-        return []
-    _note_vision(None)
+        return [], (str(err) if err is not None else "performRequests 返回 False")
     out = []
     for obs in request.results() or []:
         cand = obs.topCandidates_(1)[0]
@@ -129,7 +136,7 @@ def _vision_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, floa
                 (round(x1), round(y1), round(x1 + bb.size.width * w), round(y1 + bb.size.height * h)),
             )
         )
-    return out
+    return out, None
 
 
 def _use_cpu(request) -> None:
@@ -148,7 +155,8 @@ def _use_cpu(request) -> None:
         request.setUsesCPUOnly_(True)
 
 
-_vision_fail: dict = {"streak": 0, "error": None}  # Apple Vision 连续失败次数和最后一次错误（ocr_health 用）
+# Apple Vision 连续失败次数和最后一次错误（ocr_health 用）；child：已改到子进程里跑（HIRO_VISION_RESTART=1，N29）
+_vision_fail: dict = {"streak": 0, "error": None, "child": False}
 
 
 def _note_vision(error: str | None) -> None:
@@ -159,9 +167,18 @@ def _note_vision(error: str | None) -> None:
     _vision_fail["error"] = error
     if _vision_fail["streak"] in (1, 10, 100):
         logger.warning("文字识别：Apple Vision 请求失败（第 %d 次连续）：%s", _vision_fail["streak"], error)
-    if _vision_fail["streak"] >= VISION_FALLBACK_AFTER and _rapid_ready():
+    if _vision_fail["streak"] < VISION_FALLBACK_AFTER:
+        return
+    if _vision_restart_on():
+        # N29（G1 第 3 轮 11-26）：改用 RapidOCR 后扫描慢三四倍、CPU 400%。Vision 坏了是这个进程的事，重开进程就好：
+        # 改在子进程里跑 Vision，子进程坏了重启（_vision_child_raw）；重启也救不回来再退到 RapidOCR
+        _vision_fail["child"] = True  # 引擎名仍是 vision：各处按 engine() != "vision" 放宽匹配的逻辑不变
+        _vision_fail["streak"] = 0
+        logger.error("文字识别：Apple Vision 连续 %d 次失败（%s），改到子进程里跑 Vision", VISION_FALLBACK_AFTER, error)
+        return
+    global _engine
+    if _rapid_ready():
         # 同一进程里 Vision 坏了重开进程才好（G1-F6 / F7 / F8）：别再悄悄读空，这个进程余下的识别改用 RapidOCR
-        global _engine
         _engine = "rapidocr"
         logger.error(
             "文字识别：Apple Vision 连续 %d 次失败（%s），这个进程改用 RapidOCR", _vision_fail["streak"], error
@@ -169,6 +186,41 @@ def _note_vision(error: str | None) -> None:
 
 
 VISION_FALLBACK_AFTER = 3
+CHILD_RESTARTS = 3  # Vision 子进程连着重启这么多次还读不出，就退到 RapidOCR
+
+
+def _vision_restart_on() -> bool:
+    """HIRO_VISION_RESTART=1：Vision 在本进程坏了改到子进程里跑、坏了重启子进程（N29）。缺省关：照旧退到 RapidOCR。"""
+    return os.environ.get("HIRO_VISION_RESTART", "").strip() == "1"
+
+
+def _vision_child_raw(img: MatLike, w: int, h: int, languages) -> list[tuple[str, float, tuple[int, int, int, int]]]:
+    """在 Vision 子进程里识别；子进程报错、超时或退出就重启再试，连着 CHILD_RESTARTS 次都不行退到 RapidOCR。"""
+    from hiro.vision import vision_child
+
+    for attempt in range(CHILD_RESTARTS):
+        try:
+            out, err = vision_child.client().read(img, w, h, languages)
+        except vision_child.ChildDied as e:
+            out, err = [], str(e)
+        if err is None:
+            _vision_fail["streak"] = 0
+            return out
+        _vision_fail["error"] = err
+        logger.warning("文字识别：Vision 子进程失败（第 %d 次）：%s，重启子进程", attempt + 1, err)
+        vision_child.restart()
+    global _engine
+    _vision_fail["child"] = False
+    vision_child.stop()
+    if _rapid_ready():
+        _engine = "rapidocr"
+        logger.error(
+            "文字识别：Vision 子进程重启 %d 次都读不出（%s），这个进程改用 RapidOCR",
+            CHILD_RESTARTS,
+            _vision_fail["error"],
+        )
+        return _rapid_raw(img, img.shape[1] / w if w else 1.0, languages)
+    return []
 
 
 def _rapid_ready() -> bool:
@@ -519,6 +571,8 @@ def ocr_boxes(
     if scale != 1:
         img = cv2.resize(img, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     if eng == "vision":
+        if _vision_fail.get("child"):
+            return _vision_child_raw(img, w, h, languages)
         return _vision_raw(img, w, h, languages)
     if eng == "winocr":
         return _win_raw(img, scale, languages)
