@@ -25,6 +25,12 @@
   !insertmacro HiroEnsureClosed "" "安装"
 !macroend
 
+; 目录页上可能改了安装位置（#151 review）：写文件前对最终的 $INSTDIR 再查一次。
+; 这个片段在 mygo 主 Section 之前被包含，隐藏 Section（名字以 - 开头）按顺序先跑
+Section "-HiroEnsureClosed"
+  !insertmacro HiroEnsureClosed "" "安装"
+SectionEnd
+
 ; 卸载：mygo 没有卸载开头的钩子，这里自己定义 un.onInit（mygo 的脚本里没有这个函数）
 Function un.onInit
   !insertmacro HiroEnsureClosed "un." "卸载"
