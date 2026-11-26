@@ -91,14 +91,45 @@ def test_unrecognized_skips_when_switch_on(monkeypatch):
     clicks, recorded, notes = [], [], []
     texts = [Text("Pドリンク所持上限", Box(350, 1170, 370, 1190)), Text("受け取らない", Box(290, 990, 430, 1022)),
              Text("受け取らない", Box(300, 1080, 420, 1114))]  # fmt: skip
-    monkeypatch.setattr(hif, "screen_texts", lambda *a, **k: texts)
+    confirm = [Text("報酬スキップ", Box(300, 500, 420, 530)), Text("確認", Box(300, 900, 420, 930))]
+    seq = iter([texts, texts, confirm])  # 进来时、找按钮时都是选饮料页；点完按钮出「報酬スキップ」确认
+    monkeypatch.setattr(hif, "screen_texts", lambda *a, **k: next(seq))
     monkeypatch.setattr(hif, "device", NS(screenshot=lambda: None, click=lambda x, y: clicks.append((x, y))))
     monkeypatch.setattr(hif, "sleep", lambda s: None)
-    st.s.record = lambda obs, **k: recorded.append(k.get("decision"))
+    st.s.record = lambda obs, **k: recorded.append((k.get("decision"), k.get("execution")))
     st.s.note = notes.append
     assert st._drink_full_skip() is True
     assert swapped == [] and clicks == [(360, 1006), (360, 1097)] and st._skip_incoming_drink
-    assert recorded[0].action.args == {"discard": [], "receive": False} and "默认跳过" in recorded[0].reason and notes
+    d, res = recorded[0]
+    assert d.action.args == {"discard": [], "receive": False} and "默认跳过" in d.reason and notes and res.ok
+
+
+@pytest.mark.parametrize(
+    "shown",
+    [
+        [Text("Pドリンク所持上限", Box(350, 1170, 370, 1190))],  # 两个控件都没认出来
+        [
+            Text("Pドリンク所持上限", Box(350, 1170, 370, 1190)),
+            Text("受け取らない", Box(290, 990, 430, 1022)),
+            Text("受け取らない", Box(300, 1080, 420, 1114)),
+        ],  # 点了画面也没变
+    ],
+)
+def test_skip_not_confirmed_stops_instead_of_recording_ok(monkeypatch, shown):
+    """#183 review：勾「受け取らない」后画面没变（或控件找不到），重试一次还不行就停下，不记成功、不放行后面的「報酬スキップ」。"""
+    monkeypatch.setenv("HIRO_DRINK_FULL_AUTO", "1")
+    st, _swapped = _st(monkeypatch, "fallback")
+    _stopping(st)
+    recorded = []
+    monkeypatch.setattr(hif, "screen_texts", lambda *a, **k: shown)
+    monkeypatch.setattr(hif, "sleep", lambda s: None)
+    st.s.record = lambda obs, **k: recorded.append(k.get("execution"))
+    st.s.note = lambda *a: None
+    with pytest.raises(UnhandledPage) as e:
+        st._drink_full_skip()
+    assert "受け取らない" in str(e.value) and "手动" in str(e.value)
+    assert recorded and recorded[-1].ok is False and recorded[-1].retries == 1
+    assert not getattr(st, "_skip_incoming_drink", False)
 
 
 def test_switch_on_by_default(monkeypatch):
