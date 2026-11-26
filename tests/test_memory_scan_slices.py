@@ -147,10 +147,11 @@ def test_finished_slices_handed_out_before_a_later_slice_fails(fakes, tmp_path, 
 
     monkeypatch.setattr(memory_filter, "apply_slice", apply)
     got = []
-    with pytest.raises(memory_filter.MemoryFilterError):
-        memory_scan.scan_slices(fakes, ["sense:hif", "common:hif"], tmp_path, known_for=lambda k: None,
-                                plan_of=lambda cid: None, on_slice=got.append)  # fmt: skip
+    # N43 / #173 review：设筛选出错不再抛出，正常收尾（恢复筛选），结果里写明原因和筛选有没有重置，不算完整
+    out = memory_scan.scan_slices(fakes, ["sense:hif", "common:hif"], tmp_path, known_for=lambda k: None,
+                                  plan_of=lambda cid: None, on_slice=got.append)  # fmt: skip
     assert [r["key"] for r in got] == ["sense:hif"] and fakes.log[-2:] == ["restore アイドル", "cancel"]
+    assert out["filter_error"] == "弹窗没出来" and out["complete"] is False and "common:hif" in out["pending"]
 
 
 def test_progress_writer_saves_after_each_slice(tmp_path):

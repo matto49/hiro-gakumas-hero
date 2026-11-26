@@ -19,6 +19,9 @@ from hiro.tool_device import open_tool_device
 FORMATION_CHANGED_EXIT = (
     5  # 选择页在扫描中关了（编成可能被改）：保留现场，以这个退出码告诉调用方别接着往下做（#116 审查重要 3）
 )
+# 按片扫描设筛选出错（N43：Vision 坏了换 RapidOCR 后读不准「ソート・フィルタ」弹窗）：已经收尾、恢复过排序和筛选，
+# 结果里 filter_reset 写明筛选有没有确认重置。调用方（一键全收集）据此决定能不能改用整表扫描（#173 review）
+SLICE_FILTER_EXIT = 6
 
 
 def scan_context(where: dict, rows: list[dict]) -> dict:
@@ -148,6 +151,7 @@ def scan_slices(
     done: list[dict] = []
     pending = list(keys)
     restored = closed = False
+    filter_error = None
     try:
         for key in keys:
             if deadline is not None and picker.clock() >= deadline:
@@ -169,6 +173,11 @@ def scan_slices(
                     on_slice(rec)
                 pending.remove(key)
                 continue
+            except memory_filter.MemoryFilterError as e:
+                # 设筛选出错：不再往下扫，交给 finally 恢复排序 / 重置筛选，结果里记下原因（N43，#173 review）
+                filter_error = str(e)
+                logging.getLogger(__name__).warning("回忆片 %s：设筛选出错（%s），停止按片扫描", key, e)
+                break
             known = known_for(key)
             inv = memory_picker.scan(
                 picker, out_dir / f"slice-{key.replace(':', '-')}.json", known=known, deadline=deadline, close=False
@@ -200,8 +209,8 @@ def scan_slices(
         if not (closed or getattr(picker, "formation_may_have_changed", False)):
             restored, reset = _leave_picker(picker, state)
     return {"slices": done, "pending": pending, "restored": restored, "scanned_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "formation_may_have_changed": closed, "filter_reset": reset,
-            "complete": not closed and not pending and all(s["complete"] for s in done)}  # fmt: skip
+            "formation_may_have_changed": closed, "filter_reset": reset, "filter_error": filter_error,
+            "complete": not closed and not pending and filter_error is None and all(s["complete"] for s in done)}  # fmt: skip
 
 
 def _leave_picker(picker, state: dict) -> tuple[bool, bool]:
@@ -251,6 +260,7 @@ def main():
     picker = Picker(d.screenshot, d.tap,
                     lambda x1, y1, x2, y2: d.swipe(x1, y1, x2, y2, duration=SWIPE_DURATION, hold=SWIPE_HOLD), calib_dir=calib)  # fmt: skip
     where, rows = None, []
+    filter_error = None  # 按片扫描设筛选出错的原因（N43）
     keep_scene = False  # 编成可能被改了：保留现场给人核对，收尾不再点
     try:
         if args.from_home:
@@ -282,6 +292,7 @@ def main():
             inv = scan_slices(picker, keys, Path(args.out).parent, known_for=known_for, budget_s=args.budget_s,
                               on_slice=slices_progress_writer(Path(args.out), ctx))  # fmt: skip
             keep_scene = bool(inv.get("formation_may_have_changed"))
+            filter_error = inv.get("filter_error")
             if ctx is not None:
                 inv["context"] = ctx
             if not keep_scene:
@@ -324,6 +335,9 @@ def main():
     if keep_scene:
         print("选择页在扫描中关了，编成可能被改：停在原地，请到游戏里核对编成", flush=True)
         return FORMATION_CHANGED_EXIT
+    if filter_error is not None:
+        print(f"停下：按片扫描回忆时设筛选出错（{filter_error}）", flush=True)
+        return SLICE_FILTER_EXIT
     return 0
 
 

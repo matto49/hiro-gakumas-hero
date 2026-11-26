@@ -134,13 +134,34 @@ def test_summary_lists_steps_in_chinese_not_only_param():
     assert part == "一键全收集：偶像卡 → 回忆（12 片全读）（只读，不改编成）" and "memories" not in part
 
 
+def _fake_slices(first_rc, reset=True, whole_complete=True, whole_rc=0):
+    """回忆按片扫描（第 1 次调用）退出码 first_rc、写 out.json（filter_reset）；整表扫描（第 2 次）写 complete。"""
+    calls, imported = [], []
+
+    def runner(argv, env=None):
+        calls.append(argv)
+        out = argv[argv.index("--out") + 1]
+        with open(out, "w", encoding="utf-8") as f:
+            if len(calls) == 1:
+                json.dump({"slices": [], "filter_reset": reset, "filter_error": "找不到「ソート」"}, f)
+                return R(first_rc)
+            json.dump({"entries": [], "complete": whole_complete}, f)
+        return R(whole_rc)
+
+    def importer(kind, inv, source):
+        imported.append((kind, source))
+        return {"count": 1}
+
+    return calls, imported, runner, importer
+
+
 def test_slice_scan_failure_falls_back_to_whole_list(tmp_path, monkeypatch, capsys):
-    """N43（G2 11-26 Mac rc.7）：按片扫描回忆失败（RapidOCR 读不出筛选弹窗），改用整表扫描再做一遍，成功就入库、整个任务算完成。"""
+    """N43（G2 11-26 Mac rc.7）：按片扫描设筛选出错（退出码 6）且筛选确认重置了，改用整表扫描再做一遍，扫完就入库、任务算完成。"""
     monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")
-    calls, imported, runner, importer = _fake(fail_at=1)
+    calls, imported, runner, importer = _fake_slices(6)
     assert collect_all.run(tmp_path, ["memories"], runner=runner, importer=importer) == 0
     assert "--slices" in calls[0] and "--slices" not in calls[1] and "hiro.memory_scan" in calls[1]
-    assert imported == ["memories"]
+    assert [k for k, _ in imported] == ["memories", "memories"] and imported[-1][1].endswith(":whole")
     out = capsys.readouterr().out
     assert "改用整表扫描" in out and "（整表扫描）" in out
     import os
@@ -148,14 +169,32 @@ def test_slice_scan_failure_falls_back_to_whole_list(tmp_path, monkeypatch, caps
     assert os.environ.get("HIRO_MEMORY_SLICES") == "1"  # 临时关掉的开关要还原
 
 
+def test_no_fallback_when_formation_may_have_changed(tmp_path, monkeypatch):
+    """#173 review：退出码 5（编成可能被改、要保留现场）不能再起一次扫描。"""
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")
+    calls, _imported, runner, importer = _fake_slices(5)
+    assert collect_all.run(tmp_path, ["memories"], runner=runner, importer=importer) == 5
+    assert len(calls) == 1
+
+
+def test_no_fallback_when_filter_not_reset(tmp_path, monkeypatch, capsys):
+    """#173 review：筛选没确认重置时不改用整表（否则「整表」只读到那一片），提示玩家去重置。"""
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")
+    calls, _imported, runner, importer = _fake_slices(6, reset=False)
+    assert collect_all.run(tmp_path, ["memories"], runner=runner, importer=importer) == 6
+    assert len(calls) == 1 and "フィルタをリセット" in capsys.readouterr().out
+
+
+def test_whole_list_incomplete_is_not_imported(tmp_path, monkeypatch, capsys):
+    """#173 review：整表扫描退出码 0 但 complete=False（翻页对不上），不当最新库存。"""
+    monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")
+    _calls, imported, runner, importer = _fake_slices(6, whole_complete=False)
+    assert collect_all.run(tmp_path, ["memories"], runner=runner, importer=importer) == 1
+    assert [s for _, s in imported if s.endswith(":whole")] == [] and "没扫完" in capsys.readouterr().out
+
+
 def test_whole_list_fallback_failure_still_stops(tmp_path, monkeypatch):
     monkeypatch.setenv("HIRO_MEMORY_SLICES", "1")
-    calls, imported, _runner, importer = _fake()
-    seq = iter([2, 3])
-
-    def failing(argv, env=None):
-        calls.append(argv)
-        return R(next(seq))
-
-    assert collect_all.run(tmp_path, ["memories"], runner=failing, importer=importer) == 3
-    assert len(calls) == 2 and imported == []
+    calls, imported, runner, importer = _fake_slices(6, whole_rc=3)
+    assert collect_all.run(tmp_path, ["memories"], runner=runner, importer=importer) == 3
+    assert len(calls) == 2 and [s for _, s in imported if s.endswith(":whole")] == []
