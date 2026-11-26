@@ -122,7 +122,7 @@ def test_all_full_names_sets_we_wrote(home, calls, monkeypatch, capsys):
     other.write_text(
         json.dumps({"version": fp.PLAN_VERSION, "written": {"hajime": {"what": ["support"], "support_set": 18}}})
     )
-    monkeypatch.setattr(ps, "_survey", lambda mode: {"scanned_at": "x", "mode": mode, "complete": True,
+    monkeypatch.setattr(ps, "_survey", lambda mode, kinds=(): {"scanned_at": "x", "mode": mode, "complete": True,
                         "sets": [{"kind": k, "set": n, "filled": 3, "cards": []} for k in ("support", "memory") for n in range(1, 21)]})  # fmt: skip
     assert ps.main(["--mode", "hajime", "--", "x"]) != 0
     assert "其中 18 号曾由初星助手写入" in capsys.readouterr().err
