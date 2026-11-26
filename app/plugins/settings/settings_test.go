@@ -521,6 +521,11 @@ func TestWizardDiskErrorRechecks(t *testing.T) {
 		t.Errorf("清完空间重新检查后错误应消失：%q", tt.Texts())
 	}
 	if err := plugintest.ClickButton(tt, "安装"); err != nil {
-		t.Errorf("重新检查通过后「安装」应能点：%v", err)
+		t.Fatalf("重新检查通过后「安装」应能点：%v", err)
+	}
+	tt.Frame()
+	tt.Frame()
+	if !f.ready {
+		t.Errorf("点「安装」应真的开始装（BootRun 没被调用）")
 	}
 }
