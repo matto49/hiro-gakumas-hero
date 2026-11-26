@@ -51,7 +51,7 @@ _PHRASES: tuple[tuple[re.Pattern[str], str], ...] = tuple(
             "和游戏设备的连接出了问题，任务已停下：看看游戏或模拟器还开着没有，再试一次",
         ),
         (r"^\w*Error: \[Errno 28\].*", "磁盘满了，任务停下了：清理出一些空间后点「接着打」"),
-        (r"^(?:[A-Za-z]\w*)(?:Error|Exception): (.*)", r"程序出错停下了：\1"),
+        (r"^\w*(?:Error|Exception): (.*)", r"程序出错停下了：\1"),  # 直接 raise Exception 也算（#130 review）
         (r"^[A-Za-z]\w*(?:Page|Blocked): (.*)", r"\1"),  # UnhandledPage / ResumeBlocked 的说明本来就是白话
         (r"LIVE 页面和画面 (\d+)s 没变化，停机", r"LIVE 画面 \1 秒没变化，任务已停下"),
         (r"判页 / 处理器抛了异常（连续第 (\d+) 次，到 \d+ 次停机）", r"程序处理页面连续出错 \1 次，任务已停下"),

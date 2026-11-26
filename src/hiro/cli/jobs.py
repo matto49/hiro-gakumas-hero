@@ -39,7 +39,9 @@ _SHOT_SUFFIX = re.compile(r"（截图在 [^）]*）\s*$")
 
 # 没接住的异常：traceback 最后一行「模块.异常名: 说明」（G1 §8 错误文案：游戏没开时任务直接抛 DeviceUnavailable，
 # 日志里没有「停下：」也没有 ERROR，原因是空的）
-_EXC_LINE = re.compile(r"^(?:[A-Za-z_][\w]*\.)*([A-Za-z_]\w*(?:Error|Exception|Gone|Unavailable|Blocked|Page)): (.+)$")
+_EXC_LINE = re.compile(
+    r"^(?:[A-Za-z_][\w]*\.)*((?:[A-Za-z_]\w*)?(?:Error|Exception|Gone|Unavailable|Blocked|Page)): (.+)$"
+)
 
 
 def failure_reason(lines: list[str]) -> str | None:
