@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -160,7 +161,7 @@ def parse_overwrite(value) -> dict[str, int]:
             continue
         what, _, num = part.partition("=")
         what = what.strip()
-        if what not in ("support", "memory") or not num.strip().isdigit() or not 1 <= int(num) <= 20:
+        if what not in ("support", "memory") or not re.fullmatch(r"[0-9]{1,2}", num.strip()) or not 1 <= int(num) <= 20:
             raise CliError(
                 "bad_overwrite",
                 f"--overwrite 写法不对：{part.strip()}",
@@ -168,30 +169,6 @@ def parse_overwrite(value) -> dict[str, int]:
             )
         out[what] = int(num)
     return out
-
-
-def _apply_consent(home: Path, plan: dict, kind: str, consent: dict[str, int]) -> dict:
-    """玩家同意覆盖的编成位（--overwrite）：方案的这一样改用这个号；号变了就把这一样从「已写进游戏」里去掉，开局前重写（N65）。"""
-    from hiro.brain import formation_plan as fp
-
-    if not consent:
-        return plan
-    plan = dict(plan)
-    written = dict(plan.get("written") or {})
-    fam = dict(written.get(kind) or {})
-    changed = False
-    for w, n in consent.items():
-        if (plan.get(w) or {}).get("set") != n:
-            plan[w] = dict(plan.get(w) or {}, set=n)
-            fam["what"] = [x for x in fam.get("what") or () if x != w]
-            changed = True
-    if changed:
-        if fam:
-            written[kind] = fam
-        plan["written"] = written
-        if plan.get("version") == fp.PLAN_VERSION and (plan.get("idol") or {}).get("idol_card_id"):
-            fp.save_plan(home, plan, kind)
-    return plan
 
 
 def _check_formation_plan(a: dict) -> None:
@@ -226,10 +203,16 @@ def _check_formation_plan(a: dict) -> None:
     if all(given.values()):
         return
     env_plan = os.environ.get("HIRO_FORMATION_PLAN")
-    if env_plan == "off":
-        return
     idol = (a.get("idol") or "").replace("i_card-skin-", "i_card-")
     home = hiro_home()
+    if consent and (env_plan == "off" or (env_plan and Path(env_plan).resolve() != paths.plan_path(home).resolve())):
+        raise CliError(
+            "bad_overwrite",
+            "现在用的是指定的方案文件（HIRO_FORMATION_PLAN），--overwrite 用不上",
+            "去掉 --overwrite；要写编成用 hiro run start write-formation",
+        )  # #192 review：别悄悄忽略玩家的同意
+    if env_plan == "off":
+        return
     # 显式指定了别的方案文件：照以前只核对偶像。指向当前方案的（paths.apply_to_process 补进进程环境的缺省值，
     # 常驻服务出过一次方案后就一直在）不算显式
     if env_plan and Path(env_plan).resolve() != paths.plan_path(home).resolve():
@@ -274,8 +257,8 @@ def _check_formation_plan(a: dict) -> None:
                 ) from None
             raise
         name = (plan.get("idol") or {}).get("name") or idol
-        plan = _apply_consent(home, plan, kind, consent)
-        if _auto_formation() and _prepare_in_job(a, home, plan, kind, todo):
+        base, (plan, _) = plan, fp.apply_consent(plan, kind, consent)
+        if _auto_formation() and _prepare_in_job(a, home, plan, kind, todo, base=base):
             return
         _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol, kind,
                          lead=f"已按社区攻略给「{name}」出了这个模式的开局编成方案，")  # fmt: skip
@@ -283,9 +266,9 @@ def _check_formation_plan(a: dict) -> None:
     plan, path = found
     if path != paths.plan_path(home):
         fp.activate(home, plan)  # 开局核对、写编成都读当前方案
-    plan = _apply_consent(home, plan, kind, consent)
+    base, (plan, _) = plan, fp.apply_consent(plan, kind, consent)
     name = (plan.get("idol") or {}).get("name") or idol
-    if _auto_formation() and _prepare_in_job(a, home, plan, kind, todo):
+    if _auto_formation() and _prepare_in_job(a, home, plan, kind, todo, base=base):
         return
     _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol, kind, lead=f"「{name}」的")
     if fp.needs_write(plan, kind, todo):
@@ -301,7 +284,7 @@ def _auto_formation() -> bool:
 _MODE_NAME = {"hif": "H.I.F", "hajime": "「初」", "nia": "N.I.A"}
 
 
-def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str]) -> bool:
+def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str], *, base: dict | None = None) -> bool:
     """方案没定编成号或没写进游戏时，改成在开局任务里先准备（a["prepare"]，任务由 hiro.runtime.prepare_start 包一层）：
     - 没定编成号：最近一次读的编成位现状（读完后没写过这个模式的编成）里挑空着的最小号；没读过就进游戏先读再挑；
       读过但都满了，报 formations_full 问玩家覆盖哪一个（不替玩家覆盖已有编成）。
@@ -311,12 +294,25 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
     from hiro.cli.store import open_store
 
     label = {"support": "支援卡", "memory": "回忆"}
-    consent = parse_overwrite(a.get("overwrite"))
+    base = (
+        plan if base is None else base
+    )  # 磁盘上的方案（没套玩家同意的号）：开局检查只存挑好的空位号，同意要等任务开始才存（#192 review）
+    # 真要靠玩家同意才能写的：同意的正是方案里的号、这一样还没写进游戏、而且那个位不是空的也不是初星助手写过的
+    agreed = {
+        w: n
+        for w, n in parse_overwrite(a.get("overwrite")).items()
+        if (plan.get(w) or {}).get("set") == n
+        and w in fp.unwritten(plan, kind, todo)
+        and not _slot_ours_or_blank(home, kind, w, n)
+    }
 
     def writable(w: str) -> bool:
         """这一样能直接写：玩家同意覆盖的正是方案里这个号（N65），或者空位 / 初星助手写过的。"""
+        return w in agreed or _slot_ours_or_blank(home, kind, w, (plan.get(w) or {}).get("set"))
+
+    def where(w: str) -> str:
         n = (plan.get(w) or {}).get("set")
-        return (n is not None and consent.get(w) == n) or _slot_ours_or_blank(home, kind, w, n)
+        return f"{label[w]}编成 {n} 号" + ("（你同意覆盖，原来的卡会被换掉）" if w in agreed else "")
 
     missing = [w for w in todo if (plan.get(w) or {}).get("set") is None]
     steps: list[str] = []
@@ -351,7 +347,7 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
             for w, n in picked.items():
                 plan[w] = dict(plan.get(w) or {}, set=n)
             if picked:
-                fp.save_plan(home, plan, kind)
+                fp.save_plan(home, dict(base, **{w: dict(base.get(w) or {}, set=n) for w, n in picked.items()}), kind)
                 steps.append(
                     "把编成方案写进"
                     + "、".join(
@@ -359,6 +355,8 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
                         for w, n in picked.items()
                     )
                 )
+            if given:  # 号定了、还没写进去的那几样（含玩家同意覆盖的）也写在确认卡上（#192 review）
+                steps.append("把编成方案写进" + "、".join(where(w) for w in given))
             if unread:
                 steps.append(
                     f"先读一遍{_MODE_NAME.get(kind, kind)}的{'、'.join(label[w] for w in unread)}编成位，挑空着的把编成方案写进去"
@@ -369,14 +367,7 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
         # 编成号是沿用的：只有那个位是空的、或者是初星助手自己写过的，才自动写；玩家自己的编成照旧让玩家确认覆盖（CodeRabbit #95）
         if not all(writable(w) for w in left):
             return False
-        steps.append(
-            "把编成方案写进"
-            + "、".join(
-                f"{label[w]}编成 {(plan.get(w) or {}).get('set')} 号"
-                + ("（你同意覆盖，原来的卡会被换掉）" if consent.get(w) == (plan.get(w) or {}).get("set") else "")
-                for w in left
-            )
-        )
+        steps.append("把编成方案写进" + "、".join(where(w) for w in left))
     if not steps:
         return False
     if "memory" in missing or "memory" in fp.unwritten(plan, kind, todo):
@@ -387,10 +378,14 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
     a["prepare"] = True
     a["prepare_what"] = ",".join(todo)
     a["prepare_note"] = "；".join(steps) + (
-        "（写完回读核对）" if consent else "（只写空着的或初星助手自己写过的编成位，写完回读核对）"
+        "（写完回读核对）" if agreed else "（只写空着的或初星助手自己写过的编成位，写完回读核对）"
     )
-    if consent:
-        a["overwrite"] = ",".join(f"{w}={n}" for w, n in sorted(consent.items()))  # 规范写法传给 prepare_start
+    if (
+        agreed
+    ):  # 规范写法传给 prepare_start；用不上同意的（空位 / 自己写过的 / 已经写进去的）不放，确认卡就不会多写「会覆盖」
+        a["overwrite"] = ",".join(f"{w}={n}" for w, n in sorted(agreed.items()))
+    else:
+        a.pop("overwrite", None)
     return True
 
 
@@ -513,6 +508,11 @@ def plan_snapshot(a: dict) -> dict | None:
         plan = json.loads(raw.decode("utf-8"))
     except ValueError:
         plan = None
+    if isinstance(plan, dict) and a.get("overwrite"):
+        from hiro.brain import formation_plan as fp
+
+        # 卡上按玩家同意的号画（方案文件等任务开始才改，哈希照旧按磁盘上的算，确认时对得上）
+        plan, _ = fp.apply_consent(plan, a.get("kind") or "", parse_overwrite(a["overwrite"]))
     return {
         "digest": hashlib.sha256(raw).hexdigest(),
         "label": "编成方案",

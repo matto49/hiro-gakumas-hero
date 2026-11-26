@@ -254,11 +254,16 @@ def test_overwrite_consent_drops_blank_guard(home, calls):
     assert ("blank_only", "support") in calls
 
 
-def test_overwrite_consent_only_for_the_named_number(home, calls):
-    """同意的是 13 号，方案里却是 12 号（重新挑过）：照旧加闸，不把同意挪到玩家没点名的号上（#192 review）。"""
-    _plan(home, sets=(4, 12))
+def test_overwrite_consent_rewrites_plan_at_run_time(home, calls):
+    """#192 review：开局检查不改方案文件；玩家点了确认、任务开始时 prepare_start 才把方案改用同意的号（12 → 13）、
+    去掉回忆的已写入标记，再按 13 号写（回忆不加闸，支援卡照旧）。"""
+    from hiro.brain import formation_plan as fp
+
+    _plan(home, sets=(4, 12), written=True)
     assert ps.main(["--mode", "hajime", "--overwrite", "memory=13", "--", "x"]) == 0
-    assert ("blank_only", "support,memory") in calls
+    plan = fp.load(home / "formation-plan.json")
+    assert plan["memory"]["set"] == 13
+    assert ("write_what", "memory") in calls and ("blank_only", "") in calls
 
 
 def test_no_consent_keeps_blank_guard(home, calls):

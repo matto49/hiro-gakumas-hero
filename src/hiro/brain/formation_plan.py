@@ -449,6 +449,26 @@ def recorded_slots(root: str | Path, fam: str, what: str) -> list[int]:
     return sorted({int(n) for n in rec})
 
 
+def apply_consent(plan: dict, fam: str, consent: dict) -> tuple[dict, bool]:
+    """玩家点名同意覆盖的编成位（--overwrite memory=13）套到方案上（不存盘）：这一样改用这个号；号变了就把这一样从
+    written[模式] 里去掉（开局前要重写）。返回 (新方案, 有没有改)。N65：开局检查只在内存里套，玩家点了确认、任务开始后才存盘。"""
+    if not consent:
+        return plan, False
+    out = dict(plan)
+    written = dict(out.get("written") or {})
+    fam_rec = dict(written.get(fam) or {})
+    changed = False
+    for w, n in consent.items():
+        if (out.get(w) or {}).get("set") != n:
+            out[w] = dict(out.get(w) or {}, set=n)
+            fam_rec["what"] = [x for x in fam_rec.get("what") or () if x != w]
+            changed = True
+    if changed and fam_rec:
+        written[fam] = fam_rec
+        out["written"] = written
+    return out, changed
+
+
 def mark_written(current: str | Path, fam: str, what) -> None:
     """写编成任务写完、回读核对通过后调：当前方案和 plans/<模式>/<偶像卡>.json 都记上 written[模式]。"""
     current = Path(current)
