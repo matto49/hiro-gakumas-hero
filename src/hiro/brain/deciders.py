@@ -1494,7 +1494,7 @@ class ProduceDeciders:
             )
         ld = res.get("llm_decision")
         if ld is not None:
-            why = f"{ld.reason}（LLM；{why}）" if ld.source == "llm" else why
+            why = f"{ld.reason}（LLM 选「{pick.label}」；{why}）" if ld.source == "llm" else why
             return Decision(pick.action, why, ld.source, ld.confidence, cands, warnings=w + ld.warnings, line=ld.line,
                             llm=ld.llm, decider=decider)  # fmt: skip
         return Decision(

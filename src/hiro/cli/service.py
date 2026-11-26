@@ -130,11 +130,12 @@ class Manager:
             try:
                 from hiro.cli import report
 
-                segs = report.segments(report.traces_dir(), job.id)
+                base = report.trace_base(job.id)  # 续打任务按整局（上一段起）算成绩
+                segs = report.segments(report.traces_dir(), base)
                 if segs:
-                    exams = report.exam_scores(job.id, report.traces_dir())
+                    exams = report.exam_scores(base, report.traces_dir())
                     line = report.score_line(exams) or ""
-                    hidden = report.uses_hidden(report.traces_dir(), job.id)  # 插件给过隐藏信息：战绩单独统计
+                    hidden = report.uses_hidden(report.traces_dir(), base)  # 插件给过隐藏信息：战绩单独统计
                     if line and hidden:
                         line += "（用了隐藏信息，战绩单独统计）"
             except Exception as e:  # noqa: BLE001 成绩摘要出错不影响任务

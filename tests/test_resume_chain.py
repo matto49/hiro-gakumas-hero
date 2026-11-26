@@ -93,3 +93,31 @@ def test_idol_section_hiro_only_for_hiro():
     assert "篠澤広" in _idol_section("i_card-skin-shro-3-007", None)
     text = _idol_section(FKTN, profile_for(FKTN), "produce-001")
     assert "篠澤広" not in text and "None" not in text
+
+
+def test_prior_trace_dirs_numeric_order(tmp_path):
+    """#128 review：续打超过 9 段时按编号数值排，-r10 在 -r9 后面，当前段最后。"""
+    from types import SimpleNamespace as NS
+
+    from hiro.produce.hif import HifCore
+
+    for n in ["base", *(f"base-r{i}" for i in (1, 2, 9, 10, 11))]:
+        (tmp_path / n).mkdir()
+    (tmp_path / "base-other").mkdir()  # 别的基名不算
+    core = HifCore.__new__(HifCore)
+    core.s = NS(trace=NS(dir=tmp_path / "base-r11"))
+    assert [d.name for d in core._prior_trace_dirs()] == ["base", "base-r1", "base-r2", "base-r9", "base-r10"]
+    (tmp_path / "base-r11" / "steps.jsonl").write_text("{}\n", encoding="utf-8")
+    assert core._prior_trace_dirs()[-1].name == "base-r11"
+
+
+def test_report_reads_whole_chain_for_resume_job(tmp_path, monkeypatch):
+    """#128 review：续打任务的 trace 是 <基名>-rN，成绩摘要 / 复盘按整局（基名）读；没接段的任务就是任务编号。"""
+    from hiro.cli import report
+
+    monkeypatch.setattr(report, "ensure_home", lambda: tmp_path)
+    _job(tmp_path, "20261126-101734-38e8", "hajime", {"command": "resume", "trace": "20261126-074414-4f81-r3"}, "done")
+    _job(tmp_path, "20261126-074414-4f81", "hajime", {"idol": FKTN}, "stopped")
+    assert report.trace_base("20261126-101734-38e8") == "20261126-074414-4f81"
+    assert report.trace_base("20261126-074414-4f81") == "20261126-074414-4f81"
+    assert report.trace_base("20261126-000000-dead") == "20261126-000000-dead"

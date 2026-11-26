@@ -918,11 +918,15 @@ class HifCore:
 
         cur = Path(self.s.trace.dir)
         base = re.sub(r"-r\d+$", "", cur.name)
-        dirs = [
-            d
-            for d in sorted(cur.parent.glob(base + "*"))
-            if d != cur and re.fullmatch(re.escape(base) + r"(-r\d+)?", d.name)
-        ]
+        # 按续打编号的数值排（基名段 = 0）：名字字典序会把 -r10 排在 -r9 前，局面打底取到旧段（#128 review）
+        dirs = sorted(
+            (
+                d
+                for d in cur.parent.glob(base + "*")
+                if d != cur and re.fullmatch(re.escape(base) + r"(-r\d+)?", d.name)
+            ),
+            key=lambda d: int(m.group(1)) if (m := re.search(r"-r(\d+)$", d.name)) else 0,
+        )
         steps = cur / "steps.jsonl"
         if steps.exists() and steps.stat().st_size > 0:
             dirs.append(cur)

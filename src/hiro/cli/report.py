@@ -21,6 +21,19 @@ def check_job(jid: str) -> str:
     return jid
 
 
+def trace_base(jid: str) -> str:
+    """任务对应那一局的 trace 基名：续打任务接在上一段后面（jobs.resume_chain 写进参数的 trace = <基名>-rN），
+    成绩摘要 / 复盘 / 汇总按整局读；没有接段的任务就是任务编号本身。"""
+    import json
+    import re
+
+    try:
+        p = json.loads((ensure_home() / "jobs" / jid / "job.json").read_text(encoding="utf-8")).get("params") or {}
+    except (OSError, ValueError):
+        return jid
+    return re.sub(r"-r\d+$", "", p.get("trace") or "") or jid
+
+
 def traces_dir() -> Path:
     return ensure_home() / "work" / "traces"
 

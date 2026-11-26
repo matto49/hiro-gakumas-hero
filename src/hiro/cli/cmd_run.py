@@ -635,7 +635,7 @@ _control("stop", "停止当前任务（不会放弃培育：游戏停在原地�
 def _report(a: dict) -> dict:
     from hiro.cli import report
 
-    return report.summarize(report.check_job(a["job"]))
+    return report.summarize(report.trace_base(report.check_job(a["job"])))
 
 
 @command(
@@ -648,9 +648,10 @@ def _review(a: dict) -> dict:
     from hiro.cli import report
 
     jid = report.check_job(a["job"])
-    if not report.segments(report.traces_dir(), jid):
+    base = report.trace_base(jid)  # 续打任务：复盘整局
+    if not report.segments(report.traces_dir(), base):
         raise CliError("no_trace", f"任务 {jid} 没有对局记录", "只有对局才有复盘页")
-    html = report.build_review_html(jid, report.traces_dir())
+    html = report.build_review_html(base, report.traces_dir())
     from hiro.cli.home import ensure_home
 
     out = ensure_home() / "jobs" / jid / "review.html"
