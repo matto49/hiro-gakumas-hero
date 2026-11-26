@@ -248,10 +248,17 @@ def test_exec_on_windows_waits_for_child_and_returns_its_code(monkeypatch):
 
 
 def test_overwrite_consent_drops_blank_guard(home, calls):
-    """N65（G1 第 5 轮 11-27）：玩家说了「回忆 13 号可以覆盖」（--overwrite memory），回忆不加「只写空位」的闸；支援卡照旧。"""
+    """N65（G1 第 5 轮 11-27）：玩家说了「回忆 13 号可以覆盖」（--overwrite memory=13），回忆不加「只写空位」的闸；支援卡照旧。"""
     _plan(home, sets=(4, 13))
-    assert ps.main(["--mode", "hajime", "--overwrite", "memory", "--", "x"]) == 0
+    assert ps.main(["--mode", "hajime", "--overwrite", "memory=13", "--", "x"]) == 0
     assert ("blank_only", "support") in calls
+
+
+def test_overwrite_consent_only_for_the_named_number(home, calls):
+    """同意的是 13 号，方案里却是 12 号（重新挑过）：照旧加闸，不把同意挪到玩家没点名的号上（#192 review）。"""
+    _plan(home, sets=(4, 12))
+    assert ps.main(["--mode", "hajime", "--overwrite", "memory=13", "--", "x"]) == 0
+    assert ("blank_only", "support,memory") in calls
 
 
 def test_no_consent_keeps_blank_guard(home, calls):

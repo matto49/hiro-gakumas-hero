@@ -328,10 +328,10 @@ func TestExplainOverwriteConsentRow(t *testing.T) {
 	}
 	base := func() map[string]any {
 		return map[string]any{"kind": "hajime", "idol": "i_card-skin-ttmr-3-0012", "prepare": true,
-			"support_set": 18, "memory_set": 13, "prepare_note": "把编成方案写进支援卡编成 18 号、回忆编成 13 号"}
+			"prepare_note": "把编成方案写进回忆编成 13 号（你同意覆盖，原来的卡会被换掉）"}
 	}
 	with := base()
-	with["overwrite"] = "memory"
+	with["overwrite"] = "memory=13"
 	if got := rowsOf(with)["会覆盖"]; !strings.Contains(got, "回忆编成 13 号") || !strings.Contains(got, "同意") || strings.Contains(got, "支援卡") {
 		t.Errorf("会覆盖 %q", got)
 	}

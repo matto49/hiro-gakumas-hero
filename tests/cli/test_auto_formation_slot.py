@@ -271,9 +271,49 @@ def test_overwrite_reaches_prepare_start_argv(tmp_path):
     """N65：玩家同意覆盖（overwrite）随任务参数传到 prepare_start；没有就不加。"""
     from hiro.cli import cmd_run, jobs
 
-    assert cmd_run._params({"overwrite": "memory", "prepare": True})["overwrite"] == "memory"
-    argv = jobs.KINDS["hajime"].argv({"idol": KOTONE, "prepare": True, "overwrite": "memory"}, tmp_path)
+    assert cmd_run._params({"overwrite": "memory=13", "prepare": True})["overwrite"] == "memory=13"
+    argv = jobs.KINDS["hajime"].argv({"idol": KOTONE, "prepare": True, "overwrite": "memory=13"}, tmp_path)
     i = argv.index("hiro.runtime.prepare_start")
-    assert argv[argv.index("--overwrite", i) + 1] == "memory" and argv.index("--overwrite") < argv.index("--")
+    assert argv[argv.index("--overwrite", i) + 1] == "memory=13" and argv.index("--overwrite") < argv.index("--")
     plain = jobs.KINDS["hajime"].argv({"idol": KOTONE, "prepare": True}, tmp_path)
     assert "--overwrite" not in plain
+
+
+# ---------------------------------------------------------------- N65：玩家点名同意覆盖（--overwrite memory=13），走开局检查到确认卡
+def test_overwrite_consent_rewrites_plan_into_named_slot(run_cli, hiro_home, on):
+    """G1 第 5 轮 11-27：方案写进过回忆 12 号；玩家说「回忆 13 号可以覆盖」（13 号是玩家自己的编成）→ 方案改用 13 号、开局前重写，
+    确认卡写明覆盖；参数里带规范写法的 overwrite 给 prepare_start。"""
+    _plan(hiro_home, sets=(4, 12), written=True)
+    _formations("hajime", {4: 5}, {12: 4, 13: 4})
+    code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN, "--overwrite", "memory=13")
+    assert code == 3, env
+    args = env["data"]["pending"]["args"]
+    assert args["prepare"] is True and args["overwrite"] == "memory=13" and args["prepare_what"] == "support,memory"
+    assert "回忆编成 13 号（你同意覆盖" in args["prepare_note"]
+    per = json.loads((hiro_home / "plans" / "hajime" / f"{KOTONE}.json").read_text(encoding="utf-8"))
+    assert per["memory"]["set"] == 13 and "memory" not in per["written"]["hajime"]["what"]
+    assert "support" in per["written"]["hajime"]["what"]  # 支援卡没动，照旧算写过
+
+
+def test_player_slot_without_consent_still_refused(run_cli, hiro_home, on):
+    """没说同意：方案指向玩家自己的编成位（13 号有卡、不是初星助手写的），照旧不出确认卡（报还没写进游戏）。"""
+    _plan(hiro_home, sets=(4, 13))
+    _formations("hajime", {4: 0}, {13: 4})
+    _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN)
+    assert env["error"]["code"] == "plan_not_written"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        ["--overwrite", "memory"],
+        ["--overwrite", "memory=99"],
+        ["--overwrite", "memory=13", "--memory-set", "13"],
+        ["--overwrite", "memory=13", "--support-set", "4", "--memory-set", "13"],  # 两样都给了号也要拦（不能提前放行）
+    ],
+)
+def test_overwrite_bad_usage_is_rejected(run_cli, hiro_home, on, bad):
+    """没写号、号超出 1–20、和 --memory-set 给了同一样：报 bad_overwrite，不出确认卡。"""
+    _plan(hiro_home, sets=(4, 12), written=True)
+    _code, env = run_cli("run", "start", "hajime", "--idol", KOTONE_SKIN, *bad)
+    assert env["error"]["code"] == "bad_overwrite"
