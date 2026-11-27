@@ -139,7 +139,12 @@ func (a *App) batchFirstFailed(t *Thread, card plugin.Card) {
 	for _, it := range items[1:] {
 		rest = append(rest, it)
 	}
-	a.addTo(t, "agent", fmt.Sprintf("第 1 项没能开始，后面 %d 项没做：%s", len(rest), queueNames(rest)), nil)
+	// 带上第 1 项没开起来的原因（页面上只看得到这一句，原因原来只存在卡上看不到，CodeRabbit #138 / #197）
+	why := ""
+	if msg, _ := card["message"].(string); msg != "" {
+		why = "（" + msg + "）"
+	}
+	a.addTo(t, "agent", fmt.Sprintf("第 1 项没能开始%s，后面 %d 项没做：%s。可以改一下再发起。", why, len(rest), queueNames(rest)), nil)
 }
 
 // removeBatchItem 去掉合并确认卡里的一项（退掉它的待确认）。
@@ -168,7 +173,7 @@ func (a *App) removeBatchItem(t *Thread, card plugin.Card, i int) {
 
 // continueBatch 在任务结束时接着做排队的下一项（jobEnded 调）。
 func (a *App) continueBatch(id string, v *plugin.JobView) {
-	for _, t := range a.threads {
+	for _, t := range a.allThreads() {
 		for _, m := range t.Messages {
 			for _, card := range m.Cards {
 				if card["type"] != "confirm" || card["queueJob"] != id {
@@ -219,6 +224,7 @@ func (a *App) startQueued(t *Thread, m *Message, card plugin.Card, item map[stri
 	if lv, _ := card["auto"].(string); lv != "" {
 		auto = a.permission() // 按当前档位重查（CodeRabbit #79）
 	}
+	a.ui.starting++ // 排队的下一项正在发起 / 确认：这时不能关游戏 / 关助手（Pending 算上，CodeRabbit #197）
 	a.d.Run.Go(func() func() {
 		r := call(a.ctx, argv)
 		var started hiroapi.Result
@@ -238,6 +244,7 @@ func (a *App) startQueued(t *Thread, m *Message, card plugin.Card, item map[stri
 			why = "没拿到待确认"
 		}
 		return func() {
+			a.ui.starting--
 			if ask != nil {
 				queue, _ := card["queue"].([]any)
 				card["queue"] = []any{}

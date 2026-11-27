@@ -4,6 +4,8 @@ package settings
 
 import (
 	"context"
+	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -35,6 +37,22 @@ type Settings struct {
 	// MemorySlicesOff：关掉了「回忆按片扫描」（筛选 + 入手排序、增量补扫、一键全收集、首次进入走一键全收集）。
 	// D10（用户 11-26 18:14 定）缺省开：没写就是开，玩家关了才记 true。原来的 memory_slices（缺省关时勾上才写）不再读，开着照样是开。
 	MemorySlicesOff bool `json:"memory_slices_off,omitempty"`
+	// CloseGameAfter：任务做完（完成或出错）后自动关游戏（侧栏底部的开关，11-25 用户：要一个所有任务通用、随手开关的）
+	CloseGameAfter bool `json:"close_game_after,omitempty"`
+	// CloseSelfAfter：任务做完后连初星助手自己也关掉（侧栏底部，11-26 用户：这个用得很多）
+	CloseSelfAfter bool `json:"close_self_after,omitempty"`
+	// OpenIn：打开时进哪种界面："chat" = 问 AI，其余 = 页面（首页，缺省；11-26 用户定）
+	OpenIn string `json:"open_in,omitempty"`
+	// 培育（11-27 设置页「培育」一节；hiro.cli.play_prefs 在任务启动时变成环境变量）：
+	// Live：play（缺省）/ play_pick / watch / pick / auto；UnreadStory：skip / stop；RetryMax："0"–"3"（空 = 3）。
+	// 每场考试快速 / 搜索在开局页按场次选（start-prefs.json），不在这里
+	// 三个开关不带 omitempty：不勾也写 false，盖过启动环境里的同名变量（界面上看到的就是实际生效的）
+	Live              string `json:"live,omitempty"`
+	UnreadStory       string `json:"unread_story,omitempty"`
+	RetryMax          string `json:"retry_max,omitempty"`
+	RetryHandoff      bool   `json:"retry_handoff"`
+	HifGuides         bool   `json:"hif_guides"`
+	ExamScheduleProbe bool   `json:"exam_schedule_probe"`
 }
 
 // permLevels 是「操作权限」的四档（11-25 review，参考 dsh）。
@@ -82,6 +100,8 @@ type Deps struct {
 	// RelaunchAdmin 以管理员身份重新打开初星助手（Windows：DMM 游戏是管理员运行时普通权限截不到画面，G3）；
 	// 先关后台服务再提权重开、关掉当前窗口。nil 表示这个系统不需要（Mac）。
 	RelaunchAdmin func() error
+	// Quit 关掉初星助手（「跑完关助手」用；关窗口时后台服务一起关）。nil = 不能关。
+	Quit func()
 }
 
 var providerName = map[string]string{
@@ -171,6 +191,7 @@ func (s *S) Plugin() *plugin.Plugin {
 		Tools:        []string{"doctor"},
 		Panel:        func(c *ui.Context, h plugin.Host, route string) { s.panel(c, h, route) },
 		Footer:       func(c *ui.Context, h plugin.Host) { s.footer(c, h) },
+		OnJobEnd:     func(h plugin.Host, id string, v *plugin.JobView) { s.closeGameAfter(h, v) },
 		ContextTitle: "游戏",
 		Context:      func(context.Context, plugin.Host) string { return s.deviceContext() },
 	}
@@ -262,6 +283,26 @@ func (s *S) footer(c *ui.Context, h plugin.Host) {
 		s.Probe(h)
 	}
 	st := s.d.Settings()
+	// 「跑完关游戏」「跑完关助手」：常开常关，放在侧栏底部随手点（不进设置页）。
+	// 关游戏只有 Windows 能做（DMM / MuMu / 雷电，#123 review：Mac 上每次都报错）
+	closeOn, selfOn := st.CloseGameAfter, st.CloseSelfAfter
+	if CloseGameSupported {
+		ui.Row(c).Key("close-game-after").Gap(8).AlignItems(ui.Center).Padding(3, 0).Children(func() {
+			ui.Switch(c, &closeOn)
+			ui.Text(c, "跑完关游戏").FontSize(kit.FNote).TextColor(kit.Ink2)
+		}).Tooltip("任务做完（或出错停下）后关游戏；之后发起任务前要先自己把游戏打开")
+	}
+	if s.d.Quit != nil {
+		ui.Row(c).Key("close-self-after").Gap(8).AlignItems(ui.Center).Padding(3, 0).Children(func() {
+			ui.Switch(c, &selfOn)
+			ui.Text(c, "跑完关助手").FontSize(kit.FNote).TextColor(kit.Ink2)
+		}).Tooltip("任务做完（或出错停下）后把初星助手也关掉；被你停下的不关")
+	}
+	if closeOn != st.CloseGameAfter || selfOn != st.CloseSelfAfter {
+		st.CloseGameAfter, st.CloseSelfAfter = closeOn, selfOn
+		_ = s.d.Save(st, "")
+		st = s.d.Settings()
+	}
 	label := ProviderLabel(st.Provider)
 	if st.Model != "" {
 		label += " · " + st.Model
@@ -276,6 +317,95 @@ func (s *S) footer(c *ui.Context, h plugin.Host) {
 	}).Clicked() {
 		h.OpenPanel("settings", "")
 	}
+}
+
+// CloseGameSupported 是这个平台能不能自动关游戏（game close 只支持 Windows 上的 DMM / MuMu / 雷电；测试里可改）。
+var CloseGameSupported = runtime.GOOS == "windows"
+
+// closeWait 是任务结束后等多久再关（「全部开始」的下一项这时已经开始了就不关）；测试里调成 0。
+var closeWait = 5 * time.Second
+
+// closeRetries 是助手忙 / 有确认卡在等时最多再看几次（每次隔 closeWait，约 2 分钟）。
+var closeRetries = 24
+
+// closeGameAfter：「跑完关游戏」开着时，任务做完（完成 / 出错，不含被你停下的）后关游戏。
+// 等 5 秒再看：「全部开始」排着的下一项这时已经开始了，就不关（不然下一项连不上游戏）。
+// 「跑完关助手」也在这里：游戏要关的先关游戏，关成了再关助手（没关成留着窗口，让你看到原因）。
+func (s *S) closeGameAfter(h plugin.Host, v *plugin.JobView) {
+	want := func() (game, self bool) {
+		st := s.d.Settings()
+		return st.CloseGameAfter && CloseGameSupported, st.CloseSelfAfter && s.d.Quit != nil
+	}
+	if g, me := want(); v == nil || (v.State != "done" && v.State != "failed") || (!g && !me) {
+		return
+	}
+	if v.Job != nil && v.Job.Kind == "fit-window" {
+		return
+	}
+	var check func(left int)
+	check = func(left int) {
+		h.Go(func() func() {
+			time.Sleep(closeWait)
+			return func() {
+				// 下一项已经开始：不关
+				game, self := want()
+				if h.LiveJob() != "" || (!game && !self) {
+					return
+				}
+				// 助手还在回复 / 有确认卡在等你点 / 刚点了「开始」任务还没起来（可能马上接着开下一个任务）：过一会儿再看，
+				// 不直接放弃（CodeRabbit #197：原来这里 return，之后再没人检查，开关开着却不关）；也不在确认中途关（#138 review）
+				if h.Busy() || h.Pending() {
+					if left > 0 {
+						check(left - 1)
+					} else {
+						h.Post("「跑完关游戏 / 关助手」这次没执行：助手一直在回复或有确认卡在等。", nil)
+					}
+					return
+				}
+				quit := func() {
+					_, self := want()
+					if !self {
+						return
+					}
+					// 关游戏那段时间里又开了任务 / 弹了确认卡 / 助手在回复：不关助手（CodeRabbit #138）
+					if h.LiveJob() != "" || h.Busy() || h.Pending() {
+						h.Post("「跑完关助手」这次没关：又有任务或确认卡在等。", nil)
+						return
+					}
+					s.d.Quit()
+				}
+				if !game {
+					quit()
+					return
+				}
+				h.Go(func() func() {
+					r := h.Call(context.Background(), []string{"game", "close"})
+					var d struct {
+						Closed bool `json:"closed"`
+					}
+					ok := r.OK && r.Decode(&d) == nil && d.Closed
+					return func() {
+						if !ok {
+							why := "关游戏的命令没成功（DMM 版要以管理员身份打开初星助手）"
+							if r.Error != nil && r.Error.Message != "" {
+								why = r.Error.Message
+							}
+							h.Post("「跑完关游戏」没关成："+why, nil)
+							return
+						}
+						// 侧栏的连接状态跟着变（CodeRabbit #123：原来还显示「已连上」）；下一次发起前要先开游戏（#123 review）
+						s.devMu.Lock()
+						off := false
+						s.device, s.deviceOK, s.probedAt = "游戏已关 · 点这里重连", &off, h.Now()
+						s.devMu.Unlock()
+						h.Post("已按「跑完关游戏」关了游戏。下次发起任务前先把游戏打开。", nil)
+						quit()
+					}
+				})
+			}
+		})
+	}
+	check(closeRetries)
 }
 
 // ---- 第一次使用 ----
@@ -449,7 +579,7 @@ func (s *S) permNote(c *ui.Context) {
 			name = lv.name
 		}
 	}
-	kit.Note(c, "现在是「"+name+"」。在对话框左下角点它就能换，哪些事不用确认就直接做都写在那里。")
+	kit.Note(c, "现在是「"+name+"」。在侧栏底部（页面）或对话框左下角（问 AI）点它就能换，哪些事不用确认就直接做都写在那里。")
 }
 
 const (
@@ -842,12 +972,17 @@ func (s *S) panel(c *ui.Context, h plugin.Host, route string) {
 		}
 		return
 	}
-	ui.Text(c, "模型").FontSize(15).FontWeight(650).TextColor(kit.Ink)
+	ui.Text(c, "界面").FontSize(15).FontWeight(650).TextColor(kit.Ink)
+	s.openInSection(c)
+	ui.Text(c, "模型").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
+	kit.Note(c, "「问 AI」靠它聊天；培育时规则拿不准的地方也会问它。不配也能用全部页面，培育只按规则打。")
 	s.modelSection(c, h)
 	ui.Text(c, "操作权限").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
 	s.permNote(c)
 	ui.Text(c, "扫描").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
 	s.scanSection(c)
+	ui.Text(c, "培育").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
+	s.produceSection(c)
 	ui.Text(c, "游戏连接").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
 	s.deviceLine(c, h)
 	if kit.Secondary(c, "试连").Key("probe").Disabled(s.probing || h.LiveJob() != "").Clicked() {
@@ -879,4 +1014,104 @@ func needsKey(provider string) bool {
 		return false
 	}
 	return true
+}
+
+// openInSection 是「打开时进入」：首页（页面，缺省）/ 问 AI（对话）。
+func (s *S) openInSection(c *ui.Context) {
+	st := s.d.Settings()
+	i := 0
+	if st.OpenIn == "chat" {
+		i = 1
+	}
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+		ui.Text(c, "打开时进入").FontSize(kit.FSmall).TextColor(kit.Ink2)
+		c.Key("open-in")
+		ui.Segmented(c, &i, "首页", "问 AI")
+	})
+	want := ""
+	if i == 1 {
+		want = "chat"
+	}
+	if want != st.OpenIn {
+		st.OpenIn = want
+		_ = s.d.Save(st, "")
+	}
+}
+
+// liveChoices 是「培育结束后的 LIVE」几种（值存 settings.json 的 live，hiro.cli.play_prefs 变成 HIRO_LIVE / HIRO_PHOTO_PICK）。
+var liveChoices = [][2]string{
+	{"play", "照常播放，回忆照片用默认的"},
+	{"play_pick", "照常播放，回忆照片我自己选"},
+	{"watch", "我亲自看（开始前停下等我）"},
+	{"pick", "跳过 LIVE，回忆照片我自己选"},
+	{"auto", "跳过 LIVE，回忆照片用默认的"},
+}
+
+// produceSection 是「培育」：LIVE 和回忆照片、未读剧情、没过线重打、H.I.F 的攻略包和选拔搜索（11-27：原来只写在启动脚本的环境变量里，界面上找不到）。
+// 改了只影响之后开的局。
+func (s *S) produceSection(c *ui.Context) {
+	st := s.d.Settings()
+	changed := false
+
+	kit.Section(c, "培育结束后的 LIVE")
+	live := st.Live
+	if live == "" {
+		live = "play"
+	}
+	ui.RadioGroup(c, func() {
+		for _, ch := range liveChoices {
+			ui.Row(c).Key("live-" + ch[0]).Children(func() { ui.Radio(c, &live, ch[0], ch[1]) })
+		}
+	}).Label("培育结束后的 LIVE")
+	kit.Note(c, "要等你的时候会发通知、DMM 窗口放到屏幕中间；亲自看时 60 秒没人点开始就关游戏，选照片 10 分钟没人管就用默认的。")
+	if live != st.Live && !(st.Live == "" && live == "play") {
+		st.Live, changed = live, true
+	}
+
+	kit.Section(c, "没读过的剧情")
+	unread := 0
+	if st.UnreadStory == "stop" {
+		unread = 1
+	}
+	ui.Row(c).Key("unread-story").Children(func() { ui.Segmented(c, &unread, "跳过", "停下等我看") })
+	kit.Note(c, "停下时发通知，看完自动接着打；60 秒剧情没动就当没人在看，关游戏退出（之后点「接着打」）。")
+	if want := []string{"skip", "stop"}[unread]; want != st.UnreadStory && !(st.UnreadStory == "" && want == "skip") {
+		st.UnreadStory, changed = want, true
+	}
+
+	kit.Section(c, "考试没过线")
+	retry := 3
+	if n, err := strconv.Atoi(st.RetryMax); err == nil && n >= 0 && n <= 3 {
+		retry = n
+	}
+	ui.Row(c).Gap(10).AlignItems(ui.Center).Key("retry-max").Children(func() {
+		ui.Text(c, "最多再挑战").FontSize(kit.FSmall).TextColor(kit.Ink2)
+		ui.Segmented(c, &retry, "0 次", "1 次", "2 次", "3 次")
+	})
+	if want := strconv.Itoa(retry); want != st.RetryMax && !(st.RetryMax == "" && retry == 3) {
+		st.RetryMax, changed = want, true
+	}
+	handoff := st.RetryHandoff
+	ui.Row(c).Key("retry-handoff").Children(func() {
+		ui.Checkbox(c, &handoff, "再挑战之前先交给我 60 秒（我点了再挑战就自己打）")
+	})
+	if handoff != st.RetryHandoff {
+		st.RetryHandoff, changed = handoff, true
+	}
+	kit.Note(c, "只用免费次数和再挑战券，不花钻石。")
+
+	kit.Section(c, "H.I.F")
+	guides := st.HifGuides
+	ui.Row(c).Key("hif-guides").Children(func() {
+		ui.Checkbox(c, &guides, "广以外的偶像按自己的流派和攻略选卡（偶像卡攻略包）")
+	})
+	probe := st.ExamScheduleProbe
+	ui.Row(c).Key("exam-probe").Children(func() { ui.Checkbox(c, &probe, "每场考试第 1 回合点开审查日程，读全三项倍率") })
+	kit.Note(c, "每场考试用快速还是搜索出牌，在开局页的「考试出牌」里按场次选（搜索要读全三项倍率，建议开着审查日程）。")
+	if guides != st.HifGuides || probe != st.ExamScheduleProbe {
+		st.HifGuides, st.ExamScheduleProbe, changed = guides, probe, true
+	}
+	if changed {
+		_ = s.d.Save(st, "")
+	}
 }

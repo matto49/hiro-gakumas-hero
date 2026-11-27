@@ -43,11 +43,49 @@ def test_nia_job_defaults_to_pro(hiro_home):
     assert "N.I.A" in KINDS["nia"].summary({})
 
 
+DAILY_DEFAULTS = [
+    "--contest-pick",
+    "lowest",
+    "--shop",
+    "off",
+    "--shop-items",
+    "",
+    "--shop-ap",
+    "",
+    "--shop-refresh",
+    "off",
+    "--coin-gacha",
+    "off",
+]
+
+
 def test_daily_items(hiro_home):
-    assert argv("daily", {"items": "presents,mission_reward"})[2:] == ["--only", "presents,mission_reward"]
-    assert argv("daily", {"items": "assignment,contest"})[2:] == ["--only", "assignment,contest"]
-    assert argv("daily", {"items": "contest"})[2:] == ["--only", "contest"]
-    assert argv("daily", {})[2:] == []
+    assert argv("daily", {"items": "presents,mission_reward"})[2:] == [
+        "--only",
+        "presents,mission_reward",
+        *DAILY_DEFAULTS,
+    ]
+    assert argv("daily", {"items": "contest"})[2:] == ["--only", "contest", *DAILY_DEFAULTS]
+    # 花钱的选项总是显式传（不继承环境里的 HIRO_SHOP 等，CodeRabbit #138）
+    assert argv("daily", {})[2:] == DAILY_DEFAULTS
+
+
+def test_daily_shop_items_only_with_shop_on(hiro_home):
+    """「另外要买的」只在买推荐 / 全部时传（#122 review：不买时被静默忽略、确认卡却写着另外买）。"""
+    a = argv("daily", {"shop": "off", "shop_items": "再挑戦"})
+    assert a[a.index("--shop-items") + 1] == ""
+    a = argv("daily", {"shop": "recommended", "shop_items": "再挑戦"})
+    assert a[a.index("--shop-items") + 1] == "再挑戦"
+
+
+def test_daily_summary_lists_spending(hiro_home):
+    """确认摘要写出会花什么；不买不抽也写明（CodeRabbit #122）。"""
+    s = KINDS["daily"].summary({})
+    assert "商店不买" in s and "硬币扭蛋不抽" in s
+    s = KINDS["daily"].summary({"shop": "all", "shop_ap": "retry", "coin_gacha": "friend:2"})
+    assert "能买的都买" in s and "再挑战券" in s and "友情 2 次" in s and "花硬币" in s
+    s = KINDS["daily"].summary({"items": "presents", "shop": "all"})
+    assert "商店" not in s and "扭蛋" not in s
 
 
 def test_run_start_accepts_new_params(run_cli):
@@ -99,3 +137,46 @@ def test_final_rank_only_for_hajime():
         "nia", {"command": "new", "idol": "i_card-jsna-3-006", "difficulty": "pro", "final_rank": 1}
     )
     assert "--final-rank" not in argv("hajime", {"command": "new", "idol": "i_card-jsna-3-006", "difficulty": "pro"})
+
+
+def test_play_prefs_from_settings_override_env(hiro_home, monkeypatch):
+    """设置页「培育」：每一项都盖过启动环境；没设过的按程序缺省（11-27，CodeRabbit #197 / #198）。"""
+    import json
+
+    monkeypatch.setenv("HIRO_LIVE", "pick")
+    monkeypatch.setenv("HIRO_UNREAD_STORY", "stop")
+    monkeypatch.setenv("HIRO_EXAM_SEARCH_HIF", "final")
+    hiro_home.mkdir(parents=True, exist_ok=True)
+    (hiro_home / "settings.json").write_text(
+        json.dumps({"live": "play_pick", "retry_max": "1", "retry_handoff": True}),
+        encoding="utf-8",
+    )
+    env = Job(hiro_home, KINDS["hajime"], {"command": "resume"}).child_env()
+    assert env["HIRO_LIVE"] == "play" and env["HIRO_PHOTO_PICK"] == "stop"
+    assert env["HIRO_RETRY_MAX"] == "1" and env["HIRO_RETRY_HANDOFF"] == "1"
+    assert env["HIRO_UNREAD_STORY"] == "skip"  # 设置里没有：按缺省，不沿用启动环境（页面上显示的就是实际用的）
+    assert env["HIRO_HIF_GUIDES"] == "0" and env["HIRO_EXAM_SCHEDULE_PROBE"] == "0"
+    (hiro_home / "settings.json").unlink()
+    env = Job(hiro_home, KINDS["hajime"], {"command": "resume"}).child_env()
+    assert env["HIRO_LIVE"] == "play" and env["HIRO_PHOTO_PICK"] == "auto" and env["HIRO_RETRY_MAX"] == "3"
+
+
+def test_dmm_settle_default(hiro_home, monkeypatch):
+    """DMM 上助手开的局也要 HIRO_SETTLE_MIN_S=1.5（原来只有 play.ps1 设）；自己设了就用自己的。"""
+    monkeypatch.setenv("HIRO_DEVICE", "dmm")
+    monkeypatch.delenv("HIRO_SETTLE_MIN_S", raising=False)
+    assert Job(hiro_home, KINDS["hajime"], {}).child_env()["HIRO_SETTLE_MIN_S"] == "1.5"
+    monkeypatch.setenv("HIRO_SETTLE_MIN_S", "2")
+    assert Job(hiro_home, KINDS["hajime"], {}).child_env()["HIRO_SETTLE_MIN_S"] == "2"
+    monkeypatch.setenv("HIRO_DEVICE", "mumu")
+    monkeypatch.delenv("HIRO_SETTLE_MIN_S")
+    assert "HIRO_SETTLE_MIN_S" not in Job(hiro_home, KINDS["hajime"], {}).child_env()
+
+
+def test_daily_shop_refresh_only_with_shop_on(hiro_home):
+    """免费刷新只在买东西时传 on（不买时刷新没意义）；确认摘要写出来。"""
+    a = argv("daily", {"shop": "off", "shop_refresh": "on"})
+    assert a[a.index("--shop-refresh") + 1] == "off"
+    a = argv("daily", {"shop": "recommended", "shop_refresh": "on"})
+    assert a[a.index("--shop-refresh") + 1] == "on"
+    assert "免费刷新" in KINDS["daily"].summary({"shop": "recommended", "shop_refresh": "on"})

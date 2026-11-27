@@ -28,7 +28,7 @@ var PermDesc = map[string]string{
 	PermAsk:       "每件会动游戏的事都先出确认卡",
 	PermRead:      "扫描、检查、领日常、写空白编成位直接做",
 	PermReadWrite: "除了开局、接着打，都直接做",
-	PermAll:       "开局也直接开始；花ジュエル、放弃培育永远不做",
+	PermAll:       "开局也直接开始；花钻石、放弃培育永远不做",
 }
 
 // PermOrder 是档位从严到松的顺序。
@@ -55,7 +55,7 @@ func (a *App) permMenu(c *ui.Context) {
 		ui.Modal(c, &a.confirmAll, func() {
 			ui.Column(c).Width(420).Gap(12).Padding(20).Radius(kit.R16).Background(kit.CardBg).Children(func() {
 				ui.Text(c, "确定允许所有行为？").FontSize(16).FontWeight(700).TextColor(kit.Ink)
-				kit.Note(c, "开局、接着打、初星課題都会直接开始，不再出确认卡，会用掉培育次数和 AP。花ジュエル、放弃培育这些不管哪一档都不会做。这个提示只出这一次，之后可以随时改回来。")
+				kit.Note(c, "开局、接着打、初星課題都会直接开始，不再出确认卡，会用掉培育次数和 AP。花钻石、放弃培育这些不管哪一档都不会做。这个提示只出这一次，之后可以随时改回来。")
 				ui.Row(c).Gap(8).Children(func() {
 					ui.Spacer(c)
 					if kit.Secondary(c, "取消").Key("perm-all-cancel").Clicked() {
@@ -172,7 +172,7 @@ func (a *App) FirstScan() {
 		}
 		if err := call(a.ctx, []string{"info", "summary"}).Decode(&sum); err != nil {
 			return func() {
-				t := a.ensureThread()
+				t := a.actionThread() // 页面模式：提示条 + 确认框
 				a.addTo(t, "agent", "本来想先扫一遍你的支援卡、回忆和偶像卡，但读不到信息库。之后可以说「扫描支援卡」再试。", []plugin.Card{
 					{"type": "error", "error": map[string]any{"code": "first_scan", "message": "读不到信息库：" + err.Error(), "hint": "到设置里看运行环境，或者之后说「扫描支援卡」"}}})
 				a.save(t)
@@ -224,7 +224,7 @@ func (a *App) FirstScan() {
 			msg = "第一次用：先把你的首页数值、偶像卡、支援卡、回忆和编成扫一遍（只看画面，不改东西），出编成方案时才知道你有什么。"
 		}
 		return func() {
-			t := a.ensureThread()
+			t := a.actionThread()
 			a.addTo(t, "agent", msg, cards)
 			a.save(t)
 		}

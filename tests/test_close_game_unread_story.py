@@ -289,3 +289,36 @@ def test_run_hif_does_not_close_game_per_segment():
     import hiro.run_hif as rh
 
     assert "close_game" not in inspect.getsource(rh)
+
+
+def test_taskkill_not_found_counts_as_closed(monkeypatch):
+    """#123 review：游戏本来就不在时 taskkill 返回 128，算关好了（原来当成失败、提示要管理员）。"""
+    import subprocess
+
+    class R:
+        def __init__(self, code):
+            self.returncode, self.stdout, self.stderr = code, "", "ERROR: The process not found."
+
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: R(128))
+    assert cg._run(["taskkill", "/f", "/im", "gakumas.exe"]) == 0
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: R(1))
+    assert cg._run(["taskkill", "/f", "/im", "gakumas.exe"]) == 1
+    assert cg._run(["adb", "shell", "x"]) == 1
+
+
+def test_no_close_commands_on_playcover():
+    """Mac（PlayCover）没有关游戏的办法：commands 为空，game close 报「这个平台不能自动关游戏」。"""
+    assert cg.commands("maatools", "game") == []
+
+
+def test_game_close_refuses_while_stopping(monkeypatch):
+    """CodeRabbit #197：任务停止中（还没退出）也不关游戏。"""
+    from hiro.cli import client, cmd_run
+    from hiro.cli.registry import CliError
+
+    import pytest
+
+    for state in ("running", "stopping"):
+        monkeypatch.setattr(client, "data", lambda what, s=state: {"current": {"state": s}})
+        with pytest.raises(CliError, match="有任务在跑"):
+            cmd_run._game_close({})

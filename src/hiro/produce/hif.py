@@ -1256,7 +1256,7 @@ class HifCore:
             btn_commit = commit_index
             grey = any(c.get("disabled") for c in choices)
 
-            def commit_index(i):  # noqa: F811
+            def commit_index(i):  # pyright: ignore[reportRedeclaration]  # noqa: F811
                 if i < btn_n and not grey:
                     return btn_commit(i)
                 c = next((c for c in choices if c.get("index") == i and c.get("center")), None)
@@ -1271,6 +1271,49 @@ class HifCore:
                 return True
 
             self.s.note(f"{page}：按钮识别认出 {btn_n} 项，识别层 {len(choices)} 项（有选项被挡住），按识别层")
+        if page == "EVENT_CHOICE":
+            assert self.s is not None  # 上面的嵌套函数让类型收窄丢了
+            preview = self._preview_event_effects(choices)
+            strikes = self._event_strikes(choices, preview)
+            if preview == "left":
+                self.s.note("EVENT_CHOICE：看效果时页面变了（点到已选中的那项 = 确认了），交给下一拍")
+                return
+            if preview == "abort":
+                # 点过以后中途对不上（选中没生效 / 认不出选中项）：选中态可能已经变了，原来的双击提交会把已选中的那项确认掉，
+                # 交给下一拍重新看画面（CodeRabbit #196 / #198）。连着两次对不上 = 选中态读不准，再点下去可能把没选的那项确认掉：停下交给人（自检）
+                if strikes >= 2:
+                    raise ResumeBlocked("事件选项：连着两次读不准哪项是选中态，停下交给人（再点可能确认到没选的那项）")
+                self.s.note("EVENT_CHOICE：看效果中途对不上，交给下一拍重新看")
+                return
+            if preview is None and strikes > 0:
+                # 上一拍点过、选中态可能变了，这一拍又认不出选中项：不走双击提交（第一下会确认掉已选中的那项），停下或再看一拍
+                if strikes >= 2:
+                    raise ResumeBlocked("事件选项：连着两次读不准哪项是选中态，停下交给人（再点可能确认到没选的那项）")
+                self.s.note("EVENT_CHOICE：上一拍对不上、这一拍认不出选中项，交给下一拍重新看")
+                return
+            if preview is not None:
+                sel_i = [preview]  # 现在选中的是哪项（提交时更新：画面没变要重提交时，那项已经是选中态，只点一下）
+
+                def commit_index(i):  # noqa: F811
+                    """看过效果以后：要的那项没选中就先点一下选中，再点一下确认（不双击：双击已选中的项会把第二下点到下一页）。"""
+                    c = next((c for c in choices if c.get("index") == i and c.get("center")), None)
+                    if c is None:
+                        return False
+                    x, y = c["center"]
+                    if i != sel_i[0]:
+                        device.click(int(x), int(y))
+                        sleep(0.6)
+                        if not self._is_selected(device.screenshot(), y):
+                            return False  # 选中没生效（或页面已经变了）：不点确认，交给重试 / 下一拍重新看
+                        sel_i[0] = i
+                    elif not self._still_here(device.screenshot(), choices, y):
+                        # 重试时（上一下其实已经确认、进了下一个事件选项页）：画面已不是这一页 / 这项不是选中态，不点旧坐标（CodeRabbit #198）
+                        return False
+                    device.click(int(x), int(y))
+                    sleep(2)
+                    return True
+
+                n_options = len(choices)
         d = self.deciders.decide(page, self.s.state, n_options=n_options)
         pf = self.s.state.page_fields or {}
         if (
@@ -1296,6 +1339,117 @@ class HifCore:
             lambda: commit_index(i), Action.event_select(i), page_before=page, taps=[], trust_commit=False
         )
         self.s.record(obs, decision=d, execution=result, timings_ms={"total": (time.monotonic() - t0) * 1000})
+
+    PREVIEW_WAIT_S = 0.8  # 点一下选项后等效果说明框出来
+    PREVIEW_RECHECK_S = 0.5  # 再隔这么久看第二帧（确认后转场慢，第一帧选项可能还在）
+    SELECTED_DY = 40  # 选中项的按钮中心和这项差多少 px 以内算同一项
+
+    @staticmethod
+    def _selected_y(img) -> int | None:
+        """画面上选中态那项的按钮中心 y；认不出选中项（或不在选项页）返回 None。"""
+        from hiro.vision.event import read_event_choice_page
+
+        r = read_event_choice_page(img)
+        s = r.get("selected")
+        return next(
+            (int(c["center"][1]) for c in r.get("choices") or [] if c.get("index") == s and c.get("center")), None
+        )
+
+    def _is_selected(self, img, y) -> bool:
+        sy = self._selected_y(img)
+        return sy is not None and abs(sy - int(y)) <= self.SELECTED_DY
+
+    def _still_here(self, img, choices: list, y) -> bool:
+        """还是产生 choices 的那一页、y 那项还是选中态：读得到这页的选项字（前 4 个字），且 y 处是选中态。"""
+        if not self._is_selected(img, y):
+            return False
+        texts = [t for t, _, _ in ops.ocr_boxes(img)]
+        labels = [str(c.get("text") or "")[:4] for c in choices if c.get("text")]
+        return bool(labels) and all(any(lab in t for t in texts) for lab in labels)
+
+    def _event_strikes(self, choices: list, preview) -> int:
+        """事件选项看效果「对不上」（abort）连着几次：只算同一个事件（按选项文字认），换了事件 / 页面走了（left）/ 看成了就重新数
+        （#196 review：上一个事件的一次 abort 加下一个事件第一次读不准，原来会凑成两次、整局停下）。"""
+        key = tuple(str(c.get("text") or "") for c in choices)
+        if preview == "left" or getattr(self, "_event_abort_key", None) != key:
+            self._event_aborts = 0
+        self._event_abort_key = key
+        if preview == "abort" or (preview is None and getattr(self, "_event_aborts", 0) > 0):
+            # 上一拍点过、对不上，这一拍又认不出选中项：也算一次（CodeRabbit #196：abort / None 交替时原来到不了 2）
+            self._event_aborts = getattr(self, "_event_aborts", 0) + 1
+        elif preview != "left":
+            self._event_aborts = 0
+        return self._event_aborts
+
+    def _preview_event_effects(self, choices: list) -> int | str | None:
+        """事件选项页：效果说明只在选中时出现（11-27 实机：二选一事件只看得到选中那项的效果，另一项读不到 → 规则选不了，
+        没开 LLM 就停）。像玩家一样把每项单击一下（单击只选中、不确认），读它上方新出的说明写进 choices[i]["effect"]。
+        单击已选中的项会确认它，所以：认不出哪项选中就不看；每次点之前重新截图核对这项不是选中态（是就不点、直接读）；
+        点完看两帧确认页面没走（选项按钮和这项的字都不见了 = 误确认，返回 "left"）；点了没选中就不再往下点。
+        返回看完后选中的是第几项；没点过就不看（纯台词 / 少于 2 项 / 都已有效果 / 认不出选中项）返回 None；
+        点过以后中途对不上返回 "abort"（选中态可能已经变了，调用方不能再用原来的双击提交）。
+        说明框没读到的项记 effect=None、effect_unread=True（效果未知，决策不当成没效果）。"""
+        from hiro.vision.classify import option_regions
+        from hiro.vision.event import effect_above
+
+        assert self.s is not None
+        pf = self.s.state.page_fields or {}
+        live = [c for c in choices if c.get("center") and not c.get("disabled")]
+        if pf.get("dialogue_only") or len(live) < 2 or all(c.get("effect") for c in live):
+            return None
+        labels = [c.get("text") or "" for c in choices]
+        sel = next((c["index"] for c in live if c.get("selected")), None)
+        if sel is None:
+            # 没读到效果的项标成未读：效果未知，解析层判不完整，决策不按代价直接选（CodeRabbit #198）
+            for c in live:
+                if not c.get("effect"):
+                    c["effect_unread"] = True
+            self.s.note("EVENT_CHOICE：认不出哪项是选中态，不逐个看效果（单击选中项会直接确认）")
+            return None
+        order = [c for c in live if c["index"] != sel] + [c for c in live if c["index"] == sel]
+
+        def gone(img, lab) -> bool:
+            boxes = ops.ocr_boxes(img)
+            return not option_regions(img) and not (lab and any(lab[:4] in t for t, _, _ in boxes))
+
+        clicked = False
+        for c in order:
+            x, y = c["center"]
+            lab = labels[c["index"]]
+            img = device.screenshot()
+            if self._is_selected(img, y):
+                boxes = ops.ocr_boxes(img)  # 已经是选中态：不点（点了就确认），直接读它的说明
+            else:
+                if self._selected_y(img) is None:
+                    self.s.note("EVENT_CHOICE：看效果途中认不出选中项，不再点")
+                    return "abort" if clicked else None
+                device.click(int(x), int(y))
+                clicked = True
+                sleep(self.PREVIEW_WAIT_S)
+                img = device.screenshot()
+                if gone(img, lab):
+                    return "left"
+                sleep(self.PREVIEW_RECHECK_S)
+                img = device.screenshot()
+                if gone(img, lab):
+                    return "left"  # 转场慢：第二帧选项没了，页面已经往下走了
+                if not self._is_selected(img, y):
+                    self.s.note(f"EVENT_CHOICE：点了第 {c['index'] + 1} 项没变成选中态，不再往下点")
+                    return "abort"
+                boxes = ops.ocr_boxes(img)
+            # 没读到说明时记 None（未知），不记 ""：选项决策把 effect == "" 当成「确认没有效果」，两项都没读到会直接选第一项（CodeRabbit #196）
+            c["effect"] = effect_above(boxes, int(y), labels) or None
+            c["effect_unread"] = c["effect"] is None
+            c["selected"] = True
+            for o in choices:
+                if o is not c:
+                    o["selected"] = False
+            sel = c["index"]
+            self.s.note(
+                f"EVENT_CHOICE：看第 {sel + 1} 项「{c.get('text') or ''}」的效果：{c['effect'] or '（没读到）'}"
+            )
+        pf["selected"] = sel
+        return sel
 
     OPTION_WAIT_S = 2.0  # 选项按钮还没出来（入场动画）时最多等这么久
 

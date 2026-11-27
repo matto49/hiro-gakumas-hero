@@ -29,7 +29,7 @@ var modes = []mode{
 	{"hajime", "初", "定期公演「初」：REGULAR / PRO / MASTER。", []string{"regular", "pro", "master"}},
 	{"nia", "N.I.A", "PRO / MASTER。认不出的页面会停下来等你处理。", []string{"pro", "master"}},
 	{"tower", "偶像之路", "按偶像路线往上爬，三星优先。", nil},
-	{"daily", "日常", "活動費、礼物、工作、竞赛、任务奖励、社团，不花ジュエル。", nil},
+	{"daily", "日常", "活动费、礼物、工作派遣、竞赛、商店、硬币扭蛋、任务奖励、社团。不花钻石。", nil},
 }
 
 func modeName(kind string) string {
@@ -60,9 +60,18 @@ type state struct {
 	hifMain int // 0 选拔 1 本战
 	diff    int
 	pick    common.IdolPicker // 偶像卡（和编成方案页共用的选择器）
+	search  searchState       // 考试出牌：按场次选快速 / 搜索（examsearch.go）
 
-	plan   *planBrief
-	planAt time.Time
+	// 日常的选项（11-26）：竞赛挑哪个对手、商店买什么、硬币扭蛋抽哪个
+	contestPick int     // 0 综合力最低 1/2/3 第几个
+	shopMode    int     // 0 不买 1 推荐商品 2 全部（零值 = 不花钱，#122 review：老用户照常点日常不该第一次就花金币）
+	shopItems   string  // 另外要买的商品名，逗号分隔
+	shopRefresh bool    // 买完用每日 1 次的免费刷新再买一轮（缺省不勾）
+	shopAP      [4]bool // 体力商店买哪几样（apItems 的顺序）
+	gachaMode   int     // 0 不抽 1 自动抽 1 次 2 自己定
+	gachaN      [4]string
+	plan        *planBrief
+	planAt      time.Time
 
 	recent        []plugin.Job
 	recentAt      time.Time
@@ -172,13 +181,27 @@ func New() *plugin.Plugin {
 		Chips: []plugin.Chip{
 			{Label: "/开局", Say: "/开局"},
 			{Label: "接着打进行中的培育", Run: func(h plugin.Host) {
-				h.RunArgs("接着打进行中的培育", []string{"run", "start", "hif", "--command", "resume"})
+				// 带上开局页存的「考试出牌」（选拔、本战两组都带；CodeRabbit #197：原来不带，按启动环境搜索）
+				s.search.load(h)
+				argv := append([]string{"run", "start", "hif", "--command", "resume"}, s.search.args(examGroups("hif", 0, true))...)
+				h.RunArgs("接着打进行中的培育", argv)
 			}},
 			{Label: "领日常奖励", Run: func(h plugin.Host) {
-				h.RunArgs("帮我领日常奖励", []string{"run", "start", "daily"})
+				h.RunArgs("帮我领日常奖励", s.dailyArgv())
 			}},
 		},
-		Panel: func(c *ui.Context, h plugin.Host, _ string) { s.panel(c, h) },
+		// 日常的选项多了（竞赛对手、商店、体力商店、扭蛋），单独一页（11-26 两种界面方案）
+		Nav: []plugin.NavItem{
+			{Label: "开局", Icon: kit.IcPlay, Route: ""},
+			{Label: "日常", Icon: kit.IcCalendar, Route: "daily"},
+		},
+		Panel: func(c *ui.Context, h plugin.Host, route string) {
+			if route == "daily" {
+				s.dailyPanel(c, h)
+				return
+			}
+			s.panel(c, h)
+		},
 		OnJobEnd: func(_ plugin.Host, _ string, v *plugin.JobView) {
 			if v != nil && v.Job != nil && v.Job.Kind == "scan-idols" {
 				s.pick.Reload() // 扫完偶像卡：下次画面板重读列表（原来只读一次，要重开程序才看得到）
@@ -242,7 +265,32 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 			e.Title, e.Cost = "开一局 H.I.F 选拔", costProduce
 		}
 	case r.Kind == "daily":
-		e.Title, e.Cost = "领日常奖励", "会操作游戏 · 不花ジュエル"
+		e.Title, e.Cost = "领日常奖励", "会操作游戏 · 不花钻石（商店用金币，扭蛋用各池自己的币）"
+		if v := r.Flags["contest-pick"]; v != "" && v != "lowest" {
+			e.Rows = append(e.Rows, [2]string{"竞赛对手", "第 " + v + " 个"})
+		} else {
+			e.Rows = append(e.Rows, [2]string{"竞赛对手", "综合力最低"})
+		}
+		// 商店 / 扭蛋总是写出来：没传就是不买 / 不抽（review：确认卡上看不出会不会花マニー）
+		e.Rows = append(e.Rows, [2]string{"商店", map[string]string{"recommended": "买推荐商品", "all": "能买的都买", "off": "不买", "": "不买"}[r.Flags["shop"]]})
+		if v := r.Flags["shop-items"]; v != "" && r.Flags["shop"] != "" && r.Flags["shop"] != "off" {
+			e.Rows = append(e.Rows, [2]string{"另外买", v})
+		}
+		if r.Flags["shop-refresh"] == "on" && r.Flags["shop"] != "" && r.Flags["shop"] != "off" {
+			e.Rows = append(e.Rows, [2]string{"免费刷新", "买完用每日免费刷新再买一轮（要确认的不点）"})
+		}
+		if v := r.Flags["shop-ap"]; v != "" {
+			var names []string
+			for _, k := range strings.Split(v, ",") {
+				for _, it := range apItems {
+					if it[0] == k {
+						names = append(names, it[1])
+					}
+				}
+			}
+			e.Rows = append(e.Rows, [2]string{"体力商店", strings.Join(names, "、")})
+		}
+		e.Rows = append(e.Rows, [2]string{"硬币扭蛋", gachaLabel(r.Flags["coin-gacha"])})
 	case r.Kind == "check-settings" && r.Flags["fix"] == "true":
 		e.Title, e.Cost = "把游戏设置改好", "会操作游戏 · 只动快进、跳过演出那 5 个开关"
 	case strings.HasPrefix(r.Kind, "scan-") || r.Kind == "check-settings" || r.Kind == "selftest":
@@ -325,6 +373,9 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 		if a := r.Flags["main-attr"]; a != "" {
 			e.Rows = append(e.Rows, [2]string{"主属性", labels.Attr(a)})
 		}
+	}
+	if row, ok := examSearchRow(r.Kind, r.Flags); ok {
+		e.Rows = append(e.Rows, row)
 	}
 	return e, true
 }
@@ -440,6 +491,10 @@ func (s *state) panel(c *ui.Context, h plugin.Host) {
 		s.diff = min(s.diff, len(names)-1)
 		ui.Segmented(c, &s.diff, names...)
 	}
+	if m.id == "daily" {
+		s.dailyOptions(c)
+	}
+	s.search.draw(c, h, examGroups(m.id, s.hifMain, s.resume))
 	needIdol := (produce && !s.resume) || m.id == "tower"
 	if needIdol {
 		s.pick.Draw(c, h, "start")
@@ -454,7 +509,139 @@ func (s *state) panel(c *ui.Context, h plugin.Host) {
 			h.RunArgs(label, args)
 		}
 	})
-	kit.Note(c, "点「发起」后对话里会出一张确认卡，再点「开始」才动游戏。")
+	kit.Note(c, "点「发起」后先给你看要做的事（确认卡），再点「开始」才动游戏。")
+}
+
+// dailyArgv 是按日常页现在的选项领日常的整条命令。
+func (s *state) dailyArgv() []string {
+	return append([]string{"run", "start", "daily"}, s.dailyArgs()...)
+}
+
+// dailyPanel 是单独的「日常」页：说明、几项选项、发起。
+func (s *state) dailyPanel(c *ui.Context, h plugin.Host) {
+	for _, m := range modes {
+		if m.id == "daily" {
+			kit.Note(c, m.desc)
+		}
+	}
+	s.dailyOptions(c)
+	ui.Row(c).Gap(8).AlignItems(ui.Center).Padding(8, 0, 0, 0).Children(func() {
+		ui.Spacer(c)
+		if kit.Primary(c, "发起").Key("daily-go").Clicked() {
+			h.RunArgs("帮我领日常奖励", s.dailyArgv())
+		}
+	})
+	kit.Note(c, "点「发起」后先给你看要做的事（确认卡），再点「开始」才动游戏。")
+}
+
+var apItems = [4][2]string{{"pt", "支援强化点数获取提升"}, {"note", "笔记获取数提升"}, {"retry", "再挑战券"}, {"regen", "回忆再生成券"}}
+
+var gachaPools = [4][2]string{{"friend", "友情"}, {"sense", "感性"}, {"logic", "理性"}, {"anomaly", "非凡"}}
+
+// dailyOptions 是日常的几个选项（竞赛对手、商店、硬币扭蛋）。
+func (s *state) dailyOptions(c *ui.Context) {
+	kit.Section(c, "竞赛挑哪个对手")
+	ui.Segmented(c, &s.contestPick, "综合力最低", "第一个", "第二个", "第三个")
+	kit.Note(c, "三个对手由上到下难度和奖励不同。每天 5 场，打完就停。")
+	kit.Section(c, "商店（每日兑换所，用金币）")
+	ui.Segmented(c, &s.shopMode, "不买", "买推荐商品", "能买的都买")
+	if s.shopMode != 0 { // 「另外要买的」是推荐 / 全部的补充，不买时不显示也不传（#122 review）
+		ui.Row(c).Key("shop-items").Children(func() {
+			ui.TextInput(c, &s.shopItems).Grow(1).Placeholder("另外要买的（可不填）：商品名，逗号分隔，例如 仓本千奈的碎片,再挑战券").FontSize(kit.FSmall)
+		})
+		kit.Note(c, "推荐商品今天还没买过、又一个都没有时，买最便宜的一件（只买 1 个），让「在商店购物」这个日常任务完成。只用金币，要花钻石的一律不买。")
+		ui.Row(c).Key("shop-refresh").Children(func() { ui.Checkbox(c, &s.shopRefresh, "买完用每日免费刷新，再买一轮") })
+		kit.Note(c, "只在右上角写着「リスト更新:1回無料」时才点；点了要是弹出确认框，一律点空白关掉、不刷新（不花钻石）。")
+	}
+	kit.Section(c, "体力商店（可选，用体力）")
+	ui.Column(c).Gap(4).Children(func() {
+		for i, it := range apItems {
+			ui.Row(c).Key("ap-" + it[0]).Children(func() { ui.Checkbox(c, &s.shopAP[i], it[1]) })
+		}
+	})
+	kit.Note(c, "每日兑换所的体力页签：每样一天能买 2 次、一次 10 体力，勾了就买满。不勾不买。")
+	kit.Section(c, "硬币扭蛋")
+	ui.Segmented(c, &s.gachaMode, "不抽", "自动抽 1 次", "自己定")
+	if s.gachaMode == 2 {
+		ui.Row(c).Gap(8).AlignItems(ui.Center).Wrap().Children(func() {
+			for i, p := range gachaPools {
+				ui.Text(c, p[1]).FontSize(kit.FNote).TextColor(kit.Ink2)
+				ui.Row(c).Key("gacha-" + p[0]).Width(48).Children(func() {
+					ui.TextInput(c, &s.gachaN[i]).Grow(1).Placeholder("0").FontSize(kit.FSmall)
+				})
+			}
+		})
+		kit.Note(c, fmt.Sprintf("每个池抽几次（最多 %d 次；每次 10 枚这个池自己的币，币不够就抽能抽的）。", MaxGacha))
+	}
+}
+
+// MaxGacha 是每个池一次最多抽几次（和 hiro.daily.coin_gacha.MAX_TIMES 一样，#122 review）。
+const MaxGacha = 10
+
+// gachaLabel 把 --coin-gacha 的值说成人话（「友情 2 次、感性 1 次」）。
+func gachaLabel(v string) string {
+	switch v {
+	case "", "off":
+		return "不抽"
+	case "auto":
+		return "自动抽 1 次"
+	}
+	var parts []string
+	for _, p := range strings.Split(v, ",") {
+		k, n, _ := strings.Cut(p, ":")
+		for _, g := range gachaPools {
+			if g[0] == k {
+				parts = append(parts, g[1]+" "+n+" 次")
+			}
+		}
+	}
+	return strings.Join(parts, "、")
+}
+
+// dailyArgs 是日常选项对应的 run start 参数。
+func (s *state) dailyArgs() []string {
+	var a []string
+	if s.contestPick > 0 {
+		a = append(a, "--contest-pick", fmt.Sprint(s.contestPick))
+	}
+	// 商店、扭蛋在命令行缺省是关的（花マニー / 币的事默认不做，review）：这里总是显式传选的那项
+	a = append(a, "--shop", []string{"off", "recommended", "all"}[s.shopMode])
+	if s.shopRefresh && s.shopMode != 0 {
+		a = append(a, "--shop-refresh", "on")
+	}
+	if t := strings.TrimSpace(strings.ReplaceAll(s.shopItems, "，", ",")); t != "" && s.shopMode != 0 {
+		a = append(a, "--shop-items", t)
+	}
+	var ap []string
+	for i, it := range apItems {
+		if s.shopAP[i] {
+			ap = append(ap, it[0])
+		}
+	}
+	if len(ap) > 0 {
+		a = append(a, "--shop-ap", strings.Join(ap, ","))
+	}
+	switch s.gachaMode {
+	case 0:
+		a = append(a, "--coin-gacha", "off")
+	case 1:
+		a = append(a, "--coin-gacha", "auto")
+	case 2:
+		var parts []string
+		for i, p := range gachaPools {
+			n := 0
+			if _, err := fmt.Sscanf(strings.TrimSpace(s.gachaN[i]), "%d", &n); err == nil && n > 0 {
+				n = min(n, MaxGacha)
+				parts = append(parts, fmt.Sprintf("%s:%d", p[0], n))
+			}
+		}
+		if len(parts) > 0 {
+			a = append(a, "--coin-gacha", strings.Join(parts, ","))
+		} else {
+			a = append(a, "--coin-gacha", "off")
+		}
+	}
+	return a
 }
 
 func rank(r string) int {
@@ -475,12 +662,13 @@ func (s *state) args() ([]string, string) {
 	a := []string{"run", "start", m.id}
 	switch m.id {
 	case "daily":
-		return a, "帮我领日常奖励"
+		return append(a, s.dailyArgs()...), "帮我领日常奖励"
 	case "tower":
 		if s.pick.Chosen.ID == "" {
 			return nil, ""
 		}
-		return append(a, "--idol", s.pick.Chosen.ID), "开一局偶像之路（" + s.pick.Chosen.Name + "）"
+		// 偶像之路按偶像名找路线，传卡编号会在列表页停下（CodeRabbit #122）
+		return append(a, "--idol", s.pick.Chosen.BareIdol()), "开一局偶像之路（" + s.pick.Chosen.Name + "）"
 	}
 	if s.resume {
 		a = append(a, "--command", "resume")
@@ -490,6 +678,7 @@ func (s *state) args() ([]string, string) {
 	if m.id == "hif" {
 		a = append(a, "--mode", []string{"qualify", "main"}[s.hifMain])
 	}
+	a = append(a, s.search.args(examGroups(m.id, s.hifMain, s.resume))...)
 	if s.resume {
 		return a, "接着打 " + m.name
 	}
@@ -624,22 +813,50 @@ func (s *state) starters(h plugin.Host, cat *common.Catalog) []plugin.Starter {
 		}
 		seen[id+j.Kind] = true
 		e := cat.Get(h, id)
-		if e == nil {
+		if e == nil && j.Kind != "tower" {
 			continue
 		}
-		name, mode := shortIdol(e.Name), modeName(j.Kind)
-		out = append(out, plugin.Starter{
+		// 偶像之路的参数是偶像名（不是卡编号），资料库里查不到：直接用名字，不放卡面（CodeRabbit #197）
+		name, mode := id, modeName(j.Kind)
+		if e != nil {
+			name = shortIdol(e.Name)
+		}
+		st := plugin.Starter{
 			Label: "用" + name + "再打一把" + mode,
 			Sub:   "上次 " + time.Unix(int64(j.StartedAt), 0).Format("01-02") + " · " + labels.State(j.State),
 			Say:   "帮我用" + name + "打一把" + mode,
-			Art:   cat.Sprite(h, e.Asset),
-			Attr:  e.Attr,
-		})
+			Page:  replay(j, name, mode),
+		}
+		if e != nil {
+			st.Art, st.Attr = cat.Sprite(h, e.Asset), e.Attr
+		}
+		out = append(out, st)
 	}
 	if len(out) == 0 {
 		out = append(out, plugin.Starter{Label: "选个偶像开一局", Sub: "也可以直接说「帮我用某某打一把初」", Say: "/开局", Icon: kit.IcPlay})
 	}
 	out = append(out, plugin.Starter{Label: "领日常奖励", Sub: "活动费、礼物、工作派遣、任务，不花钻石", Icon: kit.IcSparkles,
-		Run: func(h plugin.Host) { h.RunArgs("帮我领日常奖励", []string{"run", "start", "daily"}) }})
+		Run: func(h plugin.Host) { h.RunArgs("帮我领日常奖励", s.dailyArgv()) }})
 	return out
+}
+
+// replay 是首页「用某某再打一把」：按上次那局的参数重新发起（照样出确认卡）。参数拼不出来时 nil（首页不出这一项）。
+func replay(j plugin.Job, name, mode string) func(h plugin.Host) {
+	params := map[string]any{}
+	for k, v := range j.Params {
+		params[k] = v
+	}
+	if params["command"] == "resume" {
+		params["command"] = "new" // 上次是接着打的：再打一把是开新的
+	}
+	// 续打时并进来的记录目录（resume_chain 的 trace）不带：run start 没有 --trace，新局自己建（CodeRabbit #138 / #197）
+	delete(params, "trace")
+	if idol, _ := params["idol"].(string); j.Kind == "tower" && strings.HasPrefix(idol, "i_card") {
+		return nil // 旧的偶像之路记录存的是偶像卡编号：列表页按偶像名找，重放会停在列表页（CodeRabbit #197），首页不出这一项
+	}
+	argv := common.StartArgv(j.Kind, params)
+	if len(argv) == 0 {
+		return nil
+	}
+	return func(h plugin.Host) { h.RunArgs("用"+name+"再打一把"+mode, argv) }
 }

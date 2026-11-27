@@ -35,6 +35,11 @@ logger = logging.getLogger(__name__)
 MODES = {"pro": "produce-004", "master": "produce-005"}
 DIFFICULTY_WORDS = {"pro": ("プロ", "PRO"), "master": ("マスター", "MASTER")}
 DIFFICULTY_BAND = (700, 1000)  # 剧本页难度按钮的 y 范围（N.I.A 剧本页「プロ / マスター」约 y 876）
+# 初的剧本页有两种：普通「初」（レギュラー / プロ / マスター）和「初 LEGEND」（只有レジェンド），左下的「初 ⇄」圆按钮切换。
+# 11-22 DMM：上次停在 LEGEND，找不到「レギュラー」40 秒超时。要的难度按钮不在、画面是另一种时点这个按钮
+HAJIME_SWITCH = (75, 755)
+LEGEND_WORDS = ("レジェンド", "LEGEND")
+SWITCH_GAP_S = 3.0
 AP_COST = 20
 UNKNOWN_STOP_S = 15.0
 FRAME_DIFF = 4.0
@@ -53,6 +58,18 @@ def _unlock_hint(f) -> str | None:
     return next((t.text.replace(" ", "") for t in f.texts if "解放" in t.text), None)
 
 
+def _other_hajime_page(texts, words) -> bool:
+    """初的剧本页，但显示的是另一种（要普通难度时画面是 LEGEND；要 LEGEND 时画面是レギュラー / プロ / マスター）。"""
+    lo, hi = DIFFICULTY_BAND
+    band = [t.text.replace(" ", "") for t in texts if lo <= t.rect.center.y <= hi]
+    if not any("初" in t.text for t in texts):
+        return False
+    want_legend = any(w in LEGEND_WORDS for w in words)
+    if want_legend:
+        return any(t in ("レギュラー", "REGULAR", "プロ", "PRO", "マスター", "MASTER") for t in band)
+    return any(w in t for t in band for w in LEGEND_WORDS) and not any(t in ("レギュラー", "REGULAR") for t in band)
+
+
 def choose_difficulty(
     rt, difficulty: str, timeout: float = opening.MODE_TIMEOUT, *, words: tuple[str, ...] | None = None
 ) -> None:
@@ -61,7 +78,7 @@ def choose_difficulty(
     from hiro.loop import ap_refill
 
     words = words or DIFFICULTY_WORDS[difficulty]
-    state = {"refilled": False, "taps": 0, "hint": None}
+    state = {"refilled": False, "taps": 0, "hint": None, "switched": None}
 
     def step(f):
         if nav.find(f, "Produce.TextStepIndicator1") is not None:
@@ -93,6 +110,13 @@ def choose_difficulty(
             logger.info("剧本页难度：点「%s」%s", btn.text, tuple(btn.rect.center))
             rt.device.tap(*btn.rect.center)
             state["taps"] += 1
+            rt.sleep(1.5)
+        elif _other_hajime_page(f.texts, words) and (
+            state["switched"] is None or rt.clock() - state["switched"] >= SWITCH_GAP_S
+        ):
+            logger.info("剧本页难度：画面是另一种「初」（找「%s」），点左下「初 ⇄」切换", words[0])
+            rt.device.tap(*HAJIME_SWITCH)
+            state["switched"] = rt.clock()
             rt.sleep(1.5)
         return None
 

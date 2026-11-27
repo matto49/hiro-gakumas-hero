@@ -27,6 +27,16 @@ NO_RS = "Rust 后端没装或是不带 search 的旧版本"
 MISS_LIMIT = 3  # 一场里连续这么多步和画面核不上：剩下的步不再搜
 
 
+MAIN_ROUNDS = ("r1", "r2")
+
+
+def main_search_rounds() -> set[str]:
+    """HIRO_EXAM_SEARCH_MAIN：H.I.F 本战哪一轮走搜索（r1,r2 / off），缺省两轮都搜（11-27 用户：开局页按场次选）。"""
+    from hiro.bench_bridge.advisor import round_set
+
+    return round_set("HIRO_EXAM_SEARCH_MAIN", MAIN_ROUNDS, True)
+
+
 BUDGET = {"seconds": 15.0, "worlds": 8, "threads": 0}  # 每步搜索预算（threads 0 = CPU 核数 − 1）
 
 
@@ -117,6 +127,9 @@ class SearchAdvisor(BenchAdvisor):
         super().on_round_start(round_no, context)
         self.misses, self.off_why = 0, None
         self.search_stats = {"search": 0, "fallback": 0}
+        base = str(getattr(self, "label", None) or context.get("exam") or "").split("#", 1)[0].lower()
+        if base in MAIN_ROUNDS and base not in main_search_rounds():
+            self.off_why = f"开局时这场（{base.upper()}）选了快速出牌（HIRO_EXAM_SEARCH_MAIN）"
         self.round_no = round_no
 
     def on_round_end(self, result: dict[str, Any] | None) -> None:

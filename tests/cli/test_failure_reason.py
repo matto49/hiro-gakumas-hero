@@ -145,3 +145,27 @@ def test_crash_after_recovered_error_is_the_reason():
     assert why is not None and "Vision" not in why
     # ERROR 在崩溃之后：还是取后面那条
     assert "后来的错" in failure_reason(lines + ["[2026-11-26 19:00:00,000] [ERROR] [m] 后来的错"])
+
+
+def test_center_dmm_window_only_for_dmm(monkeypatch):
+    """任务结束把 DMM 窗口放回屏幕中间（11-25）：只在 HIRO_DEVICE=dmm 时调 win_window.center，出错不抛。"""
+    import sys
+
+    from hiro.cli import jobs
+    from hiro.devices import win_window
+
+    calls = []
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(win_window, "center", lambda *a, **k: calls.append(1) or (0, 0))
+    monkeypatch.setenv("HIRO_DEVICE", "mumu")
+    jobs.center_dmm_window()
+    assert calls == []
+    monkeypatch.setenv("HIRO_DEVICE", "dmm")
+    jobs.center_dmm_window()
+    assert calls == [1]
+
+    def boom(*a, **k):
+        raise OSError("拒绝访问")
+
+    monkeypatch.setattr(win_window, "center", boom)
+    jobs.center_dmm_window()  # 不抛

@@ -1,6 +1,6 @@
 """领任务奖励，移植 KAA tasks/daily/mission_reward：
 1. 任务页（ミッション）：デイリー / ウィークリー 两个页签各点一次「一括受取」，等按钮变灰，中间的奖励框点 ✕ 关；
-2. 通行证页（パス）：逐个点「受取」、关奖励框，按滚动条每次往下拖 10% 轨道，直到到底。
+2. 通行证页（パス）：逐个点「受取」、关奖励框，按滚动条每次往下拖 10% 轨道，直到到底；领到过以后碰到一整屏没有可领的就停。
 KAA 的「活动奖励」是空实现（TODO），这里也不做。说明框（「ミッションパスPt獲得」等，只有閉じる）由日常中断 Popup 关。
 """
 
@@ -105,10 +105,20 @@ def claim_pass(rt) -> int:
     _enter(rt, PASS_ENTRY, PASS_TITLE, "进通行证页")
     n, last = 0, None
     for _ in range(MAX_SCROLLS):
+        got = 0
         for _ in range(MAX_CLAIMS_PER_SCREEN):
             if not _claim_one_pass(rt):
                 break
-            n += 1
+            got += 1
+        n += got
+        if n > 0 and got == 0:
+            rt.sleep(1.0)  # 一帧没认出「受取」不算：画面稳了再看一次（CodeRabbit #138）
+            while got < MAX_CLAIMS_PER_SCREEN and _claim_one_pass(rt):
+                got += 1
+            n += got
+        if n > 0 and got == 0:
+            # 能领的都连在当前等级附近：领到过以后又一整屏没有可领的，下面也不会有，不再往下拖（11-27 用户：每天划到底浪费时间）
+            break
         rt.sleep(0.5)
         bar = common.scrollbar(common.frame(rt).img, PASS_SCROLLBAR)
         if bar is None or bar.position >= 0.99 or bar == last:  # 认不出 / 到底 / 拖了没动

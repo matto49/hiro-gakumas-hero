@@ -116,6 +116,10 @@ def _run(cmd: list[str]) -> int:
         logger.warning("关游戏命令失败：%s（%r）", " ".join(cmd), e)
         return -1
     out = " ".join((r.stdout + " " + r.stderr).split())[:200]
+    if cmd and cmd[0] == "taskkill" and r.returncode == 128:
+        # 128 = 没有这个进程：游戏本来就不在，算关好了（#123 review：原来当成失败、提示要管理员）
+        logger.info("关游戏：%s → 进程本来就不在", " ".join(cmd))
+        return 0
     (logger.info if r.returncode == 0 else logger.warning)("关游戏：%s → %d %s", " ".join(cmd), r.returncode, out)
     return r.returncode
 

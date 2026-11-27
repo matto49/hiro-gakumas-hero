@@ -31,7 +31,14 @@ PARAMS = (
     "support_set",
     "memory_set",
     "difficulty",
+    "exam_search",
     "items",
+    "contest_pick",
+    "shop",
+    "shop_items",
+    "shop_ap",
+    "shop_refresh",
+    "coin_gacha",
     "chapter",
     "until",
     "final_rank",
@@ -83,6 +90,17 @@ def _precheck(a: dict) -> None:
         if bad:
             raise CliError(
                 "bad_args", f"日常里没有这些项：{'、'.join(bad)}", "可选：" + "、".join(jobs.DAILY_ITEMS), exit_code=2
+            )
+    if a.get("exam_search") is not None and a["kind"] in jobs.EXAM_SEARCH_KEYS:
+        # 写错的场次（如 hajime 写了 r1）原来静默变成「全部快速」（#197 review）：直接报出来
+        keys = jobs.EXAM_SEARCH_KEYS[a["kind"]]
+        given = [x.strip().lower() for x in str(a["exam_search"]).split(",") if x.strip()]
+        if bad := [x for x in given if x not in keys and x != "none"]:
+            raise CliError(
+                "bad_args",
+                f"{a['kind']} 没有这些场次：{'、'.join(bad)}",
+                "可选：" + "、".join(keys) + "；都快速写 none",
+                exit_code=2,
             )
     if a["kind"] == "nia" and a.get("difficulty") == "regular":
         raise CliError("bad_args", "N.I.A 没有 REGULAR，只有 pro / master", "改成 --difficulty pro", exit_code=2)
@@ -662,13 +680,46 @@ def _first_reason(out: str) -> str:
         Arg("--memory-set", "hif / hajime / nia：用第几号回忆编成", type="int"),
         Arg("--difficulty", "hajime：regular / pro / master；nia：pro / master", choices=("regular", "pro", "master")),
         Arg(
+            "--exam-search",
+            "hajime / nia / hif：哪几场考试用搜索出牌（更准、每步约 5 秒，H.I.F 本战约 15 秒），其余用快速出牌；逗号分隔，none = 都快速。"
+            "hajime：mid1 final lesson（缺省全搜）；nia：mid1 mid2 final（缺省都不搜）；hif：q1 q2 q3（选拔，缺省不搜）r1 r2（本战，缺省都搜）",
+        ),
+        Arg(
             "--final-rank",
             "hajime：期末要到第几名（如 1），没到就用再挑戦（免费 / チケット，不花ジュエル）",
             type="int",
         ),
         Arg(
             "--items",
-            "daily：只领这几项（逗号分隔：activity_funds、presents、assignment、contest、mission_reward、club_reward）",
+            "daily：只领这几项（逗号分隔：activity_funds、presents、assignment、contest、shop、coin_gacha、mission_reward、club_reward）",
+        ),
+        Arg(
+            "--contest-pick",
+            "daily：竞赛挑哪个对手（lowest 综合力最低 / 1 / 2 / 3 由上到下第几个）",
+            choices=("lowest", "1", "2", "3"),
+        ),
+        Arg(
+            "--shop",
+            "daily：商店每日兑换所买什么（off 不买，缺省 / recommended 推荐商品 / all 能买的都买），只用金币",
+            choices=("recommended", "all", "off"),
+        ),
+        Arg(
+            "--shop-items",
+            "daily：商店另外要买的商品名，逗号分隔（名字包含就算，中文日文都行，如 仓本千奈的碎片 / 倉本千奈のピース）",
+        ),
+        Arg(
+            "--shop-ap",
+            "daily：体力（AP）商店买哪几样，逗号分隔：pt 支援强化点数获取提升 / note 笔记获取数提升 / retry 再挑战券 / regen 回忆再生成券（每样一天 2 次、一次 10 体力；缺省不买）",
+        ),
+        Arg(
+            "--shop-refresh",
+            "daily：买完以后用每日 1 次的免费刷新再买一轮（on / off，缺省 off）。只在右上角读到「リスト更新:1回無料」时点；"
+            "点了出确认框一律点空白关掉、不刷新（不花钻石）",
+            choices=("on", "off"),
+        ),
+        Arg(
+            "--coin-gacha",
+            "daily：硬币扭蛋（off 不抽，缺省 / auto 抽 1 次 / friend:1,sense:2，池：friend sense logic anomaly）",
         ),
         Arg("--layers", "tower：打几层", type="int"),
         Arg("--chapter", "story：初星コミュ第几章（缺省 1）", type="int"),
@@ -708,6 +759,38 @@ def _start(a: dict) -> dict:
     # 对局用哪个模型：跟着发起开局的这个进程的环境（桌面程序按模型设置传；终端里就是自己 shell 的 HIRO_LLM）
     llm_env = {k: os.environ[k] for k in LLM_VARS if os.environ.get(k)}
     return client.data("start", {"kind": a["kind"], "params": _params(a), "llm_env": llm_env})
+
+
+@command(
+    "game close",
+    Risk.READ,
+    "关游戏（DMM 关 gakumas.exe；MuMu / 雷电关游戏应用）。--what emulator 连模拟器 / DMM Game Player 一起关。"
+    "初星助手的「跑完关游戏」开着时，任务结束后自动调用。培育进度在服务器上，关了不丢。",
+    args=(Arg("--what", "game 只关游戏（缺省）/ emulator 连模拟器一起关", choices=("game", "emulator")),),
+    agent=False,
+)
+def _game_close(a: dict) -> dict:
+    from hiro.runtime import close_game
+
+    # 停止中（stopping）的任务还没退出，也不关（CodeRabbit #197：停了马上关会把还在收尾的任务的游戏关掉）
+    if (cur := client.data("status").get("current")) and cur.get("state") in (*LIVE, "stopping"):
+        raise CliError("busy", "有任务在跑，不关游戏", "等任务结束")
+    what = a.get("what") or "game"
+    if not close_game.commands(close_game.device_kind(), what):
+        # Mac（PlayCover）等后端没有关游戏的办法：说清楚，不再让界面以为是没有管理员权限（#123 review）
+        raise CliError("unsupported", "这个平台不能自动关游戏", "PlayCover 等请手动关；DMM / MuMu / 雷电可以")
+    return {"closed": close_game.close(what, why="跑完关游戏（初星助手）")}
+
+
+@command(
+    "service stop",
+    Risk.READ,
+    "关掉 hiro 后台服务（正在跑的任务会先停下，培育不放弃，之后可以 resume）。初星助手关窗口时调用。",
+    agent=False,
+)
+def _service_stop(a: dict) -> dict:
+    client.shutdown()
+    return {"stopped": True}
 
 
 @command(

@@ -87,7 +87,7 @@ func TestPreview(t *testing.T) {
 	}
 	home := t.TempDir()
 	a := &Assistant{Home: home, Keys: fileKeys{Path: filepath.Join(home, "model-keys.json")}}
-	_ = a.Save(Settings{Provider: "deepseek", Model: "deepseek-flash", WizardDone: true}, "sk-preview-not-real")
+	_ = a.Save(Settings{Provider: "deepseek", Model: "deepseek-flash", WizardDone: true, OpenIn: "chat"}, "sk-preview-not-real")
 	run := &shell.SyncRunner{}
 	app := buildApp(appDeps{Home: home, Call: call, Assistant: a, Bootstrap: &Bootstrap{Home: home, Hiro: &Hiro{}}, Run: run,
 		Ready: func(context.Context) bool { return true }})

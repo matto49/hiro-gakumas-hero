@@ -48,6 +48,7 @@ func New() *plugin.Plugin {
 			"run-pinned": func(c *ui.Context, h plugin.Host, card plugin.Card) { s.pinned(c, h, jobID(card)) },
 		},
 		Panel:        func(c *ui.Context, h plugin.Host, route string) { s.panel(c, h, route) },
+		Page:         func(c *ui.Context, h plugin.Host, route string) { s.page(c, h, route) },
 		ContextTitle: "游戏运行现状",
 		Context:      func(ctx context.Context, h plugin.Host) string { return s.context(ctx, h) },
 	}
@@ -219,6 +220,16 @@ func (s *state) runCard(c *ui.Context, h plugin.Host, id string) {
 
 // failLine 是出错停下的对局卡底部那行红字原因（11-25 review：原因原来只在日志里，对局卡看不到）。
 func failLine(c *ui.Context, v *plugin.JobView) {
+	if done := v.DoneText(); done != "" {
+		// 做完的结果（日常每项做了什么），一项一行
+		ui.Column(c).Gap(4).Padding(10, 14).Background(kit.Surface2).Children(func() {
+			ui.Text(c, "结果").FontSize(kit.FNote).FontWeight(600).TextColor(kit.Ink2)
+			for _, part := range strings.Split(done, "；") {
+				ui.Text(c, part).FontSize(kit.FNote).TextColor(kit.Ink).Wrap()
+			}
+		})
+		return
+	}
 	why := v.FailReason()
 	if why == "" {
 		return
@@ -459,17 +470,49 @@ func (s *state) panel(c *ui.Context, h plugin.Host, route string) {
 		s.refreshRecent(h)
 		if len(s.recent) > 0 && !plugin.LiveStates[s.recent[0].State] && h.ChatJob(s.recent[0].ID) {
 			kit.Section(c, "刚结束的一局")
-			s.jobView(c, h, s.recent[0].ID)
+			s.jobView(c, h, s.recent[0].ID, false)
 		}
-		s.background(c, h, "")
+		s.background(c, h, "", false)
 		return
 	}
-	s.jobView(c, h, id)
-	s.background(c, h, id)
+	s.jobView(c, h, id, false)
+	s.background(c, h, id, false)
+}
+
+// page 是页面模式的宽版（11-26 两种界面）：左边画面 + 几行数 + 暂停 / 接手 / 停止，右边每一步做了什么、为什么；
+// 下面「最近任务」是所有任务（页面上、对话里、命令行开的都算）。
+func (s *state) page(c *ui.Context, h plugin.Host, route string) {
+	if strings.HasPrefix(route, "review:") {
+		s.reviewPanel(c, h, strings.TrimPrefix(route, "review:"))
+		return
+	}
+	id := h.LiveJob()
+	if strings.HasPrefix(route, "job:") {
+		id = strings.TrimPrefix(route, "job:")
+	}
+	s.refreshRecent(h)
+	if id == "" {
+		kit.Note(c, "现在没有在跑的任务。在「开局」「日常」页发起，或者点下面最近的任务看结果。")
+		if len(s.recent) > 0 && !plugin.LiveStates[s.recent[0].State] {
+			id = s.recent[0].ID
+			kit.Section(c, "刚结束的一个")
+		}
+	}
+	if id != "" {
+		ui.Row(c).Gap(20).AlignItems(ui.Start).Children(func() {
+			ui.Column(c).Width(PanelFrameWidth + 40).Shrink(0).Gap(12).Children(func() { s.jobView(c, h, id, true) })
+			ui.Column(c).Grow(1).Shrink(1).Gap(8).Children(func() {
+				ui.Text(c, "每一步").FontSize(kit.FSmall).FontWeight(600).TextColor(kit.Ink2)
+				s.runCard(c, h, id)
+			})
+		})
+	}
+	s.background(c, h, id, true)
 }
 
 // jobView 是一局的详情：标题、状态、画面、几行数、出错原因、控制、成绩和复盘入口（不含后台任务列表）。
-func (s *state) jobView(c *ui.Context, h plugin.Host, id string) {
+// wide：页面模式的宽版，步骤就在右边，不写「在左边对话里」那句。
+func (s *state) jobView(c *ui.Context, h plugin.Host, id string, wide bool) {
 	v := h.Job(id)
 	ui.Row(c).Gap(8).AlignItems(ui.Center).Children(func() {
 		ui.Text(c, title(v, id)).FontSize(15).FontWeight(650).TextColor(kit.Ink)
@@ -507,7 +550,9 @@ func (s *state) jobView(c *ui.Context, h plugin.Host, id string) {
 	if v.State == "takeover" {
 		kit.Note(c, "自动操作已停下。你在游戏里点完，按「继续自动打」，初星助手会从当前画面接着打。")
 	}
-	kit.Note(c, "每一步做了什么、为什么，在左边对话里那张对局卡下面。")
+	if !wide {
+		kit.Note(c, "每一步做了什么、为什么，在左边对话里那张对局卡下面。")
+	}
 	if exams := v.Report(); len(exams) > 0 {
 		kit.Section(c, "成绩")
 		scoreStrip(c, exams)
@@ -542,12 +587,13 @@ func (s *state) refreshRecent(h plugin.Host) {
 }
 
 // background 是「后台任务」：命令行等外部发起的任务（不属于任何对话，11-25 review：它们不再往对话里发通知）。
-func (s *state) background(c *ui.Context, h plugin.Host, current string) {
+// all：页面模式的「最近任务」，不管在哪开的都列。
+func (s *state) background(c *ui.Context, h plugin.Host, current string, all bool) {
 	s.refreshRecent(h)
 	var jobs []plugin.Job
 	seen := map[string]bool{}
 	for _, j := range s.recent {
-		if j.ID == current || seen[j.ID] || h.ChatJob(j.ID) {
+		if j.ID == current || seen[j.ID] || (!all && h.ChatJob(j.ID)) {
 			continue
 		}
 		seen[j.ID] = true
@@ -559,8 +605,13 @@ func (s *state) background(c *ui.Context, h plugin.Host, current string) {
 	if len(jobs) > 8 {
 		jobs = jobs[:8]
 	}
-	kit.Section(c, "后台任务")
-	kit.Note(c, "在对话外面（命令行、别的程序）开的任务，不往对话里发消息。")
+	if all {
+		kit.Section(c, "最近任务")
+		kit.Note(c, "点一项看那次的结果、出错原因和复盘。")
+	} else {
+		kit.Section(c, "后台任务")
+		kit.Note(c, "在对话外面（命令行、别的程序）开的任务，不往对话里发消息。")
+	}
 	if s.recentErr != "" {
 		ui.Text(c, "刷新失败："+s.recentErr+"。下面是上次读到的，过几秒会自动再试。").FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
 	}

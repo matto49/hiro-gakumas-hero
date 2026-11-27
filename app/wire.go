@@ -34,6 +34,8 @@ type appDeps struct {
 	StationInstall func() (string, string)
 	// Web 是侧边面板的网页视图（nil：测试里不接）。
 	Web *webPanels
+	// Quit 关掉整个程序（「跑完关助手」）；nil：测试里不接，侧栏不出这个开关。
+	Quit func()
 }
 
 // buildApp 注册内置插件，搭出主界面。
@@ -50,6 +52,7 @@ func buildApp(d appDeps) *shell.App {
 			app.FirstScan()
 		}
 	}
+	sd.Quit = d.Quit
 	set := settings.New(sd)
 	reg.Add(start.New())
 	reg.Add(plan.New())
@@ -101,6 +104,20 @@ func buildApp(d appDeps) *shell.App {
 			return cache.Save(s, "")
 		},
 		AllowAllConfirmed: func() bool { return cache.Get().AllowAllConfirmed },
+		AfterRun: func() string {
+			st := cache.Get()
+			game, self := st.CloseGameAfter && settings.CloseGameSupported, st.CloseSelfAfter && d.Quit != nil
+			switch {
+			case game && self:
+				return "关游戏和初星助手（侧栏「跑完关游戏」「跑完关助手」开着）；之后要先自己把游戏打开"
+			case game:
+				return "关游戏（「跑完关游戏」开着）；之后要先自己把游戏打开"
+			case self:
+				return "关掉初星助手（「跑完关助手」开着）"
+			}
+			return ""
+		},
+		OpenIn:            func() string { return cache.Get().OpenIn },
 	}, reg)
 	station.restore(app)
 	return app

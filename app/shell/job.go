@@ -203,6 +203,9 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 			} else {
 				text = "「" + name + "」做完了，编成已经写进游戏。要开局点侧栏的「开局」。"
 			}
+		case v.DoneText() != "":
+			// 日常等任务的「结果：」（每项做了什么）
+			text = "「" + name + "」做完了：" + v.DoneText() + "。"
 		default:
 			text = "「" + name + "」做完了。"
 			// N31（G1 第 3 轮 11-26）：第一次三项扫描都做完后对话停在「做完了」，没说下一步能做什么。
@@ -246,6 +249,10 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 		text = "「" + name + "」" + labels.State(v.State) + "了。"
 	}
 	t := a.ownerThread(id)
+	if t != a.pages {
+		// 页面模式里开的局：下面 addTo 到页面记录时就会出提示条。对话里开的、命令行开的也出一条（两边都显示，用户 11-26 定）
+		a.toastFor(text, cards)
+	}
 	if t == nil {
 		return // 命令行等外部发起的：不进对话（11-25 review），在游戏运行现状的「后台任务」里看
 	}
@@ -255,7 +262,7 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 
 // queuedAfter：这个任务后面还有排队等着做的（「全部开始」的合并确认卡记着 queueJob = 它、queue 还没空）。
 func (a *App) queuedAfter(id string) bool {
-	for _, t := range a.threads {
+	for _, t := range a.allThreads() { // 页面上合并确认的批次记在页面记录里（CodeRabbit #138）
 		for _, m := range t.Messages {
 			for _, card := range m.Cards {
 				if card["type"] != "confirm" || card["queueJob"] != id {
@@ -347,7 +354,7 @@ func (h *jobHost) Post(text string, card plugin.Card) {
 
 // ownerThread 是有这局对局卡的对话（在对话里确认开的局）；命令行等外部发起的没有，返回 nil。
 func (a *App) ownerThread(id string) *Thread {
-	for _, t := range a.threads {
+	for _, t := range a.allThreads() {
 		for _, m := range t.Messages {
 			for _, c := range m.Cards {
 				if c["type"] == "run" && c["jobId"] == id {
@@ -359,8 +366,19 @@ func (a *App) ownerThread(id string) *Thread {
 	return nil
 }
 
-// ChatJob 是这局是不是在某个对话里开的。
-func (a *App) ChatJob(id string) bool { return a.ownerThread(id) != nil }
+// ChatJob 是这局是不是在某个对话里开的（页面上开的不算：对话界面的「后台任务」照样列出来，CodeRabbit #198）。
+func (a *App) ChatJob(id string) bool {
+	for _, t := range a.threads {
+		for _, m := range t.Messages {
+			for _, c := range m.Cards {
+				if c["type"] == "run" && c["jobId"] == id {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
 
 // StartPolling 在后台一直轮询，直到 stop 关上。
 func (a *App) StartPolling(stop <-chan struct{}) {

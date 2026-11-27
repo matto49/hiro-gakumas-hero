@@ -91,11 +91,11 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 
 | 种类 | 参数 | 做什么 |
 |---|---|---|
-| `hif` | `--command new\|resume`、`--mode qualify\|main`、`--idol <偶像卡编号>`、`--main-attr Vo\|Da\|Vi`、`--support-set N`、`--memory-set N`、`--no-llm` | H.I.F 培育。`--mode main` 会用掉一份选拔回忆；`resume` 接着打进行中的培育。编成号不给时按编成方案 |
-| `hajime` | 同上（没有 `--mode`），另有 `--difficulty regular\|pro\|master` | 「初」培育。`new` 必须给 `--idol` |
-| `nia` | 同 `hajime`，`--difficulty pro\|master` | N.I.A 培育。认不出的页面会停下：请用户手动处理后 `--command resume` |
+| `hif` | `--command new\|resume`、`--mode qualify\|main`、`--idol <偶像卡编号>`、`--main-attr Vo\|Da\|Vi`、`--support-set N`、`--memory-set N`、`--no-llm`、`--exam-search q1,q2,q3,r1,r2\|none`（哪几场考试用搜索出牌，其余快速；不给按缺省：选拔不搜、本战都搜） | H.I.F 培育。`--mode main` 会用掉一份选拔回忆；`resume` 接着打进行中的培育。编成号不给时按编成方案 |
+| `hajime` | 同上（没有 `--mode`），另有 `--difficulty regular\|pro\|master`；`--exam-search` 场次是 `mid1,final,lesson`（缺省全搜） | 「初」培育。`new` 必须给 `--idol` |
+| `nia` | 同 `hajime`，`--difficulty pro\|master`；`--exam-search` 场次是 `mid1,mid2,final`（缺省都不搜） | N.I.A 培育。认不出的页面会停下：请用户手动处理后 `--command resume` |
 | `tower` | `--idol <路线的偶像名>`、`--layers N`、`--no-llm` | 偶像之路 |
-| `daily` | `--items activity_funds,presents,assignment,contest,mission_reward,club_reward`（可选，缺省全部） | 日常：活動費、礼物、工作、竞赛、任务奖励、社团 |
+| `daily` | `--items activity_funds,presents,assignment,contest,shop,coin_gacha,mission_reward,club_reward`（可选，缺省全部）；`--contest-pick lowest\|1\|2\|3`；`--shop off\|recommended\|all`（缺省 off）、`--shop-items 名字,…`；`--shop-ap pt,note,retry,regen`（体力商店，缺省不买）；`--shop-refresh on\|off`（买完用每日免费刷新再买一轮，缺省 off）；`--coin-gacha off\|auto\|friend:1,sense:2`（缺省 off） | 日常：活动费、礼物、工作派遣、竞赛、商店（金币）、体力商店（可选）、硬币扭蛋、任务奖励、社团。结束事件 `done` 的文字是每项结果 |
 | `scan-account` | — | 读首页顶栏的 PLv / AP / ジュエル（只截一张图，不点；游戏要停在首页、没有弹窗） |
 | `scan-supports` | — | 扫描支援卡（只读，不改编成） |
 | `scan-idols` | — | 扫描偶像卡（只读：偶像一览里逐张点开读卡名，最后点「<<」退出，不点決定），结果进 `hiro info idols` |
@@ -134,6 +134,8 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | `hiro run report --job <编号>` | 一局的成绩摘要：每场考试分数、决策来源（规则 / 算法 / LLM）、LLM 次数、故障恢复次数。对局结束时事件流里也有一条 `report` |
 | `hiro run review --job <编号>` | 生成复盘页（逐回合出牌和理由，带截图），返回本机 html 路径 |
 | `hiro run stop` | 停止任务（不放弃培育，游戏停在原地，之后可以 `hif --command resume` 续跑） |
+| `hiro game close [--what game\|emulator]` | 关游戏（缺省只关游戏）；有任务在跑时不关。桌面程序「跑完关游戏」开着时任务结束自动调用 |
+| `hiro service stop` | 关掉后台服务（正在跑的任务先停）；桌面程序关窗口时调用，平时不用 |
 
 任务结束的事件是 `done`、`failed`（看前面几条 `log` 判断原因，转告使用者）或 `stopped`。
 

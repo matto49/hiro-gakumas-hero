@@ -3,6 +3,7 @@ package start
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/matto49/hiro-gakumas-hero/app/hiroapi"
 	"github.com/matto49/hiro-gakumas-hero/app/plugin"
+	"github.com/matto49/hiro-gakumas-hero/app/plugins/common"
 	"github.com/matto49/hiro-gakumas-hero/app/plugins/plugintest"
 )
 
@@ -146,7 +148,7 @@ func TestPanelStartsWithChosenIdol(t *testing.T) {
 		t.Fatalf("没发起：%v", h.RunArgs_)
 	}
 	got := strings.Join(h.RunArgs_[0], " ")
-	if !strings.Contains(got, "run start hajime --command new --idol i_card-skin-hski-3-0001 --difficulty pro") {
+	if !strings.Contains(got, "run start hajime --command new --exam-search mid1,final,lesson --idol i_card-skin-hski-3-0001 --difficulty pro") {
 		t.Errorf("参数 %q", got)
 	}
 }
@@ -177,6 +179,17 @@ func TestStartersFromRecentRuns(t *testing.T) {
 	}
 	if !found {
 		t.Error("要有领日常奖励")
+	}
+}
+
+// CodeRabbit #197：偶像之路的参数是偶像名，资料库按编号查不到，首页照样给「再打一把」。
+func TestStartersTowerByName(t *testing.T) {
+	h, p := host(), New()
+	h.Resp["run status"] = okResult(`{"current":null,"recent":[{"id":"j1","kind":"tower","state":"done","started_at":1764000000,"params":{"idol":"篠澤広"}}]}`)
+	p.Starters(h)
+	st := p.Starters(h)
+	if len(st) == 0 || st[0].Label != "用篠澤広再打一把偶像之路" {
+		t.Errorf("偶像之路的再打一把：%+v", st)
 	}
 }
 
@@ -360,5 +373,82 @@ func TestWriteFormationCardNamesSets(t *testing.T) {
 	e3, _ := p.Explain(h, hiroapi.Pending{Command: "run start", Args: map[string]any{"kind": "write-formation", "dry_run": true, "support_set": 3}})
 	if len(e3.Rows) != 0 {
 		t.Errorf("dry-run 不该有写进行 %+v", e3.Rows)
+	}
+}
+
+// #122 review：日常选项的零值是不买、不抽（老用户照常点日常不该第一次就花金币）；不买时不传「另外要买的」；扭蛋次数有上限。
+func TestDailyArgsDefaultSpendNothing(t *testing.T) {
+	s := &state{}
+	got := strings.Join(s.dailyArgs(), " ")
+	if got != "--shop off --coin-gacha off" {
+		t.Fatalf("缺省 %q", got)
+	}
+	s.shopItems = "再挑战券"
+	if strings.Contains(strings.Join(s.dailyArgs(), " "), "shop-items") {
+		t.Error("不买时不该传另外要买的")
+	}
+	s.shopMode, s.gachaMode, s.gachaN[0] = 1, 2, "999"
+	got = strings.Join(s.dailyArgs(), " ")
+	if !strings.Contains(got, "--shop recommended --shop-items 再挑战券") || !strings.Contains(got, fmt.Sprintf("--coin-gacha friend:%d", MaxGacha)) {
+		t.Errorf("选了以后 %q", got)
+	}
+}
+
+// CodeRabbit #122：偶像之路传偶像名（列表页按名字找路线），不传卡编号。
+func TestTowerPassesBareIdolName(t *testing.T) {
+	s := &state{}
+	for i, m := range modes {
+		if m.id == "tower" {
+			s.mode = i
+		}
+	}
+	s.pick.Chosen = common.IdolItem{ID: "i_card-skin-hski-3-001", Name: "【光景】篠泽广", Idol: "篠澤広"}
+	a, _ := s.args()
+	if a[len(a)-1] != "篠澤広" {
+		t.Errorf("偶像之路参数 %q", a)
+	}
+	s.pick.Chosen.Idol = ""
+	if a, _ := s.args(); a[len(a)-1] != "篠泽广" {
+		t.Errorf("没有扫描名时去掉称号：%q", a)
+	}
+}
+
+// 每日免费刷新：缺省不传；勾了、又在买东西时才传 on。
+func TestDailyArgsShopRefresh(t *testing.T) {
+	s := &state{shopRefresh: true}
+	if strings.Contains(strings.Join(s.dailyArgs(), " "), "shop-refresh") {
+		t.Error("不买时不传免费刷新")
+	}
+	s.shopMode = 1
+	if !strings.Contains(strings.Join(s.dailyArgs(), " "), "--shop-refresh on") {
+		t.Errorf("勾了 %q", s.dailyArgs())
+	}
+}
+
+// CodeRabbit #138 / #197：续打过的局（params 里有 resume_chain 并进来的 trace）再打一把：开新局，不带 --trace（run start 没这个参数）。
+func TestReplayDropsTrace(t *testing.T) {
+	j := plugin.Job{ID: "j1", Kind: "hif", Params: map[string]any{"command": "resume", "trace": "x-r1"}}
+	run := replay(j, "篠澤広", "H.I.F")
+	if run == nil {
+		t.Fatal("应该能再打一把")
+	}
+	h := host()
+	run(h)
+	got := strings.Join(h.RunArgs_[len(h.RunArgs_)-1], " ")
+	if strings.Contains(got, "--trace") || !strings.Contains(got, "--command new") {
+		t.Errorf("参数 %q", got)
+	}
+	if j.Params["trace"] != "x-r1" {
+		t.Error("不该改掉原局的参数")
+	}
+}
+
+// CodeRabbit #197：旧的偶像之路记录 idol 是偶像卡编号（列表页按偶像名找）：不给「再打一把」。
+func TestReplaySkipsOldTowerCardID(t *testing.T) {
+	if replay(plugin.Job{ID: "j1", Kind: "tower", Params: map[string]any{"idol": "i_card-skin-hski-3-0001"}}, "x", "偶像之路") != nil {
+		t.Error("旧记录不该给再打一把")
+	}
+	if replay(plugin.Job{ID: "j2", Kind: "tower", Params: map[string]any{"idol": "篠澤広"}}, "篠澤広", "偶像之路") == nil {
+		t.Error("按偶像名记的应能再打一把")
 	}
 }

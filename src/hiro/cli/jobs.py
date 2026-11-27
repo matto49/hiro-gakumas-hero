@@ -52,6 +52,19 @@ _EXC_SUFFIX = re.compile(r"(?:Error|Exception|Gone|Unavailable|Blocked|Page)$")
 _RECOVERED = re.compile(r"改用 RapidOCR|改到子进程里跑")
 
 
+def center_dmm_window() -> None:
+    """任务结束后把 DMM 游戏窗口放回屏幕正中（11-25 用户：后台点击会把窗口挪到最后一次点击的位置，
+    标题栏有时跑到屏幕外，手动都拖不回来）。只在 Windows + HIRO_DEVICE=dmm；没有窗口 / 没权限就算了。"""
+    if sys.platform != "win32" or (os.environ.get("HIRO_DEVICE") or "").strip().lower() != "dmm":
+        return
+    try:
+        from hiro.devices import win_window
+
+        win_window.center()
+    except Exception:  # noqa: BLE001, S110  居中失败不影响任务结果
+        pass
+
+
 def failure_reason(lines: list[str]) -> str | None:
     """任务出错时给人看的一句原因：最后一条「停下：…」，没有就最后一条 ERROR 日志（去掉时间 / 级别 / 模块前缀和本机截图路径）。
     11-25 review：failed 事件只写「看上面的日志」，对话和对局卡里看不到原因。"""
@@ -183,12 +196,23 @@ def _hif_argv(p: dict, d: Path) -> list[str]:
     return argv
 
 
-DAILY_ITEMS = ("activity_funds", "presents", "assignment", "contest", "mission_reward", "club_reward")
+DAILY_ITEMS = (
+    "activity_funds",
+    "presents",
+    "assignment",
+    "contest",
+    "shop",
+    "coin_gacha",
+    "mission_reward",
+    "club_reward",
+)
 DAILY_LABEL = {
-    "activity_funds": "活動費",
+    "activity_funds": "活动费",
     "presents": "礼物",
-    "assignment": "工作",
+    "assignment": "工作派遣",
     "contest": "竞赛",
+    "shop": "商店",
+    "coin_gacha": "硬币扭蛋",
     "mission_reward": "任务奖励",
     "club_reward": "社团",
 }
@@ -196,17 +220,68 @@ HAJIME_LEVELS = ("regular", "pro", "master")
 NIA_LEVELS = ("pro", "master")
 
 
+def _daily_opts(p: dict) -> dict[str, str]:
+    """日常的花钱选项，缺的按缺省（不买、不抽、综合力最低）补齐。「另外要买的」只在买推荐 / 全部时算（#122 review）。"""
+    shop = str(p.get("shop") or "off").strip().lower()
+    return {
+        "contest_pick": str(p.get("contest_pick") or "lowest"),
+        "shop": shop,
+        "shop_items": str(p.get("shop_items") or "") if shop != "off" else "",
+        "shop_ap": str(p.get("shop_ap") or ""),
+        "shop_refresh": "on" if shop != "off" and str(p.get("shop_refresh") or "off").lower() == "on" else "off",
+        "coin_gacha": str(p.get("coin_gacha") or "off"),
+    }
+
+
 def _daily_argv(p: dict, d: Path) -> list[str]:
     argv = [_PY, str(REPO / "tools" / "daily" / "run_daily.py")]
     items = [i for i in (p.get("items") or "").split(",") if i]
     if items:
         argv += ["--only", ",".join(items)]
+    # 每项都显式传（空的也传）：不让任务继承环境里的 HIRO_SHOP 等，执行的和确认摘要写的一样（CodeRabbit #138）
+    for key, val in _daily_opts(p).items():
+        argv += ["--" + key.replace("_", "-"), val]
     return argv
 
 
+_AP_NAMES = {"pt": "支援强化点数获取提升", "note": "笔记获取数提升", "retry": "再挑战券", "regen": "回忆再生成券"}
+_GACHA_NAMES = {"friend": "友情", "sense": "感性", "logic": "理性", "anomaly": "非凡"}
+
+
 def _daily_summary(p: dict) -> str:
+    """确认摘要：做哪几项，加上会花什么（商店、体力商店、扭蛋；不买不抽也写明，CodeRabbit #122）。"""
     items = [i for i in (p.get("items") or "").split(",") if i]
-    return "领日常奖励" + (f"（{'、'.join(DAILY_LABEL.get(i, i) for i in items)}）" if items else "")
+    o = _daily_opts(p)
+    run = lambda k: not items or k in items  # noqa: E731
+    spend = []
+    if run("shop"):
+        shop = {"recommended": "商店买推荐商品（花金币）", "all": "商店能买的都买（花金币）"}.get(o["shop"], "商店不买")
+        if o["shop_items"]:
+            shop += f"，另外买：{o['shop_items']}"
+        if o["shop_refresh"] == "on":
+            shop += "，用免费刷新再买一轮（不花钻石）"
+        spend.append(shop)
+        # 体力商店：和执行端同一套解析（小写、只认 pt / note / retry / regen；CodeRabbit #138）
+        keys = [k for k in (x.strip().lower() for x in o["shop_ap"].split(",")) if k in _AP_NAMES]
+        if ap := [_AP_NAMES[k] for k in dict.fromkeys(keys)]:
+            spend.append("体力商店买" + "、".join(ap) + "（花体力）")
+    if run("coin_gacha"):
+        from hiro.daily.coin_gacha import plan
+
+        # 和真正抽的时候同一套解析（大小写 / 空格、写错的次数不抽、同一个池合起来不超上限）：确认时看到的就是实际要抽的（CodeRabbit #122 / #138）
+        g = o["coin_gacha"]
+        got = plan(g)
+        if got == "auto":
+            spend.append("硬币扭蛋抽 1 次（花硬币）")
+        elif got:
+            spend.append("硬币扭蛋抽" + "、".join(f"{_GACHA_NAMES.get(k, k)} {n} 次" for k, n in got) + "（花硬币）")
+        else:
+            spend.append("硬币扭蛋不抽" if g.strip().lower() in ("", "off") else "硬币扭蛋不抽（次数没写对）")
+    if run("contest"):  # 竞赛选哪个对手，确认时也写出来（CodeRabbit #138）
+        pick = o["contest_pick"]
+        spend.append("竞赛挑" + ("综合力最低的对手" if pick == "lowest" else f"第 {pick} 个对手"))
+    head = "领日常奖励" + (f"（{'、'.join(DAILY_LABEL.get(i, i) for i in items)}）" if items else "")
+    return head + ("：" + "；".join(spend) if spend else "")
 
 
 def _produce_argv(module: str, default_level: str):
@@ -273,12 +348,29 @@ def _prepare_suffix(p: dict) -> str:
     return f"\n开局前：{p['prepare_note']}" if p.get("prepare") and p.get("prepare_note") else ""
 
 
+_ROUND_NAMES = {"mid1": "中間", "mid2": "中間 2", "final": "最終", "lesson": "练习课",
+                "q1": "选拔 1", "q2": "选拔 2", "q3": "选拔 3", "r1": "R1", "r2": "R2"}  # fmt: skip
+
+
+def _search_suffix(p: dict) -> str:
+    """开局时按场次选了出牌方式（--exam-search）：确认摘要写出哪几场用搜索。"""
+    if p.get("exam_search") is None:
+        return ""
+    keys = [k.strip().lower() for k in str(p["exam_search"]).split(",") if k.strip().lower() in _ROUND_NAMES]
+    return f"（搜索出牌：{'、'.join(_ROUND_NAMES[k] for k in keys)}）" if keys else "（全部快速出牌）"
+
+
 def _produce_summary(name: str, default_level: str):
     def summary(p: dict) -> str:
         level = (p.get("difficulty") or default_level).upper()
         if (p.get("command") or "new") == "resume":
-            return f"接着打进行中的{name}培育"
-        return f"开一局{name} {level}" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "") + _prepare_suffix(p)
+            return f"接着打进行中的{name}培育" + _search_suffix(p)
+        return (
+            f"开一局{name} {level}"
+            + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "")
+            + _search_suffix(p)
+            + _prepare_suffix(p)
+        )
 
     return summary
 
@@ -301,10 +393,15 @@ def _write_formation_summary(p: dict) -> str:
 
 def _hif_summary(p: dict) -> str:
     if (p.get("command") or "new") == "resume":
-        return "接着打进行中的 H.I.F 培育"
+        return "接着打进行中的 H.I.F 培育" + _search_suffix(p)
     if (p.get("mode") or "qualify") == "main":
-        return "开一局 H.I.F 本战（会用掉一份选拔回忆）"
-    return "开一局 H.I.F 选拔" + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "") + _prepare_suffix(p)
+        return "开一局 H.I.F 本战（会用掉一份选拔回忆）" + _search_suffix(p)
+    return (
+        "开一局 H.I.F 选拔"
+        + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "")
+        + _search_suffix(p)
+        + _prepare_suffix(p)
+    )
 
 
 def _slices_on() -> bool:
@@ -708,6 +805,22 @@ class Job:
 
         paths.apply_defaults(env, self.work.parent)  # self.work = HIRO_HOME/work
         env.update(self.kind.env)
+        if not env.get("HIRO_SETTLE_MIN_S"):
+            # DMM 截图约 0.19 秒一张，考试里判「画面稳了」要一致读数持续 1.5 秒（同 scripts/play.ps1 -Device dmm；
+            # 原来只有脚本开局才设，初星助手开的局没有，回合没切完就决策）
+            from hiro.runtime.close_game import device_kind
+
+            if device_kind(env) == "dmm":
+                env["HIRO_SETTLE_MIN_S"] = "1.5"
+        from hiro.cli import play_prefs
+
+        # 设置页「培育」那一节（LIVE / 照片 / 未读剧情 / 没过线重打 / H.I.F 攻略包和审查日程）：盖过启动环境（11-27）
+        for var, val in play_prefs.env_from_settings(self.work.parent).items():
+            if val:
+                env[var] = val
+            else:
+                env.pop(var, None)
+        env.update(exam_search_env(self.kind.name, self.params.get("exam_search"), env))
         if self.kind.name == "hif":  # run_hif 的编成号走环境变量
             for key, var in (("support_set", "HIRO_SUPPORT_SET"), ("memory_set", "HIRO_MEMORY_SET")):
                 if self.params.get(key):
@@ -814,6 +927,7 @@ class Job:
                 if line.startswith("停下：") or "[ERROR]" in line or "[CRITICAL]" in line:
                     tail = [*tail[-19:], line]
         code = self.proc.wait()
+        center_dmm_window()
         self._read_steps()  # 最后几步
         self.flag.unlink(missing_ok=True)
         self.exit_code, self.ended_at = code, time.time()
@@ -827,10 +941,16 @@ class Job:
             self.emit("stopped", "已停止")
             self.state = "stopped"
         elif code == 0:
-            self.emit("done", "完成")
+            # 日常等任务最后打一行「结果：…」（每项做了什么）：结束事件就写它，界面上看得到（11-25：原来只有「完成」）
+            result = next((t.strip()[3:] for t in reversed(recent) if t.strip().startswith("结果：")), None)
+            self.emit("done", result or "完成")
             self.state = "done"
         else:
             self.reason = failure_reason([*tail, *recent])
+            # 日常有一项出错时退出码是 1，但别的项（含已买 / 已抽的）做了什么照样要看得到：界面显示的是 reason，接在后面（#122 review）
+            result = next((t.strip()[3:] for t in reversed(recent) if t.strip().startswith("结果：")), None)
+            if result:  # 原因没认出来时也留着做了的（CodeRabbit #198）
+                self.reason = f"{self.reason or f'任务出错退出（代码 {code}）'}。做了的：{result}"
             text = f"出错停下：{self.reason}" if self.reason else f"任务出错退出（代码 {code}），看上面的日志"
             self.emit("failed", text, exit_code=code, reason=self.reason)
             self.state = "failed"
@@ -869,3 +989,35 @@ def _collect_all_summary(only: str | None) -> str:
     want = {w.strip() for w in (only or "").split(",") if w.strip()}
     names = [("回忆（12 片全读）" if k == "memories" else label) for k, _, label in STEPS if not want or k in want]
     return "一键全收集：" + " → ".join(names or ["（没有要做的）"]) + "（只读，不改编成）"
+
+
+# 开局页按场次选「快速 / 搜索」（11-27 用户）：--exam-search 的场次 → 各家族的搜索开关
+EXAM_SEARCH_KEYS = {
+    "hajime": ("mid1", "final", "lesson"),
+    "nia": ("mid1", "mid2", "final"),
+    "hif": ("q1", "q2", "q3", "r1", "r2"),
+}
+SIM_STATE_SOURCE = "hiro.sim.screen_source:SimScreenExamStateSource"
+
+
+def exam_search_env(kind: str, value, base: dict | None = None) -> dict[str, str]:
+    """--exam-search（mid1,final / none）→ 环境变量。没给这个参数时不动（各家族的缺省）。
+    H.I.F 本战要搜索得有模拟器跟踪的局面来源：没设 HIRO_EXAM_STATE_SOURCE、也没 HIRO_SIM=0 时补上 play.ps1 的那套（模拟器 1 个进程、预演只在 R2）。"""
+    if value is None or kind not in EXAM_SEARCH_KEYS:
+        return {}
+    keys = EXAM_SEARCH_KEYS[kind]
+    picked = [k for k in (x.strip().lower() for x in str(value).split(",")) if k in keys]
+    if kind == "hajime":
+        return {"HIRO_EXAM_SEARCH_HAJIME": ",".join(picked) or "off"}
+    if kind == "nia":
+        return {"HIRO_EXAM_SEARCH_NIA": ",".join(picked) or "off"}
+    qual = [k[1] for k in picked if k.startswith("q")]
+    main = [k for k in picked if k.startswith("r")]
+    env = {"HIRO_EXAM_SEARCH_HIF": ",".join(qual) or "off", "HIRO_EXAM_SEARCH_MAIN": ",".join(main) or "off"}
+    if main and not (base or {}).get("HIRO_EXAM_STATE_SOURCE") and (base or {}).get("HIRO_SIM") != "0":
+        env["HIRO_EXAM_STATE_SOURCE"] = SIM_STATE_SOURCE
+        if not (base or {}).get("HIRO_SIM_WORKERS"):
+            env["HIRO_SIM_WORKERS"] = "1"  # 模拟器每个 worker 约 600 MB
+        if not (base or {}).get("HIRO_EXAM_SIM_ROUNDS"):
+            env["HIRO_EXAM_SIM_ROUNDS"] = "r2"
+    return env

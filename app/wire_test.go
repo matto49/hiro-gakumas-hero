@@ -25,9 +25,17 @@ func TestBuildAppShowsBuiltinPlugins(t *testing.T) {
 	tt := ui.NewTester(app.View, 1280, 800)
 	run.Drain() // 环境检查在后台
 	tt.Frame()
-	for _, s := range []string{"初星助手", "新对话", "开局", "编成方案", "资料库", "游戏运行现状", "管理插件", "设置"} {
+	// 11-26：缺省进页面模式（首页），「问 AI」进原来的对话界面
+	for _, s := range []string{"初星助手", "首页", "开局", "日常", "编成方案", "资料库", "游戏运行现状", "管理插件", "设置", "问 AI"} {
 		if !tt.HasText(s) {
 			t.Errorf("没有 %q：%q", s, tt.Texts())
+		}
+	}
+	app.SetMode(shell.ModeChat)
+	tt.Frame()
+	for _, s := range []string{"新对话", "回到页面", "开局", "资料库"} {
+		if !tt.HasText(s) {
+			t.Errorf("对话界面没有 %q：%q", s, tt.Texts())
 		}
 	}
 }

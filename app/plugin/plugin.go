@@ -35,6 +35,8 @@ type Host interface {
 	ChatJob(id string) bool
 	// Busy 是助手正在回复（这时 Ask 以玩家身份说的话会被丢掉）。
 	Busy() bool
+	// Pending 是有确认卡在等你点（对话里或页面上的确认框），或「开始」已经点了、任务还没起来（#138 review：这时不能关游戏 / 关助手）。
+	Pending() bool
 	// ClosePanel 关掉侧边面板。
 	ClosePanel()
 	// Home 是 HIRO_HOME（读本机图片用）。
@@ -67,6 +69,8 @@ type Starter struct {
 	Icon  *ui.SVG // 没有卡面时的图标，可空
 	Attr  string  // 属性色点（Vo / Da / Vi），可空
 	Run   func(h Host)
+	// Page 是页面模式首页上点了做什么（不经对话模型）；nil 时用 Run，Run 也没有就不在首页出现。
+	Page func(h Host)
 }
 
 // NavItem 是侧栏插件列表里的一项（打开面板的 Route）。
@@ -116,7 +120,9 @@ type Plugin struct {
 	Chips    []Chip
 	Cards    map[string]CardView
 	// Panel 画侧边面板的一页；route 是插件自己的子页（"" 为首页）。
-	Panel    func(c *ui.Context, h Host, route string)
+	Panel func(c *ui.Context, h Host, route string)
+	// Page 是页面模式（整页、更宽）下的画法，可选；没有就用 Panel。
+	Page     func(c *ui.Context, h Host, route string)
 	Settings func(c *ui.Context, h Host)
 	// Starters 是新对话页的引导卡（按最近几局等生成；view 里每帧调用，要快，慢的东西自己缓存）。
 	Starters func(h Host) []Starter

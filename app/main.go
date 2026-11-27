@@ -55,7 +55,7 @@ func main() {
 
 	mygo.App.WhenReady(func() {
 		runner := &lateRunner{}
-		app := buildApp(appDeps{Home: home, Call: hiro.Call, Hiro: hiro, Assistant: assistant, Bootstrap: &Bootstrap{Home: home, Hiro: hiro}, Run: runner, Web: web})
+		app := buildApp(appDeps{Home: home, Call: hiro.Call, Hiro: hiro, Assistant: assistant, Bootstrap: &Bootstrap{Home: home, Hiro: hiro}, Run: runner, Web: web, Quit: mygo.App.Quit})
 		win := mygo.NewWindow(mygo.WindowOptions{
 			Title:     AppName,
 			Width:     1280,

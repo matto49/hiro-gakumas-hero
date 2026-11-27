@@ -13,6 +13,7 @@ func (a *App) sidebar(c *ui.Context) {
 			kit.Logo(c, 24)
 			ui.Text(c, "初星助手").FontSize(14.5).FontWeight(650).TextColor(kit.Ink)
 		})
+		a.backToPages(c)
 		if kit.RowButton(c, "new-thread", "新对话", false).Padding(8, 10).Radius(10).Background(kit.CardBg).Border(kit.Hair, kit.Line).TextColor(kit.Ink).Children(func() {
 			ui.Icon(c, kit.IcPlus).FontSize(15).TextColor(kit.Ink2)
 			ui.Text(c, "新对话").FontSize(kit.FSmall).SingleLine()

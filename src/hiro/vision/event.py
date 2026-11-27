@@ -167,6 +167,16 @@ def _plain_dialogue(hsv: np.ndarray, b) -> bool:
     return dark >= DIALOGUE_DARK_MIN and color <= DIALOGUE_COLOR_MAX
 
 
+_EFFECT_WORDS = re.compile(
+    r"を選択して|獲得|上昇|[+＋]\s*\d"
+)  # 只收效果框才有的写法（台词里的「アップ」「回復」不算，免得删掉真选项）
+
+
+def _looks_like_effect(text: str | None) -> bool:
+    """没有按钮的「选项行」是不是其实是效果说明框（选项按钮上是台词，不会写「…を選択して獲得」「+20」这类）。"""
+    return bool(text) and bool(_EFFECT_WORDS.search(text))
+
+
 def read_event_choice_page(img: MatLike) -> dict:
     """事件选项页（判页 INITIAL_CHOICE）：read_event_choices 按授業的三行固定位置读，二选一时第 0 行是空的幻影（初开场
     「お祝いをしないといけませんね / 次の試練が待っていますよ」，协调 11-17：EVENT_CHOICE 读成 3 项、其中 1 项没字）。
@@ -179,6 +189,9 @@ def read_event_choice_page(img: MatLike) -> dict:
     keep = []
     for c in raw["choices"]:
         b = next((b for b in buttons if abs(c["center"][1] - b.center.y) <= BUTTON_MATCH_DY), None)
+        if b is None and _looks_like_effect(c["text"]):
+            # 11-27 实机：已选中第 2 行时，它的效果说明框正好落在第 0 行的位置，被读成一个选项（文字是「特定のPドリンクを選択して獲得」）
+            continue
         if b is not None or c["text"]:  # 没字也没按钮的行是幻影；选中态的按钮 option_regions 可能认不出，有字就留
             keep.append((c, b))
     choices, selected = [], None
@@ -193,3 +206,29 @@ def read_event_choice_page(img: MatLike) -> dict:
                 and not any(c["cost_hp"] or c["cost_p"] or c["trouble"] for c in choices))  # fmt: skip
     return {"choices": choices, "selected": selected, "effect": raw["effect"] if selected is not None else None,
             "complete": bool(choices) and all(c["text"] for c in choices), "dialogue_only": dialogue}  # fmt: skip
+
+
+EFFECT_ABOVE = (
+    200,
+    45,
+)  # 选中一项后效果说明框出在这项正上方：中心在按钮中心上方 45–200 px（11-27 DMM 二选一实测约 100 px）
+EFFECT_MIN_X = 150  # 说明框靠右；按钮左边露出来的字不算
+
+
+def effect_above(boxes, sel_y: int, option_texts: list[str]) -> str:
+    """选中某项后读它上方的效果说明（11-27：二选一事件的说明框不在 EFFECT_Y 那一条，原来读不到）。
+    boxes 是整帧 OCR（文字, 置信度, (x1, y1, x2, y2)）；option_texts 是各选项按钮上的字（说明框盖住上一项按钮时，露出来的按钮字不算）。
+    返回 NFKC 规范化后的说明（多行用换行连）；没读到返回 ""。"""
+    from hiro.vision.textnorm import fold
+
+    labels = [fold(t).replace(" ", "") for t in option_texts if t]
+    lines = []
+    for t, _, (x1, y1, x2, y2) in boxes:
+        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+        if not (sel_y - EFFECT_ABOVE[0] <= cy <= sel_y - EFFECT_ABOVE[1]) or cx < EFFECT_MIN_X:
+            continue
+        n = fold(t).replace(" ", "")
+        if len(n) < 2 or any(n in lab or (len(lab) >= 2 and lab in n) for lab in labels):
+            continue
+        lines.append((y1, x1, t.strip()))
+    return unicodedata.normalize("NFKC", "\n".join(t for _, _, t in sorted(lines)))

@@ -139,11 +139,15 @@ def pick_contestant(rt, f, ongoing: bool) -> tuple[bool, bool]:
     rows = sorted(common.find_all(f, OVERALL), key=lambda m: m.rect.y1)
     if not rows:
         return True, False
+    choice = pick_choice()
     scores = read_scores(f)
-    scored = [(s, i) for i, s in enumerate(scores) if s is not None]
-    target = min(scored)[1] if scored else len(rows) - 1
+    if PICKS[choice] is not None:
+        target = PICKS[choice]  # 用户指定第几个（11-25：三个对手难度 / 奖励不同）
+    else:
+        scored = [(s, i) for i, s in enumerate(scores) if s is not None]
+        target = min(scored)[1] if scored else len(rows) - 1
     target = min(target, len(rows) - 1)
-    logger.info("对手分数 %s，挑第 %d 位", scores, target + 1)
+    logger.info("对手分数 %s，按「%s」挑第 %d 位", scores, choice, target + 1)
     nav.tap_match(rt, rows[target])
     rt.sleep(2)
     return True, True

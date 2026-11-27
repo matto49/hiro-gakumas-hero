@@ -35,7 +35,8 @@ def _norm(text: str) -> str:
 
 def parse(choice: dict) -> tuple[dict, bool]:
     """一个选项 → (分量, 是否解析完整)。读 text / effect 两段文字和结构化代价（cost_hp / cost_p / trouble）。
-    文字里有内容但一个分量都没认出 → 不完整（unparsed）。"""
+    文字里有内容但一个分量都没认出 → 不完整（unparsed）。effect_unread（点开看了、说明框没读到）→ 效果未知，一律不完整，
+    不当成「没有效果」（CodeRabbit #196：两项都没读到时原来会直接选第一项）。"""
     v = dict.fromkeys(KEYS, 0)
     text = _norm(" ".join(str(choice.get(k) or "") for k in ("text", "effect")))
     hit = False
@@ -67,7 +68,7 @@ def parse(choice: dict) -> tuple[dict, bool]:
         v["trouble"] = max(v["trouble"], 1)
         hit = True
     blank = not text.strip() and not hit
-    return v, hit or blank
+    return v, (hit or blank) and not choice.get("effect_unread")
 
 
 def _better(a: dict, b: dict) -> tuple[bool, bool]:

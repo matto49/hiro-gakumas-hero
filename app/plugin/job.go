@@ -146,3 +146,20 @@ func (v *JobView) FailReason() string {
 	}
 	return why
 }
+
+// DoneText 是做完时的结果说明（结束事件的文字，如日常的「活動費：领了…；竞赛：打了 5 场…」）；只有「完成」两个字或没做完时为空。
+// 11-25 Windows：日常只显示「完成」，看不出每项做了什么，像是什么都没领。
+func (v *JobView) DoneText() string {
+	if v == nil || v.State != "done" {
+		return ""
+	}
+	for i := len(v.Events) - 1; i >= 0; i-- {
+		if e := v.Events[i]; e.Type == "done" {
+			if t := strings.TrimSpace(e.Text); t != "完成" {
+				return t
+			}
+			return ""
+		}
+	}
+	return ""
+}

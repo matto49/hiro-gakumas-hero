@@ -9,11 +9,13 @@
 模板是 KAA 的同一批（tools/assets/ui_from_kaa.py 搬来，在 assets/pack/ui）。
 
 KAA tasks/daily 里不花钱的 6 项都已迁：presents、activity_funds、assignment、contest、mission_reward、club_reward（2026-11-25 去 KAA 第 2 批迁完后两项）。
+11-26 加两项（用マニー / コイン，不花ジュエル）：shop（デイリー交換所，HIRO_SHOP / HIRO_SHOP_ITEMS）、coin_gacha（コインガシャ，HIRO_COIN_GACHA）；
+放在 mission_reward 前面，买完 / 抽完的日常任务奖励一起领。竞赛挑哪个对手：HIRO_CONTEST_PICK。
 """
 
 from __future__ import annotations
 
-from hiro.daily import activity_funds, assignment, club_reward, contest, mission_reward, presents
+from hiro.daily import activity_funds, assignment, club_reward, coin_gacha, contest, mission_reward, presents, shop
 from hiro.daily.common import Deadline, Popup, TaskTimeout
 from hiro.runtime import UNKNOWN, Runtime
 from hiro.runtime.interrupts import DEFAULT
@@ -23,6 +25,8 @@ TASKS = {
     "presents": presents.run,
     "assignment": assignment.run,
     "contest": contest.run,
+    "shop": shop.run,
+    "coin_gacha": coin_gacha.run,
     "mission_reward": mission_reward.run,
     "club_reward": club_reward.run,
 }

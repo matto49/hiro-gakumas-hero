@@ -113,7 +113,7 @@ func TestStationDesktopDiscoveryIsLocalAndOptIn(t *testing.T) {
 	stationTestManifest(t, home, stationPluginID, "Station fixture")
 	stationTestManifest(t, home, "ordinary", "Ordinary fixture")
 	a := &Assistant{Home: home, Keys: fileKeys{Path: filepath.Join(home, "keys")}}
-	if err := a.Save(Settings{Provider: "none", WizardDone: true}, ""); err != nil {
+	if err := a.Save(Settings{Provider: "none", WizardDone: true, OpenIn: "chat"}, ""); err != nil {
 		t.Fatal(err)
 	}
 	run := &shell.SyncRunner{}

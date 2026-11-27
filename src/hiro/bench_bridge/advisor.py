@@ -200,9 +200,9 @@ def exam_search_algo_spec(label: str = "") -> str:
     if spec:
         return spec
     base = str(label or "").split("#", 1)[0].lower()
-    if (base in ("hajime-mid1", "hajime-final") or base.startswith("hajime-lesson")) and hajime_search_on():
+    if base.startswith("hajime-") and _hajime_key(base) in hajime_search_rounds():
         return EXAM_DEFAULT_ALGO
-    if base.startswith("nia-") and nia_search_on():
+    if base.startswith("nia-") and base[len("nia-") :] in nia_search_rounds():
         return EXAM_DEFAULT_ALGO
     if base in hif_qualify_search_rounds():
         return EXAM_DEFAULT_ALGO
@@ -238,14 +238,53 @@ def round_key(label: str | None) -> str:
     return HIF_QUALIFY_ROUNDS.get(base) or base.partition("-")[2]
 
 
+HAJIME_ROUNDS = ("mid1", "final", "lesson")  # 初：中間試験、最終試験、练习课
+NIA_ROUNDS = ("mid1", "mid2", "final")  # N.I.A：三场试镜
+
+
+def round_set(var: str, keys: tuple[str, ...], default_all: bool) -> set[str]:
+    """按场次的搜索开关：1 / on / all = 全部，0 / off / none = 都不搜，也可以写场次（逗号分隔，如 mid1,final）；没设按 default_all。
+    11-27 用户：开局页按场次选「快速 / 搜索」。"""
+    v = (os.environ.get(var) or "").strip().lower()
+    if not v:
+        return set(keys) if default_all else set()
+    if v in ("1", "on", "true", "yes", "all"):
+        return set(keys)
+    if v in ("0", "off", "false", "no", "none"):
+        return set()
+    picked = {x.strip() for x in v.split(",") if x.strip() in keys}
+    if (
+        not picked
+    ):  # 一个场次都认不出（如「2」「yes,」）：按原来的开关含义，照缺省（初全搜、N.I.A 不搜），不悄悄变成全关
+        logging.getLogger(__name__).warning("%s=%r 认不出场次，按缺省", var, v)
+        return set(keys) if default_all else set()
+    return picked
+
+
+def _hajime_key(base: str) -> str:
+    """hajime-mid1 → mid1，hajime-final → final，hajime-lesson-vo-sp → lesson。"""
+    rest = base[len("hajime-") :]
+    return "lesson" if rest.startswith("lesson") else rest
+
+
+def nia_search_rounds() -> set[str]:
+    """HIRO_EXAM_SEARCH_NIA：N.I.A 哪几场试镜走搜索，缺省都不搜（协调定）。"""
+    return round_set("HIRO_EXAM_SEARCH_NIA", NIA_ROUNDS, False)
+
+
+def hajime_search_rounds() -> set[str]:
+    """HIRO_EXAM_SEARCH_HAJIME：初的哪几场考试 / 课程走搜索，缺省都搜（协调定）。"""
+    return round_set("HIRO_EXAM_SEARCH_HAJIME", HAJIME_ROUNDS, True)
+
+
 def nia_search_on() -> bool:
-    """HIRO_EXAM_SEARCH_NIA：N.I.A 试镜走搜索，缺省关（协调定）；1 / on / true / yes 开。"""
-    return (os.environ.get("HIRO_EXAM_SEARCH_NIA") or "").strip().lower() in ("1", "on", "true", "yes")
+    """有没有哪场 N.I.A 试镜走搜索（旧接口）。"""
+    return bool(nia_search_rounds())
 
 
 def hajime_search_on() -> bool:
-    """HIRO_EXAM_SEARCH_HAJIME：初的考试和课程走搜索，缺省开（协调定）；0 / off / false 关。"""
-    return (os.environ.get("HIRO_EXAM_SEARCH_HAJIME") or "1").strip().lower() not in ("0", "off", "false", "no")
+    """有没有哪场初的考试 / 课程走搜索（旧接口）。"""
+    return bool(hajime_search_rounds())
 
 
 def load_algo(spec: str | None = None, *, download: bool = True):
@@ -1115,7 +1154,12 @@ class BenchAdvisor:
             self._seen_pm.update({k: v for k, v in (getattr(state, "attr_permils", None) or {}).items() if v})
             if not getattr(self, "_round_checked", True):
                 self._round_checked = True
+                before = self.label
                 self._check_round(obs, state, memory)
+                if self.label != before and not self.began:
+                    # 场次按画面改了：这一场的算法按新场次重选（#197 review：开局页按场次选的快速 / 搜索会选反）
+                    self._pick_algo()
+                    algo = self.round_algo if self.round_algo is not None else algo
             if str(self.label or "").lower().startswith(("hajime", "nia")):
                 self._fix_obs(obs)
             # 每步给算法的 UIObs 记进运行日志（复盘用：实机局能直接看出 UINet 看到的局面和画面差在哪）

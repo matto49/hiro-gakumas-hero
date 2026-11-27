@@ -29,6 +29,8 @@ type Host struct {
 	Live     string
 	Chat     map[string]bool // 在对话里开的局
 	Busy_    bool            // 助手正在回复
+	Pending_ bool            // 有确认卡在等 / 正在确认
+	OnGo     func()          // 每次 Go 之前调（测试里模拟「过了一会儿」状态变了）
 	HomeDir  string
 	At       time.Time
 }
@@ -67,6 +69,9 @@ func (h *Host) Called(prefix string) bool {
 }
 
 func (h *Host) Go(work func() func()) {
+	if h.OnGo != nil {
+		h.OnGo()
+	}
 	if apply := work(); apply != nil {
 		apply()
 	}
@@ -90,6 +95,9 @@ func (h *Host) LiveJob() string { return h.Live }
 
 // Busy 是 Busy_。
 func (h *Host) Busy() bool { return h.Busy_ }
+
+// Pending 是 Pending_。
+func (h *Host) Pending() bool { return h.Pending_ }
 
 // ChatJob 是 Chat 里记着的局。
 func (h *Host) ChatJob(id string) bool { return h.Chat[id] }

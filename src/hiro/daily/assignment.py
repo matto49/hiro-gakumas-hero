@@ -85,6 +85,23 @@ def _tap_when(rt, name: str, what: str, timeout: float = TIMEOUT) -> None:
     rt.drive(step, timeout, what, every=0.5)
 
 
+def _tap_hours(rt, duration: int) -> None:
+    """选时长：模板认不出时按字点「12時間」（11-27 DMM：缺省选中的 12 小时带橙色角框，模板 30 秒没认出，工作派遣整项失败）。"""
+    word = f"{duration}時間"
+
+    def step(f):
+        if (m := nav.find(f, HOURS[duration])) is not None:
+            nav.tap_match(rt, m)
+            return True
+        t = next((t for t in f.texts if t.text.replace(" ", "") == word and t.rect.center.y > 700), None)
+        if t is not None:
+            rt.device.tap(*t.rect.center)
+            return True
+        return None
+
+    rt.drive(step, TIMEOUT, f"选 {duration} 小时", every=0.5)
+
+
 def assign(rt, kind: str, duration: int = DURATION) -> bool:
     """在工作页给 kind（mini / online）派一位偶像；那一栏已经派出去了返回 False。"""
     f = rt.drive(lambda f: f if nav.find(f, TITLE) is not None else None, 10, "等工作页标题", every=0.5)
@@ -97,7 +114,7 @@ def assign(rt, kind: str, duration: int = DURATION) -> bool:
     _pick_idol(rt)
     rt.sleep(0.5)
     _tap_when(rt, SELECT, "点「選択」")
-    _tap_when(rt, HOURS[duration], f"选 {duration} 小时")
+    _tap_hours(rt, duration)
     rt.sleep(0.5)
 
     def finish(f):

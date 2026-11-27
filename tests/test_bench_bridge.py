@@ -1796,3 +1796,32 @@ def test_undo_before_begin_finished_does_not_crash(monkeypatch):
         algo.begin(SimpleNamespace(loadout={}))  # 没有编成：在建 stats 之前就停
     algo.undo_last()
     assert algo.stats["undone"] == 1
+
+
+@pytest.mark.bench_on
+def test_hajime_round_relabel_repicks_algo(monkeypatch):
+    """#197 review：开局页只让最終搜索，最終被标成中間、按画面改回最終后，这一场照样用搜索（原来按中間选了快速）。"""
+    from hiro.bench_bridge import tower as tw
+
+    monkeypatch.delenv("HIRO_EXAM_LOADOUT", raising=False)
+    monkeypatch.setenv("HIRO_EXAM_SEARCH_HAJIME", "final")
+    rows = {"mid1": {"produceExamBattleConfigId": "bc-mid", "forceEndScore": 1700, "rankThreshold": 3, "number": 1},
+            "final": {"produceExamBattleConfigId": "bc-final", "forceEndScore": 0, "rankThreshold": 3, "number": 1}}  # fmt: skip
+    monkeypatch.setattr("hiro.search.exam_env.audition_row", lambda idol, produce, rnd, number=None: rows[rnd])
+    monkeypatch.setattr(tw, "master", lambda: SimpleNamespace(battle_config=lambda cid: {"vocal": 1, "dance": 1, "visual": 1,
+                                                                                          "turn": 9 if cid == "bc-mid" else 11}))  # fmt: skip
+    algo = _Algo(("play", 0))
+    monkeypatch.setattr(A, "load_algo", lambda *a, **k: algo)
+    sess = SimpleNamespace(
+        state=SimpleNamespace(
+            produce={"mode": "produce-002"}, exam={"pass_line": {"rank": 3, "stage": "3位以上で最終試験突破"}}
+        )
+    )
+    adv = A.BenchAdvisor(CAMPUS_HIRO)
+    adv.on_round_start(1, {"exam": "hajime-mid1", "idol": "i_card-x", "deck": [("p_card-a", 0)], "session": sess})
+    fast = adv.round_name
+    st, mem = _state([_card(0, "p_card-a")], remaining=11, turn=1)
+    adv.decide(st, mem, None, [Action.from_legal(a) for a in st.legal_actions()])
+    spec = A.exam_search_algo_spec("hajime-final")
+    assert adv.label == "hajime-final" and spec
+    assert adv.round_name == (spec.split(":")[-1] if ":" in spec else spec) and adv.round_name != fast
