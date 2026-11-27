@@ -274,6 +274,11 @@ func (e *Ext) draw(c *ui.Context, h plugin.Host, key, method string, params map[
 	}
 	if s.needsRender(h.Now(), panel, session) {
 		request(method, "render", params)
+	} else if panel && s.refresh > 0 && s.v.busy == "" {
+		// 自动刷新：界面空闲时不会自己重画，到期了也没人来画这一帧，按下次到期时间要一帧（CodeRabbit #85）
+		if d := s.next.Sub(h.Now()); d > 0 {
+			c.After(d)
+		}
 	}
 	switch {
 	case s.err != "":
