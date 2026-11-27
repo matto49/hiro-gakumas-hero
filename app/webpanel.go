@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	neturl "net/url"
+	"os"
 	"path"
 	"path/filepath"
 	"runtime"
@@ -61,7 +62,20 @@ func pluginFilesFor(dirOf func(id string) string, ownerOf func(r *http.Request) 
 			return
 		}
 		w.Header().Set("Content-Security-Policy", PluginCSP)
-		http.ServeFile(w, r, file)
+		// 不用 http.ServeFile：路径以 /index.html 结尾时它会 301 跳到目录，WebKit 的自定义协议不跟跳转，
+		// 插件网页面板（最常见就叫 index.html）一片空白（11-28 rc.12 真窗口 B4 实测）
+		f, err := os.Open(file)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer f.Close()
+		st, err := f.Stat()
+		if err != nil || st.IsDir() {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeContent(w, r, st.Name(), st.ModTime(), f)
 	})
 }
 
@@ -108,7 +122,9 @@ func (wp *webPanels) showFor(c *ui.Context, url, owner string) {
 		return
 	}
 	if v == nil {
-		nv, err := win.NewWebView(mygo.WebViewOptions{URL: url, Page: mygo.PageOptions{Untrusted: true}, BackgroundColor: "#FFFBF6"})
+		// 先建空的网页视图、记下它属于哪个插件，再加载地址：带地址创建会马上发请求，那时还没登记归属，
+		// hiroplug 协议认不出是哪个插件的页面就回 404，插件网页面板一片空白（11-28 rc.12 真窗口 B4 实测）
+		nv, err := win.NewWebView(mygo.WebViewOptions{Page: mygo.PageOptions{Untrusted: true}, BackgroundColor: "#FFFBF6"})
 		if err != nil {
 			ui.Text(c, "网页打不开："+err.Error()).FontSize(kit.FNote).TextColor(kit.Bad)
 			return
@@ -128,6 +144,10 @@ func (wp *webPanels) showFor(c *ui.Context, url, owner string) {
 			wp.owners[nv.Page()] = owner
 		}
 		wp.mu.Unlock()
+		if err := nv.Page().LoadURL(url); err != nil {
+			ui.Text(c, "网页打不开："+err.Error()).FontSize(kit.FNote).TextColor(kit.Bad)
+			return
+		}
 		v = nv
 	}
 	ui.WebView(c, v).Grow(1).MinHeight(480).Radius(kit.R12)
