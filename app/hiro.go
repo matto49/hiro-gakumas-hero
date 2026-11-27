@@ -103,6 +103,9 @@ func (h *Hiro) Call(ctx context.Context, args []string) Result {
 	if r, ok := h.tryService(ctx, args); ok {
 		return r
 	}
+	if h.upgrading.Load() { // 进来时还没在更新、服务刚被更新停掉：别走命令行把服务又拉起来（#204 CodeRabbit）
+		return errUpgrading()
+	}
 	return h.run(ctx, args, nil)
 }
 

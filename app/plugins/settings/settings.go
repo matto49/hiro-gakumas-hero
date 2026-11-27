@@ -708,7 +708,7 @@ func (s *S) behindLine(c *ui.Context, h plugin.Host) {
 	if s.boot.Behind == "" || s.d.BootUpgrade == nil {
 		return
 	}
-	ui.Text(c, s.boot.Behind).FontSize(kit.FSmall).TextColor(kit.Warn).Wrap()
+	ui.Text(c, s.boot.Behind).FontSize(kit.FSmall).TextColor(kit.WarnInk).Wrap()
 	live := h.LiveJob() != "" || h.Pending() // 点了「开始」、任务还没起来的那一小段也算（#204 CodeRabbit）
 	label := "更新运行环境"
 	if s.booting {

@@ -97,10 +97,16 @@ func (sp swapSpec) rename(from, to string) error {
 // mergeMove 把 from 里 to 没有的条目搬过去（两边都是目录就往下合并；两边都有的文件留 to 的），搬过去的相对路径记进 moved（回滚用）。
 func mergeMove(sp swapSpec, from, to, rel string, moved *[]string) error {
 	fi, err := os.Lstat(from)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil // 这个可选目录旧程序里没有
+	}
 	if err != nil {
-		return nil
+		return fmt.Errorf("读 %s 出错：%w", rel, err)
 	}
 	ti, err := os.Lstat(to)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("读新程序里的 %s 出错：%w", rel, err)
+	}
 	if err != nil {
 		if e := os.MkdirAll(filepath.Dir(to), 0o755); e != nil {
 			return e
