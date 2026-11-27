@@ -398,6 +398,7 @@ func (a *App) OpenPanel(pluginID, route string) {
 func (a *App) PanelSession() uint64 {
 	if a.mode != ModeChat {
 		if a.ui.pagePlugin == "" {
+			a.pageSessionKey = "" // 回到首页：再进同一页算重新打开，换编号（CodeRabbit #85）
 			return 0
 		}
 		if key := a.ui.pagePlugin + "\x00" + a.ui.pageRoute; key != a.pageSessionKey {

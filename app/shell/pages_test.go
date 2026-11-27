@@ -359,8 +359,13 @@ func TestPanelSessionInPagesMode(t *testing.T) {
 	if s2 := a.PanelSession(); s2 == 0 || s2 == s1 {
 		t.Errorf("换页应换编号：%d → %d", s1, s2)
 	}
+	s2 := a.PanelSession()
 	a.ui.pagePlugin, a.ui.pageRoute = "", ""
 	if a.PanelSession() != 0 {
 		t.Error("回首页应为 0")
+	}
+	a.OpenPanel("settings", "station") // 插件页 → 首页 → 同一页：算重新打开（CodeRabbit #85）
+	if s3 := a.PanelSession(); s3 == 0 || s3 == s2 {
+		t.Errorf("回首页后再进同一页应换编号：%d → %d", s2, s3)
 	}
 }

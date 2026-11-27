@@ -149,6 +149,7 @@ func (a *App) pagesView(c *ui.Context) {
 		})
 	})
 	a.pageConfirm(c)
+	a.PanelSession() // 每帧记下现在显示的是哪一页：离开再回来（插件页 → 首页 → 同一页）时编号会变
 }
 
 func (a *App) pagesSidebar(c *ui.Context) {
