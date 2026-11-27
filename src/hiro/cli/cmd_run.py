@@ -104,8 +104,10 @@ def _precheck(a: dict) -> None:
                 "可选：" + "、".join(keys) + "；都快速写 none",
                 exit_code=2,
             )
-    if a["kind"] == "nia" and a.get("difficulty") == "regular":
-        raise CliError("bad_args", "N.I.A 没有 REGULAR，只有 pro / master", "改成 --difficulty pro", exit_code=2)
+    if a["kind"] == "nia" and a.get("difficulty") in ("regular", "legend"):
+        raise CliError(
+            "bad_args", f"N.I.A 没有 {a['difficulty'].upper()}，只有 pro / master", "改成 --difficulty pro", exit_code=2
+        )
     _check_formation_plan(a)
     del sys
 
@@ -680,7 +682,11 @@ def _first_reason(out: str) -> str:
         Arg("--main-attr", "hif / hajime / nia：主属性（不给按编成方案）", choices=("Vo", "Da", "Vi")),
         Arg("--support-set", "hif / hajime / nia：用游戏里第几号支援卡编成（不给按编成方案）", type="int"),
         Arg("--memory-set", "hif / hajime / nia：用第几号回忆编成", type="int"),
-        Arg("--difficulty", "hajime：regular / pro / master；nia：pro / master", choices=("regular", "pro", "master")),
+        Arg(
+            "--difficulty",
+            "hajime：regular / pro / master / legend；nia：pro / master",
+            choices=("regular", "pro", "master", "legend"),
+        ),
         Arg(
             "--farm",
             "hajime：刷回忆（メモリー転写）。bad =「初」BAD 育成、目标评价 B（实验，缺省不刷；见 hiro/brain/farm.py）。"

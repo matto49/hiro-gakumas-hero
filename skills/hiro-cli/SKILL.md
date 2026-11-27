@@ -92,7 +92,7 @@ description: 用 hiro 命令行查学マス账号信息和游戏资料库、开�
 | 种类 | 参数 | 做什么 |
 |---|---|---|
 | `hif` | `--command new\|resume`、`--mode qualify\|main`、`--idol <偶像卡编号>`、`--main-attr Vo\|Da\|Vi`、`--support-set N`、`--memory-set N`、`--no-llm`、`--exam-search q1,q2,q3,r1,r2\|none`（哪几场考试用搜索出牌，其余快速；不给按缺省：选拔不搜、本战都搜） | H.I.F 培育。`--mode main` 会用掉一份选拔回忆；`resume` 接着打进行中的培育。编成号不给时按编成方案 |
-| `hajime` | 同上（没有 `--mode`），另有 `--difficulty regular\|pro\|master`；`--exam-search` 场次是 `mid1,final,lesson`（缺省全搜） | 「初」培育。`new` 必须给 `--idol` |
+| `hajime` | 同上（没有 `--mode`），另有 `--difficulty regular\|pro\|master\|legend`；`--exam-search` 场次是 `mid1,final,lesson`（缺省全搜） | 「初」培育。`new` 必须给 `--idol`；`resume` 不给难度就接上一段 |
 | `nia` | 同 `hajime`，`--difficulty pro\|master`；`--exam-search` 场次是 `mid1,mid2,final`（缺省都不搜） | N.I.A 培育。认不出的页面会停下：请用户手动处理后 `--command resume` |
 | `tower` | `--idol <路线的偶像名>`、`--layers N`、`--no-llm` | 偶像之路 |
 | `daily` | `--items activity_funds,presents,assignment,contest,shop,coin_gacha,mission_reward,club_reward`（可选，缺省全部）；`--contest-pick lowest\|1\|2\|3`；`--shop off\|recommended\|all`（缺省 off）、`--shop-items 名字,…`；`--shop-ap pt,note,retry,regen`（体力商店，缺省不买）；`--shop-refresh on\|off`（买完用每日免费刷新再买一轮，缺省 off）；`--coin-gacha off\|auto\|friend:1,sense:2`（缺省 off） | 日常：活动费、礼物、工作派遣、竞赛、商店（金币）、体力商店（可选）、硬币扭蛋、任务奖励、社团。结束事件 `done` 的文字是每项结果 |

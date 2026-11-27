@@ -26,7 +26,7 @@ type mode struct {
 
 var modes = []mode{
 	{"hif", "H.I.F", "选拔打完拿回忆，本战冲名次。开本战会用掉一份选拔回忆。", nil},
-	{"hajime", "初", "定期公演「初」：REGULAR / PRO / MASTER。", []string{"regular", "pro", "master"}},
+	{"hajime", "初", "定期公演「初」：REGULAR / PRO / MASTER / LEGEND。", []string{"regular", "pro", "master", "legend"}},
 	{"nia", "N.I.A", "PRO / MASTER。认不出的页面会停下来等你处理。", []string{"pro", "master"}},
 	{"tower", "偶像之路", "按偶像路线往上爬，三星优先。", nil},
 	{"daily", "日常", "活动费、礼物、工作派遣、竞赛、商店、硬币扭蛋、任务奖励、社团。不花钻石。", nil},

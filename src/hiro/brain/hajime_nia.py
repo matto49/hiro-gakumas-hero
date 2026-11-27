@@ -80,7 +80,7 @@ def exam_criteria(mode: str, idol_card_id: str | None, stage: str) -> dict | Non
 
 
 # 主数据 Produce.idolCardParameterGrowthLimit（初 REGULAR / PRO / MASTER）；没有主数据时用它
-PARAM_CAP_FALLBACK = {"produce-001": 1000, "produce-002": 1500, "produce-003": 1800}
+PARAM_CAP_FALLBACK = {"produce-001": 1000, "produce-002": 1500, "produce-003": 1800, "produce-006": 3000}
 
 
 @cache

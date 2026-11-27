@@ -1,11 +1,12 @@
 """「初」（はじめ）新主循环：从プロデュース选初 + 难度开局，打完一局（协调 11-17 ①，目标初 REGULAR）。
 
-    PYTHONPATH=src python -m hiro.runtime.hajime new    --idol i_card-skin-shro-3-007 [--difficulty regular] [--main-attr Vo]
-    PYTHONPATH=src python -m hiro.runtime.hajime resume --idol i_card-skin-shro-3-007
+    PYTHONPATH=src python -m hiro.runtime.hajime new    --idol i_card-skin-shro-3-007 [--difficulty regular|pro|master|legend] [--main-attr Vo]
+    PYTHONPATH=src python -m hiro.runtime.hajime resume --idol i_card-skin-shro-3-007   # 难度不给就接上一段 trace 的
 
-- 开局：培育入口 → 剧本页翻到初（Produce.LogoHajime）→ OCR 点「レギュラー / REGULAR」（--difficulty pro / master 同理）→ 第 1–4 步同
+- 开局：培育入口 → 剧本页翻到初（Produce.LogoHajime）→ OCR 点「レギュラー / REGULAR」（--difficulty pro / master 同理；legend 在「初 LEGEND」那张剧本页，
+  页面不对时点左下「初 ⇄」切换）→ 第 1–4 步同
   H.I.F 选拔（选偶像 / 支援卡 + 租借 / 回忆 / 加成，编成号按开局编成方案）→ プロデュース開始。
-- 状态里写 produce.mode = produce-001 / 002 / 003，决策器按它走 3940a9 的 hiro.brain.hajime_nia（选行动、授業、外出）。
+- 状态里写 produce.mode = produce-001 / 002 / 003 / 006（LEGEND），决策器按它走 3940a9 的 hiro.brain.hajime_nia（选行动、授業、外出）。
 - 选行动页（hiro.vision.action）：初的「授業」不分属性、「活動支給」= allowance、追い込み三选一 = training + oikomi + 页头 exam_next。
 - 练习课（PRACTICE）：按考试打（run_exam），标签 hajime-lesson-<vo|da|vi>[-sp|-hard]：属性看练习课右上图标（图标优先），认不出用选的
   课程；SP 看选的按钮，追い込み = hard（8a3a1e7 的中转层按它查 step_type）。「CLEARまで / PERFECTまで」消失 LESSON_END_S 秒算结束。
@@ -29,8 +30,15 @@ from hiro.runtime import opening
 
 logger = logging.getLogger(__name__)
 
-MODES = {"regular": "produce-001", "pro": "produce-002", "master": "produce-003"}
-DIFFICULTY_WORDS = {"regular": ("レギュラー", "REGULAR"), "pro": ("プロ", "PRO"), "master": ("マスター", "MASTER")}
+MODES = {"regular": "produce-001", "pro": "produce-002", "master": "produce-003", "legend": "produce-006"}
+DIFFICULTY_WORDS = {
+    "regular": ("レギュラー", "REGULAR"),
+    "pro": ("プロ", "PRO"),
+    "master": ("マスター", "MASTER"),
+    # 初 LEGEND 在另一张剧本页（左下「初 ⇄」切换，nia_sample.choose_difficulty 处理）；OCR 常把「レジェンド」读成「レジエンド」
+    "legend": ("レジェンド", "レジエンド", "LEGEND"),
+}
+DEFAULT_DIFFICULTY = "regular"
 DEFAULT_OUT = Path(".temp") / "hajime-mac" / "frames"  # 相对仓库根目录（已被 .gitignore 挡住）
 LESSON_END_S = 2.0  # 练习课 HUD（CLEARまで / PERFECTまで）连续消失这么久算练习课结束（出牌动画不会盖住它）
 LESSON_REENTER_S = (
@@ -486,14 +494,21 @@ def run(args) -> int:
     if args.command == "new" and (support_set is None or memory_set is None):
         logger.error("new 开局要编成号：--support-set / --memory-set，或开局编成方案")
         return 2
-    mode = MODES[args.difficulty]
-    if args.main_attr is None:
-        args.main_attr = hajime_main_attr(args.idol, mode, formation_env.ACTIVE_PLAN)
-    from hiro.runtime.segments import trace_name
+    from hiro.runtime.segments import resume_difficulty, trace_name
 
     session = Session(
         TraceWriter(name=trace_name("hajime", args.command, args.trace))
     )  # 续跑接上一段（体力 / P / 属性 / step 打底）
+    # 续跑不给难度：接上一段 trace 的（原来缺省 REGULAR，LEGEND / MASTER 续跑按 REGULAR 算）
+    if args.difficulty is None:
+        args.difficulty = (
+            resume_difficulty(Path(session.trace.dir), MODES, DEFAULT_DIFFICULTY)
+            if args.command == "resume"
+            else DEFAULT_DIFFICULTY
+        )
+    mode = MODES[args.difficulty]
+    if args.main_attr is None:
+        args.main_attr = hajime_main_attr(args.idol, mode, formation_env.ACTIVE_PLAN)
     Core = hajime_core(mode)
     for k, v in {
         "session": session,
@@ -559,7 +574,9 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="初（新主循环）")
     ap.add_argument("command", choices=["new", "resume"])
     ap.add_argument("--idol", required=True, help="偶像卡 skin id（同 run_hif）")
-    ap.add_argument("--difficulty", choices=sorted(MODES), default="regular")
+    ap.add_argument(
+        "--difficulty", choices=sorted(MODES), default=None, help="new 缺省 regular；resume 缺省接上一段 trace 的难度"
+    )
     ap.add_argument("--main-attr", default=None)
     ap.add_argument("--support-set", type=int, default=None)
     ap.add_argument("--memory-set", type=int, default=None)

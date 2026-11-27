@@ -183,7 +183,7 @@ PYTHONPATH=src .venv/bin/python -m pytest -q            # 没有截图样例时�
    **其他模式**（自建主循环，游戏停在首页，编成号按开局编成方案）：
 
    ```bash
-   PYTHONPATH=src python -m hiro.runtime.hajime     new --idol <偶像卡 skin id> [--difficulty regular|pro|master]   # 初
+   PYTHONPATH=src python -m hiro.runtime.hajime     new --idol <偶像卡 skin id> [--difficulty regular|pro|master|legend]   # 初
    PYTHONPATH=src python -m hiro.runtime.nia_sample new --idol <偶像卡 skin id> [--difficulty pro|master]           # N.I.A
    PYTHONPATH=src python -m hiro.runtime.tower_play --idol-name <偶像名> [--layers N]                              # 偶像之路
    ```
