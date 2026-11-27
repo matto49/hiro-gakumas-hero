@@ -127,9 +127,12 @@ def run_own(names: list[str], timeout: float | None, out: Path) -> list[dict]:
         """诊断截图；截不到（设备断开等）不影响记录：已做的项照样进 summary、照样打结果行（CodeRabbit #138）。"""
         p = out / f"{tag}.png"
         try:
-            cv2.imwrite(str(p), rt.screen.shot().img)
+            ok = cv2.imwrite(str(p), rt.screen.shot().img)
         except Exception as e:  # noqa: BLE001
             print(f"截图 {tag} 失败：{type(e).__name__}: {e}", flush=True)
+            return ""
+        if not ok:  # 目录不可写等：imwrite 返回 False 不抛异常，别给一个打不开的路径（CodeRabbit #198）
+            print(f"截图 {tag} 没写成：{p}", flush=True)
             return ""
         return str(p)
 
