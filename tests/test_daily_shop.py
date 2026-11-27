@@ -853,3 +853,23 @@ def test_daily_summary_contest_pick_matches_executor():
     assert "综合力最低" in KINDS["daily"].summary({"items": "contest", "contest_pick": "hard"})
     assert "第 2 个对手" in KINDS["daily"].summary({"items": "contest", "contest_pick": " 2 "})
     assert "没有推荐时买一件最便宜的" in KINDS["daily"].summary({"items": "shop", "shop": "recommended"})
+
+
+def test_coin_gacha_auto_stops_on_unrecognized_pool(monkeypatch):
+    """auto：第一个池认不出来（不是币不够）时不换池花别的币，这一项算没做完（CodeRabbit #202）。"""
+    import pytest
+
+    monkeypatch.setenv("HIRO_COIN_GACHA", "auto")
+    monkeypatch.setattr(coin_gacha, "goto_coin_gacha", lambda rt: True)
+    monkeypatch.setattr(coin_gacha.nav, "goto_home", lambda rt: None)
+    tried = []
+
+    def draw(rt, pool, times):
+        tried.append(pool)
+        coin_gacha._state["missed"].append(pool)
+        return 0
+
+    monkeypatch.setattr(coin_gacha, "draw", draw)
+    with pytest.raises(coin_gacha.common.PartialStop):
+        coin_gacha.run(_Rt())
+    assert tried == [next(iter(coin_gacha.POOLS))]

@@ -290,8 +290,13 @@ def run(rt) -> str:
             return "硬币扭蛋：没进到硬币扭蛋页"
         if isinstance(p, str):  # auto
             for pool in POOLS:
+                missed = len(_state["missed"])
                 if (n := draw(rt, pool, 1)) > 0:
                     done.append(f"{NAMES[pool]} {n} 次")
+                    break
+                if (
+                    len(_state["missed"]) > missed
+                ):  # 这个池是认不出来（不是币不够）：不换池花别的币，停下报没做完（CodeRabbit #202）
                     break
         else:
             for pool, times in p:
