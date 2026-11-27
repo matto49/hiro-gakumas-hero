@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -76,5 +77,33 @@ func TestPluginFilesOnlyForOwnPage(t *testing.T) {
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "hiroplug://localhost/b/r.html", nil))
 	if rec.Code != 404 {
 		t.Errorf("A 的页面读到了 B 的文件：%d", rec.Code)
+	}
+}
+
+// B4（11-28 rc.12 真窗口）：插件网页面板叫 index.html 时 http.ServeFile 会 301 跳到目录，WebKit 自定义协议不跟跳转 → 空白。
+// 要直接给内容；目录本身不给。
+func TestPluginFilesServeIndexHTMLWithoutRedirect(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "index.html"), []byte("<h2>演示</h2>"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	h := pluginFiles(func(id string) string {
+		if id == "demo" {
+			return dir
+		}
+		return ""
+	})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "hiroplug://localhost/demo/index.html", nil))
+	if rec.Code != 200 || rec.Body.String() != "<h2>演示</h2>" || !strings.HasPrefix(rec.Header().Get("Content-Type"), "text/html") {
+		t.Fatalf("index.html 要直接给内容：%d %q %q", rec.Code, rec.Header().Get("Content-Type"), rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "hiroplug://localhost/demo/sub", nil))
+	if rec.Code != 404 {
+		t.Errorf("目录不给：%d", rec.Code)
 	}
 }
