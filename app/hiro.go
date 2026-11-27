@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/matto49/hiro-gakumas-hero/app/hiroapi"
 )
@@ -22,6 +23,13 @@ type Hiro struct {
 	// Env 只在 hiro confirm（真正开局）时加进环境：对局用的模型设置，含 DeepSeek Key。别的调用不带，减少 Key 出现的地方。
 	Env func() []string `json:"-"`
 	mu  sync.Mutex
+	// upgrading：正在「更新运行环境」（换 HIRO_HOME/src），期间不调 hiro、不拉起后台服务（G5，#204 评审）
+	upgrading atomic.Bool
+}
+
+// errUpgrading 是更新运行环境期间所有调用的回复。
+func errUpgrading() Result {
+	return Result{Exit: 1, Error: &CliError{Code: "upgrading", Message: "正在更新运行环境", Hint: "等更新做完（几分钟）再试"}}
 }
 
 // 信封类型在 hiroapi 包（界面子包也用）；这里留别名，老代码不用改。
@@ -89,14 +97,23 @@ func (h *Hiro) reset() {
 
 // Call 运行一条 hiro 命令，例如 ["info", "summary"]，返回解析后的信封。不会返回 Go 错误：失败都在 Result.Error 里。
 func (h *Hiro) Call(ctx context.Context, args []string) Result {
+	if h.upgrading.Load() {
+		return errUpgrading()
+	}
 	if r, ok := h.tryService(ctx, args); ok {
 		return r
+	}
+	if h.upgrading.Load() { // 进来时还没在更新、服务刚被更新停掉：别走命令行把服务又拉起来（#204 CodeRabbit）
+		return errUpgrading()
 	}
 	return h.run(ctx, args, nil)
 }
 
 // SetSecret 保存一个账号或密码：值只经 stdin 交给 hiro secret set，不进命令行参数、不进日志。
 func (h *Hiro) SetSecret(ctx context.Context, name string, value string) Result {
+	if h.upgrading.Load() {
+		return errUpgrading()
+	}
 	return h.run(ctx, []string{"secret", "set", name}, []byte(value))
 }
 

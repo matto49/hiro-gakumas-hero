@@ -327,6 +327,16 @@ func (a *App) pageHome(c *ui.Context) {
 			ui.Text(c, greet).FontSize(kit.FSmall).TextColor(kit.Ink3)
 		}
 	})
+	if a.d.Notice != nil {
+		if t := a.d.Notice(); t != "" {
+			ui.Column(c).Gap(8).Padding(12, 14).Radius(kit.R16).Background(kit.WarnT).Border(kit.Hair, kit.LineStr).Children(func() {
+				ui.Text(c, t).FontSize(kit.FSmall).TextColor(kit.Ink).Wrap()
+				if kit.Primary(c, "去设置更新").Key("home-notice-go").Clicked() {
+					a.ui.pagePlugin, a.ui.pageRoute = "settings", ""
+				}
+			})
+		}
+	}
 	if a.live != "" {
 		kit.Section(c, "正在跑")
 		if _, v := a.reg.CardView("run-pinned"); v != nil {

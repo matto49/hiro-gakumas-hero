@@ -766,3 +766,48 @@ func TestProduceSectionSaves(t *testing.T) {
 		t.Errorf("存的是 live=%q unread=%q", f.s.Live, f.s.UnreadStory)
 	}
 }
+
+// G5（11-28）：程序和界面版本不一致时，运行环境一节说清楚并给「更新运行环境」；有任务在跑时按钮不能点；更新完提示消失。
+func TestUpgradeEnvWhenProgramIsBehind(t *testing.T) {
+	f := &fake{secrets: map[string]string{}, ready: true}
+	f.s = Settings{Provider: "deepseek", WizardDone: true}
+	behind := "程序还是 0.1.1-rc.9 版，界面已经是 0.1.1 版"
+	d := f.deps()
+	d.BootStatus = func(context.Context) BootStatus { return BootStatus{Ready: true, Behind: behind} }
+	upgraded := 0
+	d.BootUpgrade = func(_ context.Context, onLine func(string)) error {
+		upgraded++
+		onLine("下载和界面同版本的程序…")
+		behind = ""
+		return nil
+	}
+	s := New(d)
+	p := s.Plugin()
+	h := plugintest.New(map[string]string{"doctor": `{"items":[]}`})
+	tt := ui.NewTester(plugintest.PanelView(func(c *ui.Context) { p.Panel(c, h, "") }), 560, 2600)
+	tt.Frame()
+	tt.Frame()
+	if !tt.HasText(behind) {
+		t.Fatalf("没说版本不一致：%q", tt.Texts())
+	}
+	for _, set := range []func(bool){func(on bool) { h.Live = map[bool]string{true: "job-1"}[on] }, func(on bool) { h.Pending_ = on }} {
+		set(true)
+		tt.Frame()
+		_ = plugintest.ClickButton(tt, "更新运行环境")
+		tt.Frame()
+		if upgraded != 0 || !tt.HasText("正在跑任务，跑完再更新。") {
+			t.Fatalf("有任务在跑 / 正在开局时不能更新：upgraded=%d %q", upgraded, tt.Texts())
+		}
+		set(false)
+	}
+	tt.Frame()
+	if err := plugintest.ClickButton(tt, "更新运行环境"); err != nil {
+		t.Fatalf("%v %q", err, tt.Texts())
+	}
+	for i := 0; i < 4; i++ {
+		tt.Frame()
+	}
+	if upgraded != 1 || !tt.HasText("更新好了") || tt.HasText("程序还是 0.1.1-rc.9") {
+		t.Errorf("更新后应提示好了、不再说不一致：upgraded=%d %q", upgraded, tt.Texts())
+	}
+}

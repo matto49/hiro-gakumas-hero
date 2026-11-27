@@ -43,6 +43,8 @@ type Deps struct {
 	Now     func() time.Time
 	// HasModel 是现在配没配模型（设置改了随时变）；nil 时看 Ask 是否为 nil。
 	HasModel func() bool
+	// Notice 是首页顶部要提醒的一句话（程序和界面版本不一致等，G5）；nil 或 "" 不画。
+	Notice func() string
 	// Gate 画在主界面之前（第一次使用）：返回 true 表示它画了整个窗口。
 	Gate func(c *ui.Context, h plugin.Host) bool
 	// Permission 是用户选的操作权限档（PermAsk / PermRead / …）；nil 或空是「允许读操作」。

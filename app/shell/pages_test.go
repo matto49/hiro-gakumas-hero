@@ -369,3 +369,30 @@ func TestPanelSessionInPagesMode(t *testing.T) {
 		t.Errorf("回首页后再进同一页应换编号：%d → %d", s2, s3)
 	}
 }
+
+// G5（11-28）：程序和界面版本不一致时首页顶部给一句话和「去设置更新」；一致（Notice 返回空）时不画。
+func TestHomeNoticeShowsAndGoesToSettings(t *testing.T) {
+	run := &SyncRunner{}
+	notice := "程序还是 0.1.1-rc.9 版，界面已经是 0.1.1 版"
+	reg := viewReg()
+	reg.Add(&plugin.Plugin{ID: "settings", Name: "设置", Panel: func(c *ui.Context, _ plugin.Host, _ string) { ui.Text(c, "设置面板") }})
+	a := New(Deps{Call: (&fakeCall{}).Call, Threads: newMem(), Run: run, Now: func() time.Time { return fixedNow },
+		OpenIn: func() string { return "" }, Notice: func() string { return notice }}, reg)
+	tt := ui.NewTester(a.View, 1280, 800)
+	if !tt.HasText(notice) || !tt.HasText("去设置更新") {
+		t.Fatalf("首页没有版本不一致的提示：%q", tt.Texts())
+	}
+	if err := tt.Click("去设置更新"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	if a.ui.pagePlugin != "settings" || !tt.HasText("设置面板") {
+		t.Errorf("没切到设置页：%q %q", a.ui.pagePlugin, tt.Texts())
+	}
+	notice = ""
+	a.ui.pagePlugin = ""
+	tt.Frame()
+	if tt.HasText("去设置更新") {
+		t.Errorf("版本一致后还在提示：%q", tt.Texts())
+	}
+}

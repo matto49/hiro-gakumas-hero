@@ -92,6 +92,7 @@ func buildApp(d appDeps) *shell.App {
 			return shell.Reply{Text: r.Text, Cards: jsonCards(r.Cards)}, err
 		},
 		HasModel:     func() bool { return cache.hasModel() },
+		Notice:       runtimeNotice(d.Bootstrap),
 		Gate:         set.Gate,
 		Permission:   func() string { return cache.Get().Permission },
 		MemorySlices: func() bool { return !cache.Get().MemorySlicesOff }, // D10 缺省开
@@ -117,7 +118,7 @@ func buildApp(d appDeps) *shell.App {
 			}
 			return ""
 		},
-		OpenIn:            func() string { return cache.Get().OpenIn },
+		OpenIn: func() string { return cache.Get().OpenIn },
 	}, reg)
 	station.restore(app)
 	return app
@@ -232,7 +233,11 @@ func settingsDeps(d appDeps, cache *settingsCache) settings.Deps {
 			if st.Error != nil {
 				out.Err = st.Error.Message + "。" + st.Error.Hint
 			}
+			out.Behind = behindText(boot.Home, boot.env(ctx, false).Version)
 			return out
+		},
+		BootUpgrade: func(ctx context.Context, onLine func(string)) error {
+			return boot.Upgrade(ctx, func(p Progress) { onLine(p.Line) })
 		},
 		BootRun: func(ctx context.Context, onLine func(string)) error {
 			return boot.RunLines(ctx, func(p Progress) { onLine(p.Line) })
