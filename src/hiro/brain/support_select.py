@@ -39,6 +39,8 @@ MAIN_COUNT = 4  # 4-2-0 / 4-1-1 [ep08][playbook]
 GUIDE: dict[
     str, float
 ] = {}  # 攻略推荐：支援卡 id → 排行榜占比（formation_plan 按模式 / 流派查攻略后经 using(guide=) 设）
+# 支援卡满级（主数据 SupportCardLevelLimit 第 4 次突破）：卡号中间那位是稀有度，R / SR / SSR
+MAX_LEVEL = {"1": 40, "2": 50, "3": 60}
 GUIDE_WEIGHT = 400.0  # 占比 1.0 折多少价值（单卡价值约 150–300：占比 65% 的推荐卡约等于多一张卡的价值，2026-11-26）
 PLAN = "ProducePlanType_Plan2"  # 広 是 ロジック（Plan2，やる気）；master IdolCard i_card-shro-3-007.planType
 # 识屏 / 库存里的 plan 字段（游戏卡面写法或 master 枚举）→ master 枚举。总控 2026-11-02：编成里有「プラン不一致」的卡开不了局，必须硬过滤
@@ -288,6 +290,12 @@ def sp_counts(slots: list[Slot]) -> dict:
     return out
 
 
+def guide_full_level(card_id: str) -> int | None:
+    """支援卡满级：s_card-<稀有度>-<编号>；认不出稀有度返回 None（不折算）。"""
+    parts = str(card_id).split("-")
+    return MAX_LEVEL.get(parts[1]) if len(parts) >= 3 else None
+
+
 def card_value(slot: Slot, sp: dict) -> tuple[float, list[str]]:
     """一张卡在给定 SP 次数下的价值与明细。"""
     total, notes = 0.0, []
@@ -299,7 +307,12 @@ def card_value(slot: Slot, sp: dict) -> tuple[float, list[str]]:
             notes.append(f"{why} {v:+.0f}")
 
     if share := GUIDE.get(slot.card_id):
-        add(share * GUIDE_WEIGHT, f"攻略推荐 {share:.0%}")
+        # 攻略里的占比是练满的卡统计出来的：按等级 / 满级折算（N44：Lv1 的推荐卡原来拿满额 +44，被选进 N.I.A 方案）
+        full = guide_full_level(slot.card_id)
+        ratio = min(1.0, max(slot.level, 1) / full) if full else 1.0
+        add(
+            share * GUIDE_WEIGHT * ratio, f"攻略推荐 {share:.0%}" + ("" if ratio >= 1 else f"（Lv{slot.level}/{full}）")
+        )
 
     for etype, value, tid, limit in slot.skills:
         n = _trigger_count(tid, sp)
