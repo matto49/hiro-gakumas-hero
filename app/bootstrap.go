@@ -156,6 +156,10 @@ type Bootstrap struct {
 	Home string `json:"-"`
 	Hiro *Hiro  `json:"-"`
 	mu   sync.Mutex
+	// 「更新运行环境」进行中时的取消函数和结束信号（StopUpgrade 用，G5）
+	upMu     sync.Mutex
+	upCancel context.CancelFunc
+	upDone   chan struct{}
 }
 
 func (b *Bootstrap) env(ctx context.Context, probeMirror bool) BootEnv {

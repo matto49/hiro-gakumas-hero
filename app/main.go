@@ -53,9 +53,11 @@ func main() {
 		return plugins.Dir(id)
 	}, web.ownerOf))
 
+	recoverSwap(home) // 上次「更新运行环境」做到一半就关了：先收拾好（G5）
+	boot := &Bootstrap{Home: home, Hiro: hiro}
 	mygo.App.WhenReady(func() {
 		runner := &lateRunner{}
-		app := buildApp(appDeps{Home: home, Call: hiro.Call, Hiro: hiro, Assistant: assistant, Bootstrap: &Bootstrap{Home: home, Hiro: hiro}, Run: runner, Web: web, Quit: mygo.App.Quit})
+		app := buildApp(appDeps{Home: home, Call: hiro.Call, Hiro: hiro, Assistant: assistant, Bootstrap: boot, Run: runner, Web: web, Quit: mygo.App.Quit})
 		win := mygo.NewWindow(mygo.WindowOptions{
 			Title:     AppName,
 			Width:     1280,
@@ -69,7 +71,10 @@ func main() {
 		runner.set(shell.WindowRunner{Update: win.Update})
 		app.StartPolling(make(chan struct{}))
 	})
-	mygo.App.OnQuit(func() { shutdownService(3 * time.Second) }) // 关窗口 = 连后台服务一起关
+	mygo.App.OnQuit(func() {
+		boot.StopUpgrade(30 * time.Second) // 正在更新运行环境：取消并等回滚做完，别留半截（G5）
+		shutdownService(3 * time.Second)   // 关窗口 = 连后台服务一起关
+	})
 	if err := mygo.App.Run(); err != nil {
 		log.Fatal(err)
 	}
