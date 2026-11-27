@@ -126,3 +126,24 @@ def test_platform_says_need_admin_when_game_is_elevated(monkeypatch):
     monkeypatch.setattr(cmd_doctor, "_is_admin", lambda: False)
     monkeypatch.setattr(hiro.devices, "open_device", _dead_device(DeviceUnavailable("找不到游戏窗口")))
     assert not cmd_doctor._platform(True).get("need_admin")
+
+
+def test_doctor_ocr_item_on_mac_follows_engine_auto_rule(monkeypatch, tmp_path):
+    """#182 起 Mac 缺省也先用 SIMD：装好了 doctor 要写 SIMD（原来一律写 Apple Vision，设置页和实际不一致，11-28 rc.12 真窗口）；
+    没装好退回 Apple Vision，不算出错。"""
+    from hiro.cli import cmd_doctor
+    from hiro.vision import simd_deps
+
+    monkeypatch.delenv("HIRO_OCR", raising=False)
+    monkeypatch.setenv("HIRO_SIMD_DEPS", str(tmp_path / "deps"))
+    monkeypatch.setattr(cmd_doctor.sys, "platform", "darwin")
+    monkeypatch.setattr(cmd_doctor, "_vision_installed", lambda: True)
+    it = cmd_doctor._ocr()
+    assert it["ok"] is True and it["optional"] is True
+    assert it["detail"].startswith("Apple Vision") and "SIMD 没装好" in it["detail"]
+    monkeypatch.setattr(simd_deps, "unusable_reason", lambda deps: None)
+    it = cmd_doctor._ocr()
+    assert it["ok"] is True and it["detail"].startswith("SIMD PaddleOCR")
+    monkeypatch.setattr(simd_deps, "unusable_reason", lambda deps: "缺少 .NET 10 Runtime")
+    monkeypatch.setattr(cmd_doctor, "_vision_installed", lambda: False)
+    assert cmd_doctor._ocr()["detail"].startswith("RapidOCR")

@@ -237,6 +237,14 @@ def _plugins() -> dict | None:
     return _item("plugins", "插件", True, f"strategy.json 里配的 {len(want)} 个插件都能用", optional=True)
 
 
+def _vision_installed() -> bool:
+    try:
+        import Vision  # noqa: F401  # pyright: ignore[reportMissingImports]  # 只有 macOS 有（pyobjc）
+    except ImportError:
+        return False
+    return True
+
+
 def _ocr() -> dict:
     """现在用哪个文字识别后端。不真的启动 SIMD 辅助进程（doctor 要快）：只看文件和 .NET 在不在，和 hiro.vision.ocr.engine() 的 auto 规则对应。"""
     from hiro.vision import simd_deps
@@ -245,11 +253,14 @@ def _ocr() -> dict:
     if want != "auto":
         return _item("ocr", "文字识别", True, f"按 HIRO_OCR={want} 固定用 {want}", optional=True)
     if sys.platform == "darwin":
-        try:
-            import Vision  # noqa: F401
-        except ImportError:
-            return _item("ocr", "文字识别", True, "RapidOCR（没找到 Apple Vision）", optional=True)
-        return _item("ocr", "文字识别", True, "Apple Vision（系统自带）", optional=True)
+        # 和 engine() 的 auto 规则一致：Mac 也先 SIMD（#182），没装好用 Apple Vision，再不行 RapidOCR
+        if (why := simd_deps.unusable_reason(simd_deps.deps_dir())) is None:
+            return _item("ocr", "文字识别", True, "SIMD PaddleOCR（PP-OCRv6，Mac 走 Metal）", optional=True)
+        if not _vision_installed():
+            return _item(
+                "ocr", "文字识别", True, f"RapidOCR（SIMD 没装好：{why}；也没找到 Apple Vision）", optional=True
+            )
+        return _item("ocr", "文字识别", True, f"Apple Vision（系统自带；SIMD 没装好：{why}）", optional=True)
     if sys.platform != "win32":
         return _item("ocr", "文字识别", True, "RapidOCR", optional=True)
     if (why := simd_deps.unusable_reason(simd_deps.deps_dir())) is None:
