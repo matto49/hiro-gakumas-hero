@@ -29,7 +29,9 @@ type appDeps struct {
 	Bootstrap *Bootstrap
 	Run       shell.Runner
 	// Ready 盖掉 Bootstrap 的「环境装好没」（测试用）；nil 时用 Bootstrap.Status。
-	Ready func(ctx context.Context) bool
+	Ready          func(ctx context.Context) bool
+	StationProbe   func(context.Context, string) stationStatus
+	StationInstall func() (string, string)
 	// Web 是侧边面板的网页视图（nil：测试里不接）。
 	Web *webPanels
 	// Quit 关掉整个程序（「跑完关助手」）；nil：测试里不接，侧栏不出这个开关。
@@ -43,6 +45,7 @@ func buildApp(d appDeps) *shell.App {
 	cache := &settingsCache{a: d.Assistant}
 	var app *shell.App
 	sd := settingsDeps(d, cache)
+	station := setupStation(d, mgr, cache, &sd)
 	sd.PluginsPanel = mgr.Panel
 	sd.OnWizardDone = func() { // R11：第一次用，自己扫一遍从没扫过的库存
 		if app != nil {
@@ -116,6 +119,7 @@ func buildApp(d appDeps) *shell.App {
 		},
 		OpenIn:            func() string { return cache.Get().OpenIn },
 	}, reg)
+	station.restore(app)
 	return app
 }
 

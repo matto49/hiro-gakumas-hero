@@ -60,7 +60,7 @@ func (a *App) TogglePanel() {
 		}
 	}
 	if a.ui.panelPlugin != "" {
-		a.ui.panelOpen = true
+		a.OpenPanel(a.ui.panelPlugin, a.ui.panelRoute)
 	}
 }
 

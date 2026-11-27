@@ -19,6 +19,9 @@ import (
 
 // Settings 和 main 里 Assistant 的 Settings 同形（settings.json）。
 type Settings struct {
+	StationEnabled *bool  `json:"station_enabled,omitempty"`
+	StationSubject string `json:"station_subject,omitempty"`
+
 	Provider   string          `json:"provider"`
 	Model      string          `json:"model,omitempty"`
 	BaseURL    string          `json:"base_url,omitempty"`
@@ -77,6 +80,8 @@ type BootStatus struct {
 
 // Deps 是设置插件要的宿主能力（main 里接 Assistant / Bootstrap / Hiro.SetSecret）。
 type Deps struct {
+	StationPanel func(c *ui.Context, h plugin.Host)
+
 	Settings   func() Settings
 	Save       func(s Settings, key string) error
 	Providers  func() []Preset
@@ -985,6 +990,9 @@ func (s *S) panel(c *ui.Context, h plugin.Host, route string) {
 	}
 	ui.Text(c, "游戏账号密码（可选）").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
 	s.secretsSection(c, h)
+	if s.d.StationPanel != nil {
+		s.d.StationPanel(c, h)
+	}
 	ui.Text(c, "运行环境").FontSize(15).FontWeight(650).TextColor(kit.Ink).Padding(10, 0, 0, 0)
 	if s.boot == nil {
 		s.boot = &BootStatus{}

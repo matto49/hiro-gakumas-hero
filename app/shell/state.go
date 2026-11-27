@@ -75,7 +75,9 @@ type App struct {
 	// confirmAll 是输入框里切到「允许所有行为」时的二次确认框开着。
 	confirmAll bool
 	// permErr 是上次换操作权限没存上的原因。
-	permErr string
+	permErr        string
+	panelSession   uint64
+	pageSessionKey string // 页面模式里上一次算 PanelSession 时显示的插件页（插件 + 路由）
 
 	jobs     map[string]*plugin.JobView
 	live     string // 活着的任务编号
@@ -384,7 +386,32 @@ func (a *App) OpenPanel(pluginID, route string) {
 		a.ui.pagePlugin, a.ui.pageRoute = pluginID, route
 		return
 	}
+	if !a.ui.panelOpen || a.ui.panelPlugin != pluginID || a.ui.panelRoute != route {
+		a.panelSession++
+	}
 	a.ui.panelOpen, a.ui.panelPlugin, a.ui.panelRoute = true, pluginID, route
+}
+
+// PanelSession identifies the current opening of the right-hand panel, or zero when closed.
+// 页面模式里插件页画在主区（不走右侧面板）：正在显示的插件页也算一次「打开」，换页（插件或路由变了）就换一个编号，
+// 不然扩展插件的页面在缺省的页面模式里一直是空白（PanelSession 为 0 时 extplugin 不画）。
+func (a *App) PanelSession() uint64 {
+	if a.mode != ModeChat {
+		if a.ui.pagePlugin == "" {
+			a.pageSessionKey = "" // 回到首页：再进同一页算重新打开，换编号（CodeRabbit #85）
+			return 0
+		}
+		if key := a.ui.pagePlugin + "\x00" + a.ui.pageRoute; key != a.pageSessionKey {
+			a.panelSession++
+			a.pageSessionKey = key
+		}
+		return a.panelSession
+	}
+	a.pageSessionKey = ""
+	if !a.ui.panelOpen {
+		return 0
+	}
+	return a.panelSession
 }
 
 // snapHost 是给后台线程用的宿主：任务数据是界面线程上拍下的快照；会改界面状态的动作都排回界面线程。

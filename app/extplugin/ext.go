@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/egoist/mygo/ui"
 
@@ -41,17 +43,24 @@ func (a Approval) Covers(m *Manifest) bool {
 type screen struct {
 	tree    *Node
 	state   json.RawMessage
-	loading bool
 	err     string
 	v       view
+	refresh time.Duration
+	next    time.Time
+	session uint64
+	edits   []screenEdit
 }
+
+type screenEdit struct{ id, value string }
 
 // Ext 是一个已同意的外部插件。
 type Ext struct {
-	m    *Manifest
-	ap   Approval
-	home string
-	c    *client
+	m      *Manifest
+	ap     Approval
+	home   string
+	c      *client
+	env    []string
+	closed atomic.Bool
 
 	mu      sync.Mutex
 	h       plugin.Host
@@ -60,9 +69,13 @@ type Ext struct {
 
 // New 建一个外部插件（进程用到时才起）。
 func New(m *Manifest, ap Approval, home string) *Ext {
-	e := &Ext{m: m, ap: ap, home: home, screens: map[string]*screen{}}
+	return newExt(m, ap, home, nil)
+}
+
+func newExt(m *Manifest, ap Approval, home string, env []string) *Ext {
+	e := &Ext{m: m, ap: ap, home: home, screens: map[string]*screen{}, env: append([]string(nil), env...)}
 	argv := append([]string{}, m.Command...)
-	e.c = newClient(m.Dir, argv, pluginEnv(home, m.ID), e.serve)
+	e.c = newClient(m.Dir, argv, append(pluginEnv(home, m.ID), e.env...), e.serve)
 	return e
 }
 
@@ -82,7 +95,10 @@ func pluginEnv(home, id string) []string {
 func (e *Ext) Manifest() *Manifest { return e.m }
 
 // Close 关掉插件进程。
-func (e *Ext) Close() { e.c.Close() }
+func (e *Ext) Close() {
+	e.closed.Store(true)
+	e.c.Close()
+}
 
 func (e *Ext) host(h plugin.Host) {
 	e.mu.Lock()
@@ -147,8 +163,33 @@ func (e *Ext) Tools() []Tool {
 }
 
 type rendered struct {
-	Tree  *Node           `json:"tree"`
-	State json.RawMessage `json:"state"`
+	Tree      *Node           `json:"tree"`
+	State     json.RawMessage `json:"state"`
+	RefreshMS *int            `json:"refreshMs,omitempty"`
+}
+
+func (s *screen) needsRender(now time.Time, visiblePanel bool, session uint64) bool {
+	if s.v.busy != "" {
+		return false
+	}
+	return (s.tree == nil && s.err == "") ||
+		(visiblePanel && s.refresh > 0 && (session != s.session || !now.Before(s.next)))
+}
+
+func (s *screen) apply(r rendered, now time.Time, panel bool) {
+	if r.Tree != nil {
+		s.tree = r.Tree
+	}
+	if r.State != nil {
+		s.state = r.State
+	}
+	if panel && r.RefreshMS != nil {
+		s.refresh = 0
+		if *r.RefreshMS > 0 {
+			s.refresh = time.Duration(min(30_000, max(1_000, *r.RefreshMS))) * time.Millisecond
+		}
+	}
+	s.next = now.Add(s.refresh)
 }
 
 func (e *Ext) screen(key string) *screen {
@@ -164,61 +205,104 @@ func (e *Ext) screen(key string) *screen {
 
 // draw 画一个页 / 一张卡：没有树时向插件要（method / params），有树时画手上这棵；事件交给插件换新树。
 func (e *Ext) draw(c *ui.Context, h plugin.Host, key, method string, params map[string]any) {
+	if e.closed.Load() {
+		return
+	}
+	panel := strings.HasPrefix(key, "panel-")
+	if panel && c.WindowHidden() {
+		return
+	}
 	e.host(h)
 	s := e.screen(key)
-	if s.tree == nil && !s.loading && s.err == "" {
-		s.loading = true
+	var session uint64
+	var panelSession func() uint64
+	if panelHost, ok := h.(interface{ PanelSession() uint64 }); panel && ok {
+		panelSession = panelHost.PanelSession
+		session = panelSession()
+		if session == 0 {
+			return
+		}
+	}
+	if s.v.busy != "" && s.session != session {
+		kit.Note(c, "正在问插件「"+e.m.Name+"」…")
+		return
+	}
+	if panel && s.session != 0 && s.session != session && s.refresh > 0 {
+		// A reopened live panel must obtain a current view before exposing its old data or controls.
+		s.tree, s.state, s.err, s.v.inputs = nil, nil, "", nil
+	}
+	current := func() bool {
+		return !e.closed.Load() && (panelSession == nil || panelSession() == session)
+	}
+	var sendEvent func(id, value string)
+	request := func(rpcMethod, busy string, rpcParams map[string]any) {
+		s.session = session
+		s.v.busy = busy
 		h.Go(func() func() {
 			var r rendered
-			err := e.c.Call(context.Background(), method, params, &r)
+			err := e.c.Call(context.Background(), rpcMethod, rpcParams, &r)
 			return func() {
-				s.loading = false
-				if err != nil {
-					s.err = err.Error()
+				s.v.busy = ""
+				if !current() {
+					// 旧会话的响应与尚未发出的编辑都不进入重新打开的面板。
+					s.tree, s.state, s.err, s.v.inputs, s.edits = nil, nil, "", nil, nil
 					return
 				}
-				s.tree, s.state = r.Tree, r.State
+				if err != nil {
+					s.err = err.Error()
+					s.next = h.Now().Add(s.refresh)
+				} else {
+					if rpcMethod != "event" {
+						s.err = ""
+					}
+					s.apply(r, h.Now(), panel)
+				}
+				if len(s.edits) > 0 {
+					edit := s.edits[0]
+					s.edits = s.edits[1:]
+					sendEvent(edit.id, edit.value)
+				}
 			}
 		})
+	}
+	sendEvent = func(id, value string) {
+		p := map[string]any{"id": id, "value": value, "state": s.state}
+		for k, v := range params {
+			p[k] = v
+		}
+		request("event", id, p)
+	}
+	if s.needsRender(h.Now(), panel, session) {
+		request(method, "render", params)
+	} else if panel && s.refresh > 0 && s.v.busy == "" {
+		// 自动刷新：界面空闲时不会自己重画，到期了也没人来画这一帧，按下次到期时间要一帧（CodeRabbit #85）
+		if d := s.next.Sub(h.Now()); d > 0 {
+			c.After(d)
+		}
 	}
 	switch {
 	case s.err != "":
 		ui.Text(c, "插件「"+e.m.Name+"」出错："+s.err).FontSize(kit.FNote).TextColor(kit.Bad).Wrap()
 		if kit.Ghost(c, "重试").Key(key + "-retry").Clicked() {
 			s.err = ""
+			s.tree = nil
 		}
 		return
 	case s.tree == nil:
 		kit.Note(c, "正在问插件「"+e.m.Name+"」…")
 		return
 	}
-	s.v.onEvent = func(id, value string) {
-		if s.v.busy != "" {
+	s.v.onEvent = func(id, value string, edit bool) {
+		if !current() {
 			return
 		}
-		s.v.busy = id
-		state := s.state
-		h.Go(func() func() {
-			var r rendered
-			p := map[string]any{"id": id, "value": value, "state": state}
-			for k, v := range params {
-				p[k] = v
+		if s.v.busy != "" {
+			if edit { // 卡片、插件设置页也排队（原来只排面板的，别处请求还没回来时改的控件会被静默丢掉；CodeRabbit #85）
+				s.edits = append(s.edits, screenEdit{id, value})
 			}
-			err := e.c.Call(context.Background(), "event", p, &r)
-			return func() {
-				s.v.busy = ""
-				if err != nil {
-					s.err = err.Error()
-					return
-				}
-				if r.Tree != nil {
-					s.tree = r.Tree
-				}
-				if r.State != nil {
-					s.state = r.State
-				}
-			}
-		})
+			return
+		}
+		sendEvent(id, value)
 	}
 	s.v.render(c, *s.tree, key)
 }

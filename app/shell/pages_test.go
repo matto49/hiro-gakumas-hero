@@ -343,3 +343,29 @@ func TestPendingSeesWaitingCards(t *testing.T) {
 		t.Error("页面上有确认卡在等，Pending 应为真")
 	}
 }
+
+// 页面模式里插件页画在主区：PanelSession 也要有编号（扩展插件靠它判断「面板开着」才画），换页换编号，回首页为 0。
+func TestPanelSessionInPagesMode(t *testing.T) {
+	a, _ := newPagesApp(&fakeCall{resp: map[string]hiroapiResult{}}, nil)
+	if a.PanelSession() != 0 {
+		t.Fatal("首页不该有面板编号")
+	}
+	a.OpenPanel("settings", "")
+	s1 := a.PanelSession()
+	if s1 == 0 || a.PanelSession() != s1 {
+		t.Fatalf("显示插件页时应有稳定的编号：%d", s1)
+	}
+	a.OpenPanel("settings", "station")
+	if s2 := a.PanelSession(); s2 == 0 || s2 == s1 {
+		t.Errorf("换页应换编号：%d → %d", s1, s2)
+	}
+	s2 := a.PanelSession()
+	a.ui.pagePlugin, a.ui.pageRoute = "", ""
+	if a.PanelSession() != 0 {
+		t.Error("回首页应为 0")
+	}
+	a.OpenPanel("settings", "station") // 插件页 → 首页 → 同一页：算重新打开（CodeRabbit #85）
+	if s3 := a.PanelSession(); s3 == 0 || s3 == s2 {
+		t.Errorf("回首页后再进同一页应换编号：%d → %d", s2, s3)
+	}
+}

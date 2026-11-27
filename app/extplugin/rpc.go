@@ -48,15 +48,16 @@ type client struct {
 	env  []string
 	on   Handler
 
-	mu      sync.Mutex
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	wmu     sync.Mutex
-	waiting map[int64]chan rpcMsg
-	next    int64
-	last    time.Time
-	gen     int // 每起一次进程加一
-	closed  bool
+	mu        sync.Mutex
+	cmd       *exec.Cmd
+	stdin     io.WriteCloser
+	wmu       sync.Mutex
+	waiting   map[int64]chan rpcMsg
+	next      int64
+	last      time.Time
+	gen       int // 每起一次进程加一
+	closed    bool
+	processes sync.WaitGroup
 }
 
 func newClient(dir string, argv, env []string, on Handler) *client {
@@ -101,8 +102,10 @@ func (c *client) startLocked() error {
 		c.read(out, gen)
 		close(readDone)
 	}()
+	c.processes.Add(1)
 	go func() {
 		_ = cmd.Wait() // 父进程一退出就返回
+		c.processes.Done()
 		// 它退出前写的回复先读完；子孙进程占着管道时最多等 DrainGrace，然后不再读
 		select {
 		case <-readDone:
@@ -284,7 +287,10 @@ func (c *client) killGenLocked(gen int) {
 // Close 关掉插件进程，不再起。
 func (c *client) Close() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.closed = true
 	c.killLocked()
+	c.mu.Unlock()
+	// Windows keeps the executable locked until the process exits. Do not
+	// wait for RPC draining, which can outlive the process itself.
+	c.processes.Wait()
 }
