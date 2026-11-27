@@ -255,7 +255,11 @@ def _daily_summary(p: dict) -> str:
     run = lambda k: not items or k in items  # noqa: E731
     spend = []
     if run("shop"):
-        shop = {"recommended": "商店买推荐商品（花金币）", "all": "商店能买的都买（花金币）"}.get(o["shop"], "商店不买")
+        shop = {
+            # 没有推荐商品时会买一件最便宜的（让「ショップで買い物」完成）：确认时写清楚（CodeRabbit #138）
+            "recommended": "商店买推荐商品（没有推荐时买一件最便宜的，花金币）",
+            "all": "商店能买的都买（花金币）",
+        }.get(o["shop"], "商店不买")
         if o["shop_items"]:
             shop += f"，另外买：{o['shop_items']}"
         if o["shop_refresh"] == "on":
@@ -278,8 +282,8 @@ def _daily_summary(p: dict) -> str:
         else:
             spend.append("硬币扭蛋不抽" if g.strip().lower() in ("", "off") else "硬币扭蛋不抽（次数没写对）")
     if run("contest"):  # 竞赛选哪个对手，确认时也写出来（CodeRabbit #138）
-        pick = o["contest_pick"]
-        spend.append("竞赛挑" + ("综合力最低的对手" if pick == "lowest" else f"第 {pick} 个对手"))
+        pick = o["contest_pick"].strip().lower()  # 和执行端一样：1 / 2 / 3 以外都按综合力最低（CodeRabbit #197）
+        spend.append("竞赛挑" + (f"第 {pick} 个对手" if pick in ("1", "2", "3") else "综合力最低的对手"))
     head = "领日常奖励" + (f"（{'、'.join(DAILY_LABEL.get(i, i) for i in items)}）" if items else "")
     return head + ("：" + "；".join(spend) if spend else "")
 

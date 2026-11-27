@@ -217,7 +217,18 @@ def _draw_in_dialog(rt, pool: str, times: int, g) -> int:
         rt.device.tap(*plus)
         rt.sleep(0.3)
     h = common.frame(rt)
-    n = count(h) or 0
+    n = count(h)
+    for _ in range(2):  # 读不出次数（None，不是读到的 0）：再读两次（CodeRabbit #197）
+        if n is not None:
+            break
+        rt.sleep(0.3)
+        h = common.frame(rt)
+        n = count(h)
+    if n is None:  # 还是读不出：识别失败，不是币不够（不能让 auto 去换别的池）
+        logger.warning("扭蛋次数读不出来，不抽")
+        _state["missed"].append(pool)
+        _cancel(rt, h)
+        return 0
     if n <= 0 or n > times:  # 币不够一次；或者读数比要的多（OCR 漏读了「回数」后的数字，没减到 0）：不抽，宁可少不可多
         if n > times:
             logger.warning("扭蛋次数读到 %d 次，比要的 %d 次多，不抽", n, times)
@@ -233,6 +244,8 @@ def _draw_in_dialog(rt, pool: str, times: int, g) -> int:
         False
     ]  # 确认框关掉过（点了「決定」之后进了演出 / 结果页）：没关掉过就是「決定」没生效、没抽（CodeRabbit #138）
 
+    back_streak = [0]  # 连着几帧像回到了列表：要两帧（一帧漏读确认框 / 结果页的字不算，CodeRabbit #197）
+
     def back(f):
         if text_at(f, "コインガシャ確認") is None and text_at(f, "キャンセル", y_min=1080) is None and f.texts:
             left[0] = True  # 标题漏读、框的按钮还在的帧不算离开确认框（CodeRabbit #122）
@@ -242,7 +255,9 @@ def _draw_in_dialog(rt, pool: str, times: int, g) -> int:
             and text_at(f, "Result") is None
             and text_at(f, "キャンセル", y_min=1080) is None  # 标题漏读、框还在的帧不算回到列表（CodeRabbit #197）
         ):
-            return True
+            back_streak[0] += 1
+            return True if back_streak[0] >= 2 else None
+        back_streak[0] = 0
         if not tap_word(rt, f, "閉じる", y_min=900):
             rt.device.tap(360, 1240)  # 抽卡演出：点下面空白跳过
         return None
@@ -275,8 +290,13 @@ def run(rt) -> str:
             return "硬币扭蛋：没进到硬币扭蛋页"
         if isinstance(p, str):  # auto
             for pool in POOLS:
+                missed = len(_state["missed"])
                 if (n := draw(rt, pool, 1)) > 0:
                     done.append(f"{NAMES[pool]} {n} 次")
+                    break
+                if (
+                    len(_state["missed"]) > missed
+                ):  # 这个池是认不出来（不是币不够）：不换池花别的币，停下报没做完（CodeRabbit #202）
                     break
         else:
             for pool, times in p:
@@ -302,13 +322,14 @@ def run(rt) -> str:
         # 指定了几个池、有的没认出来：抽了的照样报，这一项算没做完（CodeRabbit #197 / #198）
         miss = "、".join(NAMES[x] for x in dict.fromkeys(_state["missed"]))
         why = f"{miss}扭蛋的池 / 确认框没认出来"
-        raise common.PartialStop("硬币扭蛋：" + "、".join(done) + f"；{why}，可以再试一次", why)
+        # 原样重跑会把抽成了的池再抽一遍：提示只留没抽成的池（CodeRabbit #198）
+        raise common.PartialStop("硬币扭蛋：" + "、".join(done) + f"；{why}，重试时只选{miss}", why)
     if done:
         return "硬币扭蛋：" + "、".join(done)
-    if _state["missed"]:  # 没认出池 / 确认框没弹：不是币不够（CodeRabbit #122）
-        return (
-            "硬币扭蛋：没抽（"
-            + "、".join(NAMES[x] for x in dict.fromkeys(_state["missed"]))
-            + "扭蛋的池 / 确认框没认出来，可以再试一次）"
-        )
+    if _state[
+        "missed"
+    ]:  # 没认出池 / 确认框没弹：不是币不够（CodeRabbit #122），这一项算没做完（CodeRabbit #138 / #197）
+        miss = "、".join(NAMES[x] for x in dict.fromkeys(_state["missed"]))
+        why = f"{miss}扭蛋的池 / 确认框没认出来"
+        raise common.PartialStop(f"硬币扭蛋：没抽（{why}，可以再试一次）", why)
     return "硬币扭蛋：币不够，没抽"

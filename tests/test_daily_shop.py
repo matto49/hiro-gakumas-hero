@@ -218,6 +218,7 @@ def test_shop_ap_bought_kept_when_stopped(monkeypatch):
     from hiro.loop.errors import ResumeBlocked
 
     rt = _Rt()
+    rt.wait_until = lambda cond, timeout, every=0.5: (True, frame(("x", 1, 1)))  # AP 页签切过去：商品格读到了
     monkeypatch.setattr(shop, "tap_word", lambda *a, **k: True)
     monkeypatch.setattr(shop.common, "frame", lambda rt: frame(("x", 1, 1)))
     monkeypatch.setattr(shop, "tiles", lambda f: [{"x": 100, "y": 500, "left": 2}, {"x": 300, "y": 500, "left": 2}])
@@ -702,8 +703,13 @@ def test_coin_gacha_pool_not_found_is_not_coin_short(monkeypatch):
     monkeypatch.setattr(coin_gacha, "goto_coin_gacha", lambda rt: True)
     monkeypatch.setattr(coin_gacha.nav, "goto_home", lambda rt: None)
     monkeypatch.setattr(coin_gacha, "find_pool", lambda rt, pool: (None, None))
-    r = coin_gacha.run(_Rt())
-    assert "没认出来" in r and "币不够" not in r
+    import pytest
+
+    with pytest.raises(
+        coin_gacha.common.PartialStop
+    ) as e:  # 一次都没抽成、池没认出来：这一项算没做完（CodeRabbit #138 / #197）
+        coin_gacha.run(_Rt())
+    assert "没认出来" in e.value.result and "币不够" not in e.value.result
 
 
 def test_coin_gacha_draw_stopped_stops_all(monkeypatch):
@@ -817,3 +823,53 @@ def test_shop_unconfirmed_purchase_is_reported(monkeypatch):
     with pytest.raises(shop.common.PartialStop) as e:
         shop.run(_Rt())
     assert "没核实" in e.value.result and e.value.stop_all
+
+
+# ---- 合入后 CodeRabbit（#138 / #197 / #198）----
+
+
+def test_coin_gacha_unreadable_count_is_not_coin_short(monkeypatch):
+    """加完次数读不出（None，不是 0）：识别失败，记进 missed，不当币不够。"""
+    box = frame(("コインガシャ確認", 360, 300), ("コインを消費", 360, 500), ("ガシャ回数:", 300, 700),
+                ("キャンセル", 200, 1110), ("決定", 520, 1110))  # fmt: skip
+    coin_gacha._state.update(dialog=True, missed=[])
+    monkeypatch.setattr(coin_gacha.common, "frame", lambda rt: box)
+    calls = {"n": 0}
+
+    def count(f):
+        calls["n"] += 1
+        return 0 if calls["n"] == 1 else None  # 先减到 0 读得到，加完以后读不出
+
+    monkeypatch.setattr(coin_gacha, "count", count)
+    cancelled = []
+    monkeypatch.setattr(coin_gacha, "_cancel", lambda rt, f: cancelled.append(1))
+    assert coin_gacha._draw_in_dialog(_Rt(), "friend", 1, box) == 0
+    assert coin_gacha._state["missed"] == ["friend"] and cancelled
+
+
+def test_daily_summary_contest_pick_matches_executor():
+    from hiro.cli.jobs import KINDS
+
+    assert "综合力最低" in KINDS["daily"].summary({"items": "contest", "contest_pick": "hard"})
+    assert "第 2 个对手" in KINDS["daily"].summary({"items": "contest", "contest_pick": " 2 "})
+    assert "没有推荐时买一件最便宜的" in KINDS["daily"].summary({"items": "shop", "shop": "recommended"})
+
+
+def test_coin_gacha_auto_stops_on_unrecognized_pool(monkeypatch):
+    """auto：第一个池认不出来（不是币不够）时不换池花别的币，这一项算没做完（CodeRabbit #202）。"""
+    import pytest
+
+    monkeypatch.setenv("HIRO_COIN_GACHA", "auto")
+    monkeypatch.setattr(coin_gacha, "goto_coin_gacha", lambda rt: True)
+    monkeypatch.setattr(coin_gacha.nav, "goto_home", lambda rt: None)
+    tried = []
+
+    def draw(rt, pool, times):
+        tried.append(pool)
+        coin_gacha._state["missed"].append(pool)
+        return 0
+
+    monkeypatch.setattr(coin_gacha, "draw", draw)
+    with pytest.raises(coin_gacha.common.PartialStop):
+        coin_gacha.run(_Rt())
+    assert tried == [next(iter(coin_gacha.POOLS))]

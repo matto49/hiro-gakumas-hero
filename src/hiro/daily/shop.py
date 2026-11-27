@@ -442,8 +442,15 @@ def buy_ap(rt, keys: list[str], got: list[str] | None = None) -> list[str]:
 
         # 没认出页签不是「体力不够 / 今天买过了」：说清楚停在哪（CodeRabbit #198）
         raise ResumeBlocked("没认出体力商店（AP）页签，体力商店没买，可以再试一次")
-    rt.sleep(1.5)
-    for tile in tiles(common.frame(rt)):
+    from hiro.loop.errors import ResumeBlocked
+
+    ok, f = rt.wait_until(
+        lambda g: bool(tiles(g)), 6.0, every=0.5
+    )  # 页签切过去还在加载：等到读得到商品格（CodeRabbit #138）
+    if not ok:
+        raise ResumeBlocked("切到体力商店后没读到商品，体力商店没买，可以再试一次")
+    missed: list[str] = []
+    for tile in tiles(f):
         if tile["left"] <= 0:
             continue
         _open["dialog"] = True
@@ -461,11 +468,16 @@ def buy_ap(rt, keys: list[str], got: list[str] | None = None) -> list[str]:
         r = confirm(rt, g)  # 缺省数量就是能买的最多
         if r == SHORT:  # 没买成 = 体力不够
             break
-        if r == MISSED:
+        if r == MISSED:  # 要的这件没读到「決定」：记下，其余照常买，最后报没做完（CodeRabbit #138 / #197）
+            missed.append(name)
             continue
         got.append(name)
         logger.info("AP 商店买了：%s", name)
         dismiss_bought(rt)
+    if missed:
+        raise ResumeBlocked(
+            f"体力商店的{'、'.join(item_name(x) for x in missed)}确认框里没读到「決定」，没买，可以再试一次"
+        )
     return got
 
 
