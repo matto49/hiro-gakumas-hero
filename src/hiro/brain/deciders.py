@@ -17,6 +17,7 @@ import logging
 import math
 import os
 import time
+from collections import Counter
 from dataclasses import replace
 from functools import cache, lru_cache  # noqa: F401
 
@@ -159,6 +160,8 @@ class ProduceDeciders:
             set()
         )  # 初 / N.I.A：这一次相談里已经用过的服务（删除 / 强化各一次，回到选行动页清空）
         self.picked_musts: set[str] = set()  # 本局决策器自己拿到的必拿卡（牌组没识别时用来判断还缺什么）
+        # 刷回忆删卡的正向名单：本局三选一确认领到的卡 → 张数（hif 选卡成功时记、续跑从 trace 恢复；hiro.brain.farm.junk_cards）
+        self.farm_picked: Counter = Counter()
         self.consult_delete_lean = False  # 选拔相談打开「削除」对话框时：只删 qualify_consult_deletable 的牌（用户 2026-11-03 顺序），没有就取消
         self._page_spend: dict = {}  # 选卡页（page.since_seq）→ 本页已用的刷新 / 禁用次数
         self._last_reroll: dict = {}  # 选卡页 → 最近一次刷新前的候选（刷新后没变 = 没生效）
@@ -430,6 +433,28 @@ class ProduceDeciders:
         # step（第几周）N.I.A 画面上读不到，规则也只有初 MASTER「第 6 周前不能休息」用它：不算状态不全（N.I.A 实机 11-17 选行动 25 次全记成 fallback）
         missing = [k for k in ("stamina", "max_stamina") if prod.get(k) is None]
         st = self._hajime_nia_status(state)
+        from hiro.brain import farm
+
+        if farm.mode() == "bad":
+            # 刷回忆（HIRO_FARM=bad）：按 13 周固定日程选；这一周日程里没有 / 要的选项不在画面上时照原来的规则
+            deck = [
+                {"index": i, "card_id": c.get("card_id")}
+                for i, c in enumerate(prod.get("deck") or [])
+                if isinstance(c, dict)
+            ]
+            junk = bool(farm.junk_cards(deck, farm.target_cards(), self.farm_picked))
+            if not deck and not junk:
+                # 牌组没读到（11-27 DMM：牌组按钮认不出，第 7 周以为没卡可删去了外出）：按这局拿过的卡（选卡记账、续跑从 trace 恢复）判断
+                junk = bool(farm.junk_cards([{"card_id": c} for c in self.farm_picked.elements()], farm.target_cards(),
+                                            self.farm_picked))  # fmt: skip
+            got = farm.pick_action(st.step, opts, st.criteria, has_junk=junk, shop_ok=st.shop_ok)
+            if got is not None:
+                o = opts[got[0]]
+                return Decision(Action.produce_next(o["option"], attr=o.get("attr"), sp=o.get("sp")), got[1], "rule", 0.9, cands,
+                                decider="action_select")  # fmt: skip
+            logger.warning(
+                "刷回忆 BAD：第 %s 周日程没有对应的选项（%s），按原来的规则选", st.step, [o.get("option") for o in opts]
+            )
         i, reason, _rules = choose_action(st, opts)
         o = opts[i]
         warn = [f"状态缺 {missing}，按默认值选"] if missing else []
@@ -1991,6 +2016,11 @@ class ProduceDeciders:
         finals = (state.produce or {}).get("mode") == FINALS
         counts, size = self._deck_counts(state)
         pool = self._cull(state, cards, "delete", counts=counts, finals=finals, deck_size=size)
+        from hiro.brain import farm
+
+        if farm.mode() == "bad":
+            # 刷回忆：删卡页（相談没带 card_id 或删卡事件）也只删这局拿到的卡，转写目标 / 初始卡 / 固有卡不删（CodeRabbit #198）
+            pool = farm.junk_cards(cards, farm.target_cards(), self.farm_picked)
         lean = self.consult_delete_lean
         if lean and pool and "flow_tier" in pool[0]:
             self.consult_delete_lean = False  # 流派删卡池本来就只有明确该删的几档
@@ -2008,6 +2038,11 @@ class ProduceDeciders:
                 why = "卡格里只剩核心 / 保护卡 / 定制卡（或都没认出）"
             return Decision(cancel, f"{why}：取消", "rule", 0.8 if lean else 0.7, warnings=warn, decider="remove_card")
         best = pool[0]
+        if farm.mode() == "bad":
+            farm.forget_picked(self.farm_picked, best["card_id"])
+            return Decision(Action(ActionKind.REMOVE_CARD, {"card_id": best["card_id"], "index": best.get("index"), "upgrade": best.get("upgrade")}),
+                            f"刷回忆：删这局拿到的 {_card_label(best)}（转写目标 / 初始卡 / 固有卡不删）", "rule", 0.9, warnings=warn,
+                            decider="remove_card")  # fmt: skip
         if "flow_tier" in best:
             return Decision(Action(ActionKind.REMOVE_CARD, {"card_id": best["card_id"], "index": best.get("index"), "upgrade": best.get("upgrade")}),
                             f"删{FLOW_CULL[best['flow_tier']]} {_card_label(best)}（按流派 + 偶像卡攻略）", "rule", 0.85, warnings=warn,
@@ -2370,7 +2405,11 @@ class ProduceDeciders:
         p = ps.produce_point if "produce_point" not in unknown else (state.page_fields.get("produce_point") or 0)
         delete = services.get("delete") or {}
         rid = "nia.delete_order" if family(ps.mode) == NIA else "hajime.consult_price"
-        if "deck" in unknown or not ps.deck:
+        from hiro.brain import farm, flows
+
+        deck_unknown = "deck" in unknown or not ps.deck
+        farming = farm.mode() == "bad"
+        if deck_unknown and not farming:
             return Decision(
                 Action(ActionKind.SHOP_END),
                 "相談：牌组没识别，不删卡",
@@ -2392,14 +2431,23 @@ class ProduceDeciders:
                 0.6,
                 decider="consult",
             )
+        if deck_unknown:
+            # 刷回忆：选行动按这局拿过的卡判断「有卡可删」才进的相談，牌组没读到也要删（原来直接结束，这周白花、垃圾卡进抽选池；
+            # 审查 #198 第 3 条）。不带 card_index / card_id：打开删卡对话框，由 remove_card 按对话框卡格只删这局拿到的卡，没有就取消
+            self.consult_used.add("delete")
+            return Decision(Action(ActionKind.SHOP_BUY, {"service": "delete"}),
+                            f"刷回忆：牌组没识别，打开删卡对话框，在对话框里选这局拿到的卡删（{delete.get('price')}P）", "rule", 0.7,
+                            warnings=["牌组未识别：在删卡对话框里选卡"], decider="consult")  # fmt: skip
         cards = [
             {"index": i, "card_id": c.card_id, "upgrade": c.upgrade, "customized": c.customized}
             for i, c in enumerate(ps.deck)
         ]
         counts, _ = self._deck_counts(state)
-        from hiro.brain import flows
-
-        if flows.flow(ps.idol_card_id) not in (None, "yaruki"):
+        if farming:
+            pool = farm.junk_cards(
+                cards, farm.target_cards(), self.farm_picked
+            )  # 刷回忆：这一局确认拿到的卡全删（不进回忆抽选池），初始卡 / 固有卡 / 目标卡 / 回忆带进来的卡留着
+        elif flows.flow(ps.idol_card_id) not in (None, "yaruki"):
             pool = _flow_delete_pool(
                 cards, ps.idol_card_id, ps.mode
             )  # 广以外的偶像：按自己的流派判冲突（协调 11-19 多偶像）+ 攻略的删卡条目
@@ -2415,7 +2463,12 @@ class ProduceDeciders:
         c = pool[0]
         self.consult_used.add("delete")
         kind = FLOW_CULL[c["flow_tier"]] if "flow_tier" in c else CULL_TIERS.get(cull_tier(c["card_id"]), "")
-        return Decision(Action(ActionKind.SHOP_BUY, {"service": "delete", "card_index": c["index"]}),
+        args = {"service": "delete", "card_index": c["index"]}
+        if farm.mode() == "bad":
+            # 刷回忆：带上要删的卡 id，删卡页按它选，不再让 remove_card 重选（那边的删卡顺序不认转写目标，CodeRabbit #198）
+            args["card_id"] = c["card_id"]
+            farm.forget_picked(self.farm_picked, c["card_id"])
+        return Decision(Action(ActionKind.SHOP_BUY, args),
                         f"相談删{kind} {_card_label(c)}（{delete.get('price')}P；{hr.cite(rid)}）", "rule", 0.8,
                         decider="consult")  # fmt: skip
 
@@ -3319,6 +3372,11 @@ class ProduceDeciders:
         ps = self.produce_state(state)
         parsed = [ev.parse(c) for c in choices]
         vecs = [v for v, _ in parsed]
+        from hiro.brain import farm
+
+        if farm.mode():
+            # 刷回忆（BAD 育成）：这局除了转写目标什么卡都不要，拿技能卡的选项算坏处（占优判断和粗估分都按这个）
+            vecs = [{**v, "card": -v["card"]} for v in vecs]
         unparsed = {i for i, (_, ok) in enumerate(parsed) if not ok}  # choices 里的位置
         raw = state.produce or {}  # 局面不全（ProduceState 构造不出）时体力 / 成长率直接读原始字段
         kw = {"stamina": ps.stamina if ps else raw.get("stamina"), "max_stamina": ps.max_stamina if ps else raw.get("max_stamina"),

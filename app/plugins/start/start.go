@@ -41,6 +41,16 @@ func modeName(kind string) string {
 	return labels.Kind(kind)
 }
 
+// hasDiffs 是这种培育开新局要不要选难度（初 / N.I.A）。
+func hasDiffs(kind string) bool {
+	for _, m := range modes {
+		if m.id == kind {
+			return len(m.diffs) > 0
+		}
+	}
+	return false
+}
+
 // 默认难度（和 agent 提示词的固定流程一致：初 regular，N.I.A pro）。
 func defaultDiff(kind string) string {
 	switch kind {
@@ -55,12 +65,15 @@ func defaultDiff(kind string) string {
 type idol = common.IdolItem
 
 type state struct {
-	mode    int
-	resume  bool
-	hifMain int // 0 选拔 1 本战
-	diff    int
-	pick    common.IdolPicker // 偶像卡（和编成方案页共用的选择器）
-	search  searchState       // 考试出牌：按场次选快速 / 搜索（examsearch.go）
+	mode   int
+	resume bool
+	// 刷回忆（只有「初」，HIRO_FARM=bad，实验）：BAD 育成、目标评价 B；farmTarget 是转写目标技能卡 id（可空）
+	farm       bool
+	farmTarget string
+	hifMain    int // 0 选拔 1 本战
+	diff       int
+	pick       common.IdolPicker // 偶像卡（和编成方案页共用的选择器）
+	search     searchState       // 考试出牌：按场次选快速 / 搜索（examsearch.go）
 
 	// 日常的选项（11-26）：竞赛挑哪个对手、商店买什么、硬币扭蛋抽哪个
 	contestPick int     // 0 综合力最低 1/2/3 第几个
@@ -374,6 +387,23 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 			e.Rows = append(e.Rows, [2]string{"主属性", labels.Attr(a)})
 		}
 	}
+	if r.Flags["farm"] == "bad" {
+		var names []string // 填的是卡编号时显示卡名（CodeRabbit #198：确认卡上不露编号）
+		for _, t := range strings.Split(r.Flags["farm-target"], ",") {
+			if t = strings.TrimSpace(t); t == "" {
+				continue
+			}
+			if en := cat.Get(h, t); en != nil && en.Name != "" {
+				t = en.Name
+			}
+			names = append(names, t)
+		}
+		target := strings.Join(names, "、")
+		if target == "" {
+			target = "回忆编成里带的卡"
+		}
+		e.Rows = append(e.Rows, [2]string{"刷回忆", "BAD 育成，目标评价 B（实验）"}, [2]string{"转写目标", target})
+	}
 	if row, ok := examSearchRow(r.Kind, r.Flags); ok {
 		e.Rows = append(e.Rows, row)
 	}
@@ -478,6 +508,16 @@ func (s *state) panel(c *ui.Context, h plugin.Host) {
 	if produce {
 		ui.Checkbox(c, &s.resume, "接着打游戏里开着的那局")
 	}
+	if m.id == "hajime" {
+		kit.Section(c, "刷回忆（实验）")
+		ui.Checkbox(c, &s.farm, "BAD 育成刷回忆（目标评价 B）")
+		if s.farm {
+			ui.Row(c).Key("farm-target").Children(func() {
+				ui.TextInput(c, &s.farmTarget).Grow(1).Placeholder("转写目标（必填）：技能卡名或编号，逗号分隔，例如 輝くキミへ").FontSize(kit.FSmall)
+			})
+			kit.Note(c, "只拿转写目标、初始卡和偶像固有卡，练习课刚好不过线，以 B 评价通关。租借回忆程序不会选：先在游戏里自己走开局、选好租借回忆、点「開始する」，再勾上面的「接着打」发起。偶像卡也要选（考试出牌要知道是谁）。")
+		}
+	}
 	if m.id == "hif" {
 		kit.Section(c, "打哪一段")
 		ui.Segmented(c, &s.hifMain, "选拔", "本战")
@@ -495,7 +535,7 @@ func (s *state) panel(c *ui.Context, h plugin.Host) {
 		s.dailyOptions(c)
 	}
 	s.search.draw(c, h, examGroups(m.id, s.hifMain, s.resume))
-	needIdol := (produce && !s.resume) || m.id == "tower"
+	needIdol := (produce && !s.resume) || m.id == "tower" || (m.id == "hajime" && s.farm)
 	if needIdol {
 		s.pick.Draw(c, h, "start")
 	}
@@ -679,13 +719,29 @@ func (s *state) args() ([]string, string) {
 		a = append(a, "--mode", []string{"qualify", "main"}[s.hifMain])
 	}
 	a = append(a, s.search.args(examGroups(m.id, s.hifMain, s.resume))...)
-	if s.resume {
+	farm := m.id == "hajime" && s.farm
+	if farm && !s.resume {
+		// 程序不会选租借回忆：新开一局会按游戏当前的回忆开，花了 AP 却几乎不是目标回忆（审查 #198 第 8 条）
+		return nil, "刷回忆要先在游戏里选好租借回忆、点「開始する」，再勾「接着打」发起"
+	}
+	if farm {
+		// 转写目标必填：不填时没有可靠的来源（租借回忆不在编成方案里），相談删卡会连目标一起删
+		t := strings.TrimSpace(strings.ReplaceAll(s.farmTarget, "，", ","))
+		if t == "" {
+			return nil, ""
+		}
+		a = append(a, "--farm", "bad", "--farm-target", t)
+	}
+	if s.resume && !farm {
 		return a, "接着打 " + m.name
 	}
 	if s.pick.Chosen.ID == "" {
 		return nil, ""
 	}
 	a = append(a, "--idol", s.pick.Chosen.ID)
+	if s.resume { // 刷回忆接着打：带上偶像卡（考试出牌要知道是谁）
+		return a, "接着打 " + m.name + "（刷回忆，" + s.pick.Chosen.Name + "）"
+	}
 	if len(m.diffs) > 0 {
 		a = append(a, "--difficulty", m.diffs[min(s.diff, len(m.diffs)-1)])
 	}
@@ -811,7 +867,6 @@ func (s *state) starters(h plugin.Host, cat *common.Catalog) []plugin.Starter {
 		if id == "" || (j.Kind != "hajime" && j.Kind != "nia" && j.Kind != "hif" && j.Kind != "tower") || seen[id+j.Kind] {
 			continue
 		}
-		seen[id+j.Kind] = true
 		e := cat.Get(h, id)
 		if e == nil && j.Kind != "tower" {
 			continue
@@ -821,11 +876,17 @@ func (s *state) starters(h plugin.Host, cat *common.Catalog) []plugin.Starter {
 		if e != nil {
 			name = shortIdol(e.Name)
 		}
+		// 重放不了的记录（刷回忆的局等）不占名额、不写 seen：同一偶像 + 模式更早的普通局照样能出（CodeRabbit #198）
+		run := replay(j, name, mode)
+		if run == nil {
+			continue
+		}
+		seen[id+j.Kind] = true
 		st := plugin.Starter{
 			Label: "用" + name + "再打一把" + mode,
 			Sub:   "上次 " + time.Unix(int64(j.StartedAt), 0).Format("01-02") + " · " + labels.State(j.State),
 			Say:   "帮我用" + name + "打一把" + mode,
-			Page:  replay(j, name, mode),
+			Page:  run,
 		}
 		if e != nil {
 			st.Art, st.Attr = cat.Sprite(h, e.Asset), e.Attr
@@ -846,7 +907,15 @@ func replay(j plugin.Job, name, mode string) func(h plugin.Host) {
 	for k, v := range j.Params {
 		params[k] = v
 	}
+	if f, _ := params["farm"].(string); f != "" {
+		return nil // 刷回忆只能接着打（程序不选租借回忆），不能按上次参数新开一局（审查 #198 第 8 条）
+	}
 	if params["command"] == "resume" {
+		// 续打的记录多半不带难度（续打不选难度）：改成 new 会按缺省开 REGULAR，不是上次那局的难度。
+		// 参数不全就不出这一项，starters 去找更早的完整记录（CodeRabbit #198）
+		if d, _ := params["difficulty"].(string); d == "" && hasDiffs(j.Kind) {
+			return nil
+		}
 		params["command"] = "new" // 上次是接着打的：再打一把是开新的
 	}
 	// 续打时并进来的记录目录（resume_chain 的 trace）不带：run start 没有 --trace，新局自己建（CodeRabbit #138 / #197）

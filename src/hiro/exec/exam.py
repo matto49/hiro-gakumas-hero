@@ -1405,6 +1405,7 @@ def run_exam(
     source=None,
     advisor=None,
     round_no: int | None = None,
+    wrap: Callable[[Any], Any] | None = None,
 ) -> ExamMemory:
     """一场考试的主循环。brain：记忆管理（new_memory / commit）与偶像档案；source / advisor：局面来源与出招（不给时取
     hiro.plugins 注册 / 默认的实现）。session 给出时每个决策点写一条 trace Step（观测 → 状态 → 决策 → 执行结果，带分阶段耗时）。"""
@@ -1422,6 +1423,9 @@ def run_exam(
         advisor = cast(
             Any, GuardedAdvisor(picked, advisor, _plugins.label(picked), f"exam.{mode_of_exam(exam, produce_mode)}")
         )
+    if wrap is not None and advisor is not None:
+        # 包在最后选定的出招外面（刷回忆的 BAD 停手要压过 strategy.json 选的插件，CodeRabbit #198）
+        advisor = wrap(advisor)
     if source is not None and _strategy.current().sources:
         from hiro.defaults.exam_bridge import ObservationExamStateSource
 

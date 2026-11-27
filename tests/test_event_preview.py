@@ -72,6 +72,7 @@ def _fake(monkeypatch, screen, choices, notes=None):
         PREVIEW_RECHECK_S=0,
         SELECTED_DY=hif.HifCore.SELECTED_DY,
         _selected_y=lambda img: None if img in ("left", None) else img,
+        _same_event=hif.HifCore._same_event,
     )
     fake._is_selected = lambda img, y: hif.HifCore._is_selected(fake, img, y)
     return fake
@@ -167,3 +168,110 @@ def test_event_abort_strikes_count_per_event():
     # 上一拍 abort、这一拍认不出选中项（None）：也算一次，abort / None 交替照样到 2（CodeRabbit #196）
     assert strikes(a, "abort") == 1 and strikes(a, None) == 2
     assert strikes(b, None) == 0  # 没 abort 过的 None：照旧
+
+
+OTHER = ["話を聞いてみる", "今日はやめておく"]  # 点完进了另一个事件：也有两项、同一行也是选中态
+
+
+def test_preview_stops_when_tap_lands_in_another_event(monkeypatch):
+    """CodeRabbit #198：点了某项后画面进了另一个也有选项、同一行也是选中态的事件：gone() / _is_selected() 拦不住。
+    读效果前核对这页的选项字都还在，不在就返回 left，不把新事件的效果写进旧选项、不再按旧坐标点。"""
+    screen = _Screen(801)
+    choices = _choices(0)
+    fake = _fake(monkeypatch, screen, choices)
+
+    def boxes(img):
+        if img == "left":
+            return []
+        if screen.taps:  # 点过一下以后：换成了别的事件（选项字不同），选中态仍在同一行
+            return [_box("Vo+30", 440, img - 100, 420), _box(OTHER[0], 220, 801), _box(OTHER[1], 220, 904)]
+        return [_box(SHOWN[img], 440, img - 100, 420), _box(OPTS[0], 220, 801), _box(OPTS[1], 220, 904)]
+
+    monkeypatch.setattr(hif.ops, "ocr_boxes", boxes)
+    assert hif.HifCore._preview_event_effects(fake, choices) == "left"
+    assert screen.taps == [904] and not choices[1].get("effect")  # 只点了一下；新事件的「Vo+30」没写进旧选项
+
+
+def test_preview_checks_event_before_first_tap(monkeypatch):
+    """预览下一项之前也核对：一开始画面就不是这个事件（选项字对不上）：不点，返回 left。"""
+    screen = _Screen(801)
+    choices = _choices(0)
+    fake = _fake(monkeypatch, screen, choices)
+    monkeypatch.setattr(hif.ops, "ocr_boxes", lambda img: [_box(OTHER[0], 220, 801), _box(OTHER[1], 220, 904)])
+    assert hif.HifCore._preview_event_effects(fake, choices) == "left"
+    assert screen.taps == []
+
+
+def _commit_core(monkeypatch, screen, choices, preview=0):
+    from hiro.contracts import Action, Decision
+
+    fake = _fake(monkeypatch, screen, choices)
+    core = hif.HifCore.__new__(hif.HifCore)
+    core.s = NS(observe=lambda **k: "obs", state=fake.s.state, note=lambda m: None, record=lambda *a, **k: None)
+    core._selected_y = fake._selected_y
+    core._preview_event_effects = lambda ch: preview
+    core._note_fallback = lambda page, d: None
+    done = []
+    core._act = lambda fn, action, **k: done.append(fn())
+    return core, done, lambda i: Decision(Action.event_select(i), "选", "rule", 0.9, decider="event_choice")
+
+
+def test_commit_after_preview_target_already_selected(monkeypatch):
+    """CodeRabbit #198：提交前截图核对是这一页、读当前选中项：要的那项已经是选中态就只点一下确认。"""
+    screen = _Screen(904)
+    choices = _choices(1)
+    core, done, dec = _commit_core(monkeypatch, screen, choices, preview=1)
+    core.deciders = NS(decide=lambda page, st, **k: dec(1))
+    core._event_page("EVENT_CHOICE", lambda i: None, 2)
+    assert done == [True] and screen.taps == [904] and screen.confirmed
+
+
+def test_commit_after_preview_selects_then_confirms(monkeypatch):
+    """要的那项没选中：先点一下选中，核对同一页 + 选中了，再点确认。决策时以为选中的是第 1 项（preview），
+    画面上其实第 2 项已经选中（上一下慢半拍生效）：按画面判，不按旧记录直接点（那一下会确认掉第 2 项）。"""
+    screen = _Screen(904)
+    choices = _choices(1)
+    core, done, dec = _commit_core(monkeypatch, screen, choices, preview=0)
+    core.deciders = NS(decide=lambda page, st, **k: dec(0))
+    core._event_page("EVENT_CHOICE", lambda i: None, 2)
+    assert done == [True] and screen.taps == [801, 801] and screen.confirmed and screen.sel == 801
+
+
+def test_commit_after_preview_refuses_other_event(monkeypatch):
+    """提交前画面已经是别的事件（选项字对不上）：一下都不点，返回 False。"""
+    screen = _Screen(801)
+    choices = _choices(0)
+    core, done, dec = _commit_core(monkeypatch, screen, choices, preview=0)
+    core.deciders = NS(decide=lambda page, st, **k: dec(1))
+    monkeypatch.setattr(hif.ops, "ocr_boxes", lambda img: [_box(OTHER[0], 220, 801), _box(OTHER[1], 220, 904)])
+    core._event_page("EVENT_CHOICE", lambda i: None, 2)
+    assert done == [False] and screen.taps == []
+
+
+def test_commit_after_preview_select_did_not_take(monkeypatch):
+    """先点一下选中没生效：不点确认，返回 False（交给重试 / 下一拍）。"""
+    screen = _Screen(801, ignore_taps=1)
+    choices = _choices(0)
+    core, done, dec = _commit_core(monkeypatch, screen, choices, preview=0)
+    core.deciders = NS(decide=lambda page, st, **k: dec(1))
+    core._event_page("EVENT_CHOICE", lambda i: None, 2)
+    assert done == [False] and screen.taps == [904] and not screen.confirmed
+
+
+def test_same_event_tolerates_covered_option_but_not_new_event():
+    """说明框盖住了另一个选项的字：还算同一个事件；换成选项字全不一样的事件：不算。"""
+    choices = [{"text": "梦想的进展怎么样了?"}, {"text": "有个新的课程建议"}]
+    box = lambda t: (t, 0.9, (0, 0, 10, 10))  # noqa: E731
+    assert hif.HifCore._same_event([box("梦想的进展怎么样了?"), box("…を選択して獲得")], choices)
+    assert not hif.HifCore._same_event([box("休む"), box("レッスンする")], choices)
+
+
+def test_commit_after_preview_selection_unknown_does_not_tap(monkeypatch):
+    """CodeRabbit #198：提交前认不出哪项是选中态（_selected_y 为 None）：一下都不点（点了可能确认掉不知道哪项），返回 False 等重读。"""
+    screen = _Screen(801)
+    choices = _choices(0)
+    core, done, dec = _commit_core(monkeypatch, screen, choices, preview=0)
+    core.deciders = NS(decide=lambda page, st, **k: dec(1))
+    core._selected_y = lambda img: None
+    core._event_page("EVENT_CHOICE", lambda i: None, 2)
+    assert done == [False] and screen.taps == [] and not screen.confirmed

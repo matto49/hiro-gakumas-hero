@@ -68,6 +68,30 @@ def owned_cards(steps: Iterable[dict], memory_cards: Iterable[str] = ()) -> Coun
     return +owned  # 去掉 ≤0 的
 
 
+def picked_cards(steps: Iterable[dict]) -> Counter:
+    """本局三选一领取成功（execution.ok）的卡 card_id → 张数，减去之后删掉的（相談删卡带 card_id、删卡页）。
+    刷回忆的删卡正向名单（hiro.brain.farm.junk_cards）：只删这里面的卡，牌组快照（DECK_LIST）不算进来——那里面有借用回忆带进来的卡。"""
+    got: Counter = Counter()
+    for st in steps:
+        page = _page(st)
+        act = (st.get("decision") or {}).get("action") or {}
+        args = act.get("args") or {}
+        if not (st.get("execution") or {}).get("ok"):
+            continue
+        kind = act.get("kind")
+        if page == "SELECT_CARD" and kind == "ActivateEffect":
+            cands = ((st.get("state") or {}).get("page_fields") or {}).get("candidates") or []
+            for i in args.get("pick_indexes") or []:
+                if 0 <= int(i) < len(cands) and cands[int(i)].get("card_id"):
+                    got[cands[int(i)]["card_id"]] += 1
+        elif args.get("card_id") and (
+            (page == "CONSULT" and kind == "ShopBuy" and args.get("service") == "delete")
+            or page == "SKILL_CARD_REMOVAL"
+        ):
+            got[args["card_id"]] -= 1
+    return +got
+
+
 def steps_of(trace_dirs: Iterable[Path]) -> Iterable[dict]:
     for d in trace_dirs:
         f = Path(d) / "steps.jsonl"

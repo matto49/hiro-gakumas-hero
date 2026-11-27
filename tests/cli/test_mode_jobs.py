@@ -139,6 +139,19 @@ def test_final_rank_only_for_hajime():
     assert "--final-rank" not in argv("hajime", {"command": "new", "idol": "i_card-jsna-3-006", "difficulty": "pro"})
 
 
+def test_hajime_farm_env_only_from_params(hiro_home, monkeypatch):
+    """刷回忆：--farm bad 才给 HIRO_FARM（不继承外面的环境）；确认摘要写出来。"""
+    monkeypatch.setenv("HIRO_FARM", "bad")
+    job = Job(hiro_home, KINDS["hajime"], {"command": "resume"})
+    assert "HIRO_FARM" not in job.child_env()
+    job = Job(hiro_home, KINDS["hajime"], {"command": "resume", "farm": "bad", "farm_target": "p_card-02-act-3_186"})
+    env = job.child_env()
+    assert env["HIRO_FARM"] == "bad" and env["HIRO_FARM_TARGET"] == "p_card-02-act-3_186"
+    assert env["HIRO_FORMATION_PLAN"] == "off"
+    assert "刷回忆" in KINDS["hajime"].summary({"command": "resume", "farm": "bad"})
+    assert "HIRO_FARM" not in Job(hiro_home, KINDS["nia"], {"farm": "bad"}).child_env()
+
+
 def test_play_prefs_from_settings_override_env(hiro_home, monkeypatch):
     """设置页「培育」：每一项都盖过启动环境；没设过的按程序缺省（11-27，CodeRabbit #197 / #198）。"""
     import json

@@ -363,11 +363,13 @@ def _search_suffix(p: dict) -> str:
 def _produce_summary(name: str, default_level: str):
     def summary(p: dict) -> str:
         level = (p.get("difficulty") or default_level).upper()
+        farm = "（刷回忆：BAD 育成，目标评价 B）" if p.get("farm") == "bad" else ""
         if (p.get("command") or "new") == "resume":
-            return f"接着打进行中的{name}培育" + _search_suffix(p)
+            return f"接着打进行中的{name}培育{farm}" + _search_suffix(p)
         return (
             f"开一局{name} {level}"
             + (f"（{idol_name(p['idol'])}）" if p.get("idol") else "")
+            + farm
             + _search_suffix(p)
             + _prepare_suffix(p)
         )
@@ -820,6 +822,14 @@ class Job:
                 env[var] = val
             else:
                 env.pop(var, None)
+        # 刷回忆（HIRO_FARM，只有「初」）：只由这一局的参数决定，不继承外面的环境（不刷的局别带着刷）
+        for var in ("HIRO_FARM", "HIRO_FARM_TARGET"):
+            env.pop(var, None)
+        if self.kind.name == "hajime" and self.params.get("farm") == "bad":
+            env["HIRO_FARM"] = "bad"
+            env["HIRO_FORMATION_PLAN"] = "off"  # 编成按你在游戏里选的（租借回忆），不按开局编成方案核对
+            if self.params.get("farm_target"):
+                env["HIRO_FARM_TARGET"] = str(self.params["farm_target"])
         env.update(exam_search_env(self.kind.name, self.params.get("exam_search"), env))
         if self.kind.name == "hif":  # run_hif 的编成号走环境变量
             for key, var in (("support_set", "HIRO_SUPPORT_SET"), ("memory_set", "HIRO_MEMORY_SET")):

@@ -206,6 +206,7 @@ class HifCore:
         from hiro.formation_env import MEMORY_CARDS
 
         self.deciders.picked_musts |= set(MEMORY_CARDS) | self._picked_cards_from_trace()  # 回忆带的卡算已有
+        self.deciders.farm_picked = self._farm_picked_from_trace()  # 刷回忆删卡正向名单：之前各段里选卡确认领到的
         self._load_finals_context()
         self._seed_produce_from_trace()
         self._seed_idol_item()
@@ -707,21 +708,33 @@ class HifCore:
                      choice=_card_summary(choice.card), source=d.source, reason=d.reason)  # fmt: skip
         logger.info("选卡 %s ← %s：%s", choice.card.name if choice.card else "?", d.source, d.reason)
 
+        # 领取确认真的生效了没有（None = commit 没跑；_act 对会返回的 commit 一律按已生效处理，记账不能只看 result.ok）
+        got_card: list[bool | None] = [None]
+
         def commit():
             # 先走快速提交（点卡 → 等「受け取る」亮 → 点 → 等消失）。亮不起来时先看是不是弹了首次设置框（獲得ガイド表示設定：
             # 新账号第一次拿卡，框挡住按钮，原来在逐步提交和重试里空等约 2.5 分钟，协调 11-14），处理完再快速提交一次；还不行才逐步提交 + 补点
             center = (int(choice.rect.center.x), int(choice.rect.center.y))
-            if ops.fast_acquire(center):
+            if ops.fast_acquire(center) or (self._settings_dialog("SELECT_CARD") and ops.fast_acquire(center)):
+                got_card[0] = True
                 return
-            if self._settings_dialog("SELECT_CARD") and ops.fast_acquire(center):
-                return
-            card_select_commit(choice.rect)
+            got_card[0] = card_select_commit(choice.rect)  # 慢速路径：「受け取る」一直是灰的就没领成（CodeRabbit #198）
             self._confirm_acquire()
 
         result = self._act(commit, Action.activate_effect(i), page_before="SELECT_CARD",
                            taps=[[int(choice.rect.center.x), int(choice.rect.center.y)]])  # fmt: skip
+        if result.ok and got_card[0] is False:
+            # 慢速提交「受け取る」一直是灰的：页面校验过了也不算领到。trace 里这一步记成没生效，续跑时 _picked_cards_from_trace /
+            # 记账不再把这张当已有（CodeRabbit #198）
+            result = replace(result, ok=False, error="「受け取る」一直是灰的，没领到卡")
         if result.ok:
             self._last_pick = (ids, time.monotonic())
+            if got_card[0] and (cid := getattr(choice.card, "_id", None)) is not None:
+                # 记下这局拿过的卡（牌组读不到时，刷回忆第 7 周靠它判断要不要去相談删卡，11-27）。
+                # 只在领取确认真的生效时记：没领成也记的话，会为一张没拿到的卡去相談（CodeRabbit #198）
+                self.deciders.picked_musts.add(str(cid))
+                if (fp := getattr(self.deciders, "farm_picked", None)) is not None:
+                    fp[str(cid)] += 1  # 刷回忆删卡的正向名单（CodeRabbit #198）
         self.s.record(obs, decision=d, execution=result, timings_ms={"total": (time.monotonic() - t0) * 1000})
 
     def _stage(self) -> str:
@@ -1078,6 +1091,18 @@ class HifCore:
         logger.info("续跑：从之前的 trace 记账恢复现有卡 %d 种", len(owned))
         return set(owned)
 
+    def _farm_picked_from_trace(self):
+        """同一局之前各 trace 段里三选一领取成功的卡（减去删掉的）：刷回忆删卡的正向名单（hiro.loop.ledger.picked_cards）。"""
+        from collections import Counter
+
+        from hiro.loop.ledger import picked_cards, steps_of
+
+        try:
+            dirs = self._prior_trace_dirs()
+        except Exception:  # noqa: BLE001  没有 trace（测试替身）
+            return Counter()
+        return picked_cards(steps_of(dirs)) if dirs else Counter()
+
     PDRINK_RETRIES = 3  # 饮料溢出页决策给不出（Wait）时重读几次
     PDRINK_RETRY_WAIT = 0.5
 
@@ -1292,23 +1317,27 @@ class HifCore:
                 self.s.note("EVENT_CHOICE：上一拍对不上、这一拍认不出选中项，交给下一拍重新看")
                 return
             if preview is not None:
-                sel_i = [preview]  # 现在选中的是哪项（提交时更新：画面没变要重提交时，那项已经是选中态，只点一下）
 
                 def commit_index(i):  # noqa: F811
-                    """看过效果以后：要的那项没选中就先点一下选中，再点一下确认（不双击：双击已选中的项会把第二下点到下一页）。"""
+                    """看过效果以后提交：每次（含重试）第一下点之前都截图核对还是这一页（选项字都在）、读当前选中项，
+                    不沿用旧的选中记录（CodeRabbit #198：上一下慢半拍才生效时，重试按旧记录点会直接确认）。
+                    要的那项已经是选中态就直接点一下确认；明确是别的项选中时先点一下选中，再核对同一页 + 选中了，才点确认；
+                    认不出哪项选中就一下都不点（点了可能确认掉不知道哪项），返回 False 等重读（CodeRabbit #198）。对不上返回 False。"""
                     c = next((c for c in choices if c.get("index") == i and c.get("center")), None)
                     if c is None:
                         return False
                     x, y = c["center"]
-                    if i != sel_i[0]:
+                    img = device.screenshot()
+                    if not self._same_event(ops.ocr_boxes(img), choices):
+                        return False  # 已经不是这一页（上一下其实确认了 / 进了别的事件）：不点旧坐标
+                    sy = self._selected_y(img)
+                    if sy is None:
+                        return False  # 认不出选中项：不点，等重读
+                    if abs(sy - int(y)) > self.SELECTED_DY:  # 明确是别的项选中：先点目标选中它
                         device.click(int(x), int(y))
                         sleep(0.6)
-                        if not self._is_selected(device.screenshot(), y):
+                        if not self._still_here(device.screenshot(), choices, y):
                             return False  # 选中没生效（或页面已经变了）：不点确认，交给重试 / 下一拍重新看
-                        sel_i[0] = i
-                    elif not self._still_here(device.screenshot(), choices, y):
-                        # 重试时（上一下其实已经确认、进了下一个事件选项页）：画面已不是这一页 / 这项不是选中态，不点旧坐标（CodeRabbit #198）
-                        return False
                     device.click(int(x), int(y))
                     sleep(2)
                     return True
@@ -1361,11 +1390,18 @@ class HifCore:
 
     def _still_here(self, img, choices: list, y) -> bool:
         """还是产生 choices 的那一页、y 那项还是选中态：读得到这页的选项字（前 4 个字），且 y 处是选中态。"""
-        if not self._is_selected(img, y):
-            return False
-        texts = [t for t, _, _ in ops.ocr_boxes(img)]
+        return self._is_selected(img, y) and self._same_event(ops.ocr_boxes(img), choices)
+
+    @staticmethod
+    def _same_event(boxes, choices: list) -> bool:
+        """画面还是产生 choices 的那个事件：这页每个选项的字（前 4 个字）都还读得到。只看选项按钮在不在、选中项纵坐标对不对拦不住
+        「点完进了另一个也有选项、同一行也是选中态的事件」（CodeRabbit #198）。一个选项字都没有时认不出，算不是。"""
+        texts = [t for t, _, _ in boxes]
         labels = [str(c.get("text") or "")[:4] for c in choices if c.get("text")]
-        return bool(labels) and all(any(lab in t for t in texts) for lab in labels)
+        # 至少一半选项的字还在（向上取整、至少 1 项）：选中项上方的说明框可能盖住别的选项按钮，要求全在会一直判成「页面走了」；
+        # 换成别的事件时选项字一个都对不上，照样拦得住
+        hit = sum(any(lab in t for t in texts) for lab in labels)
+        return bool(labels) and hit >= max(1, (len(labels) + 1) // 2)
 
     def _event_strikes(self, choices: list, preview) -> int:
         """事件选项看效果「对不上」（abort）连着几次：只算同一个事件（按选项文字认），换了事件 / 页面走了（left）/ 看成了就重新数
@@ -1417,8 +1453,13 @@ class HifCore:
             x, y = c["center"]
             lab = labels[c["index"]]
             img = device.screenshot()
+            boxes = ops.ocr_boxes(img)
+            if not self._same_event(boxes, choices):
+                # 预览下一项之前核对事件身份：这页的选项字不全在了 = 页面走了（进了别的事件），不读、不按旧坐标点（CodeRabbit #198）
+                self.s.note("EVENT_CHOICE：看效果途中这页的选项字不全在了，当页面走了")
+                return "left"
             if self._is_selected(img, y):
-                boxes = ops.ocr_boxes(img)  # 已经是选中态：不点（点了就确认），直接读它的说明
+                pass  # 已经是选中态：不点（点了就确认），直接读它的说明
             else:
                 if self._selected_y(img) is None:
                     self.s.note("EVENT_CHOICE：看效果途中认不出选中项，不再点")
@@ -1437,6 +1478,10 @@ class HifCore:
                     self.s.note(f"EVENT_CHOICE：点了第 {c['index'] + 1} 项没变成选中态，不再往下点")
                     return "abort"
                 boxes = ops.ocr_boxes(img)
+                if not self._same_event(boxes, choices):
+                    # 点完进了另一个也有选项、同一行也是选中态的事件：gone / _is_selected 拦不住，别把新事件的效果写进旧选项
+                    self.s.note(f"EVENT_CHOICE：点了第 {c['index'] + 1} 项后这页的选项字不全在了，当页面走了")
+                    return "left"
             # 没读到说明时记 None（未知），不记 ""：选项决策把 effect == "" 当成「确认没有效果」，两项都没读到会直接选第一项（CodeRabbit #196）
             c["effect"] = effect_above(boxes, int(y), labels) or None
             c["effect_unread"] = c["effect"] is None

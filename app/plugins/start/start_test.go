@@ -91,6 +91,27 @@ func TestExplainFromArgs(t *testing.T) {
 	}
 }
 
+// CodeRabbit #198：刷回忆确认卡上的转写目标写卡名，不露编号；填的就是卡名的照原样。
+func TestExplainFarmTargetShowsName(t *testing.T) {
+	h, p := host(), New()
+	pd := hiroapi.Pending{Command: "run start", Summary: "初", Args: map[string]any{
+		"kind": "hajime", "command": "resume", "idol": "i_card-skin-ttmr-3-0012", "farm": "bad", "farm_target": "p_card-01-act-2_001,輝くキミへ"}}
+	p.Explain(h, pd)
+	e, ok := p.Explain(h, pd)
+	if !ok {
+		t.Fatal("没认出")
+	}
+	got := ""
+	for _, r := range e.Rows {
+		if r[0] == "转写目标" {
+			got = r[1]
+		}
+	}
+	if got != "成长痛、輝くキミへ" {
+		t.Errorf("转写目标 %q（%+v）", got, e.Rows)
+	}
+}
+
 // 不是培育的任务不能写「用掉 1 次培育」（11-25 review）
 func TestExplainNonProduceKinds(t *testing.T) {
 	h, p := host(), New()
@@ -190,6 +211,60 @@ func TestStartersTowerByName(t *testing.T) {
 	st := p.Starters(h)
 	if len(st) == 0 || st[0].Label != "用篠澤広再打一把偶像之路" {
 		t.Errorf("偶像之路的再打一把：%+v", st)
+	}
+}
+
+// CodeRabbit #198：重放不了的记录（刷回忆的局）不占首页名额、不挡住同一偶像更早的普通局；全都重放不了时保留「选个偶像开一局」。
+func TestStartersSkipUnreplayable(t *testing.T) {
+	h, p := host(), New()
+	h.Resp["run status"] = okResult(`{"current":null,"recent":[
+		{"id":"f1","kind":"hajime","state":"done","started_at":1764000000,"params":{"idol":"i_card-skin-ttmr-3-0012","command":"resume","farm":"bad","farm_target":"輝くキミへ"}},
+		{"id":"f2","kind":"hajime","state":"done","started_at":1763990000,"params":{"idol":"i_card-skin-ttmr-3-0012","command":"resume","farm":"bad","farm_target":"輝くキミへ"}},
+		{"id":"j1","kind":"hajime","state":"done","started_at":1763900000,"params":{"idol":"i_card-skin-ttmr-3-0012","command":"new"}}]}`)
+	p.Starters(h)
+	st := p.Starters(h)
+	if len(st) < 2 || st[0].Label != "用月村手毬再打一把初" || st[0].Page == nil || st[1].Label != "领日常奖励" {
+		t.Fatalf("刷回忆的局不占名额，下面那局普通的照样出：%+v", st)
+	}
+
+	h, p = host(), New()
+	h.Resp["run status"] = okResult(`{"current":null,"recent":[
+		{"id":"f1","kind":"hajime","state":"done","started_at":1764000000,"params":{"idol":"i_card-skin-ttmr-3-0012","command":"resume","farm":"bad"}}]}`)
+	p.Starters(h)
+	st = p.Starters(h)
+	if len(st) == 0 || st[0].Say != "/开局" {
+		t.Errorf("全都重放不了时保留「选个偶像开一局」：%+v", st)
+	}
+}
+
+// CodeRabbit #198：续打的记录缺难度时，「再打一把」不改成 new 按缺省开 REGULAR：不出这一项，找更早的完整记录。
+func TestReplayResumeWithoutDifficulty(t *testing.T) {
+	j := plugin.Job{Kind: "hajime", Params: map[string]any{"command": "resume", "idol": "i_card-skin-ttmr-3-0012"}}
+	if replay(j, "手毬", "初") != nil {
+		t.Error("续打记录缺难度：不能按缺省难度新开")
+	}
+	j.Params["difficulty"] = "master"
+	if replay(j, "手毬", "初") == nil {
+		t.Error("续打记录带了难度：照常再打一把")
+	}
+	hif := plugin.Job{Kind: "hif", Params: map[string]any{"command": "resume", "idol": "i_card-skin-ttmr-3-0012", "mode": "qualify"}}
+	if replay(hif, "手毬", "H.I.F") == nil {
+		t.Error("H.I.F 没有难度：续打记录照常再打一把")
+	}
+
+	h, p := host(), New()
+	h.Resp["run status"] = okResult(`{"current":null,"recent":[
+		{"id":"r1","kind":"hajime","state":"done","started_at":1764000000,"params":{"idol":"i_card-skin-ttmr-3-0012","command":"resume"}},
+		{"id":"j1","kind":"hajime","state":"done","started_at":1763900000,"params":{"idol":"i_card-skin-ttmr-3-0012","command":"new","difficulty":"pro"}}]}`)
+	p.Starters(h)
+	st := p.Starters(h)
+	if len(st) < 2 || st[0].Label != "用月村手毬再打一把初" || st[0].Page == nil {
+		t.Fatalf("缺难度的续打不占名额，更早那局完整的照样出：%+v", st)
+	}
+	ph := plugintest.New(nil)
+	st[0].Page(ph)
+	if len(ph.RunArgs_) != 1 || !strings.Contains(strings.Join(ph.RunArgs_[0], " "), "--difficulty pro") {
+		t.Errorf("按那局的难度开：%q", ph.RunArgs_)
 	}
 }
 
@@ -410,6 +485,52 @@ func TestTowerPassesBareIdolName(t *testing.T) {
 	s.pick.Chosen.Idol = ""
 	if a, _ := s.args(); a[len(a)-1] != "篠泽广" {
 		t.Errorf("没有扫描名时去掉称号：%q", a)
+	}
+}
+
+// 刷回忆：只有「初」；接着打时也带偶像卡和 --farm bad。
+func TestFarmArgs(t *testing.T) {
+	s := &state{}
+	for i, m := range modes {
+		if m.id == "hajime" {
+			s.mode = i
+		}
+	}
+	s.resume, s.farm, s.farmTarget = true, true, "p_card-02-act-3_186"
+	if a, _ := s.args(); a != nil {
+		t.Errorf("没选偶像卡不能发起：%q", a)
+	}
+	s.pick.Chosen = common.IdolItem{ID: "i_card-skin-hski-3-001", Name: "篠泽广"}
+	a, label := s.args()
+	got := strings.Join(a, " ")
+	if !strings.Contains(got, "--farm bad --farm-target p_card-02-act-3_186 --idol i_card-skin-hski-3-001") || !strings.Contains(label, "刷回忆") {
+		t.Errorf("%q %q", got, label)
+	}
+	s.farmTarget = ""
+	if a, _ := s.args(); a != nil {
+		t.Errorf("转写目标必填：%q", a)
+	}
+	// 审查 #198 第 8 条：程序不选租借回忆，刷回忆不能新开一局（按钮灰掉，提示先在游戏里开局再接着打）
+	s.farmTarget, s.resume = "p_card-02-act-3_186", false
+	if a, label := s.args(); a != nil || !strings.Contains(label, "接着打") {
+		t.Errorf("刷回忆新开一局不能发起：%q %q", a, label)
+	}
+	s.resume = true
+	s.farm = false
+	if a, _ := s.args(); strings.Contains(strings.Join(a, " "), "farm") {
+		t.Errorf("不勾不传：%q", a)
+	}
+}
+
+// 审查 #198 第 8 条：上次是刷回忆（接着打）的局，首页不出「再打一把」（会变成刷回忆新开一局）；普通局照常。
+func TestReplaySkipsFarm(t *testing.T) {
+	j := plugin.Job{Kind: "hajime", Params: map[string]any{"command": "resume", "idol": "i_card-skin-hski-3-001", "difficulty": "regular", "farm": "bad", "farm_target": "輝くキミへ"}}
+	if replay(j, "广", "初") != nil {
+		t.Error("刷回忆的局不能按上次参数新开")
+	}
+	delete(j.Params, "farm")
+	if replay(j, "广", "初") == nil {
+		t.Error("普通局照常再打一把")
 	}
 }
 

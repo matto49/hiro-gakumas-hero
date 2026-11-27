@@ -167,6 +167,15 @@ def finish_produce_end(rt, *, go_home: bool = False, timeout: float = FINISH_TIM
             else:
                 rt.device.tap(*t["home_icon"])  # 左下角首页图标；绝不点「本戦へ」
             return None
+        from hiro.brain import farm
+
+        if (xy := farm.regen_step(f.texts)) is not None:
+            if xy == farm.WAIT:  # 在等再生成的确认框：这一帧什么都不点（也不走下面的通用按钮）
+                rt.sleep(0.5)
+                return None
+            rt.device.tap(*xy)  # 刷回忆：回忆不是目标就再生成一次（确认框有钻石 / 不是免费一律取消）
+            rt.sleep(1.0)
+            return None
         if photo_pick.should_wait(texts):
             photo_pick.wait(
                 texts=lambda: _texts(rt.screen.shot())

@@ -31,6 +31,8 @@ PARAMS = (
     "support_set",
     "memory_set",
     "difficulty",
+    "farm",
+    "farm_target",
     "exam_search",
     "items",
     "contest_pick",
@@ -679,6 +681,13 @@ def _first_reason(out: str) -> str:
         Arg("--support-set", "hif / hajime / nia：用游戏里第几号支援卡编成（不给按编成方案）", type="int"),
         Arg("--memory-set", "hif / hajime / nia：用第几号回忆编成", type="int"),
         Arg("--difficulty", "hajime：regular / pro / master；nia：pro / master", choices=("regular", "pro", "master")),
+        Arg(
+            "--farm",
+            "hajime：刷回忆（メモリー転写）。bad =「初」BAD 育成、目标评价 B（实验，缺省不刷；见 hiro/brain/farm.py）。"
+            "租借回忆程序不会选：你在游戏里开好局后用 --command resume 接手",
+            choices=("bad",),
+        ),
+        Arg("--farm-target", "hajime：刷回忆的转写目标技能卡 id，逗号分隔（缺省用回忆编成带的卡）"),
         Arg(
             "--exam-search",
             "hajime / nia / hif：哪几场考试用搜索出牌（更准、每步约 5 秒，H.I.F 本战约 15 秒），其余用快速出牌；逗号分隔，none = 都快速。"

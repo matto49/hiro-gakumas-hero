@@ -177,6 +177,13 @@ class LessonInfo:
                 or (d["turns_total"] is None and not self._turns_bad))  # fmt: skip
 
 
+def lesson_clear_left(shot, hv) -> int | None:
+    """练习课画面「CLEARまで N」的 N：目标不是通关线（PERFECT 段等）或读不到时 None。刷回忆 BAD 在出牌决策时现读（审查 #198 第 4 条）。"""
+    if hv.lesson_goal(shot) != "clear":
+        return None
+    return (hv.read_lesson_hud(shot) or {}).get("left")
+
+
 def hajime_core(scenario_mode: str):
     """HifCore 的初版：练习课按考试打、考试标签 hajime-mid1 / hajime-final、按名次判过线和再挑戦。"""
     from hiro.devices import active  # 用时再取 active.device / active.sleep（测试可替换）
@@ -245,9 +252,17 @@ def hajime_core(scenario_mode: str):
             self.s.state.exam_session.label = label
             self.s.state.exam_session.lesson = dict(info.d)
             gone = {"since": None}
+            from hiro.brain import farm
+
+            farming = farm.mode() == "bad"
+            live: dict = {}  # 刷回忆：每帧的「CLEARまで N」（BadLessonAdvisor 看它决定还出不出牌）
 
             def ended(shot) -> bool:
                 goal = hv.lesson_goal(shot)
+                if farming and goal == "clear":
+                    hud = hv.read_lesson_hud(shot) or {}
+                    if hud.get("left") is not None:
+                        live["left"] = hud["left"]
                 if goal is not None and info.needs(goal):
                     turns = hv.lesson_turns(shot) if info.d["turns_total"] is None else None
                     if info.feed(goal, hv.read_lesson_hud(shot), turns):
@@ -262,7 +277,16 @@ def hajime_core(scenario_mode: str):
                     gone["since"] = now
                 return now - gone["since"] >= LESSON_END_S
 
-            run_exam(self.brain, label, self.rec, ended, session=self.s, advisor=self.advisor)
+            wrap = None
+            if farming:
+                # 包在 run_exam 最后选定的出招外面（strategy.json 换了出牌插件也照样停手，CodeRabbit #198）
+                wrap = lambda a: farm.BadLessonAdvisor(a, live, lambda: info.d.get("clear_target"), farm.margin_ratio(),  # noqa: E731
+                                                       read_left=lambda: lesson_clear_left(active.device.screenshot(), hv))  # fmt: skip
+
+                logger.info("刷回忆 BAD：这节课离通关线还差通关线的 %.0f%% 以内就不再出牌", farm.margin_ratio() * 100)
+            run_exam(self.brain, label, self.rec, ended, session=self.s, advisor=self.advisor, wrap=wrap)
+            if farming and self.s is not None:
+                self.s.note(f"刷回忆 BAD：{label} 结束时离通关还差 {live.get('left')}")
             self.rec.log("exam_end", image=active.device.screenshot(), exam=label, lesson=info.d)
             self.s.note(f"初练习课 {label}：{info.d}")
             self._lesson_done, self._lesson_done_at = True, time.monotonic()
@@ -447,6 +471,16 @@ def run(args) -> int:
 
     guides.refresh_if_stale()  # 偶像卡攻略包：没有或超过 24 小时就下载，失败不阻塞（协调 11-20）
     formation_env.apply_formation_plan(args.idol)
+    from hiro.brain import farm
+
+    if farm.mode() == "bad":
+        try:
+            targets = farm.check_targets()  # 转写目标解析不出就开局前停下，不让相談删卡删掉它（审查 #198 第 2 条）
+        except ResumeBlocked as e:
+            logger.error("%s", e)
+            print(str(e))
+            return 3
+        logger.info("刷回忆：转写目标 %s", "、".join(sorted(targets)))
     support_set = args.support_set or formation_env.SUPPORT_SET
     memory_set = args.memory_set or formation_env.MEMORY_SET
     if args.command == "new" and (support_set is None or memory_set is None):
