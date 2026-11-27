@@ -150,3 +150,25 @@ def test_plan_guide_shares_from_pack(pack, monkeypatch):
     assert fp.guide_shares("produce-001", C, "formation.support") == {"s1": 0.7, "s3": 0.25, "s2": 0.2}
     monkeypatch.setenv("HIRO_PLAN_GUIDES", "0")
     assert fp.guide_shares("produce-001", C, "formation.support") == {}
+
+
+def test_support_guide_share_scales_with_level(monkeypatch):
+    """N44（G2 11-26）：攻略推荐的占比是练满的卡统计出来的，Lv1 的推荐卡不该拿满额加分，被方案选进编成。"""
+    from hiro.brain import support_select as ss
+
+    monkeypatch.setattr(ss, "GUIDE", {"s_card-3-0034": 0.5, "s_card-2-0001": 0.5, "s_card-1-0001": 0.5})
+
+    def bonus(cid, level):
+        total, why = ss.card_value(ss.Slot(cid, level), {})
+        return total, why
+
+    full, why_full = bonus("s_card-3-0034", 60)
+    assert full == pytest.approx(0.5 * ss.GUIDE_WEIGHT)
+    assert any("攻略推荐 50%" in w for w in why_full)
+    low, why_low = bonus("s_card-3-0034", 1)
+    assert low == pytest.approx(0.5 * ss.GUIDE_WEIGHT / 60)
+    assert any("Lv1/60" in w for w in why_low)
+    assert bonus("s_card-3-0034", 30)[0] == pytest.approx(full / 2)
+    assert bonus("s_card-2-0001", 50)[0] == pytest.approx(full)  # SR 满级 50
+    assert bonus("s_card-1-0001", 40)[0] == pytest.approx(full)  # R 满级 40
+    assert bonus("s_card-9-0001", 1)[0] == pytest.approx(0)  # 不在 GUIDE 里

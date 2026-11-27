@@ -2,6 +2,7 @@ package shell
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -206,9 +207,13 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 			text = "「" + name + "」做完了。"
 			// N31（G1 第 3 轮 11-26）：第一次三项扫描都做完后对话停在「做完了」，没说下一步能做什么。
 			// 扫描类做完、后面没有排队的扫描了，补一句（notify 在 continueBatch 之前调，这时还看得到排队）
-			if strings.HasPrefix(kind, "scan-") && kind != "scan-formations" && !a.queuedAfter(id) {
+			// N59（G1 第 5 轮 11-26）：一键全收集（collect-all）做完也要给下一步，原来只认 scan- 开头的
+			if (strings.HasPrefix(kind, "scan-") && kind != "scan-formations" || kind == "collect-all") && !a.queuedAfter(id) {
 				if a.hasModel() {
 					text += "扫描都做完了，现在可以直接说「打一把初」（或者 N.I.A），初星助手会按你的卡出编成方案、给你确认后开局。"
+					// N27（G3 第 3 轮 11-26：开局要点输入框、打字、回车 3 下）：给两个按钮，点一下就把话发出去（照样出确认卡）
+					cards = []plugin.Card{{"type": "next", "label": "打一把初", "say": "打一把初"},
+						{"type": "next", "label": "打一把 N.I.A", "say": "打一把 N.I.A"}}
 				} else {
 					text += "扫描都做完了，要开局点侧栏的「开局」。"
 				}
@@ -221,9 +226,19 @@ func (a *App) notify(id, before string, v *plugin.JobView) {
 		} else {
 			text = "「" + name + "」出错停下了，日志里没写原因；可以到游戏运行现状看最后的画面。"
 		}
-		// G1-F2（11-26）：扫描这类任务出错后只有一句话，没有下一步；给「再试一次」（照样走权限 / 确认）。培育类不给，免得误开新一局
-		if v.Job != nil && kind != "" && !produceKind(kind) {
-			cards = []plugin.Card{{"type": "retry", "summary": name, "args": common.StartArgv(kind, v.Job.Params)}}
+		// G1-F2（11-26）：扫描这类任务出错后只有一句话，没有下一步；给「再试一次」（照样走权限 / 确认）。培育类不给，免得误开新一局——
+		// 但停在开局前准备（写编成）、游戏还没开局的，重试不会多用一次培育（N61，G1 第 5 轮 11-27：只能在对话里自己打「再试一次」）
+		// 只认任务结束后读到的完整事件（v.Final）：读事件失败、手里只有准备阶段的旧日志时不判断，不给重试（#194 CodeRabbit）
+		preStart := v.Job != nil && v.Final && produceKind(kind) && failedBeforeStart(v.Job.Params, v.Events) && retryHelps(v.Job.ExitCode)
+		if preStart {
+			text += "游戏还没开局（停在开局前写编成），可以点「再试一次」。"
+		}
+		if v.Job != nil && kind != "" && (!produceKind(kind) || preStart) {
+			params := v.Job.Params
+			if kind == "collect-all" {
+				params = resumeCollectAll(params, v.Events)
+			}
+			cards = []plugin.Card{{"type": "retry", "summary": name, "args": common.StartArgv(kind, params)}}
 		}
 	case "stopped":
 		text = "「" + name + "」已停止。"
@@ -256,6 +271,35 @@ func (a *App) queuedAfter(id string) bool {
 }
 
 // produceKind 是培育类任务（打完有成绩和复盘）。
+// failedBeforeStart：带开局前准备（prepare）的开局任务停在准备阶段、还没开局——日志里没有 prepare_start 交给开局命令前的
+// 「开局前准备做完，开局」。这时重试不会多用一次培育（N61）。
+func failedBeforeStart(params map[string]any, events []plugin.JobEvent) bool {
+	// 一条事件都没读到（读失败、任务在两次轮询之间就结束）：没法判断，按开了局算，不给重试（#194 review）
+	if params["prepare"] != true || len(events) == 0 {
+		return false
+	}
+	for _, e := range events {
+		// 交给开局命令了，或者已经有对局步骤：都算开了局（多一道保险，不靠一句日志）
+		if strings.Contains(e.Text, "开局前准备做完") || e.Type == "step" {
+			return false
+		}
+	}
+	return true
+}
+
+// retryHelps：开局前准备这几种停法照原样重试也没用，不提示重试（#194 review）——2 没有方案、4 编成位都满了（要玩家说覆盖哪一号）、
+// 5 回忆库存不新鲜（要先重扫）。写编成没成功（3 / 程序出错）这类重试可能就过了。
+func retryHelps(code *int) bool {
+	if code == nil {
+		return true
+	}
+	switch *code {
+	case 2, 4, 5:
+		return false
+	}
+	return true
+}
+
 func produceKind(kind string) bool {
 	switch kind {
 	case "hajime", "nia", "tower", "hif":
@@ -409,4 +453,44 @@ func (a *App) pinned(c *ui.Context) {
 			a.OpenPanel("cockpit", "job:"+a.live)
 		}
 	})
+}
+
+// collectAllSteps 是一键全收集的步骤顺序（同 hiro.collect_all.STEPS）。
+var collectAllSteps = []string{"account", "idols", "supports", "formations", "memories"}
+
+var reCollectStep = regexp.MustCompile(`一键全收集：第 (\d+)/\d+ 步`)
+
+// resumeCollectAll：一键全收集出错后「再试一次」从出错的那一步接着做，前面做完、已入库的几步不再重扫
+// （N41，G2 11-26：第 3 步支援卡出错，重试又从首页数值、偶像卡做起，白扫 8 分钟）。读不出第几步时原样返回。
+func resumeCollectAll(params map[string]any, events []plugin.JobEvent) map[string]any {
+	at := 0
+	for _, e := range events {
+		if m := reCollectStep.FindStringSubmatch(e.Text); m != nil {
+			at, _ = strconv.Atoi(m[1])
+		}
+	}
+	if at < 1 || at > len(collectAllSteps) {
+		return params
+	}
+	want := map[string]bool{}
+	if only, _ := params["only"].(string); only != "" {
+		for _, k := range strings.Split(only, ",") {
+			want[strings.TrimSpace(k)] = true
+		}
+	}
+	var left []string
+	for i, k := range collectAllSteps {
+		if i+1 >= at && (len(want) == 0 || want[k]) {
+			left = append(left, k)
+		}
+	}
+	if len(left) == 0 {
+		return params
+	}
+	out := map[string]any{}
+	for k, v := range params {
+		out[k] = v
+	}
+	out["only"] = strings.Join(left, ",")
+	return out
 }

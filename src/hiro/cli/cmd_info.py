@@ -248,7 +248,11 @@ def _memories(a: dict) -> dict:
     summary = st.slice_summary()
     cov = st.slice_coverage()
     whole, _ = st.latest("memories")
-    if summary["done"] == summary["total"] or (cov and whole is None):
+    whole_at = (whole or {}).get("scanned_at")
+    # 用 full_at（只在完整全读时更新）比：没读完的重扫会刷新 scanned_at，但证明不了片数据完整（#173 review）
+    slices_newer = bool(cov) and (whole_at is None or min((v.get("full_at") or "") for v in cov.values()) >= whole_at)
+    # 整表比片新（按片扫描失败后改用整表扫描，N43 / #173 review）：列表用整表，旧片不遮住新整表
+    if (summary["done"] == summary["total"] and slices_newer) or (cov and whole is None):
         # 12 片都完整全读过：列表用片数据（D16：不和旧整表混用）；没有整表、只按片扫过：列出已有的片（终审 I7）
         entries = [e for k in SLICES for e in st.slice_entries(k)]
         items = [r for r in normalize_memories({"entries": entries}) if keep(r)]

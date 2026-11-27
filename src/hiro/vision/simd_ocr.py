@@ -21,8 +21,24 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# 辅助进程开机时在 stderr 报一句用的是哪块 GPU（「[metal] device: Apple M4」「[vulkan] …」）。原来 stderr 直接继承，
+# 这句会进任务日志、显示在对话卡上（G1 第 5 轮 11-26），小白看不懂：这类行降成 debug，其它行（.NET 报错）照旧打成警告
+_DEVICE_LINE = ("[metal]", "[vulkan]", "[cpu]", "[gpu]")
+
 START_TIMEOUT = 45  # 辅助进程启动（加载模型）最多等这么久
 READ_TIMEOUT = 15  # 一次识别最多等这么久
+
+
+def _log_stderr(stream) -> None:
+    """转发辅助进程的 stderr：报设备的那句只记 debug，其它（.NET 异常等）记警告，出错时日志里还看得到。"""
+    for line in stream:
+        text = line.rstrip()
+        if not text:
+            continue
+        if text.lower().startswith(_DEVICE_LINE):
+            logger.debug("SIMD 辅助进程：%s", text)
+        else:
+            logger.warning("SIMD 辅助进程：%s", text)
 
 
 class SimdOcr:
@@ -46,10 +62,11 @@ class SimdOcr:
         self.proc = subprocess.Popen(
             self.cmd,
             env={**os.environ, **self.env},
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True, encoding="utf-8",
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+            errors="replace", creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )  # fmt: skip
         Thread(target=self._read_replies, args=(self.proc, self.replies), daemon=True).start()
+        Thread(target=_log_stderr, args=(self.proc.stderr,), daemon=True).start()
         try:
             if self._read(START_TIMEOUT).get("ready") is not True:
                 raise RuntimeError("SIMD OCR 启动时没有返回 ready")

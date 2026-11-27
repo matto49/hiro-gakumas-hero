@@ -365,10 +365,18 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const fmt = n => n == null ? "—" : Math.abs(n) >= 10000 ? (n / 10000).toFixed(Math.abs(n) >= 1e6 ? 0 : 1) + "万" : Math.round(n).toLocaleString();
 const sgn = n => n == null ? "" : (n > 0 ? "+" : "") + fmt(n);
+/*__helpers__*/
+// 回合条 / 步骤头 / 曲线提示里的「剩 N · 属性 ×倍率」：没读到的部分整段不写，不画问号占位
+const turnTag = (rem, attr, mult, sep = " · ") => [rem == null ? "" : `剩 ${rem}`, attr ?? "", mult ? `×${Number(mult).toFixed(1)}` : ""].filter(Boolean).join(sep);
+const stepHeadText = s => {
+  const tag = turnTag(s.rem, s.attr, s.mult, "，");
+  return `第 ${s.turn} 回合${tag ? `（${tag}）` : ""} · 段 ${s.seg} #${s.seq}`;
+};
+/*__end_helpers__*/
 const examName = e => {
   const m = { r1: "本战 R1", r2: "本战 R2" };
   const q = /qualify-(\d)/.exec(e.label);
-  const base = m[e.label] || (q ? `选拔${"①②③④"[q[1] - 1]}` : e.label);
+  const base = q ? `选拔${"①②③④"[q[1] - 1]}` : (m[e.label] || e.name || e.label);  // 本战 r1/r2、选拔优先，其余用构建器写的 name（#174 review）
   const same = DATA.exams.filter(x => x.label === e.label).length;
   return same > 1 ? `${base} · 第${e.attempt}次` : base;
 };
@@ -426,7 +434,7 @@ function renderStrip() {
     const ev = t.events.slice(0, 4).map(v => `<span class="tag ${v.type}" title="${esc(v.label)}">${roleName[v.type] || v.type}</span>`).join("");
     const bl = t.steps.some(k => blOf(e.steps[k]).length);
     return `<button class="turn attr-${t.attr}${bl ? " has-blunder" : ""}" aria-current="${t.turn === cur}" data-s="${t.steps[0]}">
-      <span class="t1"><span class="dot"></span>${bl ? `<span class="bl" title="有低级失误"></span>` : ""}${extra ? "追加回合" : "剩 " + (t.rem ?? "?")} · ${t.attr ?? "?"}${t.mult ? " ×" + t.mult.toFixed(1) : ""}${t.steps.some(k => notesOf(e, e.steps[k]).length) ? `<span class="marked" title="有标注"></span>` : ""}</span>
+      <span class="t1"><span class="dot"></span>${bl ? `<span class="bl" title="有低级失误"></span>` : ""}${extra ? "追加回合" : turnTag(t.rem, t.attr, t.mult) || "—"}${t.steps.some(k => notesOf(e, e.steps[k]).length) ? `<span class="marked" title="有标注"></span>` : ""}</span>
       <span class="gain num">${t.gain == null ? "—" : sgn(t.gain)}</span>
       <span class="ev">${ev}</span></button>`;
   }).join("");
@@ -438,7 +446,7 @@ function renderStrip() {
 function renderStep() {
   const e = exam(), s = step(), turn = e.turns.find(t => t.turn === s.turn);
   const prev = si > 0 ? e.steps[si - 1] : null;
-  $("stepHead").textContent = `第 ${s.turn} 回合（剩 ${s.rem ?? "?"}，${s.attr ?? "?"} ×${s.mult ?? "?"}） · 段 ${s.seg} #${s.seq}`;
+  $("stepHead").textContent = stepHeadText(s);
   $("steps").innerHTML = turn.steps.map((k, j) => {
     const x = e.steps[k];
     const bl = blOf(x);
@@ -530,11 +538,11 @@ function chart(svg, series, opts) {
     const d = s.pts.map((v, i) => v == null ? null : `${x(i)},${y(v)}`).filter(Boolean);
     if (d.length) g += `<polyline class="${s.cls}" points="${d.join(" ")}"/>`;
   });
-  e.turns.forEach((t, i) => { if (i % Math.ceil(n / 12) === 0 || i === e.turns.length - 1) g += `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">剩${t.rem ?? "?"}</text>`; });
+  e.turns.forEach((t, i) => { if (i % Math.ceil(n / 12) === 0 || i === e.turns.length - 1) g += `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${t.rem == null ? "" : "剩" + t.rem}</text>`; });
   if (opts.extra) g += `<text x="${x(n - 1)}" y="${H - 6}" text-anchor="middle">结束</text>`;
   const ci = e.turns.findIndex(t => t.turn === step().turn);
   if (ci >= 0) g += `<line class="cur" x1="${x(ci)}" x2="${x(ci)}" y1="${T}" y2="${H - B}"/>`;
-  e.turns.forEach((t, i) => { const w = (W - L - R) / Math.max(1, n - 1); g += `<rect class="hit" data-s="${t.steps[0]}" x="${x(i) - w / 2}" y="${T}" width="${w}" height="${H - T - B}"><title>剩 ${t.rem} · ${t.attr} ×${t.mult ?? "?"} · 本回合 ${sgn(t.gain)}</title></rect>`; });
+  e.turns.forEach((t, i) => { const w = (W - L - R) / Math.max(1, n - 1); g += `<rect class="hit" data-s="${t.steps[0]}" x="${x(i) - w / 2}" y="${T}" width="${w}" height="${H - T - B}"><title>${[turnTag(t.rem, t.attr, t.mult), "本回合 " + sgn(t.gain)].filter(x => x.trim()).join(" · ")}</title></rect>`; });
   svg.innerHTML = g;
   svg.querySelectorAll(".hit").forEach(r => r.onclick = () => { si = +r.dataset.s; renderAll(); });
 }
@@ -694,7 +702,7 @@ function renderNotes() {
   $("uploadLocal").hidden = !(online && localOnly().length);
   $("noteCount").textContent = items.length ? `共 ${items.length} 条${online ? "" : "（离线）"}` : (online ? "还没有标注" : "服务器连不上");
   const vc = { 问题: "v-bad", 正确: "v-good", 不确定: "v-unsure" };
-  $("notesList").innerHTML = items.map((it, k) => `<li data-k="${k}"><span class="where">${esc(examName(it.e))} 剩${it.s.rem} #${it.s.seq}</span><span>${it.n.verdict ? `<span class="v ${vc[it.n.verdict] || ""}">${esc(it.n.verdict)}</span>` : ""}${it.n.should ? `应：${esc(it.n.should)}　` : ""}${esc(it.n.text || "")}${it.n.tags?.length ? ` <span class="muted">#${esc(it.n.tags.join(" #"))}</span>` : ""}</span></li>`).join("");
+  $("notesList").innerHTML = items.map((it, k) => `<li data-k="${k}"><span class="where">${esc(examName(it.e))}${it.s.rem == null ? "" : " 剩" + it.s.rem} #${it.s.seq}</span><span>${it.n.verdict ? `<span class="v ${vc[it.n.verdict] || ""}">${esc(it.n.verdict)}</span>` : ""}${it.n.should ? `应：${esc(it.n.should)}　` : ""}${esc(it.n.text || "")}${it.n.tags?.length ? ` <span class="muted">#${esc(it.n.tags.join(" #"))}</span>` : ""}</span></li>`).join("");
   $("notesList").querySelectorAll("li").forEach(li => li.onclick = () => { const it = items[+li.dataset.k]; ei = DATA.exams.indexOf(it.e); si = it.e.steps.indexOf(it.s); renderAll(); });
   return items;
 }
@@ -702,7 +710,7 @@ function renderNotes() {
 function notesText() {
   const items = renderNotes();
   const lines = [`# 复盘标注：${DATA.run}`, ""];
-  items.forEach(({ e, s, n }) => lines.push(`- ${examName(e)} · 第${s.turn}回合（剩${s.rem}，${s.attr}×${s.mult ?? "?"}）· 段${s.seg} #${s.seq} · 当时：${s.action.label}（${SRC[s.source] || s.source}）` +
+  items.forEach(({ e, s, n }) => lines.push(`- ${examName(e)} · 第${s.turn}回合${turnTag(s.rem, s.attr, s.mult, "，") ? `（${turnTag(s.rem, s.attr, s.mult, "，")}）` : ""}· 段${s.seg} #${s.seq} · 当时：${s.action.label}（${SRC[s.source] || s.source}）` +
     `\n  判定：${n.verdict || "—"}${n.should ? `；应该：${n.should}` : ""}${n.tags?.length ? `；类型：${n.tags.join("、")}` : ""}` + (n.text ? `\n  ${n.text.replace(/\n/g, "\n  ")}` : "")));
   return lines.join("\n");
 }

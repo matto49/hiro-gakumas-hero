@@ -14,10 +14,14 @@
 from __future__ import annotations
 
 from hiro.state.memory_slices import PLAN_LABELS, PRODUCE_LABELS
-from hiro.vision.textnorm import fold
+from hiro.vision.textnorm import contains, fold
 
 SORTS = ("プロデュースクリアランク", "入手", "アイドル", "タグ")
 PILL = (485, 1051)
+# 弹窗底部两个页签（720x1280）。选中的页签是橙字白底，RapidOCR 认不出（G2 11-26 Mac rc.7：Vision 坏了换 RapidOCR 后
+# 只读出「-」和「フィルタ」，一直找不到「ソート」）：认不出就按位置点
+TABS = {"ソート": (205, 1029), "フィルタ": (514, 1029)}
+TAB_MARK = {"ソート": "表示順"}  # 已经在这一页的标志：看得到就不用点页签
 SORT_ZONE = (240, 400)
 DIR_BTN = (653, 1051)  # 选择页右下的升降序按钮
 DIR_ICON = (
@@ -27,6 +31,8 @@ DIR_ICON = (
     1072,
 )  # 按钮图标（x1, y1, x2, y2）：左边是箭头，↓ = 新的在前（缺省），↑ = 旧的在前（11-26 实机）  # 「ソート」页 4 个单选所在的高度（选项前有单选圆点，OCR 读成「•入手」，按包含找）  # 认不出按钮文字时点这里
 OPEN_TRIES = 3
+CONFIRM_LOOKS, CONFIRM_GAP = 3, 0.6  # 点「決定」后看几帧、每帧间隔（N53）
+EMPTY_WORDS = ("条件に当てはまる", "メモリーがありません")
 SCROLL_TRIES = 10
 TOP_SWIPES = 6
 
@@ -37,6 +43,9 @@ class MemoryFilterError(RuntimeError):
 
 class EmptySlice(MemoryFilterError):
     """这一片没有回忆：点「決定」后游戏提示「条件に当てはまるメモリーがありません」，弹窗不关（11-26 实机）。"""
+
+
+BLANK_SCREEN = "读不到游戏画面（一个字都没认出来）：电脑是不是锁屏了，或者游戏窗口被挡住 / 最小化了？解锁、把游戏窗口露出来后点「再试一次」"
 
 
 def _boxes(p) -> list[tuple[str, tuple[int, int, int, int]]]:
@@ -65,8 +74,7 @@ def _sort_of(text: str) -> str | None:
 
 def read_state(p) -> dict:
     """选择页上当前的排序名和升降序（弹窗没开时读按钮）。"""
-    img = p.shoot()
-    d = sort_direction(img)
+    d, img = _look_direction(p)  # 一帧认不出就多看几帧（N62 review：扫描开始时读成 None，恢复时就不会把方向改回去）
     for t, _, b in p.ocr(img):
         x, y = _center(b)
         if 1030 <= y <= 1075 and 380 <= x <= 620 and (s := _sort_of(t)):
@@ -79,15 +87,21 @@ def _popup_open(boxes) -> bool:
 
 
 def _open(p) -> None:
+    seen_text = False
     for _ in range(OPEN_TRIES):
         boxes = _boxes(p)
+        seen_text |= bool(boxes)
         if _popup_open(boxes):
             return
         pill = next((b for t, b in boxes if 1030 <= _center(b)[1] <= 1075 and _sort_of(t)), None)
         p.click(*(_center(pill) if pill else PILL))
         p.sleep(1.5)
-        if _popup_open(_boxes(p)):
+        after = _boxes(p)
+        seen_text |= bool(after)
+        if _popup_open(after):
             return
+    if not seen_text:  # N60：每一帧都读不到字（锁屏 / 窗口被挡），别报成弹窗没出来（#189 review）
+        raise MemoryFilterError(BLANK_SCREEN)
     raise MemoryFilterError("点了排序按钮，「ソート・フィルタ」弹窗没出来")
 
 
@@ -96,6 +110,16 @@ def _tap(p, word: str, *, exact: bool = False, y_min: int = 0, y_max: int = 1280
     if b is None:
         raise MemoryFilterError(f"弹窗里找不到「{word}」{why}")
     p.click(*_center(b))
+    p.sleep(0.6)
+
+
+def _tab(p, name: str) -> None:
+    """切到弹窗的某个页签：OCR 认得出就点字；认不出（选中态橙字）时，已经在这一页就不点，否则按位置点。"""
+    boxes = _boxes(p)
+    b = _find(boxes, name, exact=True, y_min=1000)
+    if b is None and (mark := TAB_MARK.get(name)) and _find(boxes, mark, y_max=1000) is not None:
+        return
+    p.click(*(_center(b) if b is not None else TABS[name]))
     p.sleep(0.6)
 
 
@@ -108,8 +132,10 @@ def _scroll_top(p) -> None:
 def _section(p, header: str, labels: tuple[str, ...], stop: str | None):
     """往下滑到 header 标题和它下面的 labels 都在画面里（只认 header 和 stop 标题之间的），返回 (标题框, {label: 框})。"""
     _scroll_top(p)
+    blank = 0
     for _ in range(SCROLL_TRIES):
         boxes = _boxes(p)
+        blank += not boxes
         h = _find(boxes, header, exact=True, y_min=140, y_max=930)
         if h is not None:
             end = _find(boxes, stop, exact=True, y_min=h[3]) if stop else None
@@ -119,6 +145,9 @@ def _section(p, header: str, labels: tuple[str, ...], stop: str | None):
                 return h, got
         p.swipe(360, 850, 360, 550)
         p.sleep(0.6)
+    if blank == SCROLL_TRIES:
+        # N60（G1 第 5 轮 11-26）：本机锁屏时 MaaTools 只给空帧（拿黑帧顶上），一个字都读不到，原来报成「没找到那一组」像是筛选的问题
+        raise MemoryFilterError(BLANK_SCREEN)
     raise MemoryFilterError(f"滑了 {SCROLL_TRIES} 次没找到「{header}」那一组")
 
 
@@ -127,12 +156,21 @@ def _confirm(p) -> None:
     if not _popup_open(_boxes(p)):
         raise MemoryFilterError("要点「決定」时弹窗已经不在了，没点")
     _tap(p, "決定", y_min=1100, why="（确认）")
-    p.sleep(1.0)
-    boxes = _boxes(p)
-    if _popup_open(boxes):
-        if _find(boxes, "条件に当て") or _find(boxes, "メモリーがありません"):
+    # 空片的提示条一闪就没、RapidOCR 也常读错字（N53，G1 第 4 轮 11-26 Mac：sense:hif 疑似空片被当成设筛选出错）：
+    # 连看几帧、容错认「条件に当てはまる」「メモリーがありません」；还判不出就存一帧再报
+    img = None
+    for _ in range(CONFIRM_LOOKS):
+        p.sleep(CONFIRM_GAP)
+        img = p.shoot()
+        boxes = [(fold(t), (int(b[0]), int(b[1]), int(b[2]), int(b[3]))) for t, _, b in p.ocr(img)]
+        if not _popup_open(boxes):
+            return
+        if any(contains(t, w) for t, _ in boxes for w in EMPTY_WORDS):
             raise EmptySlice("条件に当てはまるメモリーがありません")
-        raise MemoryFilterError("点了決定，弹窗没关")
+    snap = getattr(p, "snap", None)
+    if callable(snap) and img is not None:
+        snap(img, "filter-confirm-popup-stays")
+    raise MemoryFilterError("点了決定，弹窗没关")
 
 
 def close_popup(p) -> bool:
@@ -163,17 +201,77 @@ def sort_direction(img) -> str | None:
     return None
 
 
+DIR_LOOKS, DIR_GAP = 3, 0.5  # 读升降序图标：一帧认不出就隔一会儿再看，最多看几帧
+DIR_SETTLE_LOOKS = 5  # 点完升降序按钮后最多看几帧等它刷新（加上点完先等的 1.5 秒，约 3.5 秒）
+
+
+def _look_direction(p) -> tuple[str | None, object]:
+    """连看 DIR_LOOKS 帧，返回第一个认得出的方向和那一帧；都认不出返回 (None, 最后一帧)。"""
+    img = None
+    for i in range(DIR_LOOKS):
+        if i:
+            p.sleep(DIR_GAP)
+        img = p.shoot()
+        if (d := sort_direction(img)) is not None:
+            return d, img
+    return None, img
+
+
+def _look_after_click(p) -> tuple[str | None, object]:
+    """点完升降序按钮后读方向：看满 DIR_SETTLE_LOOKS 帧，只认最后两帧、而且两帧一样的读数（N62 review / #190 CodeRabbit）。
+    渲染慢时头几帧还是点之前的样子——取头几帧会把旧方向当结果，点之前方向不知道时连「变没变」都没法判断；
+    等满窗口再看最后两帧，延迟不超过 DIR_SETTLE_LOOKS - 2 帧就一定是点完的样子。读不出、最后两帧不一样返回 None。"""
+    img, reads = None, []
+    for i in range(DIR_SETTLE_LOOKS):
+        if i:
+            p.sleep(DIR_GAP)
+        img = p.shoot()
+        reads.append(sort_direction(img))
+    a, b = reads[-2:]
+    return (a if a is not None and a == b else None), img
+
+
 def ensure_newest_first(p) -> None:
-    """入手排序要新的在前（增量补扫读到已知就停，反了会读旧回忆就停、漏掉新的，终审 C2）：不是就点一下按钮再核对；认不出就停。"""
-    d = sort_direction(p.shoot())
-    if d == "desc":
-        return
-    if d == "asc":
+    """入手排序要新的在前（增量补扫读到已知就停，反了会读旧回忆就停、漏掉新的，终审 C2；写编成按这个顺序下的行号找格子）。
+    G1 第 5 轮（11-27 Mac rc.9）：写第 3 格回忆时一帧读成 None 就停了（实机图标亮像素上 10 下 28，余量小）。现在：
+    - 连看几帧；还认不出就再读一遍状态（read_state），读到 desc 直接返回；连排序按钮都读不到（不一定在选择页）就停，不盲点。
+    - 还在选择页、方向读不出：点一下，等画面稳定后（_look_after_click）读出现在的方向；还读不出就停。
+    - 方向是 asc：点一下，等稳定后要是 desc；还是 asc 当作没点上，再点一次。
+    认不出、改不过来就存帧再停。"""
+    d, img = _look_direction(p)
+    seen = [d]
+
+    def stop():
+        snap = getattr(p, "snap", None)
+        if callable(snap) and img is not None:
+            snap(img, "sort-direction-unknown")
+        raise MemoryFilterError(f"认不出 / 改不过来排序方向（读到 {' → '.join(str(x) for x in seen)}），停下，不扫")
+
+    def flip() -> str | None:
+        nonlocal img
         p.click(*DIR_BTN)
         p.sleep(1.5)
-        if sort_direction(p.shoot()) == "desc":
+        got, img = _look_after_click(p)
+        seen.append(got)
+        return got
+
+    if d is None:
+        st = read_state(p)  # 再读一遍方向和排序按钮（#190 CodeRabbit：读到 desc 就别再点，会翻回 asc）
+        if st["dir"] == "desc":
             return
-    raise MemoryFilterError(f"认不出 / 改不过来排序方向（{d}），停下，不扫")
+        if st["sort"] is None:
+            stop()  # 连排序按钮都读不到：不一定还在选择页，别盲点那个位置
+        d = st["dir"]
+    if d is None:
+        d = flip()
+        if d is None:
+            stop()
+    if d == "asc":
+        d = flip()
+        if d == "asc":  # 稳定后还是 asc：多半没点上，再点一次
+            d = flip()
+    if d != "desc":
+        stop()
 
 
 def apply_slice(p, slice_key: str) -> None:
@@ -181,9 +279,9 @@ def apply_slice(p, slice_key: str) -> None:
     不筛选（11-26 实机：灰勾不是「全勾」，点一下变橙才是选中）；再在两组里各点目标那一个。"""
     plan, produce = slice_key.split(":")
     _open(p)
-    _tap(p, "ソート", exact=True, y_min=1000, why="（页签）")
+    _tab(p, "ソート")
     _tap(p, "入手", y_min=SORT_ZONE[0], y_max=SORT_ZONE[1], why="（排序）")
-    _tap(p, "フィルタ", exact=True, y_min=1000, why="（页签）")
+    _tab(p, "フィルタ")
     _tap(p, "リセット", y_min=900, y_max=1000, why="（フィルタをリセット）")
     _, got = _section(p, "プラン", tuple(PLAN_LABELS.values()), "スキルカードタイプ")
     p.click(*_center(got[PLAN_LABELS[plan]]))
@@ -199,15 +297,15 @@ def restore(p, state: dict, *, report: dict | None = None) -> bool:
     """排序改回 state["sort"]（不知道就不动），筛选点「フィルタをリセット」。返回按钮上的排序是不是已经恢复。"""
     _open(p)
     if state.get("sort"):
-        _tap(p, "ソート", exact=True, y_min=1000, why="（页签）")
+        _tab(p, "ソート")
         _tap(p, state["sort"], y_min=SORT_ZONE[0], y_max=SORT_ZONE[1], why="（排序）")
-    _tap(p, "フィルタ", exact=True, y_min=1000, why="（页签）")
+    _tab(p, "フィルタ")
     _tap(p, "リセット", y_min=900, y_max=1000, why="（フィルタをリセット）")
     _confirm(p)
     if report is not None:
         report["filter_reset"] = True  # 点了重置并且弹窗关了：筛选确实回到默认（#116 第二轮审查：没重置时别说重置了）
     want = state.get("dir")
-    if want and sort_direction(p.shoot()) not in (want, None):
+    if want and _look_direction(p)[0] not in (want, None):
         p.click(*DIR_BTN)
         p.sleep(1.5)
     now = read_state(p)

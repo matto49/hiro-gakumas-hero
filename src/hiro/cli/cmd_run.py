@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -40,6 +41,7 @@ PARAMS = (
     "prepare",
     "prepare_note",
     "prepare_what",
+    "overwrite",
 )
 
 
@@ -151,6 +153,24 @@ def _check_memory_freshness(plan_path: Path, home: Path) -> None:
         )
 
 
+def parse_overwrite(value) -> dict[str, int]:
+    """--overwrite 的值（「memory=13」「support=18,memory=13」）→ {"memory": 13}。空值返回 {}；格式不对报 CliError（N65）。"""
+    out: dict[str, int] = {}
+    for part in str(value or "").split(","):
+        if not part.strip():
+            continue
+        what, _, num = part.partition("=")
+        what = what.strip()
+        if what not in ("support", "memory") or not re.fullmatch(r"[0-9]{1,2}", num.strip()) or not 1 <= int(num) <= 20:
+            raise CliError(
+                "bad_overwrite",
+                f"--overwrite 写法不对：{part.strip()}",
+                "写成 memory=13 或 support=18,memory=13（玩家同意覆盖的编成位号，1–20）",
+            )
+        out[what] = int(num)
+    return out
+
+
 def _check_formation_plan(a: dict) -> None:
     """新开一局（H.I.F 只算选拔）又没指定编成号时，要有这张卡 × 这个模式的开局编成方案，而且已经写进游戏，
     否则任务进了游戏流程才报「开局要编成号」或第 2 / 3 步核对对不上退出（Mac 11-24：方案是给月村手毬的，H.I.F、藤田ことね的「初」都这样白开了一次）。
@@ -172,13 +192,33 @@ def _check_formation_plan(a: dict) -> None:
         "memory": a.get("memory_set") or os.environ.get("HIRO_MEMORY_SET"),
     }
     given = {k: bool(v) for k, v in explicit.items()}
+    consent = parse_overwrite(a.get("overwrite"))
+    if clash := [w for w in consent if given[w]]:
+        label = {"support": "支援卡", "memory": "回忆"}
+        raise CliError(
+            "bad_overwrite",
+            f"{'、'.join(label[w] for w in clash)}同时给了 --overwrite 和 --{clash[0]}-set",
+            "要把方案写进某个号、覆盖原来的卡，只用 --overwrite（例 memory=13）；--memory-set 是直接用游戏里现成的编成，不写方案",
+        )
     if all(given.values()):
         return
     env_plan = os.environ.get("HIRO_FORMATION_PLAN")
-    if env_plan == "off":
-        return
     idol = (a.get("idol") or "").replace("i_card-skin-", "i_card-")
     home = hiro_home()
+    if consent and not idol:
+        raise CliError(
+            "bad_overwrite",
+            "--overwrite 要和 --idol 一起用（按这张偶像卡在这个模式的编成方案写进点名的号）",
+            "带上 --idol <偶像卡编号> 再发起",
+        )  # #192 CodeRabbit：没给偶像时走旧方案文件的核对，同意会被悄悄忽略
+    if consent and (env_plan == "off" or (env_plan and Path(env_plan).resolve() != paths.plan_path(home).resolve())):
+        raise CliError(
+            "bad_overwrite",
+            "现在用的是指定的方案文件（HIRO_FORMATION_PLAN），--overwrite 用不上",
+            "去掉 --overwrite；要写编成用 hiro run start write-formation",
+        )  # #192 review：别悄悄忽略玩家的同意
+    if env_plan == "off":
+        return
     # 显式指定了别的方案文件：照以前只核对偶像。指向当前方案的（paths.apply_to_process 补进进程环境的缺省值，
     # 常驻服务出过一次方案后就一直在）不算显式
     if env_plan and Path(env_plan).resolve() != paths.plan_path(home).resolve():
@@ -223,7 +263,8 @@ def _check_formation_plan(a: dict) -> None:
                 ) from None
             raise
         name = (plan.get("idol") or {}).get("name") or idol
-        if _auto_formation() and _prepare_in_job(a, home, plan, kind, todo):
+        base, (plan, _) = plan, fp.apply_consent(plan, kind, consent)
+        if _auto_formation() and _prepare_in_job(a, home, plan, kind, todo, base=base):
             return
         _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol, kind,
                          lead=f"已按社区攻略给「{name}」出了这个模式的开局编成方案，")  # fmt: skip
@@ -231,8 +272,9 @@ def _check_formation_plan(a: dict) -> None:
     plan, path = found
     if path != paths.plan_path(home):
         fp.activate(home, plan)  # 开局核对、写编成都读当前方案
+    base, (plan, _) = plan, fp.apply_consent(plan, kind, consent)
     name = (plan.get("idol") or {}).get("name") or idol
-    if _auto_formation() and _prepare_in_job(a, home, plan, kind, todo):
+    if _auto_formation() and _prepare_in_job(a, home, plan, kind, todo, base=base):
         return
     _check_plan_sets(plan, [w for w in ("support", "memory") if not given[w]], idol, kind, lead=f"「{name}」的")
     if fp.needs_write(plan, kind, todo):
@@ -248,7 +290,7 @@ def _auto_formation() -> bool:
 _MODE_NAME = {"hif": "H.I.F", "hajime": "「初」", "nia": "N.I.A"}
 
 
-def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str]) -> bool:
+def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str], *, base: dict | None = None) -> bool:
     """方案没定编成号或没写进游戏时，改成在开局任务里先准备（a["prepare"]，任务由 hiro.runtime.prepare_start 包一层）：
     - 没定编成号：最近一次读的编成位现状（读完后没写过这个模式的编成）里挑空着的最小号；没读过就进游戏先读再挑；
       读过但都满了，报 formations_full 问玩家覆盖哪一个（不替玩家覆盖已有编成）。
@@ -258,24 +300,48 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
     from hiro.cli.store import open_store
 
     label = {"support": "支援卡", "memory": "回忆"}
+    base = (
+        plan if base is None else base
+    )  # 磁盘上的方案（没套玩家同意的号）：开局检查只存挑好的空位号，同意要等任务开始才存（#192 review）
+    # 真要靠玩家同意才能写的：同意的正是方案里的号、这一样还没写进游戏、而且那个位不是空的也不是初星助手写过的
+    agreed = {
+        w: n
+        for w, n in parse_overwrite(a.get("overwrite")).items()
+        if (plan.get(w) or {}).get("set") == n
+        and w in fp.unwritten(plan, kind, todo)
+        and not _slot_ours_or_blank(home, kind, w, n)
+    }
+
+    def writable(w: str) -> bool:
+        """这一样能直接写：玩家同意覆盖的正是方案里这个号（N65），或者空位 / 初星助手写过的。"""
+        return w in agreed or _slot_ours_or_blank(home, kind, w, (plan.get(w) or {}).get("set"))
+
+    def where(w: str) -> str:
+        n = (plan.get(w) or {}).get("set")
+        return f"{label[w]}编成 {n} 号" + ("（你同意覆盖，原来的卡会被换掉）" if w in agreed else "")
+
     missing = [w for w in todo if (plan.get(w) or {}).get("set") is None]
     steps: list[str] = []
     # 编成号已经定了、还没写进去的那几样（例如支援卡定了号、回忆没定）：只有空位或初星助手写过的位才自动写，
     # 玩家自己的编成照旧让玩家确认覆盖；检查放在保存方案之前，免得留下挑好的另一样编成号（#134 review）
     given = [w for w in fp.unwritten(plan, kind, todo) if w not in missing]
-    if missing and not all(_slot_ours_or_blank(home, kind, w, (plan.get(w) or {}).get("set")) for w in given):
+    if missing and not all(writable(w) for w in given):
         return False
     if missing:
         meta, rows = open_store().latest("formations")
         fresh = [r for r in rows if r.get("mode") == kind] if meta is not None else []
         if meta is not None and fresh and not _wrote_formation_since(meta.get("scanned_at"), kind):
-            picked, unread = {}, []
+            picked, unread, reused = {}, [], set()
             for w in missing:
                 if not any(r.get("kind") == w for r in fresh):
                     # 这一样没读过（开局前准备只读要挑号的那几样，#157 review）：不能当成全满，任务里先读再挑
                     unread.append(w)
                     continue
                 blanks = sorted(int(r["set"]) for r in fresh if r.get("kind") == w and r.get("filled") == 0)
+                if not blanks and (ours := own_full_slots(home, kind, w, fresh)):
+                    picked[w] = ours[0]  # D26：都满了，覆盖初星助手自己写过的号
+                    reused.add(w)
+                    continue
                 if not blanks:
                     raise CliError(
                         "formations_full",
@@ -287,8 +353,16 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
             for w, n in picked.items():
                 plan[w] = dict(plan.get(w) or {}, set=n)
             if picked:
-                fp.save_plan(home, plan, kind)
-                steps.append("把编成方案写进空着的" + "、".join(f"{label[w]}编成 {n} 号" for w, n in picked.items()))
+                fp.save_plan(home, dict(base, **{w: dict(base.get(w) or {}, set=n) for w, n in picked.items()}), kind)
+                steps.append(
+                    "把编成方案写进"
+                    + "、".join(
+                        f"{label[w]}编成 {n} 号（{'都满了，覆盖初星助手之前写过的' if w in reused else '空着的'}）"
+                        for w, n in picked.items()
+                    )
+                )
+            if given:  # 号定了、还没写进去的那几样（含玩家同意覆盖的）也写在确认卡上（#192 review）
+                steps.append("把编成方案写进" + "、".join(where(w) for w in given))
             if unread:
                 steps.append(
                     f"先读一遍{_MODE_NAME.get(kind, kind)}的{'、'.join(label[w] for w in unread)}编成位，挑空着的把编成方案写进去"
@@ -297,9 +371,9 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
             steps.append(f"先读一遍{_MODE_NAME.get(kind, kind)}的编成位，挑空着的把编成方案写进去")
     elif left := fp.unwritten(plan, kind, todo):
         # 编成号是沿用的：只有那个位是空的、或者是初星助手自己写过的，才自动写；玩家自己的编成照旧让玩家确认覆盖（CodeRabbit #95）
-        if not all(_slot_ours_or_blank(home, kind, w, (plan.get(w) or {}).get("set")) for w in left):
+        if not all(writable(w) for w in left):
             return False
-        steps.append("把编成方案写进" + "、".join(f"{label[w]}编成 {(plan.get(w) or {}).get('set')} 号" for w in left))
+        steps.append("把编成方案写进" + "、".join(where(w) for w in left))
     if not steps:
         return False
     if "memory" in missing or "memory" in fp.unwritten(plan, kind, todo):
@@ -309,17 +383,40 @@ def _prepare_in_job(a: dict, home: Path, plan: dict, kind: str, todo: list[str])
         _check_memory_freshness(paths.plan_path(home), home)
     a["prepare"] = True
     a["prepare_what"] = ",".join(todo)
-    a["prepare_note"] = "；".join(steps) + "（只写空着的或初星助手自己写过的编成位，写完回读核对）"
+    a["prepare_note"] = "；".join(steps) + (
+        "（写完回读核对）" if agreed else "（只写空着的或初星助手自己写过的编成位，写完回读核对）"
+    )
+    # 玩家点名的号（这次真要写的）照样传给任务：任务开始时方案改用这个号，确认卡和任务用同一个号（#192 CodeRabbit：
+    # 点名的是空位 / 初星助手写过的号时，原来把 overwrite 删了，任务读磁盘上的旧号开局）。要不要靠同意才能写，
+    # 由 prepare_start 按方案号核对；确认卡说明里「你同意覆盖」只写给 agreed 里的
+    targets = {
+        w: n
+        for w, n in parse_overwrite(a.get("overwrite")).items()
+        if (plan.get(w) or {}).get("set") == n and w in fp.unwritten(plan, kind, todo)
+    }
+    if targets:
+        a["overwrite"] = ",".join(f"{w}={n}" for w, n in sorted(targets.items()))
+    else:
+        a.pop("overwrite", None)
     return True
 
 
+def own_full_slots(home: Path, kind: str, what: str, rows: list) -> list[int]:
+    """编成位读数 rows 里这个模式的 what 编成号中初星助手写过的那几号（从小到大）。
+    D26（11-26 用户本人定）：编成位都满了时直接覆盖这些号，不再停下来问；玩家自己配的照旧不动。"""
+    nums = sorted({int(r["set"]) for r in rows if r.get("kind") == what and r.get("mode", kind) == kind})
+    return [n for n in nums if slot_written_by_us(home, kind, what, n)]
+
+
 def slot_written_by_us(home: Path, kind: str, what: str, n) -> bool:
-    """这个模式的 what n 号编成位是初星助手写过的（哪份方案的 written 记着这个号）。"""
+    """这个模式的 what n 号编成位是初星助手写过的（formation-slots.json 记过，或哪份方案的 written 记着这个号）。"""
     from hiro.brain import formation_plan as fp
     from hiro.cli import paths
 
     if n is None:
         return False
+    if int(n) in fp.recorded_slots(home, kind, what):
+        return True
     files = list((home / "plans" / kind).glob("*.json")) if (home / "plans" / kind).is_dir() else []
     for f in [*files, paths.plan_path(home)]:
         w = ((fp.load(f) or {}).get("written") or {}).get(kind) or {}
@@ -423,6 +520,11 @@ def plan_snapshot(a: dict) -> dict | None:
         plan = json.loads(raw.decode("utf-8"))
     except ValueError:
         plan = None
+    if isinstance(plan, dict) and a.get("overwrite"):
+        from hiro.brain import formation_plan as fp
+
+        # 卡上按玩家同意的号画（方案文件等任务开始才改，哈希照旧按磁盘上的算，确认时对得上）
+        plan, _ = fp.apply_consent(plan, a.get("kind") or "", parse_overwrite(a["overwrite"]))
     return {
         "digest": hashlib.sha256(raw).hexdigest(),
         "label": "编成方案",
@@ -590,6 +692,12 @@ def _first_reason(out: str) -> str:
         ),
         Arg("--prepare-note", "开局前准备做什么（开局检查填，给确认卡看）"),
         Arg("--prepare-what", "开局前准备哪几样（support / memory，逗号分隔；开局检查按没指定编成号的填）"),
+        Arg(
+            "--overwrite",
+            "玩家亲口同意覆盖的编成位，格式 memory=13 或 support=18,memory=13：开局前把编成方案写进这个号，里面原来的卡会被换掉"
+            "（确认卡上写明，玩家点确认才写）。只有玩家在对话里说了具体号码（「回忆 13 号可以覆盖」）才填；"
+            "不要自己挑号，也不要和 --support-set / --memory-set（那是直接用游戏里现成的编成）给同一样",
+        ),
     ),
     confirm_summary=_summary,
     precheck=_precheck,

@@ -368,9 +368,9 @@ func Exam(label string) string {
 	}
 	switch {
 	case l == "r1":
-		return "第 1 场选拔"
+		return "本战 R1" // H.I.F 本战两轮（选拔是 qualify-N）
 	case l == "r2":
-		return "第 2 场选拔"
+		return "本战 R2"
 	case strings.HasPrefix(l, "tower-"):
 		if n := strings.TrimPrefix(l, "tower-"); n != "" && n != "x" {
 			return "第 " + n + " 层"

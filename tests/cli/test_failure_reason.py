@@ -130,3 +130,18 @@ def test_failed_event_carries_plain_reason(hiro_home):
     _catalog(hiro_home)
     r = failure_reason(["停下：点了 s_card-3-0027 但列表里没显示为选中"])
     assert r is not None and "s_card" not in r
+
+
+def test_crash_after_recovered_error_is_the_reason():
+    """N40（G2 11-26）：先有一条已经恢复的 ERROR（Vision 坏了改用 RapidOCR），后面程序崩了：原因是崩溃，不是那条 ERROR。"""
+    lines = [
+        "[2026-11-26 18:59:53,100] [ERROR] [hiro.vision.ocr] 文字识别：Apple Vision 连续 3 次失败（e5rtError），这个进程改用 RapidOCR",
+        "Traceback (most recent call last):",
+        '  File "tools/support_inventory.py", line 133, in list_scan',
+        '    d.tap(*r["controls"]["next"])',
+        "TypeError: 'NoneType' object is not subscriptable",
+    ]
+    why = failure_reason(lines)
+    assert why is not None and "Vision" not in why
+    # ERROR 在崩溃之后：还是取后面那条
+    assert "后来的错" in failure_reason(lines + ["[2026-11-26 19:00:00,000] [ERROR] [m] 后来的错"])

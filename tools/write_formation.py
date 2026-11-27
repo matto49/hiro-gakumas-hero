@@ -78,10 +78,22 @@ def main() -> int:
             calib_dir=calib_dir,  # 回忆列表对不上时的帧也存进这次的截图目录（#148 review：原来不传，snap 什么都不写）
         )
 
+    def on_write(kind: str, number: int):
+        """N63（G1 第 5 轮 11-27）：动手写之前就记「这个号初星助手写过」。原来只在全部写完核对通过后（mark_written）才记，
+        写到一半停下时，重试会把自己写了一半的编成当成玩家的、拒绝覆盖。返回撤销函数：一格都没改就失败时由写编成调，撤掉这条记录
+        （本来就记着的号不撤，返回 None）。"""
+        from hiro.brain.formation_plan import forget_slot, record_slots, recorded_slots
+
+        if number in recorded_slots(plan_path.parent, args.mode, kind):
+            return None
+        record_slots(plan_path.parent, args.mode, {kind: number})
+        return lambda: forget_slot(plan_path.parent, args.mode, kind, number)
+
     try:
         out = formation_menu.run(dev, plan, args.mode, what=what, make_picker=make_picker, read_formation=read_support_formation,
                                  read_list=read_support_list, dry_run=args.dry_run,
-                                 blank_only=tuple(w.strip() for w in args.blank_only.split(",") if w.strip()))  # fmt: skip
+                                 blank_only=tuple(w.strip() for w in args.blank_only.split(",") if w.strip()),
+                                 on_write=on_write)  # fmt: skip
     except FormationWriteError as e:
         print(f"停下：{e}（截图在 {calib_dir}）", file=sys.stderr)
         return 3

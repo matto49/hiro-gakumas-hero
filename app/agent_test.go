@@ -136,6 +136,43 @@ func TestAgentStopsAtPendingAndNeverConfirms(t *testing.T) {
 	}
 }
 
+// N64（G1 第 5 轮 11-27）：这一轮查了资料、又发起了要确认的任务：只出确认卡，资料卡不跟着刷屏；只查资料时照常出资料卡。
+func TestInfoCardsDroppedWhenTurnEndsWithConfirm(t *testing.T) {
+	h, _ := recordingHiro(t)
+	srv, _ := fakeLLM(t,
+		`{"role":"assistant","content":"","tool_calls":[{"id":"c1","type":"function","function":{"name":"info_supports","arguments":"{}"}}]}`,
+		`{"role":"assistant","content":"好的。","tool_calls":[{"id":"c2","type":"function","function":{"name":"run_start","arguments":"{\"kind\":\"daily\"}"}}]}`)
+	r, err := newTestAgent(h, srv.URL).Ask(context.Background(), nil, "帮我领日常")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Cards) != 1 || r.Cards[0]["type"] != "confirm" {
+		t.Fatalf("只该有确认卡：%v", r.Cards)
+	}
+	h3, _ := recordingHiro(t)
+	srv3, _ := fakeLLM(t,
+		`{"role":"assistant","content":"","tool_calls":[{"id":"c1","type":"function","function":{"name":"info_supports","arguments":"{}"}}]}`,
+		`{"role":"assistant","content":"好的。","tool_calls":[{"id":"c2","type":"function","function":{"name":"run_start","arguments":"{\"kind\":\"daily\"}"}}]}`)
+	r3, err := newTestAgent(h3, srv3.URL).Ask(context.Background(), nil, "看看我的支援卡，再帮我领日常")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r3.Cards) != 2 {
+		t.Fatalf("玩家说了要看，资料卡要留着：%v", r3.Cards)
+	}
+	h2, _ := recordingHiro(t)
+	srv2, _ := fakeLLM(t,
+		`{"role":"assistant","content":"","tool_calls":[{"id":"c1","type":"function","function":{"name":"info_supports","arguments":"{}"}}]}`,
+		`{"role":"assistant","content":"你有 1 张。"}`)
+	r2, err := newTestAgent(h2, srv2.URL).Ask(context.Background(), nil, "我有哪些支援卡")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r2.Cards) != 1 || r2.Cards[0]["type"] != "info" {
+		t.Fatalf("只查资料时该有资料卡：%v", r2.Cards)
+	}
+}
+
 func TestAgentRefusesToolsNotOffered(t *testing.T) {
 	h, calls := recordingHiro(t)
 	srv, reqs := fakeLLM(t,

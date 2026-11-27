@@ -265,7 +265,13 @@ class Store:
 
         need = slices_for_plan(plan)
         cov = self.slice_coverage()
-        if all((cov.get(k) or {}).get("full_at") for k in need):
+        whole_meta, _ = self.latest("memories")
+        whole_at = (whole_meta or {}).get("scanned_at")
+        # 整表快照比这几片都新（比如按片扫描失败后改用整表扫描，N43 / #173 review）：用整表，旧片不遮住新整表
+        if all((cov.get(k) or {}).get("full_at") for k in need) and (
+            whole_at is None
+            or min(cov[k]["full_at"] for k in need) >= whole_at  # full_at 只在完整全读时更新（#173 review）
+        ):
             entries = [e for k in need for e in self.slice_entries(k)]
             return {"entries": entries, "complete": True, "source": "slices",
                     "scanned_at": min(cov[k]["scanned_at"] for k in need), "slices": need}  # fmt: skip

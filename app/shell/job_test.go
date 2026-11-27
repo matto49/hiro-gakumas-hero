@@ -2,6 +2,7 @@ package shell
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -561,4 +562,195 @@ func TestScanDoneHintOnlyWhenNothingQueued(t *testing.T) {
 	if !done {
 		t.Error("做完的通知应该发了")
 	}
+}
+
+// N27（G3 第 3 轮 11-26）：扫描都做完、配了模型时给「打一把初」「打一把 N.I.A」按钮，点了把话发出去。
+func TestScanDoneOffersStartButtons(t *testing.T) {
+	var asked []string
+	ask := func(_ context.Context, _ []Turn, text, _ string, _ func(string, string)) (Reply, error) {
+		asked = append(asked, text)
+		return Reply{Text: "好"}, nil
+	}
+	call := liveCall("running")
+	a, run := newTestApp(newMem(), call, ask, nil)
+	a.NewThread()
+	ownJob(a, "j7")
+	a.PollJobs()
+	run.Drain()
+	call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"scan-idols","state":"done","summary":"扫描偶像卡","started_at":1}]}`)
+	call.resp["run events"] = ok(`{"state":"done","events":[]}`)
+	for i := 0; i < 3; i++ {
+		a.PollJobs()
+		run.Drain()
+	}
+	var labels []string
+	for _, m := range a.Current().Messages {
+		for _, c := range m.Cards {
+			if c["type"] == "next" {
+				labels = append(labels, c["label"].(string))
+			}
+		}
+	}
+	if strings.Join(labels, ",") != "打一把初,打一把 N.I.A" {
+		t.Fatalf("扫描做完应给开局按钮：%v", labels)
+	}
+	tt := ui.NewTester(a.View, 1280, 800)
+	tt.Frame()
+	if err := tt.Click("打一把初"); err != nil {
+		t.Fatal(err)
+	}
+	tt.Frame()
+	run.Drain()
+	found := false
+	for _, m := range a.Current().Messages {
+		if m.Role == "user" && m.Text == "打一把初" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("点了应把「打一把初」发出去")
+	}
+}
+
+// N59（G1 第 5 轮 11-26）：一键全收集做完也给「打一把初」「打一把 N.I.A」。
+func TestCollectAllDoneOffersStartButtons(t *testing.T) {
+	ask := func(_ context.Context, _ []Turn, text, _ string, _ func(string, string)) (Reply, error) {
+		return Reply{Text: "好"}, nil
+	}
+	call := liveCall("running")
+	a, run := newTestApp(newMem(), call, ask, nil)
+	a.NewThread()
+	ownJob(a, "j7")
+	a.PollJobs()
+	run.Drain()
+	call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"collect-all","state":"done","summary":"一键全收集","started_at":1}]}`)
+	call.resp["run events"] = ok(`{"state":"done","events":[]}`)
+	for i := 0; i < 3; i++ {
+		a.PollJobs()
+		run.Drain()
+	}
+	var labels []string
+	for _, m := range a.Current().Messages {
+		for _, c := range m.Cards {
+			if c["type"] == "next" {
+				labels = append(labels, c["label"].(string))
+			}
+		}
+	}
+	if strings.Join(labels, ",") != "打一把初,打一把 N.I.A" {
+		t.Fatalf("一键全收集做完应给开局按钮：%v", labels)
+	}
+}
+
+// N61（G1 第 5 轮 11-27）：开局任务停在开局前准备（写编成）、游戏还没开局，给「再试一次」；开了局的不给。
+func TestPreStartFailureOffersRetry(t *testing.T) {
+	retryAfterState := func(params, events, evState string) (plugin.Card, string) { //nolint:unparam
+		call := liveCall("running")
+		call.resp["run events"] = ok(`{"state":"running","events":[]}`) // 开局前准备阶段还没有对局步骤
+		a, run := newTestApp(newMem(), call, nil, viewReg())
+		a.NewThread()
+		ownJob(a, "j7")
+		a.PollJobs()
+		run.Drain()
+		code := "3"
+		if strings.Contains(events, "都满了") {
+			code = "4"
+		}
+		call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"hajime","state":"failed","summary":"开一局初","started_at":1,"params":` + params + `,"exit_code":` + code + `,"reason":"认不出排序方向"}]}`)
+		call.resp["run events"] = ok(`{"state":"` + evState + `","events":` + events + `}`)
+		for i := 0; i < 3; i++ {
+			a.PollJobs()
+			run.Drain()
+		}
+		var text string
+		for _, m := range a.Current().Messages {
+			text = m.Text
+			for _, c := range m.Cards {
+				if c["type"] == "retry" {
+					return c, text
+				}
+			}
+		}
+		return nil, text
+	}
+	retryAfter := func(params, events string) (plugin.Card, string) { return retryAfterState(params, events, "failed") }
+	prep := `{"idol":"i_card-x","prepare":true,"prepare_note":"把编成方案写进回忆编成 13 号"}`
+	// 终态那一轮读事件失败、手里只有准备阶段的旧日志（其实后来开了局）：不判断、不给重试（#194 CodeRabbit）
+	{
+		call := liveCall("running")
+		call.resp["run events"] = ok(`{"state":"running","events":[{"seq":1,"type":"log","text":"开局前准备：把编成方案写进游戏"}]}`)
+		a, run := newTestApp(newMem(), call, nil, viewReg())
+		a.NewThread()
+		ownJob(a, "j7")
+		a.PollJobs()
+		run.Drain()
+		call.resp["run status"] = ok(`{"current":null,"recent":[{"id":"j7","kind":"hajime","state":"failed","summary":"开一局初","started_at":1,"params":` + prep + `,"exit_code":1,"reason":"考试里出错"}]}`)
+		call.resp["run events"] = hiroapi.Result{OK: false, Error: &hiroapi.CliError{Code: "service_down", Message: "读不到"}}
+		for i := 0; i < 3; i++ {
+			a.PollJobs()
+			run.Drain()
+		}
+		for _, m := range a.Current().Messages {
+			for _, c := range m.Cards {
+				if c["type"] == "retry" {
+					t.Errorf("没读到终态事件时不该给重试：%v", c)
+				}
+			}
+		}
+	}
+	c, text := retryAfter(prep, `[{"seq":1,"type":"log","text":"写编成没成功，没有开局"}]`)
+	if c == nil || !strings.Contains(text, "还没开局") {
+		t.Fatalf("开局前准备出错应给重试：%v %q", c, text)
+	}
+	if args := strings.Join(toStrings(c["args"]), " "); !strings.Contains(args, "--prepare") || !strings.Contains(args, "hajime") {
+		t.Errorf("重试命令 %q", args)
+	}
+	if c, _ := retryAfter(prep, `[{"seq":1,"type":"log","text":"[x] [INFO] [__main__] 开局前准备做完，开局"}]`); c != nil {
+		t.Errorf("已经开局的不该给重试：%v", c)
+	}
+	if c, _ := retryAfter(prep, `[{"seq":1,"type":"step","text":"レッスン","step":1}]`); c != nil {
+		t.Errorf("有对局步骤的不该给重试：%v", c)
+	}
+	if c, _ := retryAfter(prep, `[{"seq":1,"type":"log","text":"停下：「初」的支援卡编成 1–20 号都满了"}]`); c != nil {
+		t.Errorf("编成位都满了（退出码 4）重试也没用，不该给：%v", c)
+	}
+	if c, _ := retryAfter(prep, `[]`); c != nil {
+		t.Errorf("一条事件都没读到时按开了局算，不该给重试：%v", c)
+	}
+	if c, _ := retryAfter(`{"idol":"i_card-x"}`, `[]`); c != nil {
+		t.Errorf("没有开局前准备的培育不该给重试：%v", c)
+	}
+}
+
+// N41（G2 11-26）：一键全收集第 3 步出错，「再试一次」从第 3 步接着做，不再从首页数值重扫。
+func TestCollectAllRetryResumesFromFailedStep(t *testing.T) {
+	ev := []plugin.JobEvent{{Type: "log", Text: "一键全收集：第 1/5 步 首页数值"}, {Type: "log", Text: "一键全收集：第 2/5 步 偶像卡"},
+		{Type: "log", Text: "一键全收集：第 3/5 步 支援卡"}, {Type: "log", Text: "一键全收集：第 3 步（支援卡）出错停下（退出码 1），前面几步已经入库"}}
+	got := resumeCollectAll(map[string]any{"only": "account,idols,supports,formations,memories"}, ev)
+	if got["only"] != "supports,formations,memories" {
+		t.Errorf("应从第 3 步接着做：%v", got)
+	}
+	if got := resumeCollectAll(map[string]any{"only": "idols,memories"}, ev); got["only"] != "memories" {
+		t.Errorf("原来只做几步时取交集：%v", got)
+	}
+	if got := resumeCollectAll(map[string]any{}, ev); got["only"] != "supports,formations,memories" {
+		t.Errorf("没给 only（全做）时也从第 3 步接着：%v", got)
+	}
+	if got := resumeCollectAll(map[string]any{"only": "account"}, nil); got["only"] != "account" {
+		t.Errorf("读不出第几步时原样：%v", got)
+	}
+}
+
+func toStrings(v any) []string {
+	switch x := v.(type) {
+	case []string:
+		return x
+	case []any:
+		out := make([]string, 0, len(x))
+		for _, s := range x {
+			out = append(out, fmt.Sprint(s))
+		}
+		return out
+	}
+	return nil
 }

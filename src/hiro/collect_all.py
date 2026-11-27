@@ -57,11 +57,69 @@ def run(job_dir: Path, only: list[str] | None, *, runner=None, importer=None) ->
                     f"一键全收集：{label}已入库 {res.get('count')} 条" + ("（没做完的部分）" if r.returncode else ""),
                     flush=True,
                 )
+        if r.returncode == SLICE_FILTER_EXIT and kind == "memories" and _slices_on() and _filter_reset(out):
+            # N43（G2 11-26 Mac rc.7）：按片扫描靠读「ソート・フィルタ」弹窗，Vision 坏了换 RapidOCR 后页签 / 按钮常读不出，
+            # 按片扫描停下。回忆这一步改用整表滚动扫描再做一遍（不碰筛选弹窗，RapidOCR 下也扫得完），对话里说明
+            print("一键全收集：按片扫描回忆没成功，改用整表扫描再扫一遍（不动筛选，慢一些）", flush=True)
+            d2 = job_dir / f"{i}-{kind}-whole"
+            d2.mkdir(parents=True, exist_ok=True)
+            env = {**os.environ, **k.env, "HIRO_MEMORY_SLICES": "0"}
+            old = os.environ.get("HIRO_MEMORY_SLICES")
+            os.environ["HIRO_MEMORY_SLICES"] = "0"  # 参数按开关算：算参数时先关上
+            try:
+                argv = k.argv({"full": True}, d2)
+            finally:
+                if old is None:
+                    os.environ.pop("HIRO_MEMORY_SLICES", None)
+                else:
+                    os.environ["HIRO_MEMORY_SLICES"] = old
+            r = runner(argv, env=env)
+            out2 = d2 / "out.json"
+            if r.returncode == 0 and k.output and out2.is_file():
+                try:
+                    whole = json.loads(out2.read_text(encoding="utf-8"))
+                except (OSError, ValueError) as e:
+                    print(f"一键全收集：第 {i} 步（{label}）整表扫描的结果读不出来：{e}", flush=True)
+                    return 1
+                if not whole.get("complete"):
+                    # 退出码 0 不等于扫完（翻页对不上会写 complete=False 正常退出）：半截不当最新库存（#173 review）
+                    print(
+                        f"一键全收集：第 {i} 步（{label}）整表扫描没扫完（翻页对不上），没有入库，可以再扫一次",
+                        flush=True,
+                    )
+                    return 1
+                try:
+                    res = importer(k.output, whole, source=f"collect:{job_dir.name}:{kind}:whole")
+                except (OSError, ValueError, KeyError) as e:
+                    print(f"一键全收集：第 {i} 步（{label}）整表扫描的结果没能入库：{e}", flush=True)
+                    return 1
+                print(f"一键全收集：{label}已入库 {res.get('count')} 条（整表扫描）", flush=True)
+        if r.returncode == SLICE_FILTER_EXIT and kind == "memories" and not _filter_reset(out):
+            print("停下：按片扫描回忆时设筛选出错，回忆列表的筛选可能还停在某一片上（没能确认重置）；"
+                  "请在游戏的回忆选择页点「ソート・フィルタ」→「フィルタをリセット」后再扫一次", flush=True)  # fmt: skip
         if r.returncode != 0:
             print(f"一键全收集：第 {i} 步（{label}）出错停下（退出码 {r.returncode}），前面几步已经入库", flush=True)
             return r.returncode or 1
     print("一键全收集：完成", flush=True)
     return 0
+
+
+SLICE_FILTER_EXIT = 6  # 同 hiro.memory_scan.SLICE_FILTER_EXIT（这里不导入 memory_scan：它会拉起设备、视觉等模块）
+
+
+def _filter_reset(out: Path) -> bool:
+    """按片扫描出错后，筛选确认重置了没有（out.json 的 filter_reset）：没确认就不能改用整表扫描——
+    筛选还停在某一片时「整表」其实只读到那一片（#173 review）。"""
+    try:
+        return bool(json.loads(out.read_text(encoding="utf-8")).get("filter_reset"))
+    except (OSError, ValueError):
+        return False
+
+
+def _slices_on() -> bool:
+    from hiro.state.memory_slices import enabled
+
+    return enabled()
 
 
 def main() -> int:

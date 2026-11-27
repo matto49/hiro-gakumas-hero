@@ -1,0 +1,1856 @@
+[
+ {
+  "git_blob_sha": "2d659ef159760bb8cc70047843a21c3a630ab317",
+  "name": "Achievement.yaml",
+  "size": 799565,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Achievement.yaml"
+ },
+ {
+  "git_blob_sha": "5dd5f2dabe28fd375e44cb78a58706d14f400ef7",
+  "name": "AchievementProgress.yaml",
+  "size": 993989,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/AchievementProgress.yaml"
+ },
+ {
+  "git_blob_sha": "7d3f04da55d519b372a97ca186b9ca603dbc50b5",
+  "name": "AdvConditionBranch.yaml",
+  "size": 663,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/AdvConditionBranch.yaml"
+ },
+ {
+  "git_blob_sha": "d30503337a171ee2b612d7563f0b0e470cf5e1ef",
+  "name": "AdvOverrideCostume.yaml",
+  "size": 425,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/AdvOverrideCostume.yaml"
+ },
+ {
+  "git_blob_sha": "5c549e2335f807456e8a738c918bfaf9d90e0036",
+  "name": "AppReview.yaml",
+  "size": 430,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/AppReview.yaml"
+ },
+ {
+  "git_blob_sha": "cb184d34bce5f87d1a54f5dc76e5211dbb6b66f0",
+  "name": "AssetDownload.yaml",
+  "size": 323800,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/AssetDownload.yaml"
+ },
+ {
+  "git_blob_sha": "749adb76f941124117834a3d9f480c6f6cf878cd",
+  "name": "Badge.yaml",
+  "size": 212705,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Badge.yaml"
+ },
+ {
+  "git_blob_sha": "149818a10203b488a93bda56de8b303d71fd48c3",
+  "name": "Bgm.yaml",
+  "size": 280,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Bgm.yaml"
+ },
+ {
+  "git_blob_sha": "80f07eb73a872f857c1cc7ef93afde7764651fb8",
+  "name": "Character.yaml",
+  "size": 61152,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Character.yaml"
+ },
+ {
+  "git_blob_sha": "1f0231ab5d5f418546ee552b5665247c362849e2",
+  "name": "CharacterActorLookEffector.yaml",
+  "size": 121,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CharacterActorLookEffector.yaml"
+ },
+ {
+  "git_blob_sha": "d44f6fbc44988b0dd8e8538b6557b54459d3e097",
+  "name": "CharacterAdv.yaml",
+  "size": 2106,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CharacterAdv.yaml"
+ },
+ {
+  "git_blob_sha": "ad6d63aaa2028a5c4faaa64e7e6d73867a2ac3a5",
+  "name": "CharacterColor.yaml",
+  "size": 7830,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CharacterColor.yaml"
+ },
+ {
+  "git_blob_sha": "54abcd53605be88a584ddc974097ee6ac6d77945",
+  "name": "CharacterDearnessLevel.yaml",
+  "size": 590795,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CharacterDearnessLevel.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "CharacterDearnessStoryGashaCampaign.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CharacterDearnessStoryGashaCampaign.yaml"
+ },
+ {
+  "git_blob_sha": "96ee453b55ce39eb12bcf2c96aeb3c2e81a6c770",
+  "name": "CharacterDetail.yaml",
+  "size": 20553,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CharacterDetail.yaml"
+ },
+ {
+  "git_blob_sha": "2c4d598aed6a15f7a47d51a803b5599d8866e4d1",
+  "name": "CharacterLookEffector.yaml",
+  "size": 3443,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CharacterLookEffector.yaml"
+ },
+ {
+  "git_blob_sha": "62a5ad751525cc9012ef8c77a6f3fa34eba520a5",
+  "name": "CharacterPosition.yaml",
+  "size": 1583,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CharacterPosition.yaml"
+ },
+ {
+  "git_blob_sha": "6bf39d70dcdb21ea2be817145f6dd46e0d370fc9",
+  "name": "CharacterProduceStory.yaml",
+  "size": 111227,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CharacterProduceStory.yaml"
+ },
+ {
+  "git_blob_sha": "dcb68c382ebd8ef167749a739b87527303a11f94",
+  "name": "CharacterPushMessage.yaml",
+  "size": 38955,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CharacterPushMessage.yaml"
+ },
+ {
+  "git_blob_sha": "9fb41fc1e123624550f7c0dcef5e48f9f51c2a81",
+  "name": "CharacterTrueEndAchievement.yaml",
+  "size": 8469,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CharacterTrueEndAchievement.yaml"
+ },
+ {
+  "git_blob_sha": "b33cefdf650b5a2a3cc7407e5caf10f26b213106",
+  "name": "CharacterTrueEndBonus.yaml",
+  "size": 10423,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CharacterTrueEndBonus.yaml"
+ },
+ {
+  "git_blob_sha": "ba03eca4d9c7c7c8b6fe8c97517e073f1b2e0876",
+  "name": "CoinGashaButton.yaml",
+  "size": 7515,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CoinGashaButton.yaml"
+ },
+ {
+  "git_blob_sha": "b502947b92b1744837e1c140a1a50009b17b9e55",
+  "name": "CompetitionExamStatusEffectIcon.yaml",
+  "size": 626,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CompetitionExamStatusEffectIcon.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "CompetitionSeason.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CompetitionSeason.yaml"
+ },
+ {
+  "git_blob_sha": "883a1e871a03c3929c8a6b68922d9d20731e04b8",
+  "name": "CompetitionStageSectionLock.yaml",
+  "size": 2435,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CompetitionStageSectionLock.yaml"
+ },
+ {
+  "git_blob_sha": "4418d6a6de0645ea8b4c6fa0fbc063baafb4b1b7",
+  "name": "ConditionSet.yaml",
+  "size": 1892839,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ConditionSet.yaml"
+ },
+ {
+  "git_blob_sha": "3165d5892aa971f2105445bd3d7dea33b239f922",
+  "name": "ConsumptionSet.yaml",
+  "size": 120955,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ConsumptionSet.yaml"
+ },
+ {
+  "git_blob_sha": "9663fd848ff93cc256fca51fe7f2c7794e229355",
+  "name": "Costume.yaml",
+  "size": 348718,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Costume.yaml"
+ },
+ {
+  "git_blob_sha": "74be84b6501fd181740b2055ff3a87809bb3d3d1",
+  "name": "CostumeColorGroup.yaml",
+  "size": 32350,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CostumeColorGroup.yaml"
+ },
+ {
+  "git_blob_sha": "01c029771c82de1c21b17229e30e03c7f906d64c",
+  "name": "CostumeHead.yaml",
+  "size": 194726,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CostumeHead.yaml"
+ },
+ {
+  "git_blob_sha": "1698a6d8659b266ba6488764f1a5b2a0d9df288a",
+  "name": "CostumeMotion.yaml",
+  "size": 19798,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CostumeMotion.yaml"
+ },
+ {
+  "git_blob_sha": "d6d43a118bd51a782e2be3e8301298c66bb6a3d2",
+  "name": "CostumePhotoGroup.yaml",
+  "size": 3482,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CostumePhotoGroup.yaml"
+ },
+ {
+  "git_blob_sha": "c60e23c0bc1f648309e896a4a4f81dd283490a56",
+  "name": "CostumeWaitMotion.yaml",
+  "size": 5980,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/CostumeWaitMotion.yaml"
+ },
+ {
+  "git_blob_sha": "da921b88ee51424bd8392a632563a32f3e151289",
+  "name": "DearnessBackground.yaml",
+  "size": 60258,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/DearnessBackground.yaml"
+ },
+ {
+  "git_blob_sha": "338937711ee1080d034429200c27776705b0a59f",
+  "name": "DearnessBgm.yaml",
+  "size": 839,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/DearnessBgm.yaml"
+ },
+ {
+  "git_blob_sha": "ffda599ce9da1329963854448f96c469da9381df",
+  "name": "DearnessBoostBgm.yaml",
+  "size": 779,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/DearnessBoostBgm.yaml"
+ },
+ {
+  "git_blob_sha": "9c2d81bcf749754af8e03aa110a0031c4add6da9",
+  "name": "DearnessLevelBgm.yaml",
+  "size": 3090,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/DearnessLevelBgm.yaml"
+ },
+ {
+  "git_blob_sha": "d5edc768a6f15af802954632728245bdfb522acd",
+  "name": "DearnessMotion.yaml",
+  "size": 1510276,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/DearnessMotion.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "DearnessStoryCampaign.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/DearnessStoryCampaign.yaml"
+ },
+ {
+  "git_blob_sha": "c70cbd88fa5d34018bfcdcb07c89ea85d4646c59",
+  "name": "DeepLinkTransition.yaml",
+  "size": 259,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/DeepLinkTransition.yaml"
+ },
+ {
+  "git_blob_sha": "4e406422467abdc819f01aa595d8b65ee79e43ee",
+  "name": "EffectGroup.yaml",
+  "size": 28380,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/EffectGroup.yaml"
+ },
+ {
+  "git_blob_sha": "df30eb82d18b08f3a5364bfa49f9ce7ec6213531",
+  "name": "EventLabel.yaml",
+  "size": 1194,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/EventLabel.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "EventStoryCampaign.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/EventStoryCampaign.yaml"
+ },
+ {
+  "git_blob_sha": "2b7158d272e693f42253f91ccd0703466adb555f",
+  "name": "ExamContestEmbedProduceCard.yaml",
+  "size": 10451,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ExamContestEmbedProduceCard.yaml"
+ },
+ {
+  "git_blob_sha": "7fd561e4668f039bd792ae7675eb750f149d836d",
+  "name": "ExamInitialDeck.yaml",
+  "size": 10285,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ExamInitialDeck.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "ExamMainBuff.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ExamMainBuff.yaml"
+ },
+ {
+  "git_blob_sha": "0d6e62ba8dfc5ebfc26f78bbcd261f291cfc1822",
+  "name": "ExamMotion.yaml",
+  "size": 909456,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ExamMotion.yaml"
+ },
+ {
+  "git_blob_sha": "e17b4229f61c1eed38df9903ea71cfd79f0bcefb",
+  "name": "ExamOutGameMotion.yaml",
+  "size": 320769,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ExamOutGameMotion.yaml"
+ },
+ {
+  "git_blob_sha": "37e4f18caa3ef42df36fe194dbf9cdbdaef384a8",
+  "name": "ExamSetting.yaml",
+  "size": 2491,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ExamSetting.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "ExamSimulation.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ExamSimulation.yaml"
+ },
+ {
+  "git_blob_sha": "0fae0c364bbbfec6199c136dac6ee6595d4227e6",
+  "name": "ExamUnitMotion.yaml",
+  "size": 1767,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ExamUnitMotion.yaml"
+ },
+ {
+  "git_blob_sha": "950b2ffa8751dcb9149d7246a2fd0b09126e0734",
+  "name": "ExchangeItemCategory.yaml",
+  "size": 1089,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ExchangeItemCategory.yaml"
+ },
+ {
+  "git_blob_sha": "602f946c6f939eadfe1437ccbf8ba42629f1ed51",
+  "name": "FeatureLock.yaml",
+  "size": 4046,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/FeatureLock.yaml"
+ },
+ {
+  "git_blob_sha": "531d20e6bc4c9051371e8d34ead6d0355fc98a95",
+  "name": "ForceAppVersion.yaml",
+  "size": 354,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ForceAppVersion.yaml"
+ },
+ {
+  "git_blob_sha": "4bdd5d083699dd5a347d354ec1ef51259c9079a3",
+  "name": "GashaAnimationStep.yaml",
+  "size": 26615,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/GashaAnimationStep.yaml"
+ },
+ {
+  "git_blob_sha": "fb19b64ef2d88c68ea5db6d5f8dcd1310a4d99c0",
+  "name": "GashaButton.yaml",
+  "size": 106590,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/GashaButton.yaml"
+ },
+ {
+  "git_blob_sha": "c108eab3f09388eb5dd1ba4ce31d936d6477fd7b",
+  "name": "GuildDonationItem.yaml",
+  "size": 449,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/GuildDonationItem.yaml"
+ },
+ {
+  "git_blob_sha": "10c362470f5b4525e6e8934769b444c34a2db8f2",
+  "name": "GuildReaction.yaml",
+  "size": 3597,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/GuildReaction.yaml"
+ },
+ {
+  "git_blob_sha": "ebce8832bd1e22ece49994358e1b8590958280bc",
+  "name": "GvgRaid.yaml",
+  "size": 326,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/GvgRaid.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "GvgRaidStageLoop.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/GvgRaidStageLoop.yaml"
+ },
+ {
+  "git_blob_sha": "d0e05ccfdad40b7e63b365b3fe4654058ae7297e",
+  "name": "HelpCategory.yaml",
+  "size": 7704,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/HelpCategory.yaml"
+ },
+ {
+  "git_blob_sha": "55513c532ab7149f972437bb4d496327095b4afa",
+  "name": "HelpContent.yaml",
+  "size": 89405,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/HelpContent.yaml"
+ },
+ {
+  "git_blob_sha": "0607cebe4368af4f0f461e8ad5668ca52ec9d54e",
+  "name": "HelpInfo.yaml",
+  "size": 41506,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/HelpInfo.yaml"
+ },
+ {
+  "git_blob_sha": "395bf5a3565cb1d4c0e00753c2e15939aa54ac9d",
+  "name": "HomeBackground.yaml",
+  "size": 6312,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/HomeBackground.yaml"
+ },
+ {
+  "git_blob_sha": "3408edc927550b1824bca721b8db059f11d4a600",
+  "name": "HomeBackgroundPrefabGroup.yaml",
+  "size": 25879,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/HomeBackgroundPrefabGroup.yaml"
+ },
+ {
+  "git_blob_sha": "05e8ca296e2c68d961df50a2a3f9ef3ed6625f18",
+  "name": "HomeBoard.yaml",
+  "size": 3162,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/HomeBoard.yaml"
+ },
+ {
+  "git_blob_sha": "8905d9ba381dc16e5a203437f3e575d889572967",
+  "name": "HomeMonitor.yaml",
+  "size": 442,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/HomeMonitor.yaml"
+ },
+ {
+  "git_blob_sha": "5feeb95db913d6695a7456718f84317765ed3620",
+  "name": "HomeMotion.yaml",
+  "size": 599652,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/HomeMotion.yaml"
+ },
+ {
+  "git_blob_sha": "463842501e60bece81638e08bb7e66b5e9b4f4bb",
+  "name": "HomeTime.yaml",
+  "size": 244,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/HomeTime.yaml"
+ },
+ {
+  "git_blob_sha": "4d11c53afd865db36de9315cb7718f83fa4ffa10",
+  "name": "IdolCard.yaml",
+  "size": 399004,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCard.yaml"
+ },
+ {
+  "git_blob_sha": "e3132122467fc27f2bc4c04b209c6093f6b9829a",
+  "name": "IdolCardLevelLimit.yaml",
+  "size": 23786,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCardLevelLimit.yaml"
+ },
+ {
+  "git_blob_sha": "c2405ea6c01a08a4f84c07e5983131b8d229605c",
+  "name": "IdolCardLevelLimitProduceSkill.yaml",
+  "size": 10852,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCardLevelLimitProduceSkill.yaml"
+ },
+ {
+  "git_blob_sha": "d5f7f475025e96ff61a56f1a7f3a569b46f44b45",
+  "name": "IdolCardLevelLimitStatusUp.yaml",
+  "size": 8993,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCardLevelLimitStatusUp.yaml"
+ },
+ {
+  "git_blob_sha": "dafbcb0deb875f411c9480f21bf7b8e163335f6b",
+  "name": "IdolCardPiece.yaml",
+  "size": 36094,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCardPiece.yaml"
+ },
+ {
+  "git_blob_sha": "2f65a7b82c5b0cbd790c60912d73c50162787eb1",
+  "name": "IdolCardPieceQuantity.yaml",
+  "size": 127,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCardPieceQuantity.yaml"
+ },
+ {
+  "git_blob_sha": "a169dd5dc5e175beda7803b6079afcb729fad91e",
+  "name": "IdolCardPotential.yaml",
+  "size": 217686,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCardPotential.yaml"
+ },
+ {
+  "git_blob_sha": "85235450c26c3b8f7c61f5c2769d10cda9e20370",
+  "name": "IdolCardPotentialProduceSkill.yaml",
+  "size": 67322,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCardPotentialProduceSkill.yaml"
+ },
+ {
+  "git_blob_sha": "79137bac84947daf7a3a2e5c12fcc69fb2108567",
+  "name": "IdolCardPrimaStellaProduceSkill.yaml",
+  "size": 2976,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCardPrimaStellaProduceSkill.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "IdolCardSimulation.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCardSimulation.yaml"
+ },
+ {
+  "git_blob_sha": "94a759f60f989e9ceac252b749afb27edfdb1177",
+  "name": "IdolCardSkin.yaml",
+  "size": 504340,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCardSkin.yaml"
+ },
+ {
+  "git_blob_sha": "dda77c5e23efec3e2673ca3f12b7ba02c044281b",
+  "name": "IdolCardSkinSelectReward.yaml",
+  "size": 2563,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCardSkinSelectReward.yaml"
+ },
+ {
+  "git_blob_sha": "127b63dd0f50f894dbfa4fda280f307f1cf51191",
+  "name": "IdolCardSkinUnit.yaml",
+  "size": 1107,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/IdolCardSkinUnit.yaml"
+ },
+ {
+  "git_blob_sha": "6b425ab778b50cc879384ea7d581ae3863018024",
+  "name": "InvitationMission.yaml",
+  "size": 162,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/InvitationMission.yaml"
+ },
+ {
+  "git_blob_sha": "9b445c41f72c74616493544000d32f7358dbc889",
+  "name": "InvitationPointReward.yaml",
+  "size": 1172,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/InvitationPointReward.yaml"
+ },
+ {
+  "git_blob_sha": "ef22f7c12277b9d12303e1116562f2c95a48fa6e",
+  "name": "Item.yaml",
+  "size": 377598,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Item.yaml"
+ },
+ {
+  "git_blob_sha": "9cade376b2afc4081ee5a416328dee7983bafa27",
+  "name": "JewelConsumptionCount.yaml",
+  "size": 263,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/JewelConsumptionCount.yaml"
+ },
+ {
+  "git_blob_sha": "f0ddc0530f58b1b50ea5063220281662e02dc2f8",
+  "name": "LimitItem.yaml",
+  "size": 1370,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/LimitItem.yaml"
+ },
+ {
+  "git_blob_sha": "3314bd22b04a6623f4c0a3440aac25b214e9e705",
+  "name": "LiveAdditionalAsset.yaml",
+  "size": 28887,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/LiveAdditionalAsset.yaml"
+ },
+ {
+  "git_blob_sha": "9e0d8fd0edc5b8c13fb920d1a4b80c8e5ba96280",
+  "name": "LiveAdditionalAssetConditionSet.yaml",
+  "size": 18979,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/LiveAdditionalAssetConditionSet.yaml"
+ },
+ {
+  "git_blob_sha": "9d40a22d103304d218050b82fb0f872510cc4bd6",
+  "name": "Localization.yaml",
+  "size": 13946,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Localization.yaml"
+ },
+ {
+  "git_blob_sha": "7377e9240426c057cfe638d471df1338e3174082",
+  "name": "LoginBonusMotion.yaml",
+  "size": 6510,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/LoginBonusMotion.yaml"
+ },
+ {
+  "git_blob_sha": "e031892cafb0fdb1b62a1d7b45d8887b7873cbdc",
+  "name": "MainStoryChapter.yaml",
+  "size": 759,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MainStoryChapter.yaml"
+ },
+ {
+  "git_blob_sha": "ca542d86b6291b86534e26fa7a1599f5b7038e55",
+  "name": "MainStoryPart.yaml",
+  "size": 88,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MainStoryPart.yaml"
+ },
+ {
+  "git_blob_sha": "a1dd80d967ca009f43dfece7f0de805dedf07a9d",
+  "name": "MainTask.yaml",
+  "size": 233853,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MainTask.yaml"
+ },
+ {
+  "git_blob_sha": "83f9613a9589cdc56329e567fba424cc5fdff42b",
+  "name": "MainTaskGroup.yaml",
+  "size": 677,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MainTaskGroup.yaml"
+ },
+ {
+  "git_blob_sha": "ba994041449f734051b97769eff917c018f76a1e",
+  "name": "MainTaskIcon.yaml",
+  "size": 14346,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MainTaskIcon.yaml"
+ },
+ {
+  "git_blob_sha": "a787a0f49c16e33f28f20845354b1e6a08140a51",
+  "name": "Media.yaml",
+  "size": 112282,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Media.yaml"
+ },
+ {
+  "git_blob_sha": "ce1fcb90549ef3d9de4ae2a39b43d96685da02b6",
+  "name": "MediaExternalLink.yaml",
+  "size": 1123,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MediaExternalLink.yaml"
+ },
+ {
+  "git_blob_sha": "d65c3bc78d01cab382e2f1003ac3ef1ee92ad0f6",
+  "name": "MediaMovieLabel.yaml",
+  "size": 198,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MediaMovieLabel.yaml"
+ },
+ {
+  "git_blob_sha": "b7b54cef08fb749e6014fa2ca65440068d21e732",
+  "name": "MeishiBaseAsset.yaml",
+  "size": 50928,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MeishiBaseAsset.yaml"
+ },
+ {
+  "git_blob_sha": "97312c90ed0d62ab96454c6fb8bea575033061a8",
+  "name": "MeishiBaseColor.yaml",
+  "size": 392,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MeishiBaseColor.yaml"
+ },
+ {
+  "git_blob_sha": "f3db6f1b53160a5343a4a8f22dd205f855f9a8ec",
+  "name": "MeishiIllustrationAsset.yaml",
+  "size": 254875,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MeishiIllustrationAsset.yaml"
+ },
+ {
+  "git_blob_sha": "f88c0821f161f750fc3188074da4f6dbf3efb07e",
+  "name": "MeishiTextColor.yaml",
+  "size": 919,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MeishiTextColor.yaml"
+ },
+ {
+  "git_blob_sha": "90e0a39337d261aeb00013e15a4e8fb57cdf4085",
+  "name": "MemoryAbility.yaml",
+  "size": 237903,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MemoryAbility.yaml"
+ },
+ {
+  "git_blob_sha": "557c3e8b2dadb0f5da81685c8cf6aa2213636962",
+  "name": "MemoryExchangeItem.yaml",
+  "size": 215,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MemoryExchangeItem.yaml"
+ },
+ {
+  "git_blob_sha": "e7b020453a1dec91f8b7ef285000b3bffda72135",
+  "name": "MemoryExchangeItemQuantity.yaml",
+  "size": 709,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MemoryExchangeItemQuantity.yaml"
+ },
+ {
+  "git_blob_sha": "94fb689b83cbeefef6ee8760cd4d42e415d38629",
+  "name": "MemoryGift.yaml",
+  "size": 30672,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MemoryGift.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "MemoryRemake.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MemoryRemake.yaml"
+ },
+ {
+  "git_blob_sha": "5e574817fca9e89a28bb73785cf21c5673a7e088",
+  "name": "MemoryTag.yaml",
+  "size": 2337,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MemoryTag.yaml"
+ },
+ {
+  "git_blob_sha": "1507c53093459941cc74a643bc14e3d8e0d8d632",
+  "name": "Mission.yaml",
+  "size": 1978047,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Mission.yaml"
+ },
+ {
+  "git_blob_sha": "a96f9743e9fa4a04f0061a509bd2bd007207fa2f",
+  "name": "MissionDailyRelease.yaml",
+  "size": 24789,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MissionDailyRelease.yaml"
+ },
+ {
+  "git_blob_sha": "f47f88409903e7f6f1c98ff3dc893899148426e6",
+  "name": "MissionDailyReleaseGroup.yaml",
+  "size": 13073,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MissionDailyReleaseGroup.yaml"
+ },
+ {
+  "git_blob_sha": "ee5507bccc2458fce1f7e3328716ee55b33e87df",
+  "name": "MissionGroup.yaml",
+  "size": 170982,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MissionGroup.yaml"
+ },
+ {
+  "git_blob_sha": "0056378d3027f90d48e61c81678029d9a9c76bb9",
+  "name": "MissionPanelSheet.yaml",
+  "size": 33200,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MissionPanelSheet.yaml"
+ },
+ {
+  "git_blob_sha": "8034a9f895318f6cac2195da1596e8731c9928f6",
+  "name": "MissionPanelSheetGroup.yaml",
+  "size": 11229,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MissionPanelSheetGroup.yaml"
+ },
+ {
+  "git_blob_sha": "b57072e8620486812b4e99c51e6b0225a894cd84",
+  "name": "MissionPass.yaml",
+  "size": 60769,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MissionPass.yaml"
+ },
+ {
+  "git_blob_sha": "9d85576949b30d87e266e722a03cedd543b79403",
+  "name": "MissionPassPoint.yaml",
+  "size": 105,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MissionPassPoint.yaml"
+ },
+ {
+  "git_blob_sha": "e57ed4239d5ee601578743566ffc97ec9f2cb985",
+  "name": "MissionPassProgress.yaml",
+  "size": 216320,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MissionPassProgress.yaml"
+ },
+ {
+  "git_blob_sha": "97be59ee5418ee8001082241b7c6719416fe7896",
+  "name": "MissionPoint.yaml",
+  "size": 6111,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MissionPoint.yaml"
+ },
+ {
+  "git_blob_sha": "1f9aed94138b812a65cbecaa245497efc955c54f",
+  "name": "MissionPointRewardSet.yaml",
+  "size": 24394,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MissionPointRewardSet.yaml"
+ },
+ {
+  "git_blob_sha": "d4e420cc2afc614efb326960acdae4997f3b8177",
+  "name": "MissionProgress.yaml",
+  "size": 715083,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MissionProgress.yaml"
+ },
+ {
+  "git_blob_sha": "eda0f03970be65821cf05759b24f31744da10d43",
+  "name": "Money.yaml",
+  "size": 6775,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Money.yaml"
+ },
+ {
+  "git_blob_sha": "26b397b611d26efd206ccd07aa697a831e8b0149",
+  "name": "Music.yaml",
+  "size": 288868,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Music.yaml"
+ },
+ {
+  "git_blob_sha": "d2d30533fcb1acb6aaa8336585b0f8678b364251",
+  "name": "MusicHot.yaml",
+  "size": 293498,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MusicHot.yaml"
+ },
+ {
+  "git_blob_sha": "d2d8b94ef198c6cbdc3dccd06ac61815509de040",
+  "name": "MusicSinger.yaml",
+  "size": 53543,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/MusicSinger.yaml"
+ },
+ {
+  "git_blob_sha": "7fda9917ef0a701f4ed26f35dfee42a9d0028ceb",
+  "name": "PhotoBackground.yaml",
+  "size": 5214,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/PhotoBackground.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "PhotoFacialLookTarget.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/PhotoFacialLookTarget.yaml"
+ },
+ {
+  "git_blob_sha": "6e736a615bf7a2da1f6a2cea0a053fd204652b6a",
+  "name": "PhotoFacialMotionGroup.yaml",
+  "size": 639,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/PhotoFacialMotionGroup.yaml"
+ },
+ {
+  "git_blob_sha": "262805f591274a2b5996a8f1cbd85889d3dd92f8",
+  "name": "PhotoLookTargetVoiceCharacter.yaml",
+  "size": 1233,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/PhotoLookTargetVoiceCharacter.yaml"
+ },
+ {
+  "git_blob_sha": "c4afef7ebb6506fb6debaf063007e6ecd80ad060",
+  "name": "PhotoPose.yaml",
+  "size": 745136,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/PhotoPose.yaml"
+ },
+ {
+  "git_blob_sha": "a264dc77ccb1030fe18264a0f0c8f148610a5940",
+  "name": "PhotoReactionVoiceGroup.yaml",
+  "size": 108811,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/PhotoReactionVoiceGroup.yaml"
+ },
+ {
+  "git_blob_sha": "6124569c188f15c96710cc18e54c79e0f0608dc9",
+  "name": "PhotoWaitVoiceCharacter.yaml",
+  "size": 6299,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/PhotoWaitVoiceCharacter.yaml"
+ },
+ {
+  "git_blob_sha": "2a43385c0c26abb795a312ec86569be182835df0",
+  "name": "PhotoWaitVoiceGroup.yaml",
+  "size": 15497,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/PhotoWaitVoiceGroup.yaml"
+ },
+ {
+  "git_blob_sha": "7e8d5a4ddd1f24e59150cba5665f50c4c666236d",
+  "name": "Produce.yaml",
+  "size": 7467,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Produce.yaml"
+ },
+ {
+  "git_blob_sha": "17be4924266fa6e0cbc8ed8e03c44a9fac8f654f",
+  "name": "ProduceAdv.yaml",
+  "size": 5418,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceAdv.yaml"
+ },
+ {
+  "git_blob_sha": "8c0e6c12e746d1d1143b863ffb71040dda5c4a10",
+  "name": "ProduceCard.yaml",
+  "size": 49440792,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCard.yaml"
+ },
+ {
+  "git_blob_sha": "04ef8e042f6bce1750e2cad7a53d6011a32bb3f0",
+  "name": "ProduceCardConversion.yaml",
+  "size": 5021,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardConversion.yaml"
+ },
+ {
+  "git_blob_sha": "f8b45b92dfb09f4f5b50fb9bcd4ee2415abb4235",
+  "name": "ProduceCardCustomize.yaml",
+  "size": 119614,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardCustomize.yaml"
+ },
+ {
+  "git_blob_sha": "dc70f5696208d1b89168a10864e8f0854f452522",
+  "name": "ProduceCardCustomizeRarityEvaluation.yaml",
+  "size": 190,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardCustomizeRarityEvaluation.yaml"
+ },
+ {
+  "git_blob_sha": "38b6f8ac14ea29d4b4c283e21633d8b0052b2b82",
+  "name": "ProduceCardGrowEffect.yaml",
+  "size": 273590,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardGrowEffect.yaml"
+ },
+ {
+  "git_blob_sha": "b55deda9847feecd33c0f6412dab0eed59e8e604",
+  "name": "ProduceCardPool.yaml",
+  "size": 18475,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardPool.yaml"
+ },
+ {
+  "git_blob_sha": "0861fa5d23e5715f49af32c588f9af74ea1ca924",
+  "name": "ProduceCardRandomPool.yaml",
+  "size": 35696,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardRandomPool.yaml"
+ },
+ {
+  "git_blob_sha": "b398deffa320d2a3960cbce4736f7bdd02057eec",
+  "name": "ProduceCardSearch.yaml",
+  "size": 660113,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardSearch.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "ProduceCardSimulation.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardSimulation.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "ProduceCardSimulationGroup.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardSimulationGroup.yaml"
+ },
+ {
+  "git_blob_sha": "a408af2882ef61dc2ff80af6e1a7a0f03fe8965e",
+  "name": "ProduceCardSkin.yaml",
+  "size": 1524,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardSkin.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "ProduceCardStatusEffect.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardStatusEffect.yaml"
+ },
+ {
+  "git_blob_sha": "ca9646bbd230c5d0283437baadf2f22df162ed9c",
+  "name": "ProduceCardStatusEnchant.yaml",
+  "size": 961179,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardStatusEnchant.yaml"
+ },
+ {
+  "git_blob_sha": "59c21ead287d64937053ca23139bad9ebcb97262",
+  "name": "ProduceCardTag.yaml",
+  "size": 164,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCardTag.yaml"
+ },
+ {
+  "git_blob_sha": "d729eb841beda7ce9950b383be88e5210bfa7571",
+  "name": "ProduceChallengeCharacter.yaml",
+  "size": 4048,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceChallengeCharacter.yaml"
+ },
+ {
+  "git_blob_sha": "df9784eb435aabbd4451da0ce6dd88976de1e71f",
+  "name": "ProduceChallengeSlot.yaml",
+  "size": 10787,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceChallengeSlot.yaml"
+ },
+ {
+  "git_blob_sha": "4f1c05b1cb0013636ff07b831e365364dc49c6da",
+  "name": "ProduceCharacter.yaml",
+  "size": 14632,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCharacter.yaml"
+ },
+ {
+  "git_blob_sha": "4a5f5f6aa834325a9bff8c1182a48c10d694bf66",
+  "name": "ProduceCharacterAdv.yaml",
+  "size": 1489,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCharacterAdv.yaml"
+ },
+ {
+  "git_blob_sha": "49d2c19ee5df09095fcc0cd955cb06710bb559aa",
+  "name": "ProduceCharacterUnit.yaml",
+  "size": 319,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCharacterUnit.yaml"
+ },
+ {
+  "git_blob_sha": "54323db9ebeb5e3499f3a0909bc0aca7df2a4942",
+  "name": "ProduceCharacterUnitOverrideLiveCostume.yaml",
+  "size": 385,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCharacterUnitOverrideLiveCostume.yaml"
+ },
+ {
+  "git_blob_sha": "4245e59c8c919d6b710d67f6a552ae1f7e1b380d",
+  "name": "ProduceCustomizeItem.yaml",
+  "size": 3964547,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCustomizeItem.yaml"
+ },
+ {
+  "git_blob_sha": "e21b200dd52d706c1bc405833fe56c9dea8d718f",
+  "name": "ProduceCustomizeItemRelationship.yaml",
+  "size": 29312,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceCustomizeItemRelationship.yaml"
+ },
+ {
+  "git_blob_sha": "b124bab8d1c57ef898bc990e80c0747ba219566f",
+  "name": "ProduceDescriptionExamEffect.yaml",
+  "size": 28553,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceDescriptionExamEffect.yaml"
+ },
+ {
+  "git_blob_sha": "199272ce9b3df4f8f1d34c97716f3b672f520112",
+  "name": "ProduceDescriptionLabel.yaml",
+  "size": 815246,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceDescriptionLabel.yaml"
+ },
+ {
+  "git_blob_sha": "dbd1e52312725c8d843d2a95573665dea6793c3f",
+  "name": "ProduceDescriptionProduceCardGrowEffect.yaml",
+  "size": 12229,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceDescriptionProduceCardGrowEffect.yaml"
+ },
+ {
+  "git_blob_sha": "9f3ae2d9e162423c2df085efc42d619d15ff7742",
+  "name": "ProduceDescriptionProduceCardMoveEffectTrigger.yaml",
+  "size": 12328,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceDescriptionProduceCardMoveEffectTrigger.yaml"
+ },
+ {
+  "git_blob_sha": "182d44be5afd517532dbebfc7108d8b7da437725",
+  "name": "ProduceDescriptionProduceCardMovePosition.yaml",
+  "size": 1103,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceDescriptionProduceCardMovePosition.yaml"
+ },
+ {
+  "git_blob_sha": "ce7624951599b6c3a512307d48d56c2035be83c3",
+  "name": "ProduceDescriptionProduceEffect.yaml",
+  "size": 11436,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceDescriptionProduceEffect.yaml"
+ },
+ {
+  "git_blob_sha": "44956f8e3d4e51e2dce3949a7abbb640e114d3d3",
+  "name": "ProduceDescriptionProducePlan.yaml",
+  "size": 705,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceDescriptionProducePlan.yaml"
+ },
+ {
+  "git_blob_sha": "03b6743ca607d052e3351136d5207b6e5115d73e",
+  "name": "ProduceDescriptionProduceStep.yaml",
+  "size": 234,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceDescriptionProduceStep.yaml"
+ },
+ {
+  "git_blob_sha": "d1f88e64009fd95ba896bd350feb28e4fbe3d0fb",
+  "name": "ProduceDescriptionProduceType.yaml",
+  "size": 868,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceDescriptionProduceType.yaml"
+ },
+ {
+  "git_blob_sha": "2c56faa24ac4ecdd6d2946dc7c63422647be3a2a",
+  "name": "ProduceDescriptionSwap.yaml",
+  "size": 9238,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceDescriptionSwap.yaml"
+ },
+ {
+  "git_blob_sha": "2a58ea9608da0ad122fc542881ff4c8e669bcdfe",
+  "name": "ProduceDrink.yaml",
+  "size": 252572,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceDrink.yaml"
+ },
+ {
+  "git_blob_sha": "e53705ef523cf7bfb97d3f7cadb4bbd56d39a337",
+  "name": "ProduceDrinkEffect.yaml",
+  "size": 7659,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceDrinkEffect.yaml"
+ },
+ {
+  "git_blob_sha": "e8eb487dbe912211c2c72163be6af67b722aab3d",
+  "name": "ProduceEffect.yaml",
+  "size": 1080614,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceEffect.yaml"
+ },
+ {
+  "git_blob_sha": "e541a66c71f2736091c81ef913e34a9aa1b98793",
+  "name": "ProduceEffectIcon.yaml",
+  "size": 24200,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceEffectIcon.yaml"
+ },
+ {
+  "git_blob_sha": "6676e7aa6c7150010ac45f3e2e1e84357edd5e75",
+  "name": "ProduceEventCharacterGrowth.yaml",
+  "size": 8409,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceEventCharacterGrowth.yaml"
+ },
+ {
+  "git_blob_sha": "42e58e64f2c46a956ebde5e165b3a5f1a490029d",
+  "name": "ProduceEventSupportCard.yaml",
+  "size": 68601,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceEventSupportCard.yaml"
+ },
+ {
+  "git_blob_sha": "b2447114144feb250a4515708e08557a075a7b62",
+  "name": "ProduceExamAutoCardSelectEvaluation.yaml",
+  "size": 45043,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamAutoCardSelectEvaluation.yaml"
+ },
+ {
+  "git_blob_sha": "13d2e481b8de1a7cda657c0ff4f0604197d68e06",
+  "name": "ProduceExamAutoEvaluation.yaml",
+  "size": 2735854,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamAutoEvaluation.yaml"
+ },
+ {
+  "git_blob_sha": "ecb37ea7e6ab304ccb9273849c9ab77ed846c89a",
+  "name": "ProduceExamAutoGrowEffectEvaluation.yaml",
+  "size": 882607,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamAutoGrowEffectEvaluation.yaml"
+ },
+ {
+  "git_blob_sha": "bcdd8b2c3cbedbaee537f5f5e9b5f01a768246b0",
+  "name": "ProduceExamAutoPlayCardEvaluation.yaml",
+  "size": 240595,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamAutoPlayCardEvaluation.yaml"
+ },
+ {
+  "git_blob_sha": "cda771e049216affe6c5e76210e2d2c2588bc4be",
+  "name": "ProduceExamAutoPlayProduceCardEvaluation.yaml",
+  "size": 105337,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamAutoPlayProduceCardEvaluation.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "ProduceExamAutoResourceEvaluation.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamAutoResourceEvaluation.yaml"
+ },
+ {
+  "git_blob_sha": "711148890d99e526823276e00588e2bcd49dbf88",
+  "name": "ProduceExamAutoTriggerEvaluation.yaml",
+  "size": 61656,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamAutoTriggerEvaluation.yaml"
+ },
+ {
+  "git_blob_sha": "99ffe03094fbe80ba836625634f414412e3c36c4",
+  "name": "ProduceExamBattleConfig.yaml",
+  "size": 244725,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamBattleConfig.yaml"
+ },
+ {
+  "git_blob_sha": "b830d03eb05aea608b407efc69c58542019520fa",
+  "name": "ProduceExamBattleNpcGroup.yaml",
+  "size": 3675331,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamBattleNpcGroup.yaml"
+ },
+ {
+  "git_blob_sha": "010905e5534d16365ba85c833119964c7c4167cd",
+  "name": "ProduceExamBattleNpcMob.yaml",
+  "size": 5780,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamBattleNpcMob.yaml"
+ },
+ {
+  "git_blob_sha": "f1eade97648430b8348bb2950e97ede66a18f353",
+  "name": "ProduceExamBattleScoreConfig.yaml",
+  "size": 631201,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamBattleScoreConfig.yaml"
+ },
+ {
+  "git_blob_sha": "84938da23e226c0ddef495f3baf3479379b64f77",
+  "name": "ProduceExamEffect.yaml",
+  "size": 34575766,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamEffect.yaml"
+ },
+ {
+  "git_blob_sha": "e2cf22d2e34a42ae01fc6c7f1b8209a234ed3fec",
+  "name": "ProduceExamGimmickEffectGroup.yaml",
+  "size": 24962527,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamGimmickEffectGroup.yaml"
+ },
+ {
+  "git_blob_sha": "23616511314bd46ef478e1ee4686070e10ae489b",
+  "name": "ProduceExamStatusEnchant.yaml",
+  "size": 31043523,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamStatusEnchant.yaml"
+ },
+ {
+  "git_blob_sha": "f1b84af49024c0a8af2835eb33aa2ecb21e1e4c4",
+  "name": "ProduceExamTrigger.yaml",
+  "size": 4957900,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceExamTrigger.yaml"
+ },
+ {
+  "git_blob_sha": "97c2c5c385aa7309c2aec8602d8fb77439a0efa9",
+  "name": "ProduceGrade.yaml",
+  "size": 3898,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceGrade.yaml"
+ },
+ {
+  "git_blob_sha": "a675f7f0cca6244b710a90aed02fb16f3a908625",
+  "name": "ProduceGroup.yaml",
+  "size": 1964,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceGroup.yaml"
+ },
+ {
+  "git_blob_sha": "7283386cc5d0183f922dada58ede0b7b4aa3c842",
+  "name": "ProduceGroupCharacter.yaml",
+  "size": 149,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceGroupCharacter.yaml"
+ },
+ {
+  "git_blob_sha": "7085d68b72c87c81158efc74fb9b06d3bc2f39df",
+  "name": "ProduceGroupLiveCommon.yaml",
+  "size": 66957,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceGroupLiveCommon.yaml"
+ },
+ {
+  "git_blob_sha": "85a7819b0eccb6940befc401aaa0f105539c020e",
+  "name": "ProduceGrowthPanel.yaml",
+  "size": 187295,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceGrowthPanel.yaml"
+ },
+ {
+  "git_blob_sha": "a63368710e1180c87e965a75a0508e34fb72460c",
+  "name": "ProduceGrowthPanelSheet.yaml",
+  "size": 235,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceGrowthPanelSheet.yaml"
+ },
+ {
+  "git_blob_sha": "261f4ff0bb4851a8ba38609548cd852fa2104702",
+  "name": "ProduceGuide.yaml",
+  "size": 63023,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceGuide.yaml"
+ },
+ {
+  "git_blob_sha": "bc268f98a0dc5df2c9c8daa5e270529d601d7d1d",
+  "name": "ProduceGuideProduceCardCategory.yaml",
+  "size": 18066,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceGuideProduceCardCategory.yaml"
+ },
+ {
+  "git_blob_sha": "f3df0d61a81b92a8d0d0638a2630fddfebc5ccd2",
+  "name": "ProduceGuideProduceCardCategoryGroup.yaml",
+  "size": 6091,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceGuideProduceCardCategoryGroup.yaml"
+ },
+ {
+  "git_blob_sha": "22c7b5fa837ebbe7ecdcc4947d62b1285c8d79ad",
+  "name": "ProduceGuideProduceCardSampleDeckCategory.yaml",
+  "size": 15903,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceGuideProduceCardSampleDeckCategory.yaml"
+ },
+ {
+  "git_blob_sha": "62544b018c186aaaaeb3360098c63bc2cbb61a0a",
+  "name": "ProduceGuideProduceCardSampleDeckCategoryGroup.yaml",
+  "size": 5411,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceGuideProduceCardSampleDeckCategoryGroup.yaml"
+ },
+ {
+  "git_blob_sha": "73bdf216ce26054dea2afcdf69c5fc0dc58eb981",
+  "name": "ProduceHighScore.yaml",
+  "size": 4938,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceHighScore.yaml"
+ },
+ {
+  "git_blob_sha": "8006a72a02d8a916861fa5f1917dbac056d67567",
+  "name": "ProduceInitialDeck.yaml",
+  "size": 6829,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceInitialDeck.yaml"
+ },
+ {
+  "git_blob_sha": "ac7c716083215871b782df79e3aa9c3a066897aa",
+  "name": "ProduceItem.yaml",
+  "size": 21208305,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceItem.yaml"
+ },
+ {
+  "git_blob_sha": "01b69369a933c2df4d431bb8f7bd6296f4fe6015",
+  "name": "ProduceItemChallengeGroup.yaml",
+  "size": 66693,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceItemChallengeGroup.yaml"
+ },
+ {
+  "git_blob_sha": "bef19394c1de1e67e2e19d6918e580f0f9abfc8e",
+  "name": "ProduceItemEffect.yaml",
+  "size": 281516,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceItemEffect.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "ProduceItemSimulation.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceItemSimulation.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "ProduceItemSimulationGroup.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceItemSimulationGroup.yaml"
+ },
+ {
+  "git_blob_sha": "7c225ce2ccd733c698c223b5e57e46e5e83a733c",
+  "name": "ProduceLegendProduceCard.yaml",
+  "size": 1376,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceLegendProduceCard.yaml"
+ },
+ {
+  "git_blob_sha": "6f379321fa2da725e59767e03dd6db3005baaa31",
+  "name": "ProduceLive.yaml",
+  "size": 222993,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceLive.yaml"
+ },
+ {
+  "git_blob_sha": "b51503f82a233b039ef6188e5e74661683fb4308",
+  "name": "ProduceLiveEvaluation.yaml",
+  "size": 33569,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceLiveEvaluation.yaml"
+ },
+ {
+  "git_blob_sha": "dec4c1da4fc92586c2d151fda9989b0fe0021de6",
+  "name": "ProduceNavigation.yaml",
+  "size": 67575,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceNavigation.yaml"
+ },
+ {
+  "git_blob_sha": "d0ce5e4c76719253bc5cdc8c0af543157d4460cc",
+  "name": "ProduceNextIdolAuditionMasterRankingSeason.yaml",
+  "size": 473,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceNextIdolAuditionMasterRankingSeason.yaml"
+ },
+ {
+  "git_blob_sha": "bd88068ace53f56256dc590fd5a740fb930cd400",
+  "name": "ProduceResultMotion.yaml",
+  "size": 88166,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceResultMotion.yaml"
+ },
+ {
+  "git_blob_sha": "37d815c83aa15b9229e2eb6ea21821d3e5547bf9",
+  "name": "ProduceScheduleBackground.yaml",
+  "size": 3134,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceScheduleBackground.yaml"
+ },
+ {
+  "git_blob_sha": "48540b44e087301bd8b25649b1cf5dd9412f6be7",
+  "name": "ProduceScheduleMotion.yaml",
+  "size": 392721,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceScheduleMotion.yaml"
+ },
+ {
+  "git_blob_sha": "5ec1fa9f486671ea02718c3592d52c681075bec4",
+  "name": "ProduceSeason.yaml",
+  "size": 483,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceSeason.yaml"
+ },
+ {
+  "git_blob_sha": "1608b9837a8ae79e622f6a2951b38cd4a2aa8af0",
+  "name": "ProduceSeasonZeroGrade.yaml",
+  "size": 2379,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceSeasonZeroGrade.yaml"
+ },
+ {
+  "git_blob_sha": "d55c74591927b0b2f9ed12a3d1408b2b9370fc18",
+  "name": "ProduceSetting.yaml",
+  "size": 4967,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceSetting.yaml"
+ },
+ {
+  "git_blob_sha": "1cc85d4b3b937d7d050c102110978016410a3c7b",
+  "name": "ProduceSkill.yaml",
+  "size": 8280714,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceSkill.yaml"
+ },
+ {
+  "git_blob_sha": "2e2bcf77db3cb8da9ccabcd5260d02c079ec1d5a",
+  "name": "ProduceSplitAdv.yaml",
+  "size": 6394,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceSplitAdv.yaml"
+ },
+ {
+  "git_blob_sha": "81559eccfc6343c5e2d7607db189f1550f7c7f0a",
+  "name": "ProduceStartMotion.yaml",
+  "size": 8335,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStartMotion.yaml"
+ },
+ {
+  "git_blob_sha": "8ac21a422a868e3d3e8ee26dfe8428814ca12076",
+  "name": "ProduceStepAuditionCharacter.yaml",
+  "size": 24091,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepAuditionCharacter.yaml"
+ },
+ {
+  "git_blob_sha": "3abbe32c1efb9bdaa851af1adbd80923e2e6a432",
+  "name": "ProduceStepAuditionCharacterBgm.yaml",
+  "size": 8297,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepAuditionCharacterBgm.yaml"
+ },
+ {
+  "git_blob_sha": "3249948bd14bc63293720a80ab305b06c3f42d84",
+  "name": "ProduceStepAuditionCharacterUnitMotion.yaml",
+  "size": 26327,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepAuditionCharacterUnitMotion.yaml"
+ },
+ {
+  "git_blob_sha": "52e4b374beba8cf01ae4084719d02cb3c384d560",
+  "name": "ProduceStepAuditionDifficulty.yaml",
+  "size": 2973983,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepAuditionDifficulty.yaml"
+ },
+ {
+  "git_blob_sha": "754b02c721b7542d3d0e3d3064403a2951bdfd5e",
+  "name": "ProduceStepAuditionMotion.yaml",
+  "size": 505703,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepAuditionMotion.yaml"
+ },
+ {
+  "git_blob_sha": "277e759bc3e6250fb2e3cf21b96cc17afe522678",
+  "name": "ProduceStepAuditionRivalActor.yaml",
+  "size": 3054,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepAuditionRivalActor.yaml"
+ },
+ {
+  "git_blob_sha": "e04b8d5317f18c8932c0e39ec16163a9a6645884",
+  "name": "ProduceStepAuditionRivalActorMotion.yaml",
+  "size": 545,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepAuditionRivalActorMotion.yaml"
+ },
+ {
+  "git_blob_sha": "0c0a49f1850edaaae3a24359e60c3ab875b3fca0",
+  "name": "ProduceStepEventDetail.yaml",
+  "size": 14488725,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepEventDetail.yaml"
+ },
+ {
+  "git_blob_sha": "b626c351ea5ed10822bd513101516d7b3cabfb92",
+  "name": "ProduceStepEventSuggestion.yaml",
+  "size": 11730777,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepEventSuggestion.yaml"
+ },
+ {
+  "git_blob_sha": "03ad6130bbf99d582d1182d6c8ea4ae475c42105",
+  "name": "ProduceStepFanPresentMotion.yaml",
+  "size": 8115,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepFanPresentMotion.yaml"
+ },
+ {
+  "git_blob_sha": "c75f0162f575e83b2b63026fe22b8afff27fa64d",
+  "name": "ProduceStepLesson.yaml",
+  "size": 143078,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepLesson.yaml"
+ },
+ {
+  "git_blob_sha": "0742bed4246aff6ea7d6f6a5518b7167e236e84b",
+  "name": "ProduceStepLessonLevel.yaml",
+  "size": 24022,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepLessonLevel.yaml"
+ },
+ {
+  "git_blob_sha": "1ba1726ea360b91d4e28a8ece6daeb48e7b4c60f",
+  "name": "ProduceStepOpenLesson.yaml",
+  "size": 7995,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepOpenLesson.yaml"
+ },
+ {
+  "git_blob_sha": "9f951bd604af37839321ae2ac8090e54bce188e8",
+  "name": "ProduceStepOpenLessonMotion.yaml",
+  "size": 166741,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepOpenLessonMotion.yaml"
+ },
+ {
+  "git_blob_sha": "dccda2c42800ca5790ba6ad8d9c00b1c6bd04b1c",
+  "name": "ProduceStepSelfLesson.yaml",
+  "size": 520,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepSelfLesson.yaml"
+ },
+ {
+  "git_blob_sha": "2548a9e98c3fa63b5f3a364a8cfdc886b9befff8",
+  "name": "ProduceStepSelfLessonMotion.yaml",
+  "size": 181418,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepSelfLessonMotion.yaml"
+ },
+ {
+  "git_blob_sha": "f8ef88dc6acedf6cea68c992f2dbd07e256c61ae",
+  "name": "ProduceStepTransition.yaml",
+  "size": 1592825,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStepTransition.yaml"
+ },
+ {
+  "git_blob_sha": "3e509f31993afcaa58b27c0840483c80e8e2c2c5",
+  "name": "ProduceStory.yaml",
+  "size": 1192461,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStory.yaml"
+ },
+ {
+  "git_blob_sha": "1469bd1c344fe3dc9fa6179d49b0cdb21a9bc03b",
+  "name": "ProduceStoryGroup.yaml",
+  "size": 238243,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceStoryGroup.yaml"
+ },
+ {
+  "git_blob_sha": "e64061a59e3d782f0d3fe04ef406179fb38f6ced",
+  "name": "ProduceTrigger.yaml",
+  "size": 22389,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceTrigger.yaml"
+ },
+ {
+  "git_blob_sha": "f89671dc492e57fa4f8bf6f7dc699ce8c6cb2258",
+  "name": "ProduceWeekMotion.yaml",
+  "size": 71375,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProduceWeekMotion.yaml"
+ },
+ {
+  "git_blob_sha": "b93973610cb1e9c82685c6ae7efc37b711dd1ace",
+  "name": "ProducerLevel.yaml",
+  "size": 30284,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProducerLevel.yaml"
+ },
+ {
+  "git_blob_sha": "74f642d854b0c0d9146462f20ddd22080f2d3d42",
+  "name": "ProducerRanking.yaml",
+  "size": 3131,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProducerRanking.yaml"
+ },
+ {
+  "git_blob_sha": "58fdb7e6cbc7cc431748f6657a7306ebde0d1ead",
+  "name": "ProducerRankingCharacter.yaml",
+  "size": 1035,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProducerRankingCharacter.yaml"
+ },
+ {
+  "git_blob_sha": "f24a49ed83cde923fd3cd6ce5d303919c51de459",
+  "name": "ProducerRankingProduce.yaml",
+  "size": 1199,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProducerRankingProduce.yaml"
+ },
+ {
+  "git_blob_sha": "1ea8739181482280235c5df6337c2078a956580e",
+  "name": "ProducerRankingRankGrade.yaml",
+  "size": 3795,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProducerRankingRankGrade.yaml"
+ },
+ {
+  "git_blob_sha": "e36c42db28fd7c10f2a75ac4b301e2a9013d4917",
+  "name": "ProducerRankingTower.yaml",
+  "size": 6313,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ProducerRankingTower.yaml"
+ },
+ {
+  "git_blob_sha": "b4fef395ac10a20820bb2bf192efcc4d505aabbe",
+  "name": "PvpRateCommonProduceCard.yaml",
+  "size": 3005,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/PvpRateCommonProduceCard.yaml"
+ },
+ {
+  "git_blob_sha": "556215016c875539a52e6b74e4b2785f7f16a764",
+  "name": "PvpRateConfig.yaml",
+  "size": 109291,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/PvpRateConfig.yaml"
+ },
+ {
+  "git_blob_sha": "44aa67902dd97dfeafd2da79b28cd932041718b5",
+  "name": "PvpRateMotion.yaml",
+  "size": 16151,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/PvpRateMotion.yaml"
+ },
+ {
+  "git_blob_sha": "5b9fdcc7e5945fcab4d88b6f493e1f1e973fefa6",
+  "name": "PvpRateUnitSlotUnlock.yaml",
+  "size": 511,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/PvpRateUnitSlotUnlock.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "RefineAdv.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/RefineAdv.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "RefineDefaultMemory.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/RefineDefaultMemory.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "RefinePark.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/RefinePark.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "RefineProduceCardCustomizeGroup.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/RefineProduceCardCustomizeGroup.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "RefineSetting.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/RefineSetting.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "RefineStartMotion.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/RefineStartMotion.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "RefineStepAudition.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/RefineStepAudition.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "RefineStepAuditionMotion.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/RefineStepAuditionMotion.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "RefineStepSetupCost.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/RefineStepSetupCost.yaml"
+ },
+ {
+  "git_blob_sha": "a267e7031b4e4be546b6df92e497b007f1b0f17b",
+  "name": "ResearchMemoryRerollCost.yaml",
+  "size": 2642,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ResearchMemoryRerollCost.yaml"
+ },
+ {
+  "git_blob_sha": "847bf3da9bd718bf0f81508d11083662a82fd826",
+  "name": "ResultGradePattern.yaml",
+  "size": 5036,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ResultGradePattern.yaml"
+ },
+ {
+  "git_blob_sha": "f6053512e83fbc3a6c37f6c16426d50e3b340cf4",
+  "name": "Rule.yaml",
+  "size": 663980,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Rule.yaml"
+ },
+ {
+  "git_blob_sha": "d26346598a520d614572bc4564d96c0750b63ad6",
+  "name": "SeminarExamTransition.yaml",
+  "size": 7061,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SeminarExamTransition.yaml"
+ },
+ {
+  "git_blob_sha": "a2166509404091e6207766adcce51d435795ab3a",
+  "name": "Setting.yaml",
+  "size": 11791,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Setting.yaml"
+ },
+ {
+  "git_blob_sha": "c8799f6a6b5dc05cb08b96f42134795677829f6f",
+  "name": "Shop.yaml",
+  "size": 1105,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Shop.yaml"
+ },
+ {
+  "git_blob_sha": "6eaadbdf827f626b25b85882b8a273b90c62fc14",
+  "name": "ShopItem.yaml",
+  "size": 265514,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ShopItem.yaml"
+ },
+ {
+  "git_blob_sha": "cdf0f60ef8a3f8f8f5ae72229c383630bb2e06a2",
+  "name": "ShopProduct.yaml",
+  "size": 3343,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/ShopProduct.yaml"
+ },
+ {
+  "git_blob_sha": "cbd6bac4662e9712e1d83c63b899f3bb6fb13ce3",
+  "name": "Story.yaml",
+  "size": 145011,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Story.yaml"
+ },
+ {
+  "git_blob_sha": "5e682b7f8fa80c7548871dbc7119047492520104",
+  "name": "StoryEvent.yaml",
+  "size": 14689,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/StoryEvent.yaml"
+ },
+ {
+  "git_blob_sha": "7a822d635ac0fb25a3da2eac12b7c61c18718632",
+  "name": "StoryGroup.yaml",
+  "size": 58298,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/StoryGroup.yaml"
+ },
+ {
+  "git_blob_sha": "922346166c26e832d6910041c16f3c19739fb377",
+  "name": "SupportCard.yaml",
+  "size": 407326,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SupportCard.yaml"
+ },
+ {
+  "git_blob_sha": "3854e0c81bedd305647b63a4cfaa80e35dfde1b1",
+  "name": "SupportCardBonus.yaml",
+  "size": 947,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SupportCardBonus.yaml"
+ },
+ {
+  "git_blob_sha": "9377d27e4abbc06dc80a2106c8ba82aab49a29e9",
+  "name": "SupportCardFlavor.yaml",
+  "size": 112121,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SupportCardFlavor.yaml"
+ },
+ {
+  "git_blob_sha": "432dc0fbc1223b5e05123ace06ba458a332e2a4f",
+  "name": "SupportCardLevel.yaml",
+  "size": 9048,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SupportCardLevel.yaml"
+ },
+ {
+  "git_blob_sha": "23b63bc4fd52c3d3ce6d9ba8d6acb7d6f033aab0",
+  "name": "SupportCardLevelLimit.yaml",
+  "size": 1379,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SupportCardLevelLimit.yaml"
+ },
+ {
+  "git_blob_sha": "da353d11edeb105d47b65d4fc91c4643df91bb89",
+  "name": "SupportCardProduceSkillFilter.yaml",
+  "size": 22031,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SupportCardProduceSkillFilter.yaml"
+ },
+ {
+  "git_blob_sha": "085fc583a81fb3fe072658ef409f003f32a27ba8",
+  "name": "SupportCardProduceSkillLevelAssist.yaml",
+  "size": 67311,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SupportCardProduceSkillLevelAssist.yaml"
+ },
+ {
+  "git_blob_sha": "ea24eba9aed32358de185fc6d5b1a81e56a6ca44",
+  "name": "SupportCardProduceSkillLevelDance.yaml",
+  "size": 1095785,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SupportCardProduceSkillLevelDance.yaml"
+ },
+ {
+  "git_blob_sha": "b64cd759bd837422fc526acb3058569dd05968f5",
+  "name": "SupportCardProduceSkillLevelVisual.yaml",
+  "size": 1202084,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SupportCardProduceSkillLevelVisual.yaml"
+ },
+ {
+  "git_blob_sha": "61dd72bebe9996977f3af679b70cfd18bf87d251",
+  "name": "SupportCardProduceSkillLevelVocal.yaml",
+  "size": 1233132,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SupportCardProduceSkillLevelVocal.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "SupportCardSimulation.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SupportCardSimulation.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "SupportCardSimulationGroup.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/SupportCardSimulationGroup.yaml"
+ },
+ {
+  "git_blob_sha": "0a7fa36415c7e6295a9d28d24e5c249921156c26",
+  "name": "Terms.yaml",
+  "size": 370,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Terms.yaml"
+ },
+ {
+  "git_blob_sha": "c0e7615e4a285d6d93a5a76a893249bddc541682",
+  "name": "Tips.yaml",
+  "size": 8440,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Tips.yaml"
+ },
+ {
+  "git_blob_sha": "01b8a78bf6a0df17f91faf2362c7b59b1ac60f5b",
+  "name": "TitleAsset.yaml",
+  "size": 2331,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/TitleAsset.yaml"
+ },
+ {
+  "git_blob_sha": "40736e67d1c1be0770a937eb4627a568a48e90ce",
+  "name": "TitleVoice.yaml",
+  "size": 1985,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/TitleVoice.yaml"
+ },
+ {
+  "git_blob_sha": "232911f1e03e116bf6aa2ae78c4f6cf09bbb0a34",
+  "name": "Tour.yaml",
+  "size": 1593,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Tour.yaml"
+ },
+ {
+  "git_blob_sha": "07b28815d55f3c99fc875714d6ba059227d916e0",
+  "name": "TourMotion.yaml",
+  "size": 7762,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/TourMotion.yaml"
+ },
+ {
+  "git_blob_sha": "f0cff9598cff51fe1ae20590bcc5a72386d28e71",
+  "name": "TourStageTimeline.yaml",
+  "size": 4649,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/TourStageTimeline.yaml"
+ },
+ {
+  "git_blob_sha": "32db25af2d906f26ae618e14ba2f4f2408530bd2",
+  "name": "Tower.yaml",
+  "size": 2835,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Tower.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "TowerLayer.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/TowerLayer.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "TowerLayerExam.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/TowerLayerExam.yaml"
+ },
+ {
+  "git_blob_sha": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+  "name": "TowerLayerRank.yaml",
+  "size": 0,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/TowerLayerRank.yaml"
+ },
+ {
+  "git_blob_sha": "a825c784a594af622352e48a9805d192d0960080",
+  "name": "TowerReset.yaml",
+  "size": 96043,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/TowerReset.yaml"
+ },
+ {
+  "git_blob_sha": "d122607ee877ec187cf557f778db2b3bbd7fec8a",
+  "name": "TowerTotalClearRankReward.yaml",
+  "size": 12542,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/TowerTotalClearRankReward.yaml"
+ },
+ {
+  "git_blob_sha": "89d1a69f0685e206d8131ae51227c83833166a38",
+  "name": "Tutorial.yaml",
+  "size": 106944,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Tutorial.yaml"
+ },
+ {
+  "git_blob_sha": "4744f97800d06ff4806e58de55639df20970fed1",
+  "name": "TutorialCharacterVoice.yaml",
+  "size": 2536,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/TutorialCharacterVoice.yaml"
+ },
+ {
+  "git_blob_sha": "1b98289c24ee0269a0313182dbfdfb4614ac9aec",
+  "name": "TutorialProduce.yaml",
+  "size": 2153,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/TutorialProduce.yaml"
+ },
+ {
+  "git_blob_sha": "2d439682188f4e997de34cddbc0286f59b7c016e",
+  "name": "TutorialProduceStep.yaml",
+  "size": 5874,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/TutorialProduceStep.yaml"
+ },
+ {
+  "git_blob_sha": "4fc4ac0201dde3bee0cabdc05ff2a65db3824f75",
+  "name": "Voice.yaml",
+  "size": 10287,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Voice.yaml"
+ },
+ {
+  "git_blob_sha": "043fc22f17488ab125210fe6e4ae9055a7a9bb43",
+  "name": "VoiceGroup.yaml",
+  "size": 740277,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/VoiceGroup.yaml"
+ },
+ {
+  "git_blob_sha": "25d5972a7eeb5ace974438cc28e040fe0dcb5b0b",
+  "name": "VoiceRoster.yaml",
+  "size": 452246,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/VoiceRoster.yaml"
+ },
+ {
+  "git_blob_sha": "8bed609f3044d3e763e4b0dc2449275d3a7a4d18",
+  "name": "Work.yaml",
+  "size": 335,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/Work.yaml"
+ },
+ {
+  "git_blob_sha": "49c04dcb8a7fd0143b22ffb7ea1f6016ebefbeeb",
+  "name": "WorkLevel.yaml",
+  "size": 2039,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/WorkLevel.yaml"
+ },
+ {
+  "git_blob_sha": "87cac1f9256febc98ee3dfed82d1178887532ec0",
+  "name": "WorkLevelReward.yaml",
+  "size": 432445,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/WorkLevelReward.yaml"
+ },
+ {
+  "git_blob_sha": "96019d09233d3cf39a92c7938436237837db0f17",
+  "name": "WorkMotion.yaml",
+  "size": 16084,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/WorkMotion.yaml"
+ },
+ {
+  "git_blob_sha": "c9712e33a707aa68b6177c870d8d803ff45b9856",
+  "name": "WorkSkip.yaml",
+  "size": 204,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/WorkSkip.yaml"
+ },
+ {
+  "git_blob_sha": "8782e5e8a1b2d3b504bfa676c57e2943b07686d7",
+  "name": "WorkTime.yaml",
+  "size": 620,
+  "url": "https://raw.githubusercontent.com/vertesan/gakumasu-diff/928da0de728506cac1e90deeffd4e0f9aa56fa27/WorkTime.yaml"
+ }
+]

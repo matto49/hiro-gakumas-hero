@@ -1,6 +1,10 @@
 package labels
 
-import "testing"
+import (
+	"encoding/json"
+	"os"
+	"testing"
+)
 
 func TestLogTextStripsPrefix(t *testing.T) {
 	cases := map[string]string{
@@ -94,9 +98,29 @@ func TestExam(t *testing.T) {
 	for in, want := range map[string]string{
 		"hajime-final": "最终考试", "hajime-mid1": "中间考试", "hajime-lesson-vo-hard": "追い込み Vo 课程",
 		"hajime-lesson-da": "Da 课程", "hajime-lesson-vi-sp": "SP Vi 课程", "hajime-lesson": "课程",
-		"nia-mid2": "第 2 次中间考试", "nia-final#2": "最终考试", "r1": "第 1 场选拔", "tower-12": "第 12 层", "weird": "weird",
+		"nia-mid2": "第 2 次中间考试", "nia-final#2": "最终考试", "r1": "本战 R1", "tower-12": "第 12 层", "weird": "weird",
 		"hajime-lesson-vo-custom": "hajime-lesson-vo-custom", "hajime-lesson-xx": "hajime-lesson-xx", "hajime-lessonx": "hajime-lessonx",
 	} {
+		if got := Exam(in); got != want {
+			t.Errorf("Exam(%q) = %q，要 %q", in, got, want)
+		}
+	}
+}
+
+// 用例和复盘页（tools/viewer/build_exam_view.py 的 exam_name）共用，改一边要两边同步。
+func TestExamSharedCases(t *testing.T) {
+	raw, err := os.ReadFile("testdata/exam_names.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases map[string]string
+	if err := json.Unmarshal(raw, &cases); err != nil {
+		t.Fatal(err)
+	}
+	if len(cases) < 10 {
+		t.Fatalf("用例太少：%d", len(cases))
+	}
+	for in, want := range cases {
 		if got := Exam(in); got != want {
 			t.Errorf("Exam(%q) = %q，要 %q", in, got, want)
 		}

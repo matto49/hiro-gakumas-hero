@@ -79,7 +79,12 @@ if (Get-Command cargo -ErrorAction SilentlyContinue) {
     uv pip install --python $Py -q maturin
     $env:VIRTUAL_ENV = Join-Path $Root ".venv"
     & $Py -m maturin develop --release -q -m vendor/gakumas-player/gakumas_exam_rs/Cargo.toml
-    if ($LASTEXITCODE) { Write-Host "  ⚠ Rust 后端没编译成：考试引擎用 Python 版（结果相同，慢一些）" }
+    if ($LASTEXITCODE) {
+        # 本地编译不成（N45，G3 第 3 轮 11-26：gnu 工具链没 gcc，mimalloc 编不了）就改下预编译包，都不行才用 Python 版
+        Write-Host "  Rust 后端没编译成，改下载预编译包…"
+        & $Py scripts/engine_rs.py install --python $Py
+        if ($LASTEXITCODE) { Write-Host "  ⚠ Rust 后端没装上：考试引擎用 Python 版（结果相同，慢一些）" }
+    }
 } else {
     Write-Host "  没有 Rust 工具链（cargo）：下载预编译的 Rust 后端…"
     & $Py scripts/engine_rs.py install --python $Py

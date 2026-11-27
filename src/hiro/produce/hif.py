@@ -42,12 +42,22 @@ TAP_RETRIES = 2
 EXAM_END_LOOP_TIMEOUT = 90.0  # 考试结束后点「次へ」/ 结果页的总时长上限
 
 
+def _drink_skip_done(boxes) -> bool:
+    """勾「受け取らない」、点了底部按钮之后：出了「報酬スキップ」确认框，或画面上读得到字、「所持上限」红标没了，就算点成了。
+    一个字都没读到（转场 / OCR 失败）不算证据，按没点成接着重试（#183 review）。"""
+    texts = [t.text for t in boxes if t.text.strip()]
+    if any("スキップ" in t for t in texts):
+        return True
+    return bool(texts) and not any("所持上限" in t for t in texts)
+
+
 def drink_full_auto() -> bool:
-    """开关 HIRO_DRINK_FULL_AUTO=1（默认关，协调 11-17）：选饮料页饮料已满时，LLM 给出的换 / 不换也照执行（原来只认 rule / sim，
-    初 REGULAR 实机 LLM 和规则结论一样还是被当成「认不出」停机）；决策认不出（兜底）时默认跳过这瓶，不停机。"""
+    """开关 HIRO_DRINK_FULL_AUTO（用户 11-26 21:4x 定缺省开；=0 关，协调 11-17 原来缺省关）：选饮料页饮料已满时，
+    LLM 给出的换 / 不换也照执行（原来只认 rule / sim，初 REGULAR 实机 LLM 和规则结论一样还是被当成「认不出」停机）；
+    决策认不出（兜底）时默认跳过这瓶，不停机。换饮料策略按偶像流派定档、同档按社区顺序（#135）。"""
     import os
 
-    return os.environ.get("HIRO_DRINK_FULL_AUTO") == "1"
+    return os.environ.get("HIRO_DRINK_FULL_AUTO", "1").strip() != "0"
 
 
 def _page_name(page) -> str | None:
@@ -806,6 +816,7 @@ class HifCore:
         self.s.record(obs, decision=d, execution=result, timings_ms={"total": (time.monotonic() - t0) * 1000})
 
     DRINK_FULL_SOURCES = ("rule", "sim")
+    DRINK_SKIP_TRIES = 2  # 勾「受け取らない」→ 点按钮后画面没变，再来几次
 
     def _drink_full_skip(self) -> bool:
         """饮料已满（「Pドリンク所持上限」，「受け取る」不可点）：勾「受け取らない」再按按钮。返回是否走了这条路。"""
@@ -849,7 +860,7 @@ class HifCore:
             if d.source == "llm":
                 # G1-F8（11-26）：规则拿不准、LLM 给了换 / 不换，原来也写「认不出」，小白看不懂为什么停
                 why = (f"饮料已满（所持上限），规则拿不准换不换，LLM 的意见是「{d.reason}」；"
-                       "缺省只照规则 / 模拟的换饮料决定执行（设置 HIRO_DRINK_FULL_AUTO=1 才照 LLM 执行），请手动选一下")  # fmt: skip
+                       "现在只照规则 / 模拟的换饮料决定执行（HIRO_DRINK_FULL_AUTO 被设成了 0），请手动选一下")  # fmt: skip
             else:
                 why = f"饮料已满（所持上限），持有或新饮料认不出，不能判断换不换：{d.reason}"
             if not auto:
@@ -871,21 +882,45 @@ class HifCore:
             if not res.ok:
                 self._stop("SELECT_DRINK", f"饮料已满、决策要换，但「先丢再领」没完成：{res.error}", decision=d)
             return True
-        box = next((t for t in boxes if "受け取らない" in t.text), None)
-        if box is not None:
-            device.click(*box.rect.center)
-            sleep(0.8)
-        btn = next(
-            (
-                t
-                for t in screen_texts(device.screenshot())
-                if t.text.strip() in ("受け取る", "決定", "受け取らない") and t.rect.center.y > 1050
-            ),
-            None,
-        )
-        if btn is not None:
-            device.click(*btn.rect.center)
-        sleep(1.5)
+        # #183 review：勾选框 / 底部按钮都点到、而且画面变了（「所持上限」没了，或出了「報酬スキップ」确认）才算跳过成功；
+        # 缺省开以后这条路更常走到，点空了还记成功、设 _skip_incoming_drink，会把后面的确认放行错。没变就再来一次，还不行就停下说清楚
+        missing, ticked = "", False
+        for _ in range(self.DRINK_SKIP_TRIES):
+            # 勾选框只点一次：重试时再点会把已经勾上的取消掉（#183 review），重试只补点底部按钮
+            box = None if ticked else next((t for t in boxes if "受け取らない" in t.text), None)
+            if box is not None:
+                device.click(*box.rect.center)
+                ticked = True
+                sleep(0.8)
+            btn = next(
+                (
+                    t
+                    for t in screen_texts(device.screenshot())
+                    if t.text.strip() in ("受け取る", "決定", "受け取らない") and t.rect.center.y > 1050
+                ),
+                None,
+            )
+            if btn is not None:
+                device.click(*btn.rect.center)
+            sleep(1.5)
+            boxes = screen_texts(device.screenshot())
+            if _drink_skip_done(boxes):
+                break
+            missing = (
+                "、".join(
+                    x for x, hit in (("「受け取らない」勾选框", ticked or None), ("底部按钮", btn)) if hit is None
+                )
+                or "画面没变"
+            )
+        else:
+            why = f"饮料已满，想勾「受け取らない」跳过这瓶，但没成功（{missing}），请手动选一下"
+            result = ExecutionResult(action=d.action, ok=False, taps=[], waited_s=0.0, page_before="SELECT_DRINK", page_after=None,
+                                     expected_transition=True, retries=self.DRINK_SKIP_TRIES - 1, error=why,
+                                     seconds=round(time.monotonic() - t0, 3))  # fmt: skip
+            assert self.s is not None  # for-else 里类型收窄丢了（上面已经用过 self.s）
+            self.s.record(obs, decision=d, execution=result)
+            self._stop("SELECT_DRINK", why, obs=obs, decision=d)
+            return True
         result = ExecutionResult(action=d.action, ok=True, taps=[], waited_s=0.0, page_before="SELECT_DRINK", page_after=None,
                                  expected_transition=True, retries=0, error=None, seconds=round(time.monotonic() - t0, 3))  # fmt: skip
         self.s.record(obs, decision=d, execution=result)

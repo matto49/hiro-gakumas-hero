@@ -10,13 +10,16 @@
 from __future__ import annotations
 
 import json
+import logging
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from hiro.usage import ledger
+
+log = logging.getLogger(__name__)
 
 PRICES_FILE = Path(__file__).with_name("prices.json")
 SUBSCRIPTION = {"claude-cli", "codex-cli"}
@@ -32,12 +35,32 @@ def _price(prices: dict, provider: str | None, model: str | None) -> dict | None
     return next((m for m in prices.get("models", []) if m["provider"] == provider and m["model"] == model), None)
 
 
+# 价格表里用到的时区的固定偏移（小时）：Windows 的 Python 没有时区数据库（没装 tzdata）时 ZoneInfo 会找不到，退到这个。
+# 这些时区都没有夏令时（中国 1991 年后不用）；价格表新增别的时区时在这里补一行。
+FALLBACK_OFFSETS = {"Asia/Shanghai": 8, "Asia/Chongqing": 8, "Asia/Hong_Kong": 8, "Asia/Taipei": 8, "Asia/Singapore": 8,
+                    "Asia/Tokyo": 9, "UTC": 0}  # fmt: skip
+_warned_tz: set[str] = set()
+
+
+def _tzinfo(name: str):
+    """名字对应的时区；系统里没有时区数据时退到固定偏移（每个名字只警告一次），偏移也不知道就按北京时间。"""
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, KeyError, ValueError):
+        hours = FALLBACK_OFFSETS.get(name)
+        if name not in _warned_tz:
+            _warned_tz.add(name)
+            log.warning("找不到时区 %s（系统没有时区数据，可装 tzdata），改用固定偏移 %+d 小时算高峰时段", name,
+                        8 if hours is None else hours)  # fmt: skip
+        return timezone(timedelta(hours=8 if hours is None else hours))
+
+
 def _multiplier(entry: dict, ts: str | None) -> float:
     peak = entry.get("peak")
     if not peak or not ts:
         return 1.0
     try:
-        t = datetime.fromisoformat(ts).astimezone(ZoneInfo(peak["tz"]))
+        t = datetime.fromisoformat(ts).astimezone(_tzinfo(peak["tz"]))
     except ValueError:
         return 1.0
     if t.weekday() in peak["weekdays"] and any(a <= t.hour < b for a, b in peak["hours"]):

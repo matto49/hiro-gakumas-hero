@@ -203,3 +203,41 @@ def test_offset_contexts_compared_by_formation_and_cards(st):
     assert r["added"] == 0
     r = st.save_slice("sense:hif", [_e("b", vi=79)], mode="incremental", complete=True, context=dict(a))
     assert r["added"] == 1  # 同一个上下文照常合并
+
+
+def test_newer_whole_snapshot_beats_older_slices(st, monkeypatch):
+    """#173 review：按片扫描失败后改用整表扫描（N43），新整表不能被以前全读过的旧片遮住——出方案和「查回忆」都用更新的那份。"""
+    from hiro.cli import cmd_info
+
+    for k in msl.SLICES:
+        st.save_slice(k, [_e(k)], mode="full", complete=True, scanned_at="2026-11-25 10:00:00")
+    st.save_snapshot("memories", [{"card": "new"}], "collect:whole", scanned_at="2026-11-26 19:30:00", complete=True,
+                     raw={"entries": [_e("new")], "complete": True, "scanned_at": "2026-11-26 19:30:00"})  # fmt: skip
+    inv = st.memories_for_plan("sense")
+    assert inv.get("source") != "slices" and [e["card"]["card_id"] for e in inv["entries"]] == ["new"]
+    monkeypatch.setattr(cmd_info, "open_store", lambda: st)
+    out = cmd_info._memories({"timing": None, "card": None})
+    assert out.get("source") != "slices"
+    # 之后又把这几片重新全读了：片比整表新，用片
+    for k in msl.SLICES:
+        st.save_slice(k, [_e(k)], mode="full", complete=True, scanned_at="2026-11-27 09:00:00")
+    assert st.memories_for_plan("sense")["source"] == "slices"
+    assert cmd_info._memories({"timing": None, "card": None})["source"] == "slices"
+
+
+def test_incomplete_slice_rescan_does_not_bring_back_deleted_memory(st, monkeypatch):
+    """#173 review：整表里已经没有 A；之后某片重扫没读完（scanned_at 更新、full_at 不变），不能改用片数据把 A 带回来。"""
+    from hiro.cli import cmd_info
+
+    for k in msl.SLICES:
+        st.save_slice(
+            k, [_e("A" if k == "sense:hif" else k)], mode="full", complete=True, scanned_at="2026-11-25 10:00:00"
+        )
+    st.save_snapshot("memories", [{"card": "B"}], "collect:whole", scanned_at="2026-11-26 19:30:00", complete=True,
+                     raw={"entries": [_e("B")], "complete": True, "scanned_at": "2026-11-26 19:30:00"})  # fmt: skip
+    for k in msl.SLICES:  # 每片都重扫了一遍但都没读完
+        st.save_slice(k, [], mode="full", complete=False, scanned_at="2026-11-27 09:00:00")
+    ids = [e["card"]["card_id"] for e in st.memories_for_plan("sense")["entries"]]
+    assert "A" not in ids and ids == ["B"]
+    monkeypatch.setattr(cmd_info, "open_store", lambda: st)
+    assert cmd_info._memories({"timing": None, "card": None}).get("source") != "slices"

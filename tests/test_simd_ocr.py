@@ -112,3 +112,17 @@ def test_helper_restarts_and_retries_once_on_failure():
     reader.proc = SimpleNamespace(poll=lambda: None, returncode=None)
     with pytest.raises(RuntimeError):
         reader._infer(np.zeros((2, 2, 3), np.uint8), False)
+
+
+def test_helper_device_line_is_debug_errors_stay_warning(caplog):
+    """G1 第 5 轮（11-26）：辅助进程报 GPU 的「[metal] device: Apple M4」原来直接进任务日志、显示在对话卡上。"""
+    import io
+    import logging
+
+    with caplog.at_level(logging.DEBUG, logger=simd.__name__):
+        simd._log_stderr(io.StringIO("[metal] device: Apple M4\n\nUnhandled exception. System.IO.IOException: boom\n"))
+    levels = {r.getMessage(): r.levelno for r in caplog.records}
+    assert levels == {
+        "SIMD 辅助进程：[metal] device: Apple M4": logging.DEBUG,
+        "SIMD 辅助进程：Unhandled exception. System.IO.IOException: boom": logging.WARNING,
+    }

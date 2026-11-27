@@ -49,20 +49,70 @@ def home_button(f):
     return find(f, name, threshold=threshold, region=region)
 
 
+_TITLE = object()  # goto_home 的 step 认出标题页时返回它（交给 finish.leave_title，不在 drive 的计时里走）
+
+
+def at_title_screen(f) -> bool:
+    """游戏刚打开的标题页（背景是视频，下面「TAP TO START」一明一暗地闪）。按不闪的字认：左上「プロデューサーID: タップで表示」
+    + 「Ver.」/「メニュー」等（finish.at_title）；要求「タップで表示」或读到 TAP TO START，免得把プロフィール页（也有プロデューサーID）认成标题页。"""
+    from hiro.runtime.finish import at_title
+
+    texts = [t.text for t in f.texts]
+    if not at_title(texts):
+        return False
+    return any("タップで表示" in t for t in texts) or any("TAPTOSTART" in t.upper().replace(" ", "") for t in texts)
+
+
 def goto_home(rt, timeout: float = HOME_TIMEOUT):
-    """回首页：点首页 / 工具栏首页 / ✕，直到认出首页（同 KAA goto_home）；偶像之路结果页先点「一覧に戻る」。返回首页那一帧。"""
+    """回首页：点首页 / 工具栏首页 / ✕，直到认出首页（同 KAA goto_home）；偶像之路结果页先点「一覧に戻る」。返回首页那一帧。
+    游戏停在标题页（刚打开游戏就发起日常、扫描等）：走续跑同一条「标题页 → 首页」的路（finish.leave_title：点 TAP TO START，
+    闪到暗处读不到就点上方空白；数据下载确认、登录奖励 / 公告点掉；要「データ連携」就停下交给人）。"""
 
     def step(f):
         if at_home(f):
             return f
+        if at_title_screen(f):
+            return _TITLE
         if (m := home_button(f)) is not None:
             tap_match(rt, m)
             return None
         if (b := tower_back(f)) is not None:
             rt.device.tap(*b.rect.center)
+            return None
+        if (xy := _photo_step(f)) is not None:
+            rt.device.tap(*xy)
         return None
 
-    return rt.drive(step, timeout, "回首页")
+    for _ in range(2):
+        r = rt.drive(step, timeout, "回首页")
+        if r is not _TITLE:
+            return r
+        from hiro.runtime.finish import leave_title
+
+        leave_title(rt)  # 回首页可能要下载数据，单独计时；回不到首页抛 ResumeBlocked
+    r = rt.drive(step, timeout, "回首页")
+    if r is _TITLE:  # 离开标题页两次都又回到标题页：停下，别把内部记号当首页帧交出去
+        from hiro.loop.errors import ResumeBlocked
+
+        raise ResumeBlocked("回不到首页：点了两次还停在游戏标题页")
+    return r
+
+
+def _photo_step(f):
+    """上一局结算停在选回忆照片页 / 保存确认框时（N50：G3 第 3 轮收尾没走完，下一个任务回首页 60 秒失败）：
+    用已选中的那张（缺省第一张）点「次へ」，确认框点「決定」。玩家设了自己选照片（HIRO_PHOTO_PICK=stop / HIRO_LIVE=watch|pick）就不替他点。"""
+    from hiro.runtime import photo_pick
+
+    texts = [t.text.replace(" ", "") for t in f.texts]
+    if photo_pick.mode() == "stop":
+        return None
+    if photo_pick.is_photo_confirm(texts):
+        ok = next((t for t in f.texts if "決定" in t.text and t.rect.center.y > 1000), None)
+        return ok.rect.center if ok is not None else (500, 1157)
+    if photo_pick.is_photo_page(texts):
+        nxt = next((t for t in f.texts if t.text.replace(" ", "") == "次へ"), None)
+        return nxt.rect.center if nxt is not None else (360, 1157)
+    return None
 
 
 def back_home(device, timeout: float = HOME_TIMEOUT) -> bool:

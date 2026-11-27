@@ -1,12 +1,14 @@
-"""装 Windows 缺省的文字识别后端 SIMD PaddleOCR（PP-OCRv6 medium）：辅助程序、模型、.NET 10 Runtime。
+"""装缺省的文字识别后端 SIMD PaddleOCR（PP-OCRv6 medium）：辅助程序、模型、.NET 10 Runtime（Windows 和 macOS）。
 
 usage: python tools/assets/simd_ocr.py [--deps DIR] [--no-dotnet] [--force]
 
-只在 Windows 上做事（macOS 用 Apple Vision，什么都不装；其他系统用 RapidOCR）。装的东西都在依赖目录 deps 下
+Windows 和 macOS 上做事（11-26 起 Mac 也缺省用 SIMD：Apple Vision 在 macOS 27.2.1 里每个进程只能读一次；其他系统用 RapidOCR）。装的东西都在依赖目录 deps 下
 （HIRO_SIMD_DEPS，缺省仓库根的 .deps），不要管理员权限、不改系统 PATH：
 1. 辅助程序 + 模型：本仓库 GitHub Release ocr-simd-v1 的一个 zip（tools/assets/pack_simd_ocr.py 打的），下载、校验 SHA256、解压到
    deps/simd-ocr 和 deps/SimdPaddleOCR/models；已经装好且是同一个版本就不重复下载。
-2. .NET 10 Runtime：系统里已有就用系统的；没有就用微软官方的 dotnet-install.ps1 装到 deps/dotnet（运行时 hiro.vision.simd_deps 给辅助进程设 DOTNET_ROOT）。
+2. .NET 10 Runtime：系统里已有就用系统的；没有就先从本仓库 Release dotnet-runtime-<版本>（微软官方包原样镜像，钉 SHA512）下好解到 deps/dotnet，
+   镜像下不到再用微软官方的 dotnet-install.ps1 / .sh 装（运行时 hiro.vision.simd_deps 给辅助进程设 DOTNET_ROOT）。
+   微软 CDN 在有的网络下很慢、时断时续（G1 第 5 轮 11-26：Mac 装环境时光下运行时就用了约 13 分钟，GitHub 镜像 9 秒）。
 
 SIMD 是「装好才用」：这个脚本失败不算安装失败。退出码 0 = SIMD 可用（或不是 Windows、不用装）；1 = 没装成，识别会退回 RapidOCR，原因打在输出里。
 安装脚本 scripts/setup.ps1 和桌面版首次安装都把非零当成「可选步骤没做成」，只提示、不中断。
@@ -17,10 +19,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import importlib.util
+import platform
 import re
 import shutil
 import subprocess
 import sys
+import tarfile
 import tempfile
 import time
 import urllib.request
@@ -34,7 +38,23 @@ URL = f"https://github.com/matto49/hiro-gakumas-hero/releases/download/{TAG}/{AS
 # 资产还没发布：发了 Release 之后，把 pack_simd_ocr.py 打印的 SHA256 填到这里（填之前下载会直接跳过，识别用 RapidOCR）
 SHA256 = "0812bc5457e23c24bf30b6b0a8ca356fec95763fc6f5e6f322471b189edc5c8f"  # Release ocr-simd-v1（11-26 发）
 DOTNET_INSTALL_URL = "https://dot.net/v1/dotnet-install.ps1"
+DOTNET_INSTALL_SH_URL = "https://dot.net/v1/dotnet-install.sh"  # macOS
 DOTNET_CHANNEL = "10.0"
+DOTNET_MIRROR_VERSION = "10.0.15"
+DOTNET_MIRROR_URL = (
+    f"https://github.com/matto49/hiro-gakumas-hero/releases/download/dotnet-runtime-{DOTNET_MIRROR_VERSION}/{{name}}"
+)
+# (sys.platform, 机器) → (镜像里的文件名, 微软 releases.json 里的 SHA512)
+DOTNET_MIRROR = {
+    ("darwin", "arm64"): (
+        f"dotnet-runtime-{DOTNET_MIRROR_VERSION}-osx-arm64.tar.gz",
+        "185c264d9e45f14da8c0b2b49a24d3a7aea471999a83aeed7a2bf164430292aabc15d9c22d2eb44b26576a4e331ca0f6b564805eb2f6588d5a290f026b86cce0",
+    ),
+    ("win32", "amd64"): (
+        f"dotnet-runtime-{DOTNET_MIRROR_VERSION}-win-x64.zip",
+        "06f0bedd59ae4ac722ada805a6d6bbf605bcdc790c71f59b7003878072902b5cde5dec8c40c0baa81192660d4748e9d79afdbdcb0c0ea9d6b821d0a044c4c6dd",
+    ),
+}
 TOP_DIRS = ("simd-ocr", "SimdPaddleOCR")  # zip 里的两个顶层目录；顶层的文件（NOTICE、许可证）装好后放进 deps/simd-ocr
 STAMP = ".simd-asset-sha256"  # 装好的资产的 SHA256，写在 deps 根（不在会被整个换掉的两个目录里）；和 SHA256 对得上就不重复下载
 
@@ -196,25 +216,110 @@ def fetch_asset(deps: Path, *, url: str | None = None, sha: str | None = None, f
             shutil.rmtree(work, ignore_errors=True)
 
 
+def _sha512_file(path: Path) -> str:
+    h = hashlib.sha512()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _extract_tar(tf: tarfile.TarFile, out: Path) -> None:
+    """解 .tar.gz 到 out；有路径越界、指向外面的链接或特殊文件就整个拒绝。"""
+    root = out.resolve()
+    for m in tf.getmembers():
+        target = (out / m.name).resolve()
+        bad = root != target and root not in target.parents
+        if m.issym() or m.islnk():
+            link = (target.parent / m.linkname).resolve() if m.issym() else (out / m.linkname).resolve()
+            bad = bad or (root != link and root not in link.parents)
+        elif not (m.isfile() or m.isdir()):
+            bad = True
+        if bad:
+            raise InstallError(f".NET 镜像包里有不安全的条目：{m.name}")
+    # 上面已逐条检查；新版 Python 不带 filter 会报弃用警告，老的 3.10 小版本没有这个参数
+    if hasattr(tarfile, "fully_trusted_filter"):
+        tf.extractall(out, filter="fully_trusted")  # noqa: S202
+    else:
+        tf.extractall(out)  # noqa: S202
+
+
+def _install_from_mirror(deps: Path) -> bool:
+    """从本仓库 Release 的镜像装 .NET Runtime 到 deps/dotnet。这个平台没有镜像返回 False；下载 / 校验 / 解压失败抛 InstallError。"""
+    key = (sys.platform, platform.machine().lower())
+    if key not in DOTNET_MIRROR:
+        return False
+    name, sha512 = DOTNET_MIRROR[key]
+    tmp = deps / "tmp"
+    pkg = tmp / name
+    staging = tmp / "dotnet-staging"
+    print(f"下载 .NET {DOTNET_MIRROR_VERSION} Runtime（本仓库镜像，约 35 MB）", flush=True)
+    try:
+        _download_retry(DOTNET_MIRROR_URL.format(name=name), pkg)
+        if (got := _sha512_file(pkg)) != sha512:
+            raise InstallError(f".NET 镜像包 SHA512 对不上（{got[:16]}…），不用它")
+        shutil.rmtree(staging, ignore_errors=True)
+        staging.mkdir(parents=True)
+        try:
+            if name.endswith(".zip"):
+                with zipfile.ZipFile(pkg) as zf:
+                    _extract(zf, staging)
+            else:
+                with tarfile.open(pkg, "r:gz") as tf:
+                    _extract_tar(tf, staging)
+        except (OSError, zipfile.BadZipFile, tarfile.TarError) as e:
+            raise InstallError(f".NET 镜像包解不开：{e}") from e
+        target = deps / "dotnet"
+        shutil.rmtree(target, ignore_errors=True)
+        staging.replace(target)
+    finally:
+        pkg.unlink(missing_ok=True)
+        shutil.rmtree(staging, ignore_errors=True)
+    if simd_deps.find_dotnet(deps) is None:
+        raise InstallError(f"镜像解完了但在 {deps / 'dotnet'} 里找不到能用的 .NET {DOTNET_CHANNEL} Runtime")
+    return True
+
+
 def install_dotnet(deps: Path, *, timeout: float = DOTNET_TIMEOUT) -> bool:
     """系统里或 deps/dotnet 里已经有 .NET 10 Runtime 就不装，返回 False；装了返回 True；没装成抛 InstallError。
-    用微软官方 dotnet-install.ps1，装到 deps/dotnet：不要管理员权限、不改系统 PATH（-NoPath）。"""
+    先用本仓库 Release 的镜像（钉 SHA512）；没有这个平台的镜像或镜像没装成，再用微软官方 dotnet-install.ps1 / .sh。
+    都装到 deps/dotnet：不要管理员权限、不改系统 PATH（-NoPath）。"""
     if simd_deps.find_dotnet(deps) is not None:
         return False
+    try:
+        if _install_from_mirror(deps):
+            return True
+    except (InstallError, OSError) as e:  # OSError：建目录 / 换目录失败（磁盘满、权限、被占用）
+        print(f"  镜像没装成（{e}），改用微软官方安装脚本", flush=True)
     target = deps / "dotnet"
-    script = deps / "tmp" / "dotnet-install.ps1"
-    print(f"下载 {DOTNET_INSTALL_URL}（.NET {DOTNET_CHANNEL} Runtime 约 30 MB）", flush=True)
-    _download_retry(DOTNET_INSTALL_URL, script, deadline=120)
-    cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)]
-    cmd += ["-Runtime", "dotnet", "-Channel", DOTNET_CHANNEL, "-InstallDir", str(target), "-NoPath"]
+    win = sys.platform == "win32"
+    url = DOTNET_INSTALL_URL if win else DOTNET_INSTALL_SH_URL
+    script = deps / "tmp" / ("dotnet-install.ps1" if win else "dotnet-install.sh")
+    print(f"下载 {url}（.NET {DOTNET_CHANNEL} Runtime 约 30 MB）", flush=True)
+    _download_retry(url, script, deadline=120)
+    if win:
+        cmd = ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script)]
+        cmd += ["-Runtime", "dotnet", "-Channel", DOTNET_CHANNEL, "-InstallDir", str(target), "-NoPath"]
+    else:  # macOS：官方 dotnet-install.sh，同样装到 deps/dotnet、不改 PATH、不要管理员权限
+        cmd = [
+            "bash",
+            str(script),
+            "--runtime",
+            "dotnet",
+            "--channel",
+            DOTNET_CHANNEL,
+            "--install-dir",
+            str(target),
+            "--no-path",
+        ]
     try:
         r = subprocess.run(cmd, timeout=timeout, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except (OSError, subprocess.SubprocessError) as e:
-        raise InstallError(f"dotnet-install.ps1 没能跑完：{e}") from e
+        raise InstallError(f"{script.name} 没能跑完：{e}") from e
     finally:
         script.unlink(missing_ok=True)
     if r.returncode:
-        raise InstallError(f"dotnet-install.ps1 退出码 {r.returncode}")
+        raise InstallError(f"{script.name} 退出码 {r.returncode}")
     if simd_deps.find_dotnet(deps) is None:
         raise InstallError(f"装完了但在 {target} 里找不到能用的 .NET {DOTNET_CHANNEL} Runtime")
     return True
@@ -244,8 +349,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--no-dotnet", action="store_true", help="不装 .NET 10 Runtime（只装辅助程序和模型）")
     ap.add_argument("--force", action="store_true", help="已经装好也重新下载")
     args = ap.parse_args(argv)
-    if sys.platform != "win32":
-        print("SIMD OCR 只在 Windows 上装（macOS 用 Apple Vision，其他系统用 RapidOCR）：跳过")
+    if sys.platform not in ("win32", "darwin"):
+        print("SIMD OCR 只在 Windows / macOS 上装（其他系统用 RapidOCR）：跳过")
         return 0
     deps = Path(args.deps) if args.deps else simd_deps.deps_dir()
     problems = run(deps, dotnet=not args.no_dotnet, force=args.force)

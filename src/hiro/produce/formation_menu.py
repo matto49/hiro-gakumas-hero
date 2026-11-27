@@ -31,6 +31,7 @@ MODE_NAMES = {"hajime": "初", "nia": "N.I.A", "hif": "H.I.F"}
 # 切替框里的三条横幅（720x1280，协调 11-17 实机帧 79_switch）：初 / N.I.A / H.I.F 从上到下
 MODE_BANNERS = {"hajime": (360, 410), "nia": (360, 600), "hif": (360, 796)}
 ARROWS = {"prev": (40, 635), "next": (680, 635)}  # 编成号左右箭头（同 support_screens.ARROWS["formation"]）
+TAB_NAMES = {"support": "サポート編成（支援卡）", "memory": "メモリー編成（回忆）"}  # 报错里给人看的页签名
 IDOL_TAB = (236, 1130)  # 主页底栏「アイドル」（OCR 找不到时用）
 # 回忆页：下面 4 张插图（点开进选择页，左上、右上、左下、右下）；上面一排 4 个技能卡大图标（回读用，顺序同格子 01–04）
 MEMORY_TILES = ((197, 730), (522, 730), (197, 861), (522, 861))
@@ -292,8 +293,18 @@ class Menu:
         _, m = self.wait_menu(why="プロデュース編成页")
         if m["tab"] == tab:
             return m
-        self.dev.click(*m["buttons"][f"{tab}_tab"])
-        return self.wait_menu(lambda x: x["tab"] == tab, why=f"{tab} 页签")[1]
+        name = TAB_NAMES.get(tab, tab)
+        for attempt in range(ARROW_RETRIES + 1):
+            # DMM 后台点击偶尔丢一下（同翻编成号）：页签没切过去就再点（N52，G3 第 4 轮 11-26 Windows：只点一次，14 秒就停）
+            self.dev.click(*m["buttons"][f"{tab}_tab"])
+            try:
+                return self.wait_menu(lambda x: x["tab"] == tab, why=f"「{name}」页签")[1]
+            except FormationWriteError:
+                if attempt == ARROW_RETRIES:
+                    raise FormationWriteError(
+                        f"点了 {ARROW_RETRIES + 1} 次「{name}」页签都没切过去（游戏没反应或画面认不出）"
+                    ) from None
+        raise AssertionError("unreachable")
 
     def ensure_set(self, number: int) -> dict:
         """左右箭头翻到编成号 number（每点一下都核对编号变了，不靠首尾循环）。"""
@@ -354,11 +365,35 @@ def _filled(kind: str, read) -> bool:
     return (support_row(read) if kind == "support" else memory_row(read))[0] > 0
 
 
+def _cards(kind: str, read) -> list | None:
+    """这一页每格是什么卡（回忆：认出的卡 ID / 空格 None；支援卡：卡 ID）；读不到返回 None。"""
+    if read is None:
+        return None
+    if kind == "memory":
+        return [r.get("card") if r.get("known") else ("?" if not r.get("empty") else None) for r in read]
+    return [s.get("support_card_id") for s in read.get("slots") or []]
+
+
+def _undo_if_unchanged(undo, before, read_after) -> None:
+    """写编成中途失败：回读这一页和动手前一样（一格都没改成），就撤掉动手前记的「初星助手写过」（N63 review）。
+    回读不了或已经变了：保留记录（写了一半的，重试时要能接着覆盖）。"""
+    if undo is None:
+        return
+    try:
+        after = read_after()
+    except Exception as e:  # noqa: BLE001
+        logger.warning("写编成失败后回读这一页没成功，保留「初星助手写过」的记录：%s", e)
+        return
+    if after is not None and after == before:
+        undo()
+
+
 def write_memory(
-    dev: Device, plan: dict, make_picker, *, dry_run: bool = False, blank_only: bool = False
+    dev: Device, plan: dict, make_picker, *, dry_run: bool = False, blank_only: bool = False, on_write=None
 ) -> list[dict]:
     """当前停在方案编成号的回忆页：和方案不一致的格子逐个改（fix_memory，格子用 MEMORY_TILES，认卡用上排大图标），
-    写完整页回读，四格都要是方案的卡。dry_run 只报差异。blank_only：要改的时候这一页必须全空，否则停下不写（#134 review）。"""
+    写完整页回读，四格都要是方案的卡。dry_run 只报差异。blank_only：要改的时候这一页必须全空，否则停下不写（#134 review）。
+    on_write()：真要动这一页之前调一次（记「这个编成号初星助手写过」，N63：写到一半停下，重试时别把自己写的当成玩家的）。"""
     reads = _settle_icons(dev)
     moves = memory_diff(plan, reads)
     logger.info("回忆页现状 %s；要改 %s", [r.get("card") if r.get("known") else None for r in reads], moves)
@@ -367,9 +402,15 @@ def write_memory(
     if dry_run or not moves:
         done = []
     else:
-        done = fix_memory(
-            dev, plan, read_icons=lambda img: read_memory_icons(img), make_picker=make_picker, slots=MEMORY_TILES
-        )
+        undo = on_write() if on_write is not None else None
+        before = _cards("memory", reads)
+        try:
+            done = fix_memory(
+                dev, plan, read_icons=lambda img: read_memory_icons(img), make_picker=make_picker, slots=MEMORY_TILES
+            )
+        except Exception:  # 写编成和设筛选（MemoryFilterError）的错都算：判断完照样往上抛
+            _undo_if_unchanged(undo, before, lambda: _cards("memory", _settle_icons(dev)))
+            raise
     if not dry_run:
         left = memory_diff(plan, _settle_icons(dev))
         if left:
@@ -383,10 +424,17 @@ def support_diff(plan: dict, page: dict) -> list[tuple[int, str]]:
 
 
 def write_support(
-    dev: Device, plan: dict, *, read_formation, read_list, dry_run: bool = False, blank_only: bool = False
+    dev: Device,
+    plan: dict,
+    *,
+    read_formation,
+    read_list,
+    dry_run: bool = False,
+    blank_only: bool = False,
+    on_write=None,
 ) -> list[dict]:
     """当前停在方案编成号的支援卡页：fix_support（view=formation），写完回读 5 格都要是方案的卡（租借格不在菜单里）。
-    blank_only 同 write_memory。"""
+    blank_only、on_write 同 write_memory。"""
     from hiro.produce.formation_writer import _settled_step2
 
     page = _settled_step2(dev, read_formation, view="formation")
@@ -398,7 +446,17 @@ def write_support(
         raise FormationWriteError(f"支援卡{NOT_BLANK}")
     if dry_run:
         return [{"slot": s, "to": k, "dry_run": True} for s, k in moves]
-    done = fix_support(dev, plan, read_formation=read_formation, read_list=read_list, view="formation") if moves else []
+    done = []
+    if moves:
+        undo = on_write() if on_write is not None else None
+        before = _cards("support", page)
+        try:
+            done = fix_support(dev, plan, read_formation=read_formation, read_list=read_list, view="formation")
+        except Exception:  # 写编成和设筛选（MemoryFilterError）的错都算：判断完照样往上抛
+            _undo_if_unchanged(
+                undo, before, lambda: _cards("support", _settled_step2(dev, read_formation, view="formation"))
+            )
+            raise
     page = _settled_step2(dev, read_formation, view="formation")
     left = support_diff(plan, page) if page is not None else ["读不到"]
     if left:
@@ -407,9 +465,11 @@ def write_support(
 
 
 def run(dev: Device, plan: dict, mode: str, *, what: tuple[str, ...] = ("support", "memory"), make_picker=None,
-        read_formation=None, read_list=None, dry_run: bool = False, blank_only: tuple[str, ...] = ()) -> dict:  # fmt: skip
+        read_formation=None, read_list=None, dry_run: bool = False, blank_only: tuple[str, ...] = (),
+        on_write=None) -> dict:  # fmt: skip
     """进菜单、切模式，按 what 写支援卡 / 回忆（编成号用方案的 support.set / memory.set）。返回 {support: [...], memory: [...]}。
-    blank_only：这几样只在编成位全空时才写（开局前自动准备：编成号是从之前的读数里挑的空位，写之前再看一眼，玩家后来填了就不覆盖）。"""
+    blank_only：这几样只在编成位全空时才写（开局前自动准备：编成号是从之前的读数里挑的空位，写之前再看一眼，玩家后来填了就不覆盖）。
+    on_write(kind, 编成号)：真要改某一样之前调（N63）。"""
     menu = Menu(dev)
     menu.open()
     menu.ensure_mode(mode)
@@ -420,11 +480,14 @@ def run(dev: Device, plan: dict, mode: str, *, what: tuple[str, ...] = ("support
             raise FormationWriteError(f"方案里没有 {kind}.set（编成号）")
         menu.ensure_tab(kind)
         menu.ensure_set(int(number))
+        hook = (lambda k=kind, n=int(number): on_write(k, n)) if on_write is not None else None
         if kind == "memory":
-            out[kind] = write_memory(dev, plan, make_picker, dry_run=dry_run, blank_only=kind in blank_only)
+            out[kind] = write_memory(
+                dev, plan, make_picker, dry_run=dry_run, blank_only=kind in blank_only, on_write=hook
+            )
         else:
             out[kind] = write_support(dev, plan, read_formation=read_formation, read_list=read_list, dry_run=dry_run,
-                                      blank_only=kind in blank_only)  # fmt: skip
+                                      blank_only=kind in blank_only, on_write=hook)  # fmt: skip
         logger.info("编成菜单：%s 编成 %s %s", kind, number, out[kind] or "不用改")
     return out
 

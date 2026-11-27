@@ -121,6 +121,12 @@ class TowerGnrpa:
             import gakumas_exam_rs as rs
         except ImportError as e:
             raise RuntimeError(f"没装 Rust 后端 gakumas_exam_rs（{e}）") from None
+        if getattr(rs, "__file__", None) is None and hasattr(
+            rs, "__path__"
+        ):  # 命名空间包：只有 __path__，没有 __file__
+            # N45（G3 第 3 轮 11-26 Windows）：没编译成时 sys.path 上的 vendor/gakumas-player 让 import 拿到 Rust 源码目录
+            # （空的命名空间包），原来报成「是旧版本」，其实是没装
+            raise RuntimeError("没装 Rust 后端 gakumas_exam_rs（只找到源码目录，没有编译好的包）")
         missing = [f for f in ("search", "plan_many") if not hasattr(rs, f)]
         if missing:
             raise RuntimeError(f"Rust 后端 gakumas_exam_rs 是旧版本，没有 {' / '.join(missing)}（要带搜索的新包）")

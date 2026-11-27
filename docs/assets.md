@@ -23,6 +23,11 @@
 模拟器主数据换了提交（`fetch_master.py` 换版本）时自动重建。2026-11-25 核对：原 `game.db` 的表和列都在、行数不少，抽查的行字段值一致；
 只少 `PhotoLookEffectorCharacter` 一张表（hiro 不用）。`HIRO_MASTER_DB` 指向一份已有的库时原样用、不重建。
 
+主数据换版本的 PR（例如自动升级 CI 推的 `fix_bot_master_<提交>`）合入后，本地要跟着重下：安装版由 setup（`scripts/setup.sh` /
+`setup.ps1`）自动跑 `fetch_master.py`；开发用的 worktree 要自己再跑一次 `python vendor/gakumas-player/scripts/fetch_master.py`，
+让 `data/master/current.json` 指到 `fetch_master.py` 里钉的那个提交。不重下时 `gakumas_produce.schedule` 的版本检查会报
+`Schedule/master version mismatch`（这个检查是有意的：日程表和主数据要是同一份，别绕过）。
+
 ## 默认素材下各读数
 
 下表是关掉素材包（`HIRO_BUNDLED_ASSETS=0`）后的情况，即「默认素材」= 只有公开游戏图和主数据库，没有任何自建素材；

@@ -5,6 +5,8 @@ import hashlib
 import http.server
 import importlib.util
 import json
+import re
+import shutil
 import threading
 import zipfile
 from pathlib import Path
@@ -366,7 +368,9 @@ def test_unusable_reason_names_the_missing_file(tool, tmp_path):
 
 
 def _installer(tool, monkeypatch, tmp_path, *, rc=0, creates=True, has_dotnet=lambda: False):
-    """假的 dotnet-install.ps1：记录命令行；按需在 -InstallDir 里放一个假 dotnet。返回命令记录。"""
+    """假的 dotnet-install.ps1：记录命令行；按需在 -InstallDir 里放一个假 dotnet。返回命令记录。
+    镜像那条路另有测试，这里当镜像没有这个平台（直接走官方脚本）。"""
+    monkeypatch.setattr(tool, "_install_from_mirror", lambda deps: False)
     calls = []
     monkeypatch.setattr(
         tool,
@@ -381,7 +385,8 @@ def _installer(tool, monkeypatch, tmp_path, *, rc=0, creates=True, has_dotnet=la
     def run(cmd, **kw):
         calls.append(("run", cmd, kw.get("timeout")))
         if creates:
-            target = Path(cmd[cmd.index("-InstallDir") + 1])
+            flag = "-InstallDir" if "-InstallDir" in cmd else "--install-dir"
+            target = Path(cmd[cmd.index(flag) + 1])
             target.mkdir(parents=True, exist_ok=True)
             (target / tool.simd_deps.local_dotnet(tmp_path).name).write_bytes(b"")
         return type("R", (), {"returncode": rc})()
@@ -398,6 +403,7 @@ def _installer(tool, monkeypatch, tmp_path, *, rc=0, creates=True, has_dotnet=la
 
 
 def test_install_dotnet_uses_the_official_script_without_admin_or_path(tool, tmp_path, monkeypatch):
+    monkeypatch.setattr(tool.sys, "platform", "win32")
     calls = _installer(tool, monkeypatch, tmp_path)
     assert tool.install_dotnet(tmp_path / "deps") is True
     (_, url), (_, cmd, timeout) = calls
@@ -415,7 +421,21 @@ def test_install_dotnet_is_skipped_when_a_runtime_exists(tool, tmp_path, monkeyp
     assert tool.install_dotnet(tmp_path) is False
 
 
+def test_install_dotnet_on_mac_uses_the_sh_script(tool, tmp_path, monkeypatch):
+    """11-26 起 Mac 也装 SIMD：用官方 dotnet-install.sh，同样装到 deps/dotnet、不改 PATH、不要管理员权限。"""
+    monkeypatch.setattr(tool.sys, "platform", "darwin")
+    calls = _installer(tool, monkeypatch, tmp_path)
+    assert tool.install_dotnet(tmp_path / "deps") is True
+    (_, url), (_, cmd, _timeout) = calls
+    assert url == "https://dot.net/v1/dotnet-install.sh"
+    assert cmd[0] == "bash" and "--no-path" in cmd
+    assert cmd[cmd.index("--runtime") + 1] == "dotnet" and cmd[cmd.index("--channel") + 1] == "10.0"
+    assert Path(cmd[cmd.index("--install-dir") + 1]) == tmp_path / "deps" / "dotnet"
+    assert not (tmp_path / "deps/tmp/dotnet-install.sh").exists()
+
+
 def test_install_dotnet_failures_become_install_errors(tool, tmp_path, monkeypatch):
+    monkeypatch.setattr(tool.sys, "platform", "win32")
     _installer(tool, monkeypatch, tmp_path, rc=1)
     with pytest.raises(tool.InstallError, match="退出码 1"):
         tool.install_dotnet(tmp_path / "deps")
@@ -432,12 +452,107 @@ def test_install_dotnet_failures_become_install_errors(tool, tmp_path, monkeypat
         tool.install_dotnet(tmp_path / "deps3")
 
 
+# ---------------------------------------------------------------- .NET 镜像（N57：微软 CDN 慢，先从本仓库 Release 下）
+
+
+def _runtime_tar(path: Path, members: dict[str, bytes], *, link: tuple[str, str] | None = None) -> str:
+    import io
+    import tarfile
+
+    with tarfile.open(path, "w:gz") as tf:
+        for name, data in members.items():
+            info = tarfile.TarInfo(name)
+            info.size, info.mode = len(data), 0o755
+            tf.addfile(info, io.BytesIO(data))
+        if link:
+            info = tarfile.TarInfo(link[0])
+            info.type, info.linkname = tarfile.SYMTYPE, link[1]
+            tf.addfile(info)
+    return hashlib.sha512(path.read_bytes()).hexdigest()
+
+
+def _mirror(tool, monkeypatch, tmp_path, *, link=None, sha=None):
+    src = tmp_path / "pkg.tar.gz"
+    real = _runtime_tar(src, {"dotnet": b"bin", "shared/Microsoft.NETCore.App/10.0.15/x.dll": b"x"}, link=link)
+    monkeypatch.setattr(tool.sys, "platform", "darwin")
+    monkeypatch.setattr(tool.platform, "machine", lambda: "arm64")
+    name = tool.DOTNET_MIRROR[("darwin", "arm64")][0]
+    monkeypatch.setitem(tool.DOTNET_MIRROR, ("darwin", "arm64"), (name, sha or real))
+    got = []
+    monkeypatch.setattr(
+        tool,
+        "_download_retry",
+        lambda url, dst, **kw: (got.append(url), dst.parent.mkdir(parents=True, exist_ok=True), shutil.copy(src, dst)),
+    )
+    monkeypatch.setattr(
+        tool.simd_deps, "find_dotnet", lambda deps: ("dotnet", {}) if (deps / "dotnet/dotnet").is_file() else None
+    )
+    return got
+
+
+def test_install_dotnet_uses_the_github_mirror_first(tool, tmp_path, monkeypatch):
+    got = _mirror(tool, monkeypatch, tmp_path)
+    monkeypatch.setattr(tool.subprocess, "run", lambda *a, **k: pytest.fail("镜像装好了不该再跑官方脚本"))
+    deps = tmp_path / "deps"
+    assert tool.install_dotnet(deps) is True
+    assert got == [
+        f"https://github.com/matto49/hiro-gakumas-hero/releases/download/dotnet-runtime-10.0.15/{tool.DOTNET_MIRROR[('darwin', 'arm64')][0]}"
+    ]
+    assert (deps / "dotnet/dotnet").read_bytes() == b"bin" and (
+        deps / "dotnet/shared/Microsoft.NETCore.App/10.0.15/x.dll"
+    ).is_file()
+    assert not (deps / "tmp/dotnet-staging").exists() and not list((deps / "tmp").glob("*.tar.gz"))
+
+
+@pytest.mark.parametrize("bad", ["sha", "link"])
+def test_mirror_problems_fall_back_to_the_official_script(tool, tmp_path, monkeypatch, capsys, bad):
+    """镜像校验对不上、或包里有指向外面的链接：不用它，改跑官方脚本，deps/dotnet 里不留镜像的东西。"""
+    _mirror(
+        tool,
+        monkeypatch,
+        tmp_path,
+        sha="0" * 128 if bad == "sha" else None,
+        link=("evil", "../../outside") if bad == "link" else None,
+    )
+    ran = []
+    monkeypatch.setattr(tool.subprocess, "run", lambda cmd, **k: ran.append(cmd) or type("R", (), {"returncode": 1})())
+    with pytest.raises(tool.InstallError, match="退出码 1"):
+        tool.install_dotnet(tmp_path / "deps")
+    assert ran and "改用微软官方安装脚本" in capsys.readouterr().out
+    assert not (tmp_path / "deps/dotnet/dotnet").exists()
+
+
+def test_mirror_os_error_falls_back_to_the_official_script(tool, tmp_path, monkeypatch, capsys):
+    """#187 review：镜像那条路上建目录 / 换目录抛 OSError（磁盘满、被占用）也退回官方脚本。"""
+    _mirror(tool, monkeypatch, tmp_path)
+    monkeypatch.setattr(tool.shutil, "rmtree", lambda *a, **k: (_ for _ in ()).throw(PermissionError("被占用")))
+    ran = []
+    monkeypatch.setattr(tool.subprocess, "run", lambda cmd, **k: ran.append(cmd) or type("R", (), {"returncode": 1})())
+    with pytest.raises(tool.InstallError, match="退出码 1"):
+        tool.install_dotnet(tmp_path / "deps")
+    assert ran and "被占用" in capsys.readouterr().out
+
+
+def test_mirror_skips_platforms_without_a_package(tool, tmp_path, monkeypatch):
+    monkeypatch.setattr(tool.sys, "platform", "darwin")
+    monkeypatch.setattr(tool.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(tool, "_download_retry", lambda *a, **k: pytest.fail("没有镜像的平台不该下载"))
+    assert tool._install_from_mirror(tmp_path) is False
+
+
+def test_mirror_hashes_match_microsoft_release_notes(tool):
+    """钉的是 releases.json 里的 SHA512（128 位十六进制），两个平台都有。"""
+    assert set(tool.DOTNET_MIRROR) == {("darwin", "arm64"), ("win32", "amd64")}
+    for name, sha in tool.DOTNET_MIRROR.values():
+        assert tool.DOTNET_MIRROR_VERSION in name and re.fullmatch(r"[0-9a-f]{128}", sha)
+
+
 # ---------------------------------------------------------------- 入口：失败只返回非零，不抛
 
 
-def test_main_does_nothing_off_windows(tool, tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(tool.sys, "platform", "darwin")
-    monkeypatch.setattr(tool, "run", lambda *a, **k: pytest.fail("Mac 上什么都不装"))
+def test_main_does_nothing_off_windows_and_mac(tool, tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(tool.sys, "platform", "linux")
+    monkeypatch.setattr(tool, "run", lambda *a, **k: pytest.fail("Linux 上什么都不装"))
     assert tool.main(["--deps", str(tmp_path)]) == 0
     assert "跳过" in capsys.readouterr().out
     assert list(tmp_path.iterdir()) == []
@@ -494,6 +609,7 @@ def test_simd_ocr_starts_helper_with_dotnet_root_for_the_local_runtime(tmp_path,
     class FakeProc:
         stdin = None
         stdout = iter([json.dumps({"ready": True}) + "\n"])
+        stderr = iter(["[metal] device: Apple M4\n"])
 
         def poll(self):
             return 0

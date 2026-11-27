@@ -29,7 +29,7 @@ def _rt(texts):
 
 def test_resume_leaves_title_first(monkeypatch):
     calls = []
-    monkeypatch.setattr(finish, "_leave_title", lambda rt: calls.append("title"))
+    monkeypatch.setattr(finish, "leave_title", lambda rt: calls.append("title"))
     rt = _rt(TITLE)
     rt.drive = lambda step, timeout, what: calls.append("drive") or "resumed"
     assert finish.resume_produce(rt) == "resumed"
@@ -65,7 +65,7 @@ def test_leave_title_raises_when_not_home(monkeypatch):
 
     monkeypatch.setattr(date_change, "recover_to_home", lambda *a, **k: False)
     with pytest.raises(ResumeBlocked):
-        finish._leave_title(_rt(TITLE))
+        finish.leave_title(_rt(TITLE))
 
 
 def test_data_link_reason_is_plain():
@@ -78,3 +78,67 @@ def test_data_link_reason_is_plain():
     ]
     why = failure_reason(lines)
     assert why is not None and why.startswith("游戏要求做「データ連携」") and "DataLinkBlocked" not in why
+
+
+# ---- 11-27：日常 / 扫描等任务回首页时也认标题页（原来只有续跑认） ----
+
+DIM = ["Ver. 3.6.1", "プロデューサーID: タップで表示", "データ連携", "メニュー"]  # TAP TO START 闪到暗处，读不到
+
+
+def _frame(texts):
+    return NS(texts=[NS(text=t) for t in texts], img=None)
+
+
+def test_title_screen_by_steady_texts():
+    from hiro.runtime import nav
+
+    assert nav.at_title_screen(_frame(TITLE))
+    assert nav.at_title_screen(_frame(DIM))  # 靠不闪的字认，TAP TO START 暗的时候也算
+    assert not nav.at_title_screen(
+        _frame(["プロフィール", "プロデューサーID 12345678", "メニュー"])
+    )  # プロフィール页不算
+
+
+def test_goto_home_leaves_title_then_returns_home(monkeypatch):
+    from hiro.runtime import nav
+
+    calls, frames = [], [_frame(DIM), _frame(["ホーム"])]
+    monkeypatch.setattr(nav, "at_home", lambda f: f.texts[0].text == "ホーム")
+    monkeypatch.setattr(finish, "leave_title", lambda rt: calls.append("title") or frames.pop(0))
+
+    def drive(step, timeout, what):
+        calls.append("drive")
+        return step(frames[0])
+
+    rt = NS(drive=drive, device=NS(tap=lambda x, y: None))
+    home = nav.goto_home(rt)
+    assert calls == ["drive", "title", "drive"] and home.texts[0].text == "ホーム"
+
+
+def test_goto_home_stops_when_stuck_on_title(monkeypatch):
+    """离开标题页两次又回到标题页：停下讲原因，不把内部记号当首页帧交出去。"""
+    from hiro.loop.errors import ResumeBlocked
+    from hiro.runtime import nav
+
+    import pytest
+
+    monkeypatch.setattr(nav, "at_home", lambda f: False)
+    monkeypatch.setattr(finish, "leave_title", lambda rt: None)
+    rt = NS(drive=lambda step, timeout, what: step(_frame(DIM)), device=NS(tap=lambda x, y: None))
+    with pytest.raises(ResumeBlocked, match="标题页"):
+        nav.goto_home(rt)
+
+
+def test_recover_taps_blank_when_tap_to_start_is_dim():
+    """TAP TO START 闪到暗处读不到：点上方空白（标题页点哪里都行），不点データ連携 / メニュー。"""
+    clicks = []
+    seen = iter([False, True])
+    date_change.recover_to_home(
+        lambda: object(),
+        lambda x, y: clicks.append((x, y)),
+        lambda img: _boxes(DIM),
+        lambda img: next(seen),
+        clock=lambda: 0.0,
+        sleep=lambda s: None,
+    )
+    assert clicks == [date_change.BLANK_TAP]

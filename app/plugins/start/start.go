@@ -319,6 +319,9 @@ func (s *state) explain(h plugin.Host, cat *common.Catalog, p hiroapi.Pending) (
 		if note := r.Flags["prepare-note"]; note != "" && r.Flags["prepare"] == "true" {
 			e.Rows = append(e.Rows, [2]string{"开局前", note})
 		}
+		if row, ok := overwriteRow(r.Flags); ok {
+			e.Rows = append(e.Rows, row)
+		}
 		if a := r.Flags["main-attr"]; a != "" {
 			e.Rows = append(e.Rows, [2]string{"主属性", labels.Attr(a)})
 		}
@@ -363,6 +366,28 @@ func writeSetsRow(flags map[string]string, pl *planBrief, access string) ([2]str
 		text += "（都是空着的位）"
 	}
 	return [2]string{"写进", text}, true
+}
+
+// overwriteRow 是开局确认卡上「点名的编成位」那一行（N65，G1 第 5 轮 11-27）：玩家在对话里点名同意覆盖（--overwrite memory=13），
+// 卡上要写明会换掉第几号编成里原来的卡，玩家点确认才写。号码只认 --overwrite 里写的，不从别处猜。
+func overwriteRow(flags map[string]string) ([2]string, bool) {
+	ov := flags["overwrite"]
+	if ov == "" || flags["prepare"] != "true" {
+		return [2]string{}, false
+	}
+	label := map[string]string{"support": "支援卡", "memory": "回忆"}
+	var parts []string
+	for _, item := range strings.Split(ov, ",") {
+		w, n, ok := strings.Cut(strings.TrimSpace(item), "=")
+		if !ok || label[w] == "" || strings.TrimSpace(n) == "" {
+			continue
+		}
+		parts = append(parts, label[w]+"编成 "+strings.TrimSpace(n)+" 号")
+	}
+	if len(parts) == 0 {
+		return [2]string{}, false
+	}
+	return [2]string{"点名的编成位", strings.Join(parts, "、") + "（你在对话里点名的；里面原来的卡会被换掉）"}, true
 }
 
 func or(s, d string) string {

@@ -38,7 +38,7 @@ def at_title(texts: list[str]) -> bool:
     return any(TITLE_ID_HINT in t for t in texts) and any(h in t for t in texts for h in TITLE_OTHER_HINTS)
 
 
-def _leave_title(rt) -> None:
+def leave_title(rt) -> None:
     """标题页 → 首页，走日切换恢复同一条路（TAP TO START / 空白处、数据下载点确认、登录奖励 / 公告点掉，有购买字样不点）。
     点进去弹「機種変更…データ連携」框时 recover_to_home 抛 DataLinkBlocked 停机，交给玩家（登录 / 连携是用户本人的事）。"""
     from hiro.loop import date_change
@@ -67,7 +67,7 @@ def resume_produce(rt, timeout: float = RESUME_TIMEOUT) -> str:
 
     state = {"tapped_resume": False, "clicked_ongoing": False, "unknown_since": None}
     if at_title([t.text for t in rt.screen.shot().texts]):
-        _leave_title(rt)  # 回首页可能要下载数据，单独计时，不占续跑的 40 秒
+        leave_title(rt)  # 回首页可能要下载数据，单独计时，不占续跑的 40 秒
 
     def step(f):
         if (btn := rr.resume_button(f.texts)) is not None or (btn := nav.find(f, "Produce.ButtonResume")) is not None:
@@ -172,11 +172,13 @@ def finish_produce_end(rt, *, go_home: bool = False, timeout: float = FINISH_TIM
                 texts=lambda: _texts(rt.screen.shot())
             )  # HIRO_PHOTO_PICK=stop：停下等人自己选照片（用户 11-21）
             return None
-        if any("メモリーにするフォト" in s for s in texts):
+        if photo_pick.is_photo_page(texts):
+            logger.info("结算：选回忆照片页，用选中的那张点「次へ」")  # N50：这两个分支原来不写日志，卡住时看不出点没点
             nxt = first(f, ("次へ",))
             rt.device.tap(*(nxt.rect.center if nxt is not None else (360, 1157)))  # 选回忆照片：默认第一张
             return None
-        if any("メモリーとして保存しますか" in s for s in texts):
+        if photo_pick.is_photo_confirm(texts):
+            logger.info("结算：回忆照片保存确认框，点「決定」")
             ok = first(f, ("決定",))
             rt.device.tap(*(ok.rect.center if ok is not None else (500, 1157)))
             return None

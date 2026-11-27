@@ -49,6 +49,21 @@ def _survey(mode: str, kinds=("support", "memory")) -> dict:
     return survey(dev, mode, kinds=tuple(kinds), read_formation=read_support_formation, stop_at_blank=True)
 
 
+def _go_home() -> None:
+    """停下前把游戏退回首页（N48，G2 11-26：读完编成位发现全满停下时游戏留在「メモリー編成」页，下一个任务得从那里起步）。
+    尽力而为：退不回去只记警告，不盖掉停下的原因。"""
+    try:
+        from hiro.daily import Popup, make_runtime
+        from hiro.devices import open_device
+        from hiro.runtime import nav
+
+        dev = open_device()
+        dev.connect()
+        nav.goto_home(make_runtime(dev, popup=Popup()))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("停下前退回首页没成功：%s", e)
+
+
 def _write(mode: str, what=("support", "memory"), blank_only=()) -> int:
     """写编成（写完回读核对，通过后 mark_written）。返回退出码。blank_only 见 tools/write_formation.py --blank-only。"""
     argv = [sys.executable, str(REPO / "tools" / "write_formation.py"), "--mode", mode, "--what", ",".join(what)]
@@ -64,27 +79,28 @@ def _check_memory_freshness(plan_file: Path, home: Path) -> None:
     check(plan_file, home)
 
 
-def _exec(argv: list[str]) -> int:
+def _exec(argv: list[str], *, platform: str = sys.platform) -> int:
+    """接着跑原来的开局命令（hiro.cli.jobs 拼的）。POSIX 用 exec 换掉本进程（退出码、停止信号都直接到对局进程）。
+    Windows 不能 exec：os.execvp 在 Windows 上是另起新进程、本进程立刻以 0 退出——任务层等到 0 就报「完成」，
+    对局出错也一样；停止时 taskkill /T 也找不到真正在打的那个进程（N51，G3 第 3 轮 11-26：收尾超时 180 秒仍报完成）。
+    Windows 上改成起子进程等它结束，原样返回它的退出码；子进程在本进程的进程树里，停止任务时一起结束。"""
     sys.stdout.flush()
     sys.stderr.flush()
-    os.execvp(argv[0], argv)  # noqa: S606  原来的开局命令（hiro.cli.jobs 拼的）
+    if platform == "win32":
+        return subprocess.call(argv)  # noqa: S603
+    os.execvp(argv[0], argv)  # noqa: S606
     return 0  # 只在测试替身里走到
 
 
 def _full_hint(mode: str, what: str, rows: list) -> str:
     """编成位都满了时说清楚：有哪几号、哪些是初星助手自己写过的（覆盖它不动玩家配的）、在对话里怎么说。
     G1 第 3 轮 11-26（N34）：原来只说「告诉初星助手用哪一号覆盖」，小白不知道有哪些号、哪个能覆盖。"""
-    from hiro.cli.cmd_run import slot_written_by_us
-    from hiro.cli.home import hiro_home
-
     nums = sorted(int(r["set"]) for r in rows if r.get("kind") == what)
     span = f"{nums[0]}–{nums[-1]} 号" if nums else ""
-    ours = [n for n in nums if slot_written_by_us(hiro_home(), mode, what, n)]
     msg = (
-        f"{MODE_NAME[mode]}的{LABEL[what]}编成 {span}都有卡，没有空着的可以放编成方案（初星助手不替你覆盖自己配的编成）"
+        f"{MODE_NAME[mode]}的{LABEL[what]}编成 {span}都有卡，没有空着的可以放编成方案，"
+        "也没有初星助手以前写过的号可以覆盖（初星助手不替你覆盖自己配的编成）"
     )
-    if ours:
-        msg += f"。其中 {'、'.join(map(str, ours))} 号曾由初星助手写入，覆盖前请确认后来没有手动改过"
     return msg + f"。要覆盖哪一号，在对话里说「{LABEL[what]}编成用 N 号覆盖」；也可以先在游戏里清空一组再开局"
 
 
@@ -105,6 +121,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--what", default="support,memory", help="准备哪几样（support / memory；开局命令里指定了编成号的那样不用管）"
     )
+    ap.add_argument(
+        "--overwrite",
+        default="",
+        help="玩家同意覆盖的编成位（memory=13 或 support=18,memory=13）：方案里正是这个号时，写编成不要求编成位是空的（N65）",
+    )
     opts = ap.parse_args(args[:i])
     inner = args[i + 1 :]
     if not inner:
@@ -118,6 +139,21 @@ def main(argv: list[str] | None = None) -> int:
     plan = fp.load(path)
     if not plan:
         return _stop(f"没有开局编成方案（{path}）", 2)
+    from hiro.cli.cmd_run import parse_overwrite
+    from hiro.cli.home import hiro_home
+
+    consent = parse_overwrite(opts.overwrite)
+    plan, changed = fp.apply_consent(plan, mode, consent)
+    if changed:
+        # N65：玩家点了确认、任务开始了，才把方案改用玩家同意的号（开局检查只在内存里套，玩家点「先不」时方案不变）
+        cid = (plan.get("idol") or {}).get("idol_card_id")
+        if cid and plan.get("version") == fp.PLAN_VERSION and path == plan_path() and path.parent == hiro_home():
+            fp.save_plan(hiro_home(), plan, mode)
+        else:
+            path.write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
+        logger.info(
+            "开局前准备：编成方案改用玩家同意覆盖的 %s", "、".join(f"{LABEL[w]}编成 {n} 号" for w, n in consent.items())
+        )
     rec: dict = {"mode": mode, "picked": {}, "wrote": False}
     what = [w for w in ("support", "memory") if w in opts.what.split(",")]
     missing = [w for w in what if (plan.get(w) or {}).get("set") is None]
@@ -130,20 +166,32 @@ def main(argv: list[str] | None = None) -> int:
 
         import_inventory("formations", out, source="prepare_start")
         rows = out.get("sets") or []
+        from hiro.cli.cmd_run import own_full_slots
+        from hiro.cli.home import hiro_home
+
+        reused = {}
         for w in missing:
             blanks = sorted(int(r["set"]) for r in rows if r.get("kind") == w and r.get("filled") == 0)
+            if not blanks and (ours := own_full_slots(hiro_home(), mode, w, rows)):
+                blanks = reused[w] = ours  # D26：都满了，覆盖初星助手自己写过的号（不动玩家配的）
             if not blanks:
+                _go_home()
                 return _stop(_full_hint(mode, w, rows), 4)
             rec["picked"][w] = blanks[0]
             plan[w] = dict(plan.get(w) or {}, set=blanks[0])
+        if reused:
+            rec["reused"] = {w: v[0] for w, v in reused.items()}
+            logger.info(
+                "开局前准备：%s都满了，覆盖初星助手之前写过的 %s",
+                "、".join(LABEL[w] for w in reused),
+                "、".join(f"{LABEL[w]}编成 {v[0]} 号" for w, v in reused.items()),
+            )
         cid = (plan.get("idol") or {}).get("idol_card_id")
-        from hiro.cli.home import hiro_home
-
         if cid and plan.get("version") == fp.PLAN_VERSION and path == plan_path() and path.parent == hiro_home():
             fp.save_plan(hiro_home(), plan, mode)  # 按偶像卡 × 模式的那份和当前方案一起更新
         else:
             path.write_text(json.dumps(plan, ensure_ascii=False, indent=1), encoding="utf-8")
-        logger.info("开局前准备：用空着的 %s", "、".join(f"{LABEL[w]}编成 {n} 号" for w, n in rec["picked"].items()))
+        logger.info("开局前准备：用 %s", "、".join(f"{LABEL[w]}编成 {n} 号" for w, n in rec["picked"].items()))
     plan = fp.load(path) or plan
     todo = fp.unwritten(plan, mode, what) if plan.get("version") == fp.PLAN_VERSION else []
     if todo:
@@ -157,9 +205,18 @@ def main(argv: list[str] | None = None) -> int:
                 return _stop(f"{e.message}。{e.hint}", 5)
         # 编成号是之前读数里挑的空位（或沿用的）：初星助手没写过的位，写之前再看一眼，玩家后来填了卡就停下、不覆盖（#134 review）
         from hiro.cli.cmd_run import slot_written_by_us
-        from hiro.cli.home import hiro_home
 
-        guard = [w for w in todo if not slot_written_by_us(hiro_home(), mode, w, (plan.get(w) or {}).get("set"))]
+        # N65（G1 第 5 轮 11-27）：玩家在对话里说了「N 号可以覆盖」（--overwrite），那几样也不加闸；原来同意只写在确认卡的说明里，
+        # 任务照样按「只写空位」拒绝，报错又让玩家「告诉初星助手可以覆盖哪一号」，绕不出去
+        # 同意只对玩家点名的那个号有效：方案里的号变了（重新挑过）就照旧加闸
+        agreed = {w for w, n in consent.items() if (plan.get(w) or {}).get("set") == n}
+        guard = [w for w in todo
+                 if w not in agreed and not slot_written_by_us(hiro_home(), mode, w, (plan.get(w) or {}).get("set"))]  # fmt: skip
+        if agreed & set(todo):
+            logger.info(
+                "开局前准备：玩家同意覆盖 %s",
+                "、".join(f"{LABEL[w]}编成 {(plan.get(w) or {}).get('set')} 号" for w in todo if w in agreed),
+            )
         logger.info("开局前准备：把编成方案写进游戏（%s）", "、".join(LABEL[w] for w in todo))
         rc = _write(mode, todo, guard)
         if rc != 0:

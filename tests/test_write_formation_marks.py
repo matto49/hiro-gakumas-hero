@@ -62,3 +62,43 @@ def test_dry_run_marks_only_when_nothing_to_change(setup, monkeypatch):
     result["out"] = {"support": [], "memory": []}
     assert _run(["--mode", "hajime", "--dry-run"], monkeypatch) == 0
     assert "hajime" in json.loads(cur.read_text(encoding="utf-8"))["written"]
+
+
+def test_slot_recorded_before_write_even_if_write_fails(setup, monkeypatch):
+    """N63（G1 第 5 轮 11-27）：写到一半停下（回读不对、识别失败等）也已经记下这个号是初星助手写的，重试时能接着覆盖。"""
+    import hiro.produce.formation_menu as fm
+    from hiro.brain import formation_plan as fp
+    from hiro.produce.formation_writer import FormationWriteError
+
+    cur, _per, _result = setup
+
+    def run(*a, on_write=None, **k):
+        on_write("memory", 9)
+        raise FormationWriteError("认不出排序方向")
+
+    monkeypatch.setattr(fm, "run", run)
+    assert _run(["--mode", "hajime", "--what", "memory"], monkeypatch) == 3
+    assert fp.recorded_slots(cur.parent, "hajime", "memory") == [9]
+    assert "written" not in json.loads(cur.read_text(encoding="utf-8"))  # 没写完不算 written
+
+
+def test_on_write_undo_only_removes_new_records(setup, monkeypatch):
+    """#191 review：撤销只撤这次新记的号；本来就记着的号（以前写过）不撤。"""
+    import hiro.produce.formation_menu as fm
+    from hiro.brain import formation_plan as fp
+
+    cur, _per, _result = setup
+    fp.record_slots(cur.parent, "hajime", {"support": 16})
+    undos = {}
+
+    def run(*a, on_write=None, **k):
+        undos["support"] = on_write("support", 16)
+        undos["memory"] = on_write("memory", 9)
+        return {"support": [], "memory": []}
+
+    monkeypatch.setattr(fm, "run", run)
+    assert _run(["--mode", "hajime"], monkeypatch) == 0
+    assert undos["support"] is None and callable(undos["memory"])
+    undos["memory"]()
+    assert fp.recorded_slots(cur.parent, "hajime", "memory") == []
+    assert fp.recorded_slots(cur.parent, "hajime", "support") == [16]

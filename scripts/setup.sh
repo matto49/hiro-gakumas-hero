@@ -37,6 +37,11 @@ step "2/6 安装本仓库（.[$EXTRAS]）"
 uv pip install --python "$PY" -e ".[$EXTRAS]"
 # RapidOCR 后端的识别模型：从本仓库 GitHub Release 下载、校验 SHA256（Mac 缺省用 Vision，下载失败不挡安装）
 "$PY" tools/assets/rapid_models.py || echo "  ⚠ RapidOCR 模型没下好（网络？）：要用 HIRO_OCR=rapidocr 时再跑 python tools/assets/rapid_models.py"
+if [ "$(uname -s)" = "Darwin" ]; then
+  # Mac 缺省文字识别也用 SIMD（11-26：Apple Vision 在 macOS 27.2.1 里每个进程只能读一次）。可选：装不上不让安装失败，退回 Apple Vision
+  echo "  SIMD 文字识别（Mac 缺省，可选；约 100 MB，另需 .NET 10 Runtime）…"
+  "$PY" tools/assets/simd_ocr.py || echo "  ⚠ SIMD 文字识别没装上（原因见上面几行）：识别用 Apple Vision，不影响使用；网络好了重跑本脚本即可"
+fi
 
 step "3/6 识别用的游戏原图（本仓库 Release game-images-b9577da：技能卡 / 偶像卡 / 饮料 → resources/game_data，约 125 MB）"
 if [ "$DATA" = 0 ]; then
@@ -61,8 +66,10 @@ step "5/6 考试引擎 Rust 后端与考试出牌算法（都可选）"
 # 都不行就用 Python 版（同一套规则，结果相同）
 if command -v cargo >/dev/null 2>&1; then
   echo "  编译考试引擎 Rust 后端（vendor/gakumas-player/gakumas_exam_rs，首次约 1 分钟）…"
+  # 本地编译不成（N45：工具链不全，比如 Windows gnu 工具链没 gcc）就改下预编译包，都不行才用 Python 版
   uv pip install --python "$PY" -q maturin && VIRTUAL_ENV="$PWD/.venv" "$PY" -m maturin develop --release -q -m vendor/gakumas-player/gakumas_exam_rs/Cargo.toml \
-    || echo "  ⚠ Rust 后端没编译成：考试引擎用 Python 版（结果相同，慢一些）"
+    || { echo "  Rust 后端没编译成，改下载预编译包…"; "$PY" scripts/engine_rs.py install --python "$PY"; } \
+    || echo "  ⚠ Rust 后端没装上：考试引擎用 Python 版（结果相同，慢一些）"
 else
   echo "  没有 Rust 工具链（cargo）：下载预编译的 Rust 后端…"
   "$PY" scripts/engine_rs.py install --python "$PY" \

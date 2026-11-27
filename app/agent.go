@@ -92,6 +92,10 @@ const SystemPrompt = `你是「初星助手」，帮玩家玩《学园偶像大�
    - 「开局前自动准备」缺省开着（HIRO_AUTO_FORMATION=0 才关）：方案没定编成号或没写进游戏，run_start 不报错，直接出一张开局确认卡，
      卡上写着「开局前：把编成方案写进空着的……」；照常让玩家点确认，不用另外发起写编成，也不要问玩家编成号。
    - formations_full：这个模式的编成位都满了。告诉玩家，问他用哪一号覆盖，再用 plan_formation 带 --mode、--support-set、--memory-set 重出。
+   - 开局任务停下说「这个编成位已经有卡、又不是初星助手写的」：把原话告诉玩家，问他哪一号可以覆盖；不要自己挑号，也不要自己加 --overwrite。
+   - 玩家在对话里亲口点了号（「回忆 13 号可以覆盖」「支援卡用 18 号覆盖」）：再调 run_start（同 kind、同 --idol），
+     加 --overwrite，写成 memory=13 / support=18（两样都有就 support=18,memory=13），不要再加 --support-set / --memory-set、也不用加 --prepare。
+     确认卡上会写明要覆盖哪一号，玩家点确认才写。
    - plan_no_set：方案出好了，但不知道写进第几号编成位。问玩家用第几号（支援卡编成、回忆编成各一个），再用 plan_formation 带 --mode、--support-set、--memory-set 重出。
    - no_plan：没有支援卡 / 回忆库存，出不了方案。告诉玩家先扫描（scan-supports、scan-memories）。
    不要自己挑编成号去覆盖玩家的编成，也不要改别的偶像、别的模式的方案。
@@ -316,9 +320,10 @@ func (a *Agent) Ask(ctx context.Context, history []Turn, text string) (Reply, er
 			}
 		}
 		if chose && len(pendings) == 0 {
-			return Reply{Text: strings.TrimSpace(m.Content), Cards: cards}, nil
+			return Reply{Text: strings.TrimSpace(m.Content), Cards: withoutInfo(cards, text)}, nil
 		}
 		if len(pendings) > 0 {
+			cards = withoutInfo(cards, text)
 			var b strings.Builder
 			if strings.TrimSpace(m.Content) != "" {
 				b.WriteString(strings.TrimSpace(m.Content) + "\n")
@@ -330,6 +335,24 @@ func (a *Agent) Ask(ctx context.Context, history []Turn, text string) (Reply, er
 		}
 	}
 	return Reply{Text: "这件事我绕了好几圈还没办完，换个说法再试一次？", Cards: cards}, nil
+}
+
+// withoutInfo 去掉这一轮的资料卡（info_* 查询结果）：这一轮要出选偶像卡或开局确认卡时，查偶像卡只是为了拿编号，
+// 卡片跟着确认卡一起出来就是刷屏（N64，G1 第 5 轮 11-27：说「回忆编成可以覆盖13号」，确认卡上方挂了 74 条偶像卡）。
+// 玩家单纯问资料（没有确认卡、选择卡）时照常给；这句话里明确说了要看（「看看」「有哪些」「列一下」）也照常给（#194 review）。
+func withoutInfo(cards []map[string]any, said string) []map[string]any {
+	for _, w := range []string{"看", "哪些", "列", "资料", "有什么"} {
+		if strings.Contains(said, w) {
+			return cards
+		}
+	}
+	out := cards[:0:0]
+	for _, c := range cards {
+		if c["type"] != "info" {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // choose_idol：让玩家在几张偶像卡里点选（11-25 review：原来是文字列表，玩家只能打字回答）。不经 hiro 命令行，

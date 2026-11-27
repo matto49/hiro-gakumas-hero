@@ -51,6 +51,7 @@ def calls(monkeypatch):
     monkeypatch.setattr(ps, "_write", write)
     monkeypatch.setattr(ps, "_exec", lambda argv: log.append(("exec", argv)) or 0)
     monkeypatch.setattr(ps, "_check_memory_freshness", lambda plan_path, home: None)
+    monkeypatch.setattr(ps, "_go_home", lambda: log.append(("home", "")))
     return log
 
 
@@ -92,6 +93,15 @@ def test_slot_written_by_us_needs_no_blank_guard(home, calls):
     assert ("blank_only", "memory") in calls
 
 
+def test_go_home_failure_only_warns(monkeypatch, caplog):
+    """退回首页失败（连不上游戏等）只记警告，不抛、不盖掉停下的原因。"""
+    import hiro.devices as devices
+
+    monkeypatch.setattr(devices, "open_device", lambda: (_ for _ in ()).throw(RuntimeError("连不上")))
+    ps._go_home()
+    assert "退回首页没成功：连不上" in caplog.text
+
+
 def test_nothing_to_do_just_starts(home, calls):
     _plan(home, sets=(4, 5), written=True)
     assert ps.main(["--mode", "hajime", "--", "x"]) == 0
@@ -104,28 +114,70 @@ def test_all_full_stops_without_writing(home, calls, monkeypatch, capsys):
                         "sets": [{"kind": k, "set": n, "filled": 3, "cards": []} for k in ("support", "memory") for n in range(1, 21)]})  # fmt: skip
     rc = ps.main(["--mode", "hajime", "--", "x"])
     assert rc != 0 and not any(c[0] in ("write", "exec") for c in calls)
+    assert ("home", "") in calls  # N48：停下前退回首页，不把游戏留在编成页
     err = capsys.readouterr().err
     # N34（G1 第 3 轮）：说清有哪几号、在对话里怎么说
     assert (
         "停下：「初」的支援卡编成 1–20 号都有卡" in err
         and "「支援卡编成用 N 号覆盖」" in err
-        and "曾由初星助手写入" not in err
+        and "也没有初星助手以前写过的号" in err
     )
 
 
-def test_all_full_names_sets_we_wrote(home, calls, monkeypatch, capsys):
+def _all_full(mode, kinds=()):
+    return {"scanned_at": "x", "mode": mode, "complete": True,
+            "sets": [{"kind": k, "set": n, "filled": 3, "cards": []} for k in ("support", "memory") for n in range(1, 21)]}  # fmt: skip
+
+
+def test_all_full_overwrites_sets_we_wrote(home, calls, monkeypatch, tmp_path):
+    """D26（11-26 用户本人定）：都满了时，初星助手以前写过的号（别的方案 written 记着）直接覆盖、不再停下问。"""
     from hiro.brain import formation_plan as fp
 
     _plan(home)
     other = home / "plans" / "hajime" / "other.json"
     other.parent.mkdir(parents=True, exist_ok=True)
     other.write_text(
-        json.dumps({"version": fp.PLAN_VERSION, "written": {"hajime": {"what": ["support"], "support_set": 18}}})
+        json.dumps(
+            {
+                "version": fp.PLAN_VERSION,
+                "written": {"hajime": {"what": ["memory", "support"], "support_set": 18, "memory_set": 9}},
+            }
+        )
     )
-    monkeypatch.setattr(ps, "_survey", lambda mode, kinds=(): {"scanned_at": "x", "mode": mode, "complete": True,
-                        "sets": [{"kind": k, "set": n, "filled": 3, "cards": []} for k in ("support", "memory") for n in range(1, 21)]})  # fmt: skip
-    assert ps.main(["--mode", "hajime", "--", "x"]) != 0
-    assert "其中 18 号曾由初星助手写入" in capsys.readouterr().err
+    monkeypatch.setattr(ps, "_survey", _all_full)
+    out = tmp_path / "prepare.json"
+    assert ps.main(["--mode", "hajime", "--out", str(out), "--", "x"]) == 0
+    assert [c[0] for c in calls if c[0] not in ("write_what", "blank_only")] == ["write", "exec"]
+    assert ("blank_only", "") in calls  # 覆盖的是自己写过的号，不加「写之前要全空」的闸
+    rec = json.loads(out.read_text(encoding="utf-8"))
+    assert rec["picked"] == {"support": 18, "memory": 9} and rec["reused"] == {"support": 18, "memory": 9}
+
+
+def test_all_full_one_kind_ours_other_still_stops(home, calls, monkeypatch, capsys):
+    """只有支援卡有自己写过的号、回忆没有：回忆照旧停下问，玩家的编成不动。"""
+    from hiro.brain import formation_plan as fp
+
+    _plan(home)
+    fp.record_slots(home, "hajime", {"support": 18})
+    monkeypatch.setattr(ps, "_survey", _all_full)
+    assert ps.main(["--mode", "hajime", "--", "x"]) == 4
+    assert not any(c[0] in ("write", "exec") for c in calls)
+    assert "回忆编成 1–20 号都有卡" in capsys.readouterr().err
+
+
+def test_recorded_slots_survive_plan_replaced(home, calls, monkeypatch):
+    """写过的号记在 formation-slots.json：同一位偶像出了新方案（written 跟着没了）也还认得。"""
+    from hiro.brain import formation_plan as fp
+
+    _plan(home, sets=(18, 9))
+    fp.mark_written(ps.plan_path(), "hajime", ("support", "memory"))
+    assert fp.recorded_slots(home, "hajime", "support") == [18] and fp.recorded_slots(home, "hajime", "memory") == [9]
+    assert fp.recorded_slots(home, "nia", "support") == []
+    _plan(home)  # 新方案盖掉旧的，没有 written
+    monkeypatch.setattr(ps, "_survey", _all_full)
+    assert ps.main(["--mode", "hajime", "--", "x"]) == 0
+    plan = json.loads((home / "formation-plan.json").read_text(encoding="utf-8"))
+    assert plan["support"]["set"] == 18 and plan["memory"]["set"] == 9
 
 
 def test_write_failure_does_not_start(home, calls, monkeypatch):
@@ -178,3 +230,43 @@ def test_write_failure_reason_is_the_specific_one(home, calls, monkeypatch, caps
     err = capsys.readouterr().err
     why = failure_reason(err.splitlines())
     assert why is not None and why.startswith("回忆选择列表往下翻到第 6 行") and "原因见上面的日志" not in err
+
+
+def test_exec_on_windows_waits_for_child_and_returns_its_code(monkeypatch):
+    """N51（G3 第 3 轮 11-26 Windows）：os.execvp 在 Windows 上另起新进程、本进程立刻以 0 退出，任务层报「完成」。
+    Windows 上改成起子进程等它结束，原样返回退出码；POSIX 照旧 exec。"""
+    import subprocess
+
+    called = []
+    monkeypatch.setattr(subprocess, "call", lambda argv: called.append(argv) or 3)
+    monkeypatch.setattr(ps.os, "execvp", lambda *a: called.append(("execvp", *a)))
+    assert ps._exec(["python", "-m", "hiro.runtime.hajime", "new"], platform="win32") == 3
+    assert called == [["python", "-m", "hiro.runtime.hajime", "new"]]
+    called.clear()
+    ps._exec(["python", "-m", "x"], platform="darwin")
+    assert called and called[0][0] == "execvp"
+
+
+def test_overwrite_consent_drops_blank_guard(home, calls):
+    """N65（G1 第 5 轮 11-27）：玩家说了「回忆 13 号可以覆盖」（--overwrite memory=13），回忆不加「只写空位」的闸；支援卡照旧。"""
+    _plan(home, sets=(4, 13))
+    assert ps.main(["--mode", "hajime", "--overwrite", "memory=13", "--", "x"]) == 0
+    assert ("blank_only", "support") in calls
+
+
+def test_overwrite_consent_rewrites_plan_at_run_time(home, calls):
+    """#192 review：开局检查不改方案文件；玩家点了确认、任务开始时 prepare_start 才把方案改用同意的号（12 → 13）、
+    去掉回忆的已写入标记，再按 13 号写（回忆不加闸，支援卡照旧）。"""
+    from hiro.brain import formation_plan as fp
+
+    _plan(home, sets=(4, 12), written=True)
+    assert ps.main(["--mode", "hajime", "--overwrite", "memory=13", "--", "x"]) == 0
+    plan = fp.load(home / "formation-plan.json")
+    assert plan["memory"]["set"] == 13
+    assert ("write_what", "memory") in calls and ("blank_only", "") in calls
+
+
+def test_no_consent_keeps_blank_guard(home, calls):
+    _plan(home, sets=(4, 13))
+    assert ps.main(["--mode", "hajime", "--", "x"]) == 0
+    assert ("blank_only", "support,memory") in calls

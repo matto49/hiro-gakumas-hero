@@ -47,6 +47,11 @@ _TB_END = re.compile(r"^(?:[A-Za-z_]\w*\.)*([A-Za-z_]\w*)(?:: (.*))?$")
 _EXC_SUFFIX = re.compile(r"(?:Error|Exception|Gone|Unavailable|Blocked|Page)$")
 
 
+# 已经自己恢复了的 ERROR（N40，G2 11-26：「Apple Vision 连续 3 次失败…这个进程改用 RapidOCR」之后程序因别的原因崩了，
+# 对话里的原因却是这条），不当作任务失败的原因
+_RECOVERED = re.compile(r"改用 RapidOCR|改到子进程里跑")
+
+
 def failure_reason(lines: list[str]) -> str | None:
     """任务出错时给人看的一句原因：最后一条「停下：…」，没有就最后一条 ERROR 日志（去掉时间 / 级别 / 模块前缀和本机截图路径）。
     11-25 review：failed 事件只写「看上面的日志」，对话和对局卡里看不到原因。"""
@@ -72,7 +77,7 @@ def failure_reason(lines: list[str]) -> str | None:
             stop = t[: -len("停下")].rstrip(
                 "，, "
             )  # 工具把「停下」写在句尾（G1-F2：扫偶像卡「没进到偶像详情页（…），停下」）
-        elif (m := _LOG_PREFIX.match(t)) and m.group(1) in ("ERROR", "CRITICAL"):
+        elif (m := _LOG_PREFIX.match(t)) and m.group(1) in ("ERROR", "CRITICAL") and not _RECOVERED.search(t):
             err = t[m.end() :]
     why = stop or err or exc
     if not why:
@@ -246,6 +251,8 @@ def _with_prepare(mode: str, build):
         if not p.get("prepare") or (p.get("command") or "new") != "new":
             return inner
         what = ["--what", p["prepare_what"]] if p.get("prepare_what") else []
+        if p.get("overwrite"):  # N65：玩家同意覆盖的那几样，写编成时不加「只写空位」的检查
+            what += ["--overwrite", str(p["overwrite"])]
         return [
             _PY,
             "-m",
@@ -441,10 +448,7 @@ KINDS: dict[str, Kind] = {
             str(d),
             *(["--only", p["only"]] if p.get("only") else []),
         ],
-        lambda p: (
-            "一键全收集：首页数值 → 偶像卡 → 支援卡 → 编成 → 回忆（12 片全读）（只读，不改编成）"
-            + (f"（只做 {p['only']}）" if p.get("only") else "")
-        ),
+        lambda p: _collect_all_summary(p.get("only")),
         pausable=False,
     ),
     "scan-idols": Kind(
@@ -855,3 +859,13 @@ class Job:
             self.proc.wait(STOP_GRACE)
         except subprocess.TimeoutExpired:
             _signal_tree(self.proc, kill=True)
+
+
+def _collect_all_summary(only: str | None) -> str:
+    """一键全收集的标题：只列要做的几步（中文），不露出 --only 的英文参数（N39，G2 11-26：标题里写着
+    「（只做 account,idols,supports,formations,memories）」）。"""
+    from hiro.collect_all import STEPS
+
+    want = {w.strip() for w in (only or "").split(",") if w.strip()}
+    names = [("回忆（12 片全读）" if k == "memories" else label) for k, _, label in STEPS if not want or k in want]
+    return "一键全收集：" + " → ".join(names or ["（没有要做的）"]) + "（只读，不改编成）"

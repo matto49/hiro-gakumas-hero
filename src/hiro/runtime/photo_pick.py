@@ -24,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 PAGE_WORD = "メモリーにするフォト"
 CONFIRM_WORD = "メモリーとして保存しますか"
+# 确认框整句「選択したフォトをメモリーとして保存しますか? ※保存していないフォトは削除されます」常被 OCR 断成两行、读错字：
+# 认出任一段就算（N50，G3 第 3 轮 11-26 Windows：收尾一直点「次へ」，确认框认不出、没点「決定」，180 秒超时）
+CONFIRM_WORDS = (CONFIRM_WORD, "メモリーとして保存", "保存していないフォト")
 POLL_S = 3.0
 LEFT_POLLS = 3  # 连续这么多次（约 9 秒）两种画面都不在，才算你选完了
 AUTO_AFTER_S = 300.0  # 等完之后这么久内照旧自动点
@@ -52,11 +55,15 @@ def timeout_s(env: Mapping[str, str] | None = None) -> float:
 
 
 def is_photo_page(texts) -> bool:
-    return any(PAGE_WORD in t for t in texts)
+    from hiro.vision.textnorm import contains
+
+    return any(contains(t, PAGE_WORD) for t in texts)
 
 
 def is_photo_confirm(texts) -> bool:
-    return any(CONFIRM_WORD in t for t in texts)
+    from hiro.vision.textnorm import contains
+
+    return any(contains(t, w) for t in texts for w in CONFIRM_WORDS)
 
 
 def should_wait(texts, env: Mapping[str, str] | None = None, now: float | None = None) -> bool:

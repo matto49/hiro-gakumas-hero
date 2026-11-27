@@ -132,10 +132,7 @@ func (h *Hiro) run(ctx context.Context, args []string, stdin []byte) Result {
 		if msg == "" {
 			msg = strings.TrimSpace(stdout.String())
 		}
-		if len(msg) > 2000 {
-			msg = msg[len(msg)-2000:]
-		}
-		return Result{Exit: exit, Error: &CliError{Code: "bad_output", Message: "hiro 工具层输出看不懂：" + msg,
+		return Result{Exit: exit, Error: &CliError{Code: "bad_output", Message: badOutputMessage(msg),
 			Hint: "运行 hiro doctor 检查环境"}}
 	}
 	r.Exit = exit
@@ -148,6 +145,22 @@ func (h *Hiro) run(ctx context.Context, args []string, stdin []byte) Result {
 		}
 	}
 	return r
+}
+
+// badOutputMessage 是 hiro 没给出信封时界面上显示的一句话。Python 的 traceback 整段丢给用户没法看（N46：用量页满屏 traceback），
+// 只留最后一行异常；不是 traceback 的原样给。
+func badOutputMessage(msg string) string {
+	if strings.Contains(msg, "Traceback (most recent call last):") {
+		lines := strings.Split(strings.TrimSpace(msg), "\n")
+		last := strings.TrimSpace(lines[len(lines)-1])
+		if last != "" {
+			return "hiro 工具层出错了：" + last
+		}
+	}
+	if len(msg) > 2000 { // 先认 traceback 再截断（#174 review：长 traceback 截掉开头那行就认不出了）
+		msg = msg[len(msg)-2000:]
+	}
+	return "hiro 工具层输出看不懂：" + msg
 }
 
 func exists(p string) bool {

@@ -29,6 +29,45 @@ EXAM_PAGES = {"HIF_EXAM"}
 RESULT_PAGES = {"HIF_EXAM_RESULT", "HIF_FINALS_RANKING"}
 
 
+def exam_name(label: str | None) -> str:
+    """考试 / 课程标签（hajime-final、hajime-lesson-vo-hard…）给人看的说法。和 app/labels/labels.go 的 Exam 一一对应，
+    两边共用 app/labels/testdata/exam_names.json 里的用例；认不出的原样返回（N47：复盘页的考试名、回合条露出内部标签）。"""
+    label = label or ""
+    low = label.strip().lower().split("#", 1)[0]
+    stage = {"mid": "中间考试", "mid1": "中间考试", "mid2": "第 2 次中间考试", "final": "最终考试"}
+    for mode in ("hajime-", "nia-"):
+        if not low.startswith(mode):
+            continue
+        rest = low[len(mode) :]
+        if rest in stage:
+            return stage[rest]
+        if rest.startswith("lesson"):
+            lesson = rest[len("lesson") :]
+            if lesson == "":
+                return "课程"
+            parts = lesson.removeprefix("-").split("-")
+            attr = {"vo": "Vo", "da": "Da", "vi": "Vi"}.get(parts[0])
+            if attr is None or len(parts) > 2 or not lesson.startswith("-"):
+                return label
+            out = f"{attr} 课程"
+            if len(parts) == 2:
+                if parts[1] == "hard":
+                    out = "追い込み " + out
+                elif parts[1] == "sp":
+                    out = "SP " + out
+                else:
+                    return label
+            return out
+    if low == "r1":
+        return "本战 R1"  # H.I.F 本战两轮（选拔是 qualify-N）
+    if low == "r2":
+        return "本战 R2"
+    if low.startswith("tower-"):
+        n = low[len("tower-") :]
+        return f"第 {n} 层" if n and n != "x" else "偶像之路"
+    return label
+
+
 def _segments(traces: Path, base: str) -> list[Path]:
     segs = [traces / base] + sorted(traces.glob(base + "-r*"), key=lambda p: int(p.name.rsplit("-r", 1)[1]))
     return [s for s in segs if (s / "steps.jsonl").exists()]
@@ -207,7 +246,7 @@ def build(base: str, traces: Path) -> dict:
             )
             if new:
                 attempt = 1 + sum(1 for e in exams if e["label"] == label)
-                cur = {"label": label, "attempt": attempt, "steps": [], "result": None}
+                cur = {"label": label, "name": exam_name(label), "attempt": attempt, "steps": [], "result": None}
                 exams.append(cur)
                 prev_rem = None
             turn_idx = (cur["steps"][-1]["turn"] if cur["steps"] else 0) + (1 if rem != prev_rem else 0)
