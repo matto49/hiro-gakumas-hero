@@ -281,7 +281,7 @@ func (s *stationIntegration) setEnabled(enable bool) {
 	}
 	pref.StationEnabled = &enable
 	if err := s.settings.Save(pref, ""); err != nil {
-		s.note = "无法保存采集站设置"
+		s.note = "无法保存采集站设置：" + err.Error() + "。处理后再点一次。"
 		return
 	}
 	s.note = ""
@@ -328,6 +328,8 @@ func (s *stationIntegration) panel(c *ui.Context, h plugin.Host) {
 			message = "请在「管理插件」同意采集站插件的权限。"
 		case enabled:
 			message = "采集站已启用。"
+		case !h.Now().Before(s.next):
+			message = "配对核验已过期，请重新点「检查配对」。" // 「启用」只在核验后 60 秒内可点（#85 review：原来按钮灰了文案还写可以启用）
 		default:
 			message = "采集站配对已验证，可以启用。"
 		}

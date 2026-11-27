@@ -292,7 +292,7 @@ func (e *Ext) draw(c *ui.Context, h plugin.Host, key, method string, params map[
 			return
 		}
 		if s.v.busy != "" {
-			if panel && edit {
+			if edit { // 卡片、插件设置页也排队（原来只排面板的，别处请求还没回来时改的控件会被静默丢掉；CodeRabbit #85）
 				s.edits = append(s.edits, screenEdit{id, value})
 			}
 			return
