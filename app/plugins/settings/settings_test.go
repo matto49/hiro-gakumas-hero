@@ -790,14 +790,16 @@ func TestUpgradeEnvWhenProgramIsBehind(t *testing.T) {
 	if !tt.HasText(behind) {
 		t.Fatalf("没说版本不一致：%q", tt.Texts())
 	}
-	h.Live = "job-1"
-	tt.Frame()
-	_ = plugintest.ClickButton(tt, "更新运行环境")
-	tt.Frame()
-	if upgraded != 0 || !tt.HasText("正在跑任务，跑完再更新。") {
-		t.Fatalf("有任务在跑时不能更新：upgraded=%d %q", upgraded, tt.Texts())
+	for _, set := range []func(bool){func(on bool) { h.Live = map[bool]string{true: "job-1"}[on] }, func(on bool) { h.Pending_ = on }} {
+		set(true)
+		tt.Frame()
+		_ = plugintest.ClickButton(tt, "更新运行环境")
+		tt.Frame()
+		if upgraded != 0 || !tt.HasText("正在跑任务，跑完再更新。") {
+			t.Fatalf("有任务在跑 / 正在开局时不能更新：upgraded=%d %q", upgraded, tt.Texts())
+		}
+		set(false)
 	}
-	h.Live = ""
 	tt.Frame()
 	if err := plugintest.ClickButton(tt, "更新运行环境"); err != nil {
 		t.Fatalf("%v %q", err, tt.Texts())
