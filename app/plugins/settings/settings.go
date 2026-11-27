@@ -76,6 +76,8 @@ type BootStatus struct {
 	Ready bool
 	Steps []string
 	Err   string
+	// Behind：程序（HIRO_HOME/src）和界面不是一个版本时的白话说明（G5）；一致时为空。
+	Behind string
 }
 
 // Deps 是设置插件要的宿主能力（main 里接 Assistant / Bootstrap / Hiro.SetSecret）。
@@ -90,7 +92,9 @@ type Deps struct {
 	BootStatus func(ctx context.Context) BootStatus
 	BootRun    func(ctx context.Context, onLine func(string)) error
 	BootReset  func() error
-	SetSecret  func(ctx context.Context, name, value string) hiroapi.Result
+	// BootUpgrade 把程序换成和界面同版本的（「更新运行环境」，G5）；nil 时不显示按钮。
+	BootUpgrade func(ctx context.Context, onLine func(string)) error
+	SetSecret   func(ctx context.Context, name, value string) hiroapi.Result
 	// OnModelChanged 在模型设置保存后调用（shell 重新决定能不能直接说话）。
 	OnModelChanged func()
 	// OnWizardDone 在第一次使用的向导走完时调用（shell 自己扫一遍从没扫过的库存，R11）。
@@ -640,6 +644,10 @@ func (s *S) envSection(c *ui.Context, h plugin.Host) {
 			ui.Text(c, "运行环境装好了").FontSize(kit.FSmall).TextColor(kit.Ink)
 		})
 		s.ocrLine(c)
+		s.behindLine(c, h)
+		if n := len(s.bootLines); n > 0 { // 「更新运行环境」的进度和结果（装好的时候没有别的输出，G5）
+			ui.Text(c, strings.Join(s.bootLines[max(0, n-12):], "\n")).Font(kit.Mono).FontSize(11).TextColor(kit.Ink2).Padding(10).Radius(kit.R8).Background(kit.Surface2).Wrap()
+		}
 		if kit.Secondary(c, "下载 / 更新资料库").Disabled(s.busy).Clicked() {
 			s.busy = true
 			h.Go(func() func() {
@@ -693,6 +701,45 @@ func (s *S) ocrLine(c *ui.Context) {
 	if it.Next != "" && it.OK != nil && !*it.OK {
 		kit.Note(c, it.Next)
 	}
+}
+
+// behindLine：程序和界面版本不一致时（装了新安装包，HIRO_HOME/src 还是旧的），说清楚并给「更新运行环境」（G5）。
+func (s *S) behindLine(c *ui.Context, h plugin.Host) {
+	if s.boot.Behind == "" || s.d.BootUpgrade == nil {
+		return
+	}
+	ui.Text(c, s.boot.Behind).FontSize(kit.FSmall).TextColor(kit.Warn).Wrap()
+	live := h.LiveJob() != ""
+	label := "更新运行环境"
+	if s.booting {
+		label = "更新中…"
+	}
+	if kit.Primary(c, label).Key("upgrade-env").Disabled(s.booting || live).Clicked() {
+		s.upgradeEnv(h)
+	}
+	if live {
+		kit.Note(c, "正在跑任务，跑完再更新。")
+	}
+}
+
+func (s *S) upgradeEnv(h plugin.Host) {
+	s.booting = true
+	s.bootLines = nil
+	h.Go(func() func() {
+		err := s.d.BootUpgrade(context.Background(), func(line string) {
+			h.Go(func() func() { return func() { s.bootLines = append(s.bootLines, line) } })
+		})
+		return func() {
+			s.booting = false
+			if err != nil {
+				s.bootLines = append(s.bootLines, "没更新成："+err.Error()+"（原来的程序还在，可以照常用；网络问题可以稍后再点一次）")
+			} else {
+				s.bootLines = append(s.bootLines, "更新好了：程序和界面现在是同一个版本")
+			}
+			s.Recheck(h)
+			s.refreshOcr(h)
+		}
+	})
 }
 
 func (s *S) installEnv(h plugin.Host) {

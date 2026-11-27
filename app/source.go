@@ -45,6 +45,7 @@ type SourceSpec struct {
 	Repo    string        // 仓库地址，如 https://github.com/matto49/hiro-gakumas-hero
 	Tag     string        // 本版本对应的标签（desktop-v<版本>）；空 = 没有对应版本（开发版），直接用 main
 	Ref     string        // 显式指定的分支 / 标签（HIRO_REPO_REF）：只下它，下不到就报错，不退回 main
+	TagOnly bool          // 只下 Tag，找不到报错、不退回 main（「更新运行环境」用：换成不知道是哪一份的代码不如不换，G5）
 	Dest    string        // 解压到哪（HIRO_HOME/src）
 	Client  *http.Client  // nil：用带超时的默认客户端
 	Tries   int           // 每份压缩包最多试几次，0 = 3
@@ -66,6 +67,8 @@ func FetchSource(ctx context.Context, spec SourceSpec, say func(string)) error {
 		refs = []sourceRef{{Kind: "main", Name: "main"}}
 	case spec.Ref != "":
 		refs = []sourceRef{{Kind: "ref", Name: spec.Ref}}
+	case spec.Tag != "" && spec.TagOnly:
+		refs = []sourceRef{{Kind: "tag", Name: spec.Tag}}
 	case spec.Tag != "":
 		refs = []sourceRef{{Kind: "tag", Name: spec.Tag}, {Kind: "main", Name: "main"}}
 	default:

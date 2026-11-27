@@ -305,3 +305,16 @@ func TestSourceArchiveURLIsOneFunction(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestFetchSourceTagOnlyDoesNotFallBackToMain(t *testing.T) {
+	f := newFakeGitHub(t, map[string][]byte{"/archive/refs/heads/main.tar.gz": makeArchive(t, "hiro-gakumas-hero-main", fakeCommit, repoFiles...)})
+	home := t.TempDir()
+	sp := spec(f, home, "desktop-v9.9.9")
+	sp.TagOnly = true
+	if err := FetchSource(context.Background(), sp, func(string) {}); err == nil {
+		t.Fatal("TagOnly 找不到标签时应该报错")
+	}
+	if strings.Contains(f.hitList(), "main") {
+		t.Fatalf("TagOnly 不该去下 main：%s", f.hitList())
+	}
+}
