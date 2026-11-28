@@ -95,23 +95,55 @@ def _convert(src: Path, dst: Path) -> None:
     tmp.replace(dst)
 
 
+def _cleanup_old_bench_models(keep: set[str]) -> None:
+    """清理缓存目录中旧提交遗留的 UINet 模型文件（保留当前提交所需文件）。"""
+    d = cache_dir()
+    if not d.is_dir():
+        return
+    for p in d.glob("gkms_uinet-*"):
+        if p.name not in keep and p.is_file():
+            p.unlink(missing_ok=True)
+
+
+def _cleanup_old_uinet_masters(keep_name: str) -> None:
+    """清理旧主数据提交遗留的 uinet-master-* 导出目录（每版约 116 MB）。"""
+    import shutil
+
+    d = cache_dir()
+    if not d.is_dir():
+        return
+    for p in d.glob("uinet-master-*"):
+        if p.name != keep_name and p.is_dir():
+            shutil.rmtree(p, ignore_errors=True)
+
+
 def ensure_model(download: bool = True) -> Path:
     """UINet 模型：GKMS_UINET_MODEL 指定的文件；否则缓存目录里按固定提交下载的那份（校验 sha256）。
-    onnxruntime < 1.18（KAA 钉在 1.14）读不了原模型：用转换成 opset 18 的那份（第一次用时转换并缓存）。"""
+    onnxruntime < 1.18（KAA 钉在 1.14）读不了原模型：用转换成 opset 18 的那份（转换完清理原文件，省 31 MB）。"""
     env = os.environ.get("GKMS_UINET_MODEL")
     if env:
         p = Path(env).expanduser()
         if not p.is_file():
             raise FileNotFoundError(f"GKMS_UINET_MODEL 指向的文件不存在：{p}")
         return p
-    orig = _download_model(download)
     if _ort_reads_ir10():
+        orig = _download_model(download)
+        _cleanup_old_bench_models({orig.name})
         return orig
-    conv = orig.with_name(orig.stem + "-opset18.onnx")
-    if not conv.is_file():
-        if not download:
-            raise FileNotFoundError(f"没有转换好的 UINet 模型（{conv}）；运行 python -m hiro.bench_bridge setup")
-        _convert(orig, conv)
+    conv = cache_dir() / f"gkms_uinet-{UINET_COMMIT[:12]}-opset18.onnx"
+    stamp = conv.with_suffix(".sha256")
+    # 转换后的模型已存在且来源校验一致（或老缓存已存在）：直接复用，不重复下载原模型
+    if conv.is_file() and (not stamp.is_file() or stamp.read_text(encoding="utf-8").strip() == UINET_MODEL_SHA256):
+        # 顺手清掉同版本冗余原模型（以前留下的 31 MB）和旧版本模型
+        _cleanup_old_bench_models({conv.name, stamp.name})
+        return conv
+    if not download:
+        raise FileNotFoundError(f"没有转换好的 UINet 模型（{conv}）；运行 python -m hiro.bench_bridge setup")
+    orig = _download_model(True)
+    _convert(orig, conv)
+    stamp.write_text(UINET_MODEL_SHA256 + "\n", encoding="utf-8")
+    orig.unlink(missing_ok=True)
+    _cleanup_old_bench_models({conv.name, stamp.name})
     return conv
 
 
@@ -154,6 +186,7 @@ def ensure_master() -> Path:
     try:
         out = cache_dir() / f"uinet-master-{cat.info['commit'][:12]}"
         if all((out / f"{t}.jsonl").is_file() for t in UINET_TABLES):
+            _cleanup_old_uinet_masters(out.name)
             return out
         tmp = out.with_name(out.name + ".part")
         tmp.mkdir(parents=True, exist_ok=True)
@@ -166,6 +199,7 @@ def ensure_master() -> Path:
 
             shutil.rmtree(out)
         tmp.replace(out)
+        _cleanup_old_uinet_masters(out.name)
         return out
     finally:
         cat.db.close()

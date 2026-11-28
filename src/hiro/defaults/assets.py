@@ -50,8 +50,20 @@ class PublicAssetSource:
         raw = str(given) if given else os.environ.get("HIRO_BUNDLED_ASSETS")
         if raw is not None and raw.strip().lower() in ("0", "off", "no", "false", "none"):
             return None
-        p = Path(raw) if raw else Path(__file__).resolve().parents[3] / "assets" / "pack"
-        return p if p.is_dir() else None
+        if raw:
+            p = Path(raw)
+            return p if p.is_dir() else None
+        repo_root = Path(__file__).resolve().parents[3]
+        p = repo_root / "assets" / "pack"
+        if p.is_dir():
+            return p
+        # 分离式发布（hiro-src + HIRO_HOME/shared/assets-pack/<hash12>）：源码目录里写有指针文件 .hiro-assets-pack
+        ptr = repo_root / ".hiro-assets-pack"
+        if ptr.is_file():
+            target = Path(ptr.read_text(encoding="utf-8").strip())
+            if target.is_dir():
+                return target
+        return None
 
     def _roots(self) -> list[Path]:
         """自建目录在前、随仓库素材包在后。"""

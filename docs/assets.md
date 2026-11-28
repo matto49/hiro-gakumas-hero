@@ -8,8 +8,12 @@
 |---|---|---|
 | 公开游戏图 | `HIRO_KAA_GAME_DATA`，默认 `resources/game_data/`（安装脚本调 `tools/assets/game_images.py` 下载） | `skill_cards/` 技能卡卡面、`idol_cards/` 偶像卡、`drinks/` P 饮料图（白底 RGB，29 种，与主数据 ProduceDrink 全部对上） |
 | 主数据库 | `HIRO_MASTER_DB`，默认 `cache/master/game.db`（安装脚本调 `python -m hiro.state.master_db` 生成） | 卡 / 饮料 / P 道具 / 偶像等主数据表 |
-| 随仓库素材包 | `HIRO_BUNDLED_ASSETS`，默认 `assets/pack/`；设 `0` 关掉 | 卡面、考试效果 / P 饮料 / P 道具图标、数字字体、界面 Sprite、支援卡图、布局 |
+| 随仓库素材包 | `HIRO_BUNDLED_ASSETS`，默认 `assets/pack/`（桌面版按 `.hiro-assets-pack` 指到共享目录）；设 `0` 关掉 | 卡面（发行包为差量，与 `game_data/skill_cards` 同名的 1,916 张由 `game_images.py` 硬链接补齐）、考试效果 / P 饮料 / P 道具图标、数字字体、界面 Sprite、支援卡图、布局 |
 | 使用者自建素材 | `HIRO_USER_ASSETS`，默认 `resources/user_assets/` | 见下文「自建素材」；都可选。与素材包并用：同类图库取文件更多的一个，`layout.json` 和字体先自建后素材包 |
+
+桌面版发版时把纯代码和随仓库素材包拆开（见 `tools/assets/pack_assets_bundle.py` 与 `.github/workflows/desktop.yml`）：
+- `hiro-src-<版本>.tar.gz`：不含 `assets/pack/` 的源码归档；
+- `assets-pack-<内容哈希12位>.tar.gz`：托管在独立 Release `assets-pack-<哈希>`，缓存到 `HIRO_HOME/shared/assets-pack/`，代码升级时素材包未变则免重下。包内自动跳过与 `game-images-b9577da` 同名的 1,916 张技能卡并写入 `.cards-delta`，`tools/assets/game_images.py` 装完公开游戏图后会通过硬链接把这 1,916 张补回 `assets/pack/cards/`（不增加下载也不多占磁盘，同时保持 `game_data/skill_cards` 原样供换卡识别使用）。旧版 tag 未附带 `release.json` 时自动回退到 GitHub 整仓归档。
 
 公开游戏图原来由 KAA 的游戏数据更新器从 [kaa-game-data](https://github.com/kotonebot/kaa-game-data) 下载。识别一直按
 `data-b9577da` 这一版调；这一版上游已经下架，现在能下的新版是重新导出的图，像素有细微差别，2026-11-25 实测换成 edc305a 后
@@ -20,6 +24,7 @@
 主数据原来用 kaa-game-data 里的 `game.db`，2026-11-25 起由 `hiro.state.master_db` 从模拟器主数据
 （`vendor/gakumas-player/data/master/<提交>/catalog.sqlite`，社区公开的 gakumasu-diff 固定提交）生成同结构的库：
 每张表一列一个字段，列表 / 对象写 JSON 文本、布尔写 0 / 1，和原来的 `game.db` 一样，`hiro.master` 里的 SQL 原样能用。
+`fetch_master.py` 优先从本仓库预构建 Release `master-<提交12位>` 下载经 SHA256 校验的 `master-<提交12位>.sqlite.gz`（约 38 MB，由 `tools/assets/pack_master.py` 与 `.github/workflows/master-update.yml` 产出），无需拉取 309 个原始 YAML（约 216 MB）和本地建库；找不到预构建产物或指定 `--from-yaml` 时自动回退到原 YAML 构建流程，切换提交后自动清理旧提交快照。
 模拟器主数据换了提交（`fetch_master.py` 换版本）时自动重建。2026-11-25 核对：原 `game.db` 的表和列都在、行数不少，抽查的行字段值一致；
 只少 `PhotoLookEffectorCharacter` 一张表（hiro 不用）。`HIRO_MASTER_DB` 指向一份已有的库时原样用、不重建。
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import io
+import os
 import shutil
 import sys
 import urllib.request
@@ -81,12 +82,57 @@ def fetch(out: Path) -> list[str]:
     return sorted(blobs)
 
 
+def _resolve_bundled_pack(root: Path = ROOT) -> Path | None:
+    raw = os.environ.get("HIRO_BUNDLED_ASSETS")
+    if raw is not None and raw.strip().lower() in ("0", "off", "no", "false", "none"):
+        return None
+    if raw:
+        p = Path(raw)
+        return p if p.is_dir() else None
+    p = root / "assets" / "pack"
+    if p.is_dir():
+        return p
+    ptr = root / ".hiro-assets-pack"
+    if ptr.is_file():
+        target = Path(ptr.read_text(encoding="utf-8").strip())
+        if target.is_dir():
+            return target
+    return None
+
+
+def hydrate_delta_pack(game_data: Path, pack_dir: Path | None = None) -> int:
+    """精简识别素材包（含 .cards-delta 标记）只含增量角色变体；这里把 game_data/skill_cards 硬链进 pack/cards，
+    零额外磁盘占用、零重复下载，且保留 game_data/skill_cards 独立干净（避免影响 SIFT 认卡回归）。返回本次补链数。"""
+    pack = pack_dir if pack_dir is not None else _resolve_bundled_pack()
+    if pack is None or not (pack / ".cards-delta").is_file():
+        return 0
+    src_dir = Path(game_data) / "skill_cards"
+    if not src_dir.is_dir():
+        return 0
+    dst_dir = pack / "cards"
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    linked = 0
+    for src in src_dir.glob("*.png"):
+        dst = dst_dir / src.name
+        if dst.exists():
+            continue
+        try:
+            os.link(src, dst)
+        except OSError:
+            shutil.copy2(src, dst)
+        linked += 1
+    return linked
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out", default=str(ROOT / "resources" / "game_data"))
     args = ap.parse_args()
-    got = fetch(Path(args.out))
+    out = Path(args.out)
+    got = fetch(out)
     print("已下载：" + "、".join(got) if got else f"游戏图已是 {TAG}")
+    if linked := hydrate_delta_pack(out):
+        print(f"已为精简素材包硬链补全 {linked} 张基础技能卡面（零额外占用）")
 
 
 if __name__ == "__main__":

@@ -4,6 +4,8 @@ import (
 	"archive/tar"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,22 +15,48 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 )
 
 // 下载初星助手的 Python 源码（HIRO_HOME/src）：不用 git，普通玩家的电脑上没有它
 // （Mac 没装开发者工具时 /usr/bin/git 只是个会弹「安装命令行开发者工具」的占位程序）。
-// 按安装包自己的版本取 GitHub 标签 desktop-v<版本> 的源码压缩包（tar.gz，两个平台都用标准库解）；
-// 标签不存在（开发版、版本还没发）时退回 main，并记下装的是哪一份（.hiro-source.json）。
+// 优先按安装包版本下载 Release 里的 release.json：拉取精简源码包 hiro-src-<版本>.tar.gz（约 3–4 MB）
+// 并复用 HIRO_HOME/shared/assets-pack/<哈希> 下的独立识别素材包（升级不重复下 180 MB）；
+// 若该版本尚无 release.json（旧包或开发版），自动退回 GitHub 标签归档 desktop-v<版本>.tar.gz / main.tar.gz，
+// 并记下装的是哪一份（.hiro-source.json）。
 
 // sourceInfoFile 记着 src 是哪一份源码下来的（版本页要显示）：{"source": "tag|main|ref", "ref", "commit"?, "url", "downloaded_at"}。
-const sourceInfoFile = ".hiro-source.json"
+const (
+	sourceInfoFile      = ".hiro-source.json"
+	assetsPackPtrFile   = ".hiro-assets-pack"
+	assetsPackReadyFile = ".ready"
+)
 
 // sourceRef 是要下载的那一份源码：Kind 为 tag（版本标签）、main（最新开发版）或 ref（HIRO_REPO_REF 指定的分支 / 标签）。
 type sourceRef struct{ Kind, Name string }
 
-// sourceArchiveURL 是源码压缩包的下载地址。下载地址集中在这一个函数，以后改成从 Release 资产下载只改这里。
+// releaseManifest 是 desktop-v<版本> Release 里附带的 release.json（由 tools/assets/pack_assets_bundle.py 生成）。
+type releaseManifest struct {
+	Schema  string `json:"schema"`
+	Version string `json:"version"`
+	Commit  string `json:"commit"`
+	Source  struct {
+		Asset  string `json:"asset"`
+		SHA256 string `json:"sha256"`
+		Bytes  int64  `json:"bytes"`
+	} `json:"source"`
+	AssetsPack struct {
+		Tag         string `json:"tag"`
+		Asset       string `json:"asset"`
+		SHA256      string `json:"sha256"`
+		ContentHash string `json:"content_hash"`
+		Bytes       int64  `json:"bytes"`
+	} `json:"assets_pack"`
+}
+
+// sourceArchiveURL 是源码压缩包的下载地址。
 func sourceArchiveURL(repo string, r sourceRef) string {
 	repo = strings.TrimRight(repo, "/")
 	switch r.Kind {
@@ -38,6 +66,11 @@ func sourceArchiveURL(repo string, r sourceRef) string {
 		return repo + "/archive/refs/heads/main.tar.gz"
 	}
 	return repo + "/archive/" + r.Name + ".tar.gz"
+}
+
+// releaseAssetURL 是 GitHub Release 资产的下载地址。
+func releaseAssetURL(repo, tag, asset string) string {
+	return strings.TrimRight(repo, "/") + "/releases/download/" + tag + "/" + asset
 }
 
 // SourceSpec 说明要下什么、放到哪。
@@ -75,6 +108,16 @@ func FetchSource(ctx context.Context, spec SourceSpec, say func(string)) error {
 		refs = []sourceRef{{Kind: "main", Name: "main"}}
 	}
 	for i, r := range refs {
+		if r.Kind == "tag" {
+			err := fetchReleaseBundle(ctx, spec, r, home, say)
+			if err == nil {
+				return nil
+			}
+			if !errors.Is(err, errSourceNotFound) {
+				return err
+			}
+			// 该版本 Release 还没有 release.json（旧版 RC 等），退回完整源码归档
+		}
 		url := sourceArchiveURL(spec.Repo, r)
 		err := fetchOne(ctx, spec, r, url, home, say)
 		if err == nil {
@@ -87,6 +130,187 @@ func FetchSource(ctx context.Context, spec SourceSpec, say func(string)) error {
 		return fmt.Errorf("下载 %s 失败：%w", url, err)
 	}
 	return errors.New("没有可下载的源码")
+}
+
+func sha256File(f *os.File) (string, error) {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return "", err
+	}
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// fetchReleaseBundle 走分离式发布包：release.json → 精简源码包（~4 MB）+ 共享目录的识别素材包（命中缓存不重下）。
+// 若 release.json 返回 404，返回 errSourceNotFound 交给上层回退到旧版整仓归档。
+func fetchReleaseBundle(ctx context.Context, spec SourceSpec, r sourceRef, home string, say func(string)) error {
+	mfURL := releaseAssetURL(spec.Repo, r.Name, "release.json")
+	mfFile, err := os.CreateTemp(home, ".release-manifest-*.json")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(mfFile.Name())
+	defer mfFile.Close()
+	if err := download(ctx, spec, mfURL, mfFile, func(string) {}); err != nil {
+		if errors.Is(err, errSourceNotFound) {
+			return errSourceNotFound
+		}
+		return fmt.Errorf("下载 %s 失败：%w", mfURL, err)
+	}
+	if _, err := mfFile.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	var mf releaseManifest
+	if err := json.NewDecoder(mfFile).Decode(&mf); err != nil {
+		return fmt.Errorf("解析 release.json 失败：%w", err)
+	}
+	if mf.Source.Asset == "" || mf.Source.SHA256 == "" {
+		return errors.New("release.json 缺少源码包信息")
+	}
+	// 先确保共享识别素材包（若已有同内容哈希，零下载直接复用）
+	packDir := ""
+	if mf.AssetsPack.Tag != "" && mf.AssetsPack.Asset != "" {
+		packDir, err = ensureAssetsPack(ctx, spec, mf, home, say)
+		if err != nil {
+			return err
+		}
+	}
+	srcURL := releaseAssetURL(spec.Repo, r.Name, mf.Source.Asset)
+	say(fmt.Sprintf("下载精简源码包 %s…", mf.Source.Asset))
+	tmpFile, err := os.CreateTemp(home, ".src-download-*.tar.gz")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+	if err := download(ctx, spec, srcURL, tmpFile, say); err != nil {
+		return fmt.Errorf("下载 %s 失败：%w", srcURL, err)
+	}
+	gotSHA, err := sha256File(tmpFile)
+	if err != nil {
+		return err
+	}
+	if !strings.EqualFold(gotSHA, mf.Source.SHA256) {
+		return fmt.Errorf("源码包 %s 校验失败（SHA256 不一致）", mf.Source.Asset)
+	}
+	tmpDir, err := os.MkdirTemp(home, ".src-extract-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpDir)
+	say("解压精简源码…")
+	if _, err := tmpFile.Seek(0, io.SeekStart); err != nil {
+		return err
+	}
+	commit, err := extractTarGz(tmpFile, tmpDir)
+	if err != nil {
+		return err
+	}
+	if commit == "" {
+		commit = mf.Commit
+	}
+	if _, err := os.Stat(filepath.Join(tmpDir, "scripts", "setup.sh")); err != nil {
+		return errors.New("压缩包里没有 scripts/setup.sh，不像是初星助手的源码")
+	}
+	if packDir != "" {
+		if err := os.WriteFile(filepath.Join(tmpDir, assetsPackPtrFile), []byte(packDir+"\n"), 0o644); err != nil {
+			return err
+		}
+		if runtime.GOOS != "windows" {
+			_ = os.MkdirAll(filepath.Join(tmpDir, "assets"), 0o755)
+			_ = os.Symlink(packDir, filepath.Join(tmpDir, "assets", "pack"))
+		}
+	}
+	now := time.Now
+	if spec.Now != nil {
+		now = spec.Now
+	}
+	info := map[string]string{
+		"source":        r.Kind,
+		"source_mode":   "release",
+		"ref":           r.Name,
+		"url":           srcURL,
+		"downloaded_at": now().Format(time.RFC3339),
+	}
+	if commit != "" {
+		info["commit"] = commit
+	}
+	if mf.AssetsPack.Tag != "" {
+		info["assets_pack_tag"] = mf.AssetsPack.Tag
+	}
+	b, _ := json.MarshalIndent(info, "", "  ")
+	if err := os.WriteFile(filepath.Join(tmpDir, sourceInfoFile), append(b, '\n'), 0o644); err != nil {
+		return err
+	}
+	if _, err := os.Stat(spec.Dest); err == nil {
+		say("清掉上次没装完的 src 目录")
+		if err := os.RemoveAll(spec.Dest); err != nil {
+			return err
+		}
+	}
+	return os.Rename(tmpDir, spec.Dest)
+}
+
+func ensureAssetsPack(ctx context.Context, spec SourceSpec, mf releaseManifest, home string, say func(string)) (string, error) {
+	sharedRoot := filepath.Join(home, "shared", "assets-pack")
+	packDir := filepath.Join(sharedRoot, mf.AssetsPack.Tag)
+	if b, err := os.ReadFile(filepath.Join(packDir, assetsPackReadyFile)); err == nil && strings.TrimSpace(string(b)) == mf.AssetsPack.ContentHash && mf.AssetsPack.ContentHash != "" {
+		say("识别素材包已缓存（" + mf.AssetsPack.Tag + "），无需重复下载")
+		return packDir, nil
+	}
+	if err := os.MkdirAll(sharedRoot, 0o755); err != nil {
+		return "", err
+	}
+	assetURL := releaseAssetURL(spec.Repo, mf.AssetsPack.Tag, mf.AssetsPack.Asset)
+	say(fmt.Sprintf("下载独立识别素材包 %s（仅内容更新时下载）…", mf.AssetsPack.Asset))
+	tmpFile, err := os.CreateTemp(sharedRoot, ".pack-download-*.tar.gz")
+	if err != nil {
+		return "", err
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+	if err := download(ctx, spec, assetURL, tmpFile, say); err != nil {
+		return "", fmt.Errorf("下载识别素材包 %s 失败：%w", assetURL, err)
+	}
+	if mf.AssetsPack.SHA256 != "" {
+		gotSHA, err := sha256File(tmpFile)
+		if err != nil {
+			return "", err
+		}
+		if !strings.EqualFold(gotSHA, mf.AssetsPack.SHA256) {
+			return "", fmt.Errorf("识别素材包 %s 校验失败（SHA256 不一致）", mf.AssetsPack.Asset)
+		}
+	}
+	tmpDir, err := os.MkdirTemp(sharedRoot, ".pack-extract-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(tmpDir)
+	say("解压识别素材包…")
+	if _, err := tmpFile.Seek(0, io.SeekStart); err != nil {
+		return "", err
+	}
+	if _, err := extractTarGz(tmpFile, tmpDir); err != nil {
+		return "", err
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, assetsPackReadyFile), []byte(mf.AssetsPack.ContentHash+"\n"), 0o644); err != nil {
+		return "", err
+	}
+	_ = os.RemoveAll(packDir)
+	if err := os.Rename(tmpDir, packDir); err != nil {
+		return "", err
+	}
+	// 清理同一共享目录下的旧版识别素材包，避免重复占盘
+	if ents, err := os.ReadDir(sharedRoot); err == nil {
+		for _, e := range ents {
+			if e.IsDir() && e.Name() != mf.AssetsPack.Tag && strings.HasPrefix(e.Name(), "assets-pack-") {
+				_ = os.RemoveAll(filepath.Join(sharedRoot, e.Name()))
+			}
+		}
+	}
+	return packDir, nil
 }
 
 func fetchOne(ctx context.Context, spec SourceSpec, r sourceRef, url, home string, say func(string)) error {
