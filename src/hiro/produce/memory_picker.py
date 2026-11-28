@@ -527,7 +527,8 @@ def _at_end(picker: "Picker", inv: dict, img: np.ndarray, pages: int) -> None:
 
 
 def ran_out(prev: list[list[dict]], cur: list[list[dict]]) -> bool:
-    """滑过去以后一个完整行都没有，而上一页已经见底（最后一行不满一行，或者整页只剩一两行）：列表到底了，只是回弹。
+    """滑过去以后一个完整行都没有，而上一页已经见底（最后一行不满一行，或者整页只剩一两行）：像是列表到底后的回弹。
+    只是触发条件：scan 里还要再滑一次、滑不动才算到底。
     G3（11-29 Windows DMM，814 份）：第 136 页最后一行只有 2 格，再滑一次回弹成只露半行的第 137 页 → 原来按「对不上」停、
     complete=False，整表 815 格一条都没入库。"""
     if cur or not prev:
@@ -735,9 +736,15 @@ def scan(
                 _at_end(picker, inv, img, pages)
                 break
             cur = page_rows(img)
-            if ran_out(prev, cur):  # 到底后的回弹：上一页已见底、这一页没有完整行
-                _at_end(picker, inv, img, pages)
-                break
+            if ran_out(prev, cur):
+                # 像是到底后的回弹：再滑一次，滑不动才算到底（独立证据，#210 CodeRabbit：中间页只认出一两行时
+                # 别凭这个就标 complete）；滑得动就用新画面照常对齐 / 回滑
+                moved, img2 = scroll_moved(picker, img, dy)
+                if not moved and not cur:
+                    _at_end(picker, inv, img2, pages)
+                    break
+                if moved:
+                    img, cur = img2, page_rows(img2)
             k = align(prev, cur)
             if k is None:  # 留证据：读完重截的上一页、滑过去的这一页（11-15 那次对不上的原因没留帧，查不了）
                 picker.snap(prev_img, f"page{pages - 1:03d}-after-read")

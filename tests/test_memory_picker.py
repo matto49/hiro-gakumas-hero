@@ -869,3 +869,13 @@ def test_ran_out_when_last_row_short_and_next_page_has_no_full_row():
     assert not mp.ran_out([row(3), row(3), row(3), row(3)], [])  # 列表中间：满行整页，却一行都没有 → 别当到底
     assert not mp.ran_out([row(3), row(2)], [row(3)])  # 还有完整行：照常对齐
     assert not mp.ran_out([], [])
+
+
+@pytest.mark.fixtures
+def test_ran_out_alone_is_not_the_end(tmp_path, monkeypatch):
+    """#210 CodeRabbit：ran_out 只是触发条件，还得再滑一次滑不动才算到底。中间页误触发时列表还滑得动：照常对齐、回滑，不漏行。"""
+    monkeypatch.setattr(mp, "ran_out", lambda prev, cur: True)  # 每页都误触发
+    lst = ScrollList(copies=2)
+    inv = run_scan(tmp_path, lst, monkeypatch)
+    assert sorted(set(lst.read)) == all_cells(lst) and len(lst.read) == len(all_cells(lst))
+    assert inv["complete"] and inv["gaps"] == []
