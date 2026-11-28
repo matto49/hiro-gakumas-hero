@@ -250,7 +250,26 @@ func fetchReleaseBundle(ctx context.Context, spec SourceSpec, r sourceRef, home 
 			return err
 		}
 	}
-	return os.Rename(tmpDir, spec.Dest)
+	if err := os.Rename(tmpDir, spec.Dest); err != nil {
+		return err
+	}
+	// 源码成功切换后再清理旧版识别素材包，避免下载/校验失败破坏旧环境正在使用的素材
+	if mf.AssetsPack.Tag != "" {
+		cleanOldAssetsPacks(filepath.Join(home, "shared", "assets-pack"), mf.AssetsPack.Tag)
+	}
+	return nil
+}
+
+func cleanOldAssetsPacks(sharedRoot, keepTag string) {
+	ents, err := os.ReadDir(sharedRoot)
+	if err != nil {
+		return
+	}
+	for _, e := range ents {
+		if e.IsDir() && e.Name() != keepTag && strings.HasPrefix(e.Name(), "assets-pack-") {
+			_ = os.RemoveAll(filepath.Join(sharedRoot, e.Name()))
+		}
+	}
 }
 
 func ensureAssetsPack(ctx context.Context, spec SourceSpec, mf releaseManifest, home string, say func(string)) (string, error) {
@@ -301,14 +320,6 @@ func ensureAssetsPack(ctx context.Context, spec SourceSpec, mf releaseManifest, 
 	_ = os.RemoveAll(packDir)
 	if err := os.Rename(tmpDir, packDir); err != nil {
 		return "", err
-	}
-	// 清理同一共享目录下的旧版识别素材包，避免重复占盘
-	if ents, err := os.ReadDir(sharedRoot); err == nil {
-		for _, e := range ents {
-			if e.IsDir() && e.Name() != mf.AssetsPack.Tag && strings.HasPrefix(e.Name(), "assets-pack-") {
-				_ = os.RemoveAll(filepath.Join(sharedRoot, e.Name()))
-			}
-		}
 	}
 	return packDir, nil
 }
