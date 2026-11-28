@@ -83,13 +83,36 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
-          sparse-checkout: .github/desktop-release-notes.md
-          sparse-checkout-cone-mode: false
           persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
         with:
           path: dist
           merge-multiple: true
+      - name: 打包精简源码包、独立识别素材包与 release.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          VER="${TAG#desktop-v}"
+          mkdir -p "$RUNNER_TEMP/bundle" "$RUNNER_TEMP/assets-rel"
+          python3 tools/assets/pack_assets_bundle.py pack-source --version "$VER" --out dist --meta "$RUNNER_TEMP/bundle/source.json"
+          python3 tools/assets/pack_assets_bundle.py pack-assets --out "$RUNNER_TEMP/assets-rel" --meta "$RUNNER_TEMP/bundle/assets.json"
+          ASSETS_TAG=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["tag"])' "$RUNNER_TEMP/bundle/assets.json")
+          ASSETS_FILE=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["asset"])' "$RUNNER_TEMP/bundle/assets.json")
+          if ! gh release view "$ASSETS_TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create "$ASSETS_TAG" -R "$GITHUB_REPOSITORY" --latest=false \
+              --title "识别素材包（$ASSETS_TAG）" \
+              --notes "随仓库分离发布的识别素材包（assets/pack），按内容哈希缓存，系统升级时不重复下载。" \
+              "$RUNNER_TEMP/assets-rel/$ASSETS_FILE"
+          fi
+          python3 tools/assets/pack_assets_bundle.py manifest \
+            --version "$VER" \
+            --source-meta "$RUNNER_TEMP/bundle/source.json" \
+            --assets-meta "$RUNNER_TEMP/bundle/assets.json" \
+            --out dist/release.json
       - env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}

@@ -8,6 +8,11 @@
 # 仓库设置里要打开 Actions → General →「Allow GitHub Actions to create and approve pull requests」才能开 PR。
 name: master-update
 on:
+  push:
+    branches: ["main"]
+    paths:
+      - "vendor/gakumas-player/scripts/fetch_master.py"
+      - "tools/assets/pack_master.py"
   schedule:
     - cron: "30 3 * * *"  # UTC 03:30（北京时间 11:30）；上游多在 UTC 02:05 前后提交
   workflow_dispatch:
@@ -24,7 +29,49 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  publish-prebuilt:
+    # 主数据 commit 合入 main（或手动触发）时，若对应预构建 Release master-<commit12> 尚未发布，构建并发布约 38 MB 的 catalog.sqlite.gz
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: 检查是否需要发布预构建主数据包
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          commit=$(grep -oP '^DEFAULT_COMMIT = "\K[0-9a-f]{40}' vendor/gakumas-player/scripts/fetch_master.py)
+          tag="master-${commit:0:12}"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "预构建主数据包 $tag 已存在，跳过"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: 构建并发布 master-<commit12>
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ steps.check.outputs.commit }}
+          TAG: ${{ steps.check.outputs.tag }}
+        run: |
+          pip install pyyaml
+          python vendor/gakumas-player/scripts/fetch_master.py "$COMMIT" --from-yaml
+          python tools/assets/pack_master.py --commit "$COMMIT" --out "$RUNNER_TEMP/master-dist"
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --latest=false \
+            --title "模拟器主数据预构建包（gakumasu-diff ${COMMIT:0:7}）" \
+            --notes "由 vertesan/gakumasu-diff@${COMMIT} 构建的 catalog.sqlite.gz（约 38 MB），供安装脚本免 YAML 快速下载与 SHA256 校验。" \
+            "$RUNNER_TEMP/master-dist/"*
+
   bump:
+    if: github.event_name != 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -79,10 +126,12 @@ jobs:
           OLD: ${{ steps.bump.outputs.old }}
           NEW: ${{ steps.bump.outputs.new }}
         run: |
-          # 没变的 YAML 从旧快照拷过来，fetch_master 按 Git blob 校验，只下载改了的
+          # 没变的 YAML 从旧快照拷过来（若旧快照走的是预构建 SQLite 则没有 raw/，跳过），fetch_master 按 Git blob 校验，只下载改了的
           mkdir -p "vendor/gakumas-player/data/master/$NEW/raw"
-          cp "$RUNNER_TEMP/base/vendor/gakumas-player/data/master/$OLD/raw/"*.gz "vendor/gakumas-player/data/master/$NEW/raw/"
-          python vendor/gakumas-player/scripts/fetch_master.py
+          if compgen -G "$RUNNER_TEMP/base/vendor/gakumas-player/data/master/$OLD/raw/*.gz" >/dev/null; then
+            cp "$RUNNER_TEMP/base/vendor/gakumas-player/data/master/$OLD/raw/"*.gz "vendor/gakumas-player/data/master/$NEW/raw/"
+          fi
+          python vendor/gakumas-player/scripts/fetch_master.py --from-yaml
           PYTHONPATH=src python -m pytest -q tests -p no:cacheprovider --junitxml="$RUNNER_TEMP/new.xml" || true
 
       - name: 比较两次的失败

@@ -70,7 +70,7 @@ func TestPlanSourceStepDownloadsTheTagOfThisVersion(t *testing.T) {
 	if err := steps[0].Run(context.Background(), func(string) {}); err != nil {
 		t.Fatal(err)
 	}
-	if gh.hitList() != "/archive/refs/tags/desktop-v0.1.1.tar.gz" {
+	if gh.hitList() != "/releases/download/desktop-v0.1.1/release.json,/archive/refs/tags/desktop-v0.1.1.tar.gz" {
 		t.Fatalf("hits %s", gh.hitList())
 	}
 	if info := readSourceInfo(t, filepath.Join(home, "src")); info["source"] != "tag" || info["ref"] != "desktop-v0.1.1" {

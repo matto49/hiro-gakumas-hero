@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -144,7 +146,7 @@ func TestFetchSourceDownloadsTheTagOfThisVersionAndStripsTheTopDir(t *testing.T)
 	if _, err := time.Parse(time.RFC3339, info["downloaded_at"]); err != nil {
 		t.Fatal(err)
 	}
-	if gh.hitList() != "/archive/refs/tags/desktop-v0.1.1.tar.gz" {
+	if gh.hitList() != "/releases/download/desktop-v0.1.1/release.json,/archive/refs/tags/desktop-v0.1.1.tar.gz" {
 		t.Fatalf("hits %s", gh.hitList())
 	}
 	if strings.Contains(strings.Join(said, "\n"), "最新开发版") {
@@ -162,7 +164,7 @@ func TestFetchSourceFallsBackToMainWhenTheTagIs404(t *testing.T) {
 	if err := FetchSource(context.Background(), spec(gh, home, "desktop-v9.9.9"), func(s string) { said = append(said, s) }); err != nil {
 		t.Fatal(err)
 	}
-	if gh.hitList() != "/archive/refs/tags/desktop-v9.9.9.tar.gz,/archive/refs/heads/main.tar.gz" {
+	if gh.hitList() != "/releases/download/desktop-v9.9.9/release.json,/archive/refs/tags/desktop-v9.9.9.tar.gz,/archive/refs/heads/main.tar.gz" {
 		t.Fatalf("hits %s", gh.hitList())
 	}
 	if !strings.Contains(strings.Join(said, "\n"), "用的是最新开发版代码") {
@@ -316,5 +318,104 @@ func TestFetchSourceTagOnlyDoesNotFallBackToMain(t *testing.T) {
 	}
 	if strings.Contains(f.hitList(), "main") {
 		t.Fatalf("TagOnly 不该去下 main：%s", f.hitList())
+	}
+}
+
+func shaHex(b []byte) string {
+	s := sha256.Sum256(b)
+	return hex.EncodeToString(s[:])
+}
+
+func TestFetchSourceUsesReleaseBundleAndReusesCachedAssetsPack(t *testing.T) {
+	srcTar := makeArchive(t, "hiro-src-0.1.2", fakeCommit, repoFiles...)
+	packTar := makeArchive(t, "assets-pack-abcdef123456", "",
+		tarFile{name: "cards/variant.png", body: "png"},
+		tarFile{name: ".cards-delta", body: "game-images-b9577da\n"},
+	)
+	mf := map[string]any{
+		"schema":  "hiro.release.v1",
+		"version": "0.1.2",
+		"commit":  fakeCommit,
+		"source":  map[string]any{"asset": "hiro-src-0.1.2.tar.gz", "sha256": shaHex(srcTar), "bytes": len(srcTar)},
+		"assets_pack": map[string]any{
+			"tag": "assets-pack-abcdef123456", "asset": "assets-pack-abcdef123456.tar.gz",
+			"sha256": shaHex(packTar), "content_hash": "abcdef1234560000", "bytes": len(packTar),
+		},
+	}
+	mfJSON, _ := json.Marshal(mf)
+	gh := newFakeGitHub(t, map[string][]byte{
+		"/releases/download/desktop-v0.1.2/release.json":                           mfJSON,
+		"/releases/download/desktop-v0.1.2/hiro-src-0.1.2.tar.gz":                  srcTar,
+		"/releases/download/assets-pack-abcdef123456/assets-pack-abcdef123456.tar.gz": packTar,
+	})
+	home := t.TempDir()
+	if err := FetchSource(context.Background(), spec(gh, home, "desktop-v0.1.2"), func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	src := filepath.Join(home, "src")
+	info := readSourceInfo(t, src)
+	if info["source"] != "tag" || info["source_mode"] != "release" || info["ref"] != "desktop-v0.1.2" || info["assets_pack_tag"] != "assets-pack-abcdef123456" {
+		t.Fatalf("source info: %v", info)
+	}
+	ptrBytes, err := os.ReadFile(filepath.Join(src, assetsPackPtrFile))
+	if err != nil {
+		t.Fatalf("缺少 .hiro-assets-pack：%v", err)
+	}
+	packDir := strings.TrimSpace(string(ptrBytes))
+	if _, err := os.Stat(filepath.Join(packDir, "cards", "variant.png")); err != nil {
+		t.Fatalf("共享素材包缺少文件：%v", err)
+	}
+	// 升级到 0.1.3，引用同一个 assets_pack：不再重复下载素材包
+	srcTar2 := makeArchive(t, "hiro-src-0.1.3", fakeCommit, repoFiles...)
+	mf["version"] = "0.1.3"
+	mf["source"] = map[string]any{"asset": "hiro-src-0.1.3.tar.gz", "sha256": shaHex(srcTar2), "bytes": len(srcTar2)}
+	mfJSON2, _ := json.Marshal(mf)
+	gh2 := newFakeGitHub(t, map[string][]byte{
+		"/releases/download/desktop-v0.1.3/release.json":          mfJSON2,
+		"/releases/download/desktop-v0.1.3/hiro-src-0.1.3.tar.gz": srcTar2,
+	})
+	if err := FetchSource(context.Background(), spec(gh2, home, "desktop-v0.1.3"), func(string) {}); err != nil {
+		t.Fatalf("同哈希素材包应命中缓存不重下：%v", err)
+	}
+	if strings.Contains(gh2.hitList(), "assets-pack") {
+		t.Fatalf("命中缓存后不该再下载素材包：%s", gh2.hitList())
+	}
+}
+
+func TestFetchSourceRejectsCorruptedReleaseSHA256(t *testing.T) {
+	srcTar := makeArchive(t, "hiro-src-0.1.2", fakeCommit, repoFiles...)
+	packTar := makeArchive(t, "assets-pack-bbbbbbbbbbbb", "", tarFile{name: "cards/new.png", body: "png"})
+	mfJSON, _ := json.Marshal(map[string]any{
+		"schema":  "hiro.release.v1",
+		"version": "0.1.2",
+		"source":  map[string]any{"asset": "hiro-src-0.1.2.tar.gz", "sha256": strings.Repeat("0", 64), "bytes": len(srcTar)},
+		"assets_pack": map[string]any{
+			"tag": "assets-pack-bbbbbbbbbbbb", "asset": "assets-pack-bbbbbbbbbbbb.tar.gz",
+			"sha256": shaHex(packTar), "content_hash": "bbbbbbbbbbbb0000", "bytes": len(packTar),
+		},
+	})
+	gh := newFakeGitHub(t, map[string][]byte{
+		"/releases/download/desktop-v0.1.2/release.json":                             mfJSON,
+		"/releases/download/desktop-v0.1.2/hiro-src-0.1.2.tar.gz":                    srcTar,
+		"/releases/download/assets-pack-bbbbbbbbbbbb/assets-pack-bbbbbbbbbbbb.tar.gz": packTar,
+	})
+	home := t.TempDir()
+	// 预先放一份旧版素材包 A，模拟旧环境正在使用；新版源码校验失败时必须保留 A
+	oldPack := filepath.Join(home, "shared", "assets-pack", "assets-pack-aaaaaaaaaaaa")
+	if err := os.MkdirAll(oldPack, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(oldPack, "marker.txt"), []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := FetchSource(context.Background(), spec(gh, home, "desktop-v0.1.2"), func(string) {})
+	if err == nil || !strings.Contains(err.Error(), "SHA256") {
+		t.Fatalf("SHA256 校验失败应报错：%v", err)
+	}
+	if _, serr := os.Stat(filepath.Join(home, "src")); serr == nil {
+		t.Fatal("校验失败不该留下 src")
+	}
+	if _, serr := os.Stat(filepath.Join(oldPack, "marker.txt")); serr != nil {
+		t.Fatalf("源码切换失败时不应删除旧素材包：%v", serr)
 	}
 }
