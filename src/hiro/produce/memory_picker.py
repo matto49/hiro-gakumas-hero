@@ -526,6 +526,15 @@ def _at_end(picker: "Picker", inv: dict, img: np.ndarray, pages: int) -> None:
         logger.warning("回忆扫描：%s", inv["aborted"])
 
 
+def ran_out(prev: list[list[dict]], cur: list[list[dict]]) -> bool:
+    """滑过去以后一个完整行都没有，而上一页已经见底（最后一行不满一行，或者整页只剩一两行）：列表到底了，只是回弹。
+    G3（11-29 Windows DMM，814 份）：第 136 页最后一行只有 2 格，再滑一次回弹成只露半行的第 137 页 → 原来按「对不上」停、
+    complete=False，整表 815 格一条都没入库。"""
+    if cur or not prev:
+        return False
+    return len(prev[-1]) < len(COL_X) or len(prev) <= 2
+
+
 def align(prev: list[list[dict]], cur: list[list[dict]]) -> int | None:
     """prev 的最后一行在 cur 里是第几行（往前能对上的行也都要对上）；找不到 None。
     不只看 cur 开头：滑多了 / 滑少了 / 没滑动，都能对上位置。"""
@@ -726,6 +735,9 @@ def scan(
                 _at_end(picker, inv, img, pages)
                 break
             cur = page_rows(img)
+            if ran_out(prev, cur):  # 到底后的回弹：上一页已见底、这一页没有完整行
+                _at_end(picker, inv, img, pages)
+                break
             k = align(prev, cur)
             if k is None:  # 留证据：读完重截的上一页、滑过去的这一页（11-15 那次对不上的原因没留帧，查不了）
                 picker.snap(prev_img, f"page{pages - 1:03d}-after-read")
