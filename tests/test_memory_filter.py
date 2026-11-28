@@ -185,6 +185,16 @@ def _icon_frame(direction):
 def test_sort_direction_from_icon():
     assert mf.sort_direction(_icon_frame("desc")) == "desc"
     assert mf.sort_direction(_icon_frame("asc")) == "asc"
+    # G3（11-29 Windows DMM）：竖线粗（3 像素），上下亮像素只差 2 倍以内，按箭头尖的位置认
+    for d in ("desc", "asc"):
+        img = _icon_frame(d)
+        x0, y0 = mf.DIR_ICON[0], mf.DIR_ICON[1]
+        img[y0 + 6 : y0 + 36, x0 + 9 : x0 + 13] = 255
+        g = img[y0 : mf.DIR_ICON[3], x0 : x0 + 22].min(axis=2) > 200
+        h = g.shape[0] // 2
+        top, bottom = int(g[:h].sum()), int(g[h:].sum())
+        assert max(top, bottom) < 2 * min(top, bottom)  # 原来的规则认不出的那种
+        assert mf.sort_direction(img) == d
     import numpy as np
 
     assert mf.sort_direction(np.zeros((1280, 720, 3), np.uint8)) is None

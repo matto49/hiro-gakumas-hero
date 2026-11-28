@@ -16,6 +16,8 @@ from __future__ import annotations
 from hiro.state.memory_slices import PLAN_LABELS, PRODUCE_LABELS
 from hiro.vision.textnorm import contains, fold
 
+import numpy as np
+
 SORTS = ("プロデュースクリアランク", "入手", "アイドル", "タグ")
 PILL = (485, 1051)
 # 弹窗底部两个页签（720x1280）。选中的页签是橙字白底，RapidOCR 认不出（G2 11-26 Mac rc.7：Vision 坏了换 RapidOCR 后
@@ -197,6 +199,26 @@ def sort_direction(img) -> str | None:
     if bottom >= 10 and bottom >= 2 * top:
         return "desc"
     if top >= 10 and top >= 2 * bottom:
+        return "asc"
+    return _direction_by_tip(g)
+
+
+def _direction_by_tip(g) -> str | None:
+    """按箭头尖认方向：尖是箭头里最宽的那几行，看它在箭头上下哪一头（G3 11-29 Windows DMM：窗口大、竖线粗，
+    上下亮像素只差 1.9 倍（18 比 34），上面那条 2 倍的规则认不出，整个按片扫描第一片就停了）。"""
+    w = g.sum(axis=1)
+    rows = np.nonzero(w)[0]
+    if len(rows) < 8:
+        return None
+    first, last = int(rows[0]), int(rows[-1])
+    peak = int(w.max())
+    if peak < max(3, 1.8 * float(np.median(w[rows]))):  # 没有明显比竖线宽的一段：不是箭头
+        return None
+    at = float(np.nonzero(w >= 0.8 * peak)[0].mean())
+    pos = (at - first) / max(1, last - first)
+    if pos > 0.65:
+        return "desc"
+    if pos < 0.35:
         return "asc"
     return None
 
