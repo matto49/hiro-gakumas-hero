@@ -970,25 +970,11 @@ class HifCore:
         return False
 
     def _prior_trace_dirs(self) -> list[Path]:
-        """同一局之前的 trace 段：<基名>、<基名>-rN（不含当前目录），再加上当前目录里已有的步骤（run_hif resume --trace 同名续写，
-        D43 第三十三局本战）。按时间顺序，当前目录排最后。"""
-        import re
+        """同一局之前的 trace 段，再加上当前目录里已有的步骤（hiro.runtime.segments.prior_trace_dirs）。"""
+        from hiro.runtime.segments import prior_trace_dirs
 
-        cur = Path(self.s.trace.dir)
-        base = re.sub(r"-r\d+$", "", cur.name)
-        # 按续打编号的数值排（基名段 = 0）：名字字典序会把 -r10 排在 -r9 前，局面打底取到旧段（#128 review）
-        dirs = sorted(
-            (
-                d
-                for d in cur.parent.glob(base + "*")
-                if d != cur and re.fullmatch(re.escape(base) + r"(-r\d+)?", d.name)
-            ),
-            key=lambda d: int(m.group(1)) if (m := re.search(r"-r(\d+)$", d.name)) else 0,
-        )
-        steps = cur / "steps.jsonl"
-        if steps.exists() and steps.stat().st_size > 0:
-            dirs.append(cur)
-        return dirs
+        assert self.s is not None  # 续跑打底在 Core 建好、session 设好之后才调
+        return prior_trace_dirs(Path(self.s.trace.dir))
 
     def _exams_done_from_trace(self) -> int:
         """之前 trace 段里已经考完的选拔场数：出现过的最大 qualify-N；停机时还在那场考试里（最后一步是 HIF_EXAM 且标签是它）就算没考完。"""

@@ -573,3 +573,32 @@ func TestReplaySkipsOldTowerCardID(t *testing.T) {
 		t.Error("按偶像名记的应能再打一把")
 	}
 }
+
+// 初 LEGEND（11-28 Bjan：唯独初 LEGEND 打不了）：开局页第 4 档是 legend，参数照传；续打不带难度（由任务层接上一段）
+func TestArgsHajimeLegend(t *testing.T) {
+	s := &state{mode: 1, diff: 3}
+	s.pick.Chosen = idol{ID: "i_card-skin-hski-3-0001", Name: "篠澤広"}
+	a, say := s.args()
+	if got := strings.Join(a, " "); got != "run start hajime --command new --exam-search mid1,final,lesson --idol i_card-skin-hski-3-0001 --difficulty legend" {
+		t.Errorf("参数 %q", got)
+	}
+	if say != "开一局 初（篠澤広）" {
+		t.Errorf("说明 %q", say)
+	}
+	s.resume = true
+	a, _ = s.args()
+	if strings.Contains(strings.Join(a, " "), "--difficulty") {
+		t.Errorf("续打不该带难度：%q", a)
+	}
+}
+
+func TestExplainHajimeLegend(t *testing.T) {
+	h := host()
+	p := New()
+	pd := hiroapi.Pending{Command: "hiro run start hajime --idol i_card-skin-ttmr-3-0012 --difficulty legend", Summary: "初", Plan: planSnap(t, planJSON)}
+	p.Explain(h, pd)
+	e, ok := p.Explain(h, pd)
+	if !ok || !strings.Contains(e.Subtitle, "LEGEND") {
+		t.Errorf("解读 %+v", e)
+	}
+}

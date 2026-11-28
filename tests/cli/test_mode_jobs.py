@@ -38,8 +38,11 @@ def test_hajime_job(hiro_home):
 
 
 def test_nia_job_defaults_to_pro(hiro_home):
+    a = argv("nia", {"command": "new", "idol": "i_card-skin-shro-3-007"})
+    assert a[1:4] == ["-m", "hiro.runtime.nia_sample", "new"] and a[a.index("--difficulty") + 1] == "pro"
+    # 续打不塞缺省难度：runtime 接上一段 trace 的（原来续 MASTER 也按 PRO 算，11-28）
     a = argv("nia", {"command": "resume", "idol": "i_card-skin-shro-3-007"})
-    assert a[1:4] == ["-m", "hiro.runtime.nia_sample", "resume"] and a[a.index("--difficulty") + 1] == "pro"
+    assert a[1:4] == ["-m", "hiro.runtime.nia_sample", "resume"] and "--difficulty" not in a
     assert "N.I.A" in KINDS["nia"].summary({})
 
 
@@ -193,3 +196,16 @@ def test_daily_shop_refresh_only_with_shop_on(hiro_home):
     a = argv("daily", {"shop": "recommended", "shop_refresh": "on"})
     assert a[a.index("--shop-refresh") + 1] == "on"
     assert "免费刷新" in KINDS["daily"].summary({"shop": "recommended", "shop_refresh": "on"})
+
+
+def test_cli_rejects_nia_legend(run_cli):
+    _code, env = run_cli("run", "start", "nia", "--idol", "i_card-skin-hski-3-0001", "--difficulty", "legend")
+    assert env["ok"] is False and env["error"]["code"] == "bad_args" and "LEGEND" in env["error"]["message"]
+
+
+def test_cli_accepts_hajime_legend(run_cli):
+    code, env = run_cli(
+        "run", "start", "hajime", "--idol", "i_card-skin-shro-3-007", "--difficulty", "legend", "--support-set", "2",
+        "--memory-set", "1",
+    )  # fmt: skip
+    assert code == 3 and "LEGEND" in env["data"]["pending"]["summary"].upper()

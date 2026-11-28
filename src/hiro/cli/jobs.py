@@ -216,7 +216,7 @@ DAILY_LABEL = {
     "mission_reward": "任务奖励",
     "club_reward": "社团",
 }
-HAJIME_LEVELS = ("regular", "pro", "master")
+HAJIME_LEVELS = ("regular", "pro", "master", "legend")
 NIA_LEVELS = ("pro", "master")
 
 
@@ -288,6 +288,16 @@ def _daily_summary(p: dict) -> str:
     return head + ("：" + "；".join(spend) if spend else "")
 
 
+def _difficulty_argv(p: dict, default_level: str) -> list[str]:
+    """--difficulty：给了就用；新开局缺省 default_level；续打不给就不传，由 runtime 接上一段 trace 的难度
+    （原来续打也塞缺省值，初 LEGEND / MASTER、N.I.A MASTER 续跑后按 REGULAR / PRO 算，11-28）。"""
+    if p.get("difficulty"):
+        return ["--difficulty", p["difficulty"]]
+    if (p.get("command") or "new") == "resume":
+        return []
+    return ["--difficulty", default_level]
+
+
 def _produce_argv(module: str, default_level: str):
     """初（hiro.runtime.hajime）/ N.I.A（hiro.runtime.nia_sample）：新主循环，编成号走参数，存帧放任务目录。"""
 
@@ -299,8 +309,7 @@ def _produce_argv(module: str, default_level: str):
             p.get("command") or "new",
             "--idol",
             p.get("idol") or "",
-            "--difficulty",
-            p.get("difficulty") or default_level,
+            *_difficulty_argv(p, default_level),
             "--trace",
             p.get("trace") or d.name,
             "--out",
@@ -461,7 +470,7 @@ KINDS: dict[str, Kind] = {
     ),
     "hajime": Kind(
         "hajime",
-        "「初」培育（レギュラー / プロ / マスター）",
+        "「初」培育（レギュラー / プロ / マスター / レジェンド）",
         _with_prepare("hajime", _produce_argv("hiro.runtime.hajime", "regular")),
         _produce_summary("「初」", "regular"),
         env={"HIRO_RUNTIME": "own"},
@@ -646,7 +655,7 @@ def resume_chain(jobs: Path, traces: Path, kind: str, params: dict) -> dict:
     N10 / N11（11-26 G1）：桌面端「接着打」每次用新任务号当 trace 名、不带偶像卡编号，
     hif.Core._prior_trace_dirs 按基名找不到上一段——拿过的卡、考完的场数、局面打底都丢了；偶像退回空，
     提示词的「偶像」一节当成篠澤広写（藤田ことね的局 LLM 理由里出现「和篠澤広的打法契合」）。
-    返回要并进参数的 {"trace": "<基名>-rN", "idol": ...}；接不上返回 {}。调用方已给的 idol 不覆盖。"""
+    返回要并进参数的 {"trace": "<基名>-rN", "idol": ..., "difficulty": ...}；接不上返回 {}。调用方已给的 idol / difficulty 不覆盖。"""
     prev = None
     for d in sorted(jobs.glob("*"), reverse=True):
         try:
@@ -668,8 +677,9 @@ def resume_chain(jobs: Path, traces: Path, kind: str, params: dict) -> dict:
         int(m.group(1)) for t in traces.glob(base + "-r*") if (m := re.fullmatch(re.escape(base) + r"-r(\d+)", t.name))
     ]
     out = {"trace": f"{base}-r{max(used, default=0) + 1}"}
-    if not params.get("idol") and pp.get("idol"):
-        out["idol"] = pp["idol"]
+    for key in ("idol", "difficulty"):  # 调用方已给的不覆盖；难度不接上，初 LEGEND 续打会按 REGULAR 算（11-28）
+        if not params.get(key) and pp.get(key):
+            out[key] = pp[key]
     return out
 
 

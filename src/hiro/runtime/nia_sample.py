@@ -38,8 +38,13 @@ DIFFICULTY_BAND = (700, 1000)  # 剧本页难度按钮的 y 范围（N.I.A 剧�
 # 初的剧本页有两种：普通「初」（レギュラー / プロ / マスター）和「初 LEGEND」（只有レジェンド），左下的「初 ⇄」圆按钮切换。
 # 11-22 DMM：上次停在 LEGEND，找不到「レギュラー」40 秒超时。要的难度按钮不在、画面是另一种时点这个按钮
 HAJIME_SWITCH = (75, 755)
-LEGEND_WORDS = ("レジェンド", "LEGEND")
+# 实机 OCR 把「レジェンド」读成「レジエンド」（下面一行「LEGEND」照常）
+LEGEND_WORDS = ("レジェンド", "レジエンド", "LEGEND")
+# 普通「初」页的难度按钮字样（子串比较：OCR 读成「レギユラー」这类时其他几个照样认得出）。「プロ」只比整词：「プロデュース」也含它
+REGULAR_PAGE_WORDS = ("ギュラー", "ギユラー", "REGULAR", "マスター", "MASTER")
 SWITCH_GAP_S = 3.0
+# 「初 ⇄」点了这么多次还没看到要的那种初：多半点偏了（坐标按 720×1280 竖屏写的）或这一种还没解放，停下交人
+SWITCH_MAX = 4
 AP_COST = 20
 UNKNOWN_STOP_S = 15.0
 FRAME_DIFF = 4.0
@@ -64,10 +69,11 @@ def _other_hajime_page(texts, words) -> bool:
     band = [t.text.replace(" ", "") for t in texts if lo <= t.rect.center.y <= hi]
     if not any("初" in t.text for t in texts):
         return False
-    want_legend = any(w in LEGEND_WORDS for w in words)
-    if want_legend:
-        return any(t in ("レギュラー", "REGULAR", "プロ", "PRO", "マスター", "MASTER") for t in band)
-    return any(w in t for t in band for w in LEGEND_WORDS) and not any(t in ("レギュラー", "REGULAR") for t in band)
+    legend = any(w in t for t in band for w in LEGEND_WORDS)
+    regular = any(w in t for t in band for w in REGULAR_PAGE_WORDS) or any(t in ("プロ", "PRO") for t in band)
+    if any(w in LEGEND_WORDS for w in words):  # 要 LEGEND
+        return regular and not legend
+    return legend and not any(w in t for t in band for w in ("ギュラー", "ギユラー", "REGULAR"))
 
 
 def choose_difficulty(
@@ -78,7 +84,7 @@ def choose_difficulty(
     from hiro.loop import ap_refill
 
     words = words or DIFFICULTY_WORDS[difficulty]
-    state = {"refilled": False, "taps": 0, "hint": None, "switched": None}
+    state = {"refilled": False, "taps": 0, "hint": None, "switched": None, "switches": 0}
 
     def step(f):
         if nav.find(f, "Produce.TextStepIndicator1") is not None:
@@ -114,9 +120,16 @@ def choose_difficulty(
         elif _other_hajime_page(f.texts, words) and (
             state["switched"] is None or rt.clock() - state["switched"] >= SWITCH_GAP_S
         ):
+            if state["switches"] >= SWITCH_MAX:
+                hint = state["hint"] or _unlock_hint(f)
+                raise ResumeBlocked(
+                    f"剧本页点了 {state['switches']} 次左下「初 ⇄」还没看到「{words[0]}」：多半点偏了，或者这一种还没解放"
+                    + (f"：{hint}" if hint else "")
+                )
             logger.info("剧本页难度：画面是另一种「初」（找「%s」），点左下「初 ⇄」切换", words[0])
             rt.device.tap(*HAJIME_SWITCH)
             state["switched"] = rt.clock()
+            state["switches"] += 1
             rt.sleep(1.5)
         return None
 
@@ -402,12 +415,17 @@ def run(args) -> int:
     if args.command == "new" and (support_set is None or memory_set is None):
         logger.error("new 开局要编成号：--support-set / --memory-set，或开局编成方案")
         return 2
-    mode = MODES[args.difficulty]
-    from hiro.runtime.segments import trace_name
+    from hiro.runtime.segments import resume_difficulty, trace_name
 
     session = Session(
         TraceWriter(name=trace_name("nia", args.command, args.trace))
     )  # 续跑接上一段（体力 / P / 属性 / step 打底）
+    # 续跑不给难度：接上一段 trace 的（原来缺省 PRO，MASTER 续跑按 PRO 算）
+    if args.difficulty is None:
+        args.difficulty = (
+            resume_difficulty(Path(session.trace.dir), MODES, "pro") if args.command == "resume" else "pro"
+        )
+    mode = MODES[args.difficulty]
     Core = nia_core(mode)
     for k, v in {
         "session": session,
@@ -478,7 +496,9 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="N.I.A 采样（新主循环）")
     ap.add_argument("command", choices=["new", "resume"])
     ap.add_argument("--idol", required=True, help="偶像卡 skin id（同 run_hif）")
-    ap.add_argument("--difficulty", choices=sorted(MODES), default="pro")
+    ap.add_argument(
+        "--difficulty", choices=sorted(MODES), default=None, help="new 缺省 pro；resume 缺省接上一段 trace 的难度"
+    )
     ap.add_argument("--main-attr", default=None)
     ap.add_argument("--support-set", type=int, default=None)
     ap.add_argument("--memory-set", type=int, default=None)

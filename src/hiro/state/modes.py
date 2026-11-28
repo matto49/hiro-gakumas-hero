@@ -77,6 +77,8 @@ def lesson_levels(produce_id: str | None, idol_card_id: str | None, kind: str, c
     本模式对不上时按 LESSON_LEVEL_FALLBACK 再查（初 REGULAR 的追い込み 画面 CLEAR 90 / 165 是 produce-002 的 hard 档）；都对不上返回空列表。"""
     if not produce_id or not idol_card_id or kind not in LESSON_KINDS or clear is None:
         return []
+    if produce_id in LEGEND_LESSON_PRODUCES:
+        return _legend_lesson_levels(produce_id, idol_card_id, kind, clear)
     try:
         c = master()
         plan = str(c.one("IdolCard", idol_card_id).get("planType") or "").replace("ProducePlanType_Plan", "")
@@ -93,6 +95,45 @@ def lesson_levels(produce_id: str | None, idol_card_id: str | None, kind: str, c
         return []
     except Exception:  # noqa: BLE001  没有主数据 / 偶像卡查不到
         return []
+
+
+# 初 LEGEND（produce-006）的课程档位 id 不带 plan、带流派：p_step_lesson_level-produce_006-<流派>-<normal|sp>-0N
+# （流派 = 偶像卡 examEffectType 去掉 ProduceExamEffectType_Exam 转 snake_case，如 card_play_aggressive；主数据 928da0d 共 6 种 × 2 × 5 档，
+# 全部 limitTurn 8，各流派数值相同）。没有 hard（LEGEND 没有追い込み）。
+LEGEND_LESSON_PRODUCES = {"produce-006"}
+
+
+def exam_style(idol_card_id: str) -> str | None:
+    """偶像卡的考试流派（snake_case）：ProduceExamEffectType_ExamCardPlayAggressive → card_play_aggressive；查不到 None。"""
+    import re
+
+    try:
+        raw = str(master().one("IdolCard", idol_card_id).get("examEffectType") or "")
+    except Exception:  # noqa: BLE001  没有主数据 / 偶像卡查不到
+        return None
+    name = raw.replace("ProduceExamEffectType_Exam", "")
+    return re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower() or None
+
+
+def _legend_lesson_levels(produce_id: str, idol_card_id: str, kind: str, clear: int) -> list[dict]:
+    """初 LEGEND 的候选档位：先找这个偶像流派的；流派对不上（新流派、偶像卡查不到）用任意流派（数值一样，lesson_limits 照样唯一）。"""
+    if kind == "hard":
+        return []
+    try:
+        rows = list(master().rows("ProduceStepLessonLevel"))
+    except Exception:  # noqa: BLE001  没有主数据
+        return []
+    head = f"p_step_lesson_level-{produce_id.replace('-', '_')}-"
+    hit = [
+        r
+        for r in rows
+        if str(r.get("id", "")).startswith(head)
+        and str(r.get("id", "")).rsplit("-", 2)[-2] == kind
+        and int(r.get("successThreshold") or -1) == int(clear)
+    ]
+    style = exam_style(idol_card_id)
+    own = [r for r in hit if style and str(r.get("id", "")).startswith(f"{head}{style}-{kind}-")]
+    return own or hit
 
 
 # 本模式的档位对不上画面时再查的模式：初 REGULAR 的追い込み用的是初 PRO（produce-002）的 hard 档
