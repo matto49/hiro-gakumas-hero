@@ -740,11 +740,10 @@ def scan(
                 # 像是到底后的回弹：再滑一次，滑不动才算到底（独立证据，#210 CodeRabbit：中间页只认出一两行时
                 # 别凭这个就标 complete）；滑得动就用新画面照常对齐 / 回滑
                 moved, img2 = scroll_moved(picker, img, dy)
+                img, cur = img2, page_rows(img2)  # 一律按二次滑动后的画面重新认行（#210 CodeRabbit）
                 if not moved and not cur:
-                    _at_end(picker, inv, img2, pages)
+                    _at_end(picker, inv, img, pages)
                     break
-                if moved:
-                    img, cur = img2, page_rows(img2)
             k = align(prev, cur)
             if k is None:  # 留证据：读完重截的上一页、滑过去的这一页（11-15 那次对不上的原因没留帧，查不了）
                 picker.snap(prev_img, f"page{pages - 1:03d}-after-read")
